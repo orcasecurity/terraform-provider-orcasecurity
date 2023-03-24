@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run",
+      "type": "shell",
+      "command": "go",
+      "args": ["run", "main.go"]
+    },
+    {
+      "label": "Mod Tidy",
+      "type": "shell",
+      "command": "go",
+      "args": ["mod", "tidy"],
+      "presentation": {
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Go Install",
+      "type": "shell",
+      "command": "go",
+      "args": ["install"],
+      "presentation": {
+        "showReuseMessage": false
+      }
+    }
+  ]
+}
