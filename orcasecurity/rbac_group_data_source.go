@@ -69,15 +69,28 @@ func (ds *rbacGroupDataSource) Read(ctx context.Context, req datasource.ReadRequ
 
 func (ds *rbacGroupDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Fetch RBAC group list.",
 		Attributes: map[string]schema.Attribute{
 			"rbac_groups": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":          schema.StringAttribute{Computed: true},
-						"name":        schema.StringAttribute{Computed: true},
-						"description": schema.StringAttribute{Computed: true},
-						"sso_group":   schema.BoolAttribute{Computed: true},
+						"id": schema.StringAttribute{
+							Description: "Object ID",
+							Computed:    true,
+						},
+						"name": schema.StringAttribute{
+							Description: "Group name",
+							Computed:    true,
+						},
+						"description": schema.StringAttribute{
+							Description: "Group description",
+							Computed:    true,
+						},
+						"sso_group": schema.BoolAttribute{
+							Description: "Whether the group should be used only with SSO.",
+							Computed:    true,
+						},
 					},
 				},
 			},

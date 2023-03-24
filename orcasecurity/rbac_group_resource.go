@@ -46,10 +46,20 @@ func (r *rbacGroupResource) Schema(_ context.Context, req resource.SchemaRequest
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Description: "Group ID",
 			},
-			"name":        schema.StringAttribute{Required: true},
-			"description": schema.StringAttribute{Optional: true},
-			"sso_group":   schema.BoolAttribute{Optional: true},
+			"name": schema.StringAttribute{
+				Description: "Group name",
+				Required:    true,
+			},
+			"description": schema.StringAttribute{
+				Description: "Group description",
+				Optional:    true,
+			},
+			"sso_group": schema.BoolAttribute{
+				Description: "Only use with SSO users",
+				Optional:    true,
+			},
 		},
 	}
 }

@@ -39,9 +39,17 @@ func (p *orcasecurityProvider) Metadata(_ context.Context, _ provider.MetadataRe
 // Schema defines the provider-level schema for configuration data.
 func (p *orcasecurityProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Interact with Orca Security API",
 		Attributes: map[string]schema.Attribute{
-			"api_endpoint": schema.StringAttribute{Optional: true},
-			"api_token":    schema.StringAttribute{Optional: true, Sensitive: true},
+			"api_endpoint": schema.StringAttribute{
+				Optional:    true,
+				Description: "API endpoint",
+			},
+			"api_token": schema.StringAttribute{
+				Description: "API token",
+				Optional:    true,
+				Sensitive:   true,
+			},
 		},
 	}
 }
