@@ -8,4 +8,8 @@ terraform {
 
 provider "orcasecurity" {}
 
-data "orcasecurity_coffees" "example" {}
+data "orcasecurity_rbac_group" "example" {}
+
+output "orca_rbac_groups" {
+  value = data.orcasecurity_rbac_group.example
+}
