@@ -120,3 +120,20 @@ func (client *APIClient) UpdateRBACGroup(groupID string, data RBACGroup) (*RBACG
 
 	return &response.Data, nil
 }
+
+func (client *APIClient) DeleteRBACGroup(groupID string) error {
+	req, err := http.NewRequest(
+		"DELETE",
+		fmt.Sprintf("%s/api/rbac/group/%s", client.APIEndpoint, groupID),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = client.doRequest(*req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
