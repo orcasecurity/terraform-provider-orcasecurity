@@ -88,8 +88,22 @@ func (r *rbacGroupResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 // Delete implements resource.Resource
-func (r *rbacGroupResource) Delete(context.Context, resource.DeleteRequest, *resource.DeleteResponse) {
-	panic("unimplemented")
+func (r *rbacGroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state rbacGroupResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := r.apiClient.DeleteRBACGroup(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error deleting RBAC group",
+			"Could not delete RBAC group, unexpected error: "+err.Error(),
+		)
+		return
+	}
 }
 
 // Read implements resource.Resource
