@@ -6,7 +6,9 @@ terraform {
   }
 }
 
-provider "orcasecurity" {}
+provider "orcasecurity" {
+
+}
 
 data "orcasecurity_rbac_group" "example" {}
 
