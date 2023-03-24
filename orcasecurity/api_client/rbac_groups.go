@@ -14,6 +14,10 @@ type RBACGroup struct {
 	SSOGroup    bool   `json:"sso_group"`
 }
 
+type _responseType struct {
+	Data RBACGroup `json:"data"`
+}
+
 func (client *APIClient) GetRBACGroups() ([]RBACGroup, error) {
 	type responseType struct {
 		Status string `json:"status"`
@@ -41,10 +45,6 @@ func (client *APIClient) GetRBACGroups() ([]RBACGroup, error) {
 }
 
 func (client *APIClient) GetRBACGroup(groupID string) (*RBACGroup, error) {
-	type responseType struct {
-		Data RBACGroup `json:"data"`
-	}
-
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/rbac/group/%s", client.APIEndpoint, groupID), nil)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (client *APIClient) GetRBACGroup(groupID string) (*RBACGroup, error) {
 		return nil, err
 	}
 
-	response := responseType{}
+	response := _responseType{}
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return nil, err
@@ -64,10 +64,6 @@ func (client *APIClient) GetRBACGroup(groupID string) (*RBACGroup, error) {
 }
 
 func (client *APIClient) CreateRBACGroup(group RBACGroup) (*RBACGroup, error) {
-	type responseType struct {
-		Data RBACGroup `json:"data"`
-	}
-
 	payload, err := json.Marshal(group)
 	if err != nil {
 		return nil, err
@@ -87,7 +83,36 @@ func (client *APIClient) CreateRBACGroup(group RBACGroup) (*RBACGroup, error) {
 		return nil, err
 	}
 
-	response := responseType{}
+	response := _responseType{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &response.Data, nil
+}
+
+func (client *APIClient) UpdateRBACGroup(groupID string, data RBACGroup) (*RBACGroup, error) {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(
+		"PUT",
+		fmt.Sprintf("%s/api/rbac/group/%s", client.APIEndpoint, groupID),
+		strings.NewReader(string(payload)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := client.doRequest(*req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := _responseType{}
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return nil, err
