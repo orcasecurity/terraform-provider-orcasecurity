@@ -19,11 +19,10 @@ type rbacGroupDataSourceModel struct {
 }
 
 type rbacGroupModel struct {
-	ID          types.Int64  `tfsdk:"id"`
+	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	SSOGroup    types.Bool   `tfsdk:"sso_group"`
-	AllUsers    types.Bool   `tfsdk:"all_users"`
 }
 
 type rbacGroupDataSource struct {
@@ -53,11 +52,10 @@ func (ds *rbacGroupDataSource) Read(ctx context.Context, req datasource.ReadRequ
 
 	for _, group := range rbacGroups {
 		groupState := rbacGroupModel{
-			ID:          types.Int64Value(group.ID),
+			ID:          types.StringValue(group.ID),
 			Name:        types.StringValue(group.Name),
 			Description: types.StringValue(group.Description),
 			SSOGroup:    types.BoolValue(group.SSOGroup),
-			AllUsers:    types.BoolValue(group.AllUsers),
 		}
 		state.RBACGroups = append(state.RBACGroups, groupState)
 	}
@@ -76,12 +74,10 @@ func (ds *rbacGroupDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":          schema.Int64Attribute{Computed: true},
+						"id":          schema.StringAttribute{Computed: true},
 						"name":        schema.StringAttribute{Computed: true},
 						"description": schema.StringAttribute{Computed: true},
 						"sso_group":   schema.BoolAttribute{Computed: true},
-						"all_users":   schema.BoolAttribute{Computed: true},
-						"type":        schema.StringAttribute{Computed: true},
 					},
 				},
 			},

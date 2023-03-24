@@ -134,5 +134,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 
 // Resources defines the resources implemented in the provider.
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		NewRBACGroupResource,
+	}
 }
