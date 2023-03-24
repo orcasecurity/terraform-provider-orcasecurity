@@ -1,0 +1,11 @@
+version: "3"
+tasks:
+  build-verify:
+    cmds:
+      - go install
+      - { task: "run-plan" }
+
+  run-plan:
+    dir: examples/provider-install-verification
+    cmds:
+      - terraform plan
