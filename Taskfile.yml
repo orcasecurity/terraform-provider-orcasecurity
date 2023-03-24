@@ -12,7 +12,7 @@ tasks:
   apply:
     dir: examples/
     cmds:
-      - terraform apply
+      - terraform apply -auto-approve
 
   build-plan:
     cmds:
