@@ -4,6 +4,7 @@ import (
 	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -12,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &rbacGroupResource{}
-	_ resource.ResourceWithConfigure = &rbacGroupResource{}
+	_ resource.Resource                = &rbacGroupResource{}
+	_ resource.ResourceWithConfigure   = &rbacGroupResource{}
+	_ resource.ResourceWithImportState = &rbacGroupResource{}
 )
 
 type rbacGroupResource struct {
@@ -182,6 +184,10 @@ func (r *rbacGroupResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
+}
+
+func (r *rbacGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func NewRBACGroupResource() resource.Resource {
