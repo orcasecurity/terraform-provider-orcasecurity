@@ -1,6 +1,8 @@
 package api_client
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,19 +25,33 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 }
 
 func (c *APIClient) doRequest(req http.Request) ([]byte, error) {
+	type errorType struct {
+		Message string `json:"message"`
+	}
+
 	req.Header.Set("authorization", fmt.Sprintf("Token %s", c.APIToken))
+	req.Header.Set("content-type", "application/json")
 	res, err := c.HTTPClient.Do(&req)
 	if err != nil {
 		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d", res.StatusCode)
 	}
 	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		if res.StatusCode == 400 {
+			errorMessage := errorType{}
+			err = json.Unmarshal(body, &errorMessage)
+			if err != nil {
+				return nil, fmt.Errorf("status: %d, %s", res.StatusCode, body)
+			}
+			return nil, errors.New(errorMessage.Message)
+		}
+		return nil, fmt.Errorf("status: %d", res.StatusCode)
 	}
 
 	return body, err
