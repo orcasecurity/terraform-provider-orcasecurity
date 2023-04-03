@@ -107,8 +107,8 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 	if api_token == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_token"),
-			"Missing Orca Security API endpoint",
-			"The provider cannot create Orca Security API client as there is a missing or empty value for the Orca Security API endpoint. "+
+			"Missing Orca Security API token",
+			"The provider cannot create Orca Security API client as there is a missing or empty value for the Orca Security API token. "+
 				"Set the api_token value in the configuration or use ORCASECURITY_API_TOKEN environment variable. "+
 				"If either is already set, ensure the value is not empty.",
 		)
