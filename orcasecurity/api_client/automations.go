@@ -7,10 +7,20 @@ import (
 	"strings"
 )
 
+type AutomationFilter struct {
+	Field    string   `json:"field"`
+	Includes []string `json:"includes"`
+}
+
+type AutomationQuery struct {
+	Filter []AutomationFilter `json:"filter"`
+}
+
 type Automation struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Query       AutomationQuery `json:"dsl_filter"`
 }
 
 type automationAPIResponseType struct {
