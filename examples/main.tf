@@ -10,19 +10,7 @@ provider "orcasecurity" {
 
 }
 
-data "orcasecurity_rbac_group" "example" {}
-
-resource "orcasecurity_rbac_group" "admin_group" {
-  name        = "Admin"
-  description = "This group is for admins."
-  sso_group   = true
-}
-
-
-output "orca_rbac_groups" {
-  value = data.orcasecurity_rbac_group.example
-}
-
-output "admin_group_id" {
-  value = orcasecurity_rbac_group.admin_group.id
+resource "orcasecurity_automation" "jira_ticket" {
+  name        = "Create JIRA ticket"
+  description = "Automatically create JIRA issues for new alerts."
 }
