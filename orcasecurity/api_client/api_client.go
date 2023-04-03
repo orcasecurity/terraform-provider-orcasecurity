@@ -26,7 +26,8 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 
 func (c *APIClient) doRequest(req http.Request) ([]byte, error) {
 	type errorType struct {
-		Message string `json:"message"`
+		Message string `json:"message,omitempty"`
+		Error   string `json:"error,omitempty"`
 	}
 
 	req.Header.Set("authorization", fmt.Sprintf("Token %s", c.APIToken))
@@ -49,7 +50,11 @@ func (c *APIClient) doRequest(req http.Request) ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("status: %d, %s", res.StatusCode, body)
 			}
-			return nil, errors.New(errorMessage.Message)
+			message := errorMessage.Error
+			if errorMessage.Message != "" {
+				message = errorMessage.Message
+			}
+			return nil, errors.New(message)
 		}
 		return nil, fmt.Errorf("status: %d", res.StatusCode)
 	}

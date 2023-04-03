@@ -23,10 +23,20 @@ type automationResource struct {
 	apiClient *api_client.APIClient
 }
 
+type automationQueryRuleModel struct {
+	Field    types.String `tfsdk:"field"`
+	Includes types.List   `tfsdk:"includes"`
+}
+
+type automationQueryModel struct {
+	Filter []automationQueryRuleModel `tfsdk:"filter"`
+}
+
 type automationModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
+	ID          types.String         `tfsdk:"id"`
+	Name        types.String         `tfsdk:"name"`
+	Description types.String         `tfsdk:"description"`
+	Query       automationQueryModel `tfsdk:"query"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -66,6 +76,26 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				Description: "Automation description",
 				Optional:    true,
 			},
+			"query": schema.SingleNestedAttribute{
+				Description: "Trigger query",
+				Required:    true,
+				Attributes: map[string]schema.Attribute{
+					"filter": schema.ListNestedAttribute{
+						Required: true,
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"field": schema.StringAttribute{
+									Required: true,
+								},
+								"includes": schema.ListAttribute{
+									Required:    true,
+									ElementType: types.StringType,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -78,15 +108,31 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	instance, err := r.apiClient.CreateAutomation(api_client.Automation{
+	var filterRules []api_client.AutomationFilter
+	for _, item := range plan.Query.Filter {
+		var includes []string
+		diags = item.Includes.ElementsAs(ctx, &includes, false)
+		resp.Diagnostics.Append(diags...)
+		filterRules = append(filterRules, api_client.AutomationFilter{
+			Field:    item.Field.ValueString(),
+			Includes: includes,
+		})
+	}
+
+	rule := api_client.Automation{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
-	})
+		Query: api_client.AutomationQuery{
+			Filter: filterRules,
+		},
+	}
+	instance, err := r.apiClient.CreateAutomation(rule)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Automation",
 			"Could not create Automation, unexpected error: "+err.Error(),
 		)
+		return
 	}
 
 	plan.ID = types.StringValue(instance.ID)
@@ -163,6 +209,7 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 	plan.Name = types.StringValue(instance.Name)
 	plan.Description = types.StringValue(instance.Description)
+	// plan.Query = types.StringValue(instance.Query)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
