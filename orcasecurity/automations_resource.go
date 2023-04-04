@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -35,16 +34,9 @@ type automationQueryModel struct {
 	Filter []automationQueryRuleModel `tfsdk:"filter"`
 }
 
-type automationActionModel struct {
-	ID             types.String `tfsdk:"id"`
-	Type           types.Int64  `tfsdk:"type"`
-	OrganizationID types.String `tfsdk:"organization_id"`
-	Data           types.Map    `tfsdk:"data"`
-}
-
 type automationJiraIssueModel struct {
 	TemplateName  types.String `tfsdk:"template_name"`
-	ParentIssueID types.String `tfsdk:"parent_issue_id"`
+	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
 type automationResourceModel struct {
@@ -131,7 +123,7 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 						Required:    true,
 						Description: "A Jira issue template to use.",
 					},
-					"parent_issue_id": schema.StringAttribute{
+					"parent_issue": schema.StringAttribute{
 						Optional:    true,
 						Description: "Automatically nest under parent issue.",
 					},
@@ -263,7 +255,6 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 			Includes: includesList,
 			Excludes: excludesList,
 		})
-
 	}
 	if resp.Diagnostics.HasError() {
 		return
@@ -308,13 +299,11 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	actions := generateActions(plan)
 
-	tflog.Warn(ctx, fmt.Sprintf("plan id: %s, org id: %s", plan.ID.ValueString(), plan.OrganizationID.ValueString()))
-
 	updateReq := api_client.Automation{
 		Actions:        actions,
+		Query:          filterQuery,
 		Name:           plan.Name.ValueString(),
 		Description:    plan.Description.ValueString(),
-		Query:          filterQuery,
 		OrganizationID: plan.OrganizationID.ValueString(),
 	}
 
