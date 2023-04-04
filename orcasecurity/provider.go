@@ -2,6 +2,7 @@ package orcasecurity
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -133,6 +135,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 	resp.ResourceData = client
 	resp.DataSourceData = client
 
+	tflog.Info(ctx, fmt.Sprintf("Using %s as Orca Security API base URL", api_endpoint))
 }
 
 // DataSources defines the data sources implemented in the provider.
