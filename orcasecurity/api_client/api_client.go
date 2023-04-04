@@ -34,11 +34,15 @@ func (resp *APIResponse) StatusCode() int {
 }
 
 func (resp *APIResponse) IsOk() bool {
-	return resp.StatusCode() != http.StatusOK
+	return resp.StatusCode() == http.StatusOK
 }
 
 func (resp *APIResponse) Body() []byte {
 	return resp._body
+}
+
+func (resp *APIResponse) Read() ([]byte, error) {
+	return resp.Body(), resp.Error()
 }
 
 func (resp *APIResponse) Error() error {
@@ -79,4 +83,13 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 		_body:    body,
 		response: res,
 	}, nil
+}
+
+func (c *APIClient) Get(path string) (*APIResponse, error) {
+	fullUrl := fmt.Sprintf("%s%s", c.APIEndpoint, path)
+	req, err := http.NewRequest("GET", fullUrl, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(*req)
 }

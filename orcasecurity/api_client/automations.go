@@ -49,12 +49,7 @@ type automationAPIResponseType struct {
 }
 
 func (client *APIClient) GetAutomation(automationID string) (*Automation, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/rules/%s", client.APIEndpoint, automationID), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.doRequest(*req)
+	resp, err := client.Get(fmt.Sprintf("/api/rules/%s", automationID))
 	if err != nil {
 		return nil, err
 	}
