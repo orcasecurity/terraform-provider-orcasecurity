@@ -135,14 +135,12 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 
 // DataSources defines the data sources implemented in the provider.
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
-		NewRBACGroupDataSource,
-	}
+	return []func() datasource.DataSource{}
 }
 
 // Resources defines the resources implemented in the provider.
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewRBACGroupResource, NewAutomationResource,
+		NewAutomationResource,
 	}
 }

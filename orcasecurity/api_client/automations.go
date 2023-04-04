@@ -54,7 +54,7 @@ func (client *APIClient) GetAutomation(automationID string) (*Automation, error)
 		return nil, err
 	}
 
-	body, err := client.doRequest(*req)
+	_, body, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (client *APIClient) CreateAutomation(automation Automation) (*Automation, e
 		return nil, err
 	}
 
-	body, err := client.doRequest(*req)
+	_, body, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (client *APIClient) UpdateAutomation(ID string, data Automation) (*Automati
 		return nil, err
 	}
 
-	body, err := client.doRequest(*req)
+	_, body, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (client *APIClient) DeleteAutomation(ID string) error {
 		return err
 	}
 
-	_, err = client.doRequest(*req)
+	_, _, err = client.doRequest(*req)
 	if err != nil {
 		return err
 	}
