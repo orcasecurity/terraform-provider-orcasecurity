@@ -7,20 +7,32 @@ import (
 	"strings"
 )
 
+const AutomationJiraActionID = 10
+
 type AutomationFilter struct {
 	Field    string   `json:"field"`
-	Includes []string `json:"includes"`
+	Includes []string `json:"includes,omitempty"`
+	Excludes []string `json:"excludes,omitempty"`
 }
 
 type AutomationQuery struct {
 	Filter []AutomationFilter `json:"filter"`
 }
 
+type AutomationAction struct {
+	ID             string      `json:"id,omitempty"`
+	Type           int32       `json:"type"`
+	OrganizationID string      `json:"organization,omitempty"`
+	Data           interface{} `json:"data"`
+}
+
 type Automation struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Query       AutomationQuery `json:"dsl_filter"`
+	ID             string             `json:"id,omitempty"`
+	Name           string             `json:"name"`
+	Description    string             `json:"description"`
+	Query          AutomationQuery    `json:"dsl_filter"`
+	Actions        []AutomationAction `json:"actions"`
+	OrganizationID string             `json:"organization,omitempty"`
 }
 
 type automationAPIResponseType struct {
