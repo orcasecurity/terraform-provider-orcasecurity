@@ -21,7 +21,7 @@ func (client *APIClient) GetJiraTemplate(ID string) (*JiraTemplate, error) {
 		return nil, err
 	}
 
-	body, err := client.doRequest(*req)
+	_, body, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}

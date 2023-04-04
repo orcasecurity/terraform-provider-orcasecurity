@@ -136,6 +136,7 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 func generateFilterRules(ctx context.Context, plan automationQueryModel) (api_client.AutomationQuery, diag.Diagnostics) {
 	var filterRules []api_client.AutomationFilter
 	var finalDiags diag.Diagnostics
+
 	for _, item := range plan.Filter {
 		var includes []string
 		if !item.Includes.IsNull() {
@@ -259,6 +260,7 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	state.Query = automationQueryModel{Filter: filterRules}
 
 	// update actions

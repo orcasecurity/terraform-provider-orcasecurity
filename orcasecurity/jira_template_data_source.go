@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	_ datasource.DataSource              = &rbacGroupDataSource{}
-	_ datasource.DataSourceWithConfigure = &rbacGroupDataSource{}
+	_ datasource.DataSource              = &jiraTemplateDataSource{}
+	_ datasource.DataSourceWithConfigure = &jiraTemplateDataSource{}
 )
 
 type jiraTemplateStateModel struct {

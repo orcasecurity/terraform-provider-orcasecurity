@@ -24,7 +24,7 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	return &apiclient, nil
 }
 
-func (c *APIClient) doRequest(req http.Request) ([]byte, error) {
+func (c *APIClient) doRequest(req http.Request) (int, []byte, error) {
 	type errorType struct {
 		Message string `json:"message,omitempty"`
 		Error   string `json:"error,omitempty"`
@@ -34,13 +34,13 @@ func (c *APIClient) doRequest(req http.Request) ([]byte, error) {
 	req.Header.Set("content-type", "application/json")
 	res, err := c.HTTPClient.Do(&req)
 	if err != nil {
-		return nil, err
+		return res.StatusCode, nil, err
 	}
 	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return nil, err
+		return res.StatusCode, nil, err
 	}
 
 	if res.StatusCode != http.StatusOK {
@@ -48,16 +48,16 @@ func (c *APIClient) doRequest(req http.Request) ([]byte, error) {
 			errorMessage := errorType{}
 			err = json.Unmarshal(body, &errorMessage)
 			if err != nil {
-				return nil, fmt.Errorf("status: %d, %s", res.StatusCode, body)
+				return res.StatusCode, nil, fmt.Errorf("status: %d, %s", res.StatusCode, body)
 			}
 			message := errorMessage.Error
 			if errorMessage.Message != "" {
 				message = errorMessage.Message
 			}
-			return nil, errors.New(message)
+			return res.StatusCode, nil, errors.New(message)
 		}
-		return nil, fmt.Errorf("status: %d", res.StatusCode)
+		return res.StatusCode, nil, fmt.Errorf("status: %d", res.StatusCode)
 	}
 
-	return body, err
+	return res.StatusCode, body, err
 }
