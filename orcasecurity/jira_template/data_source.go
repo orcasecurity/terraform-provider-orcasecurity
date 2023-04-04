@@ -43,16 +43,11 @@ func (ds *jiraTemplateDataSource) Schema(_ context.Context, _ datasource.SchemaR
 	resp.Schema = schema.Schema{
 		Description: "Fetch Jira template data.",
 		Attributes: map[string]schema.Attribute{
-			"jira_template": schema.SingleNestedAttribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
+			"template_name": schema.StringAttribute{
 				Required: true,
-				Attributes: map[string]schema.Attribute{
-					"id": schema.StringAttribute{
-						Computed: true,
-					},
-					"template_name": schema.StringAttribute{
-						Required: true,
-					},
-				},
 			},
 		},
 	}
@@ -60,8 +55,9 @@ func (ds *jiraTemplateDataSource) Schema(_ context.Context, _ datasource.SchemaR
 
 func (ds *jiraTemplateDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var state jiraTemplateStateModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 
-	item, err := ds.apiClient.GetJiraTemplate(state.TemplateName.ValueString())
+	item, err := ds.apiClient.GetJiraTemplateByName(state.TemplateName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read Jira templates", err.Error())
 		return

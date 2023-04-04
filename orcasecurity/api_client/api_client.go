@@ -45,6 +45,10 @@ func (resp *APIResponse) Read() ([]byte, error) {
 	return resp.Body(), resp.Error()
 }
 
+func (resp *APIResponse) ReadJSON(typ interface{}) error {
+	return json.Unmarshal(resp.Body(), typ)
+}
+
 func (resp *APIResponse) Error() error {
 	type errorType struct {
 		Message string `json:"message,omitempty"`
