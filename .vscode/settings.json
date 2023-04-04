@@ -4,6 +4,7 @@
         "orcasecurity",
         "planmodifier",
         "providerserver",
-        "stringplanmodifier"
+        "stringplanmodifier",
+        "stringvalidator"
     ]
 }
