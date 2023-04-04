@@ -12,7 +12,7 @@ provider "orcasecurity" {
 
 
 resource "orcasecurity_automation" "jira_ticket" {
-  name        = "Make with Terraform"
+  name        = "Made with Terraform"
   description = "Automatically create JIRA issues for new alerts."
   query = {
     filter : [
@@ -26,5 +26,4 @@ resource "orcasecurity_automation" "jira_ticket" {
     template_name = "Template A"
     parent_issue = "1000500"
   }
-
 }
