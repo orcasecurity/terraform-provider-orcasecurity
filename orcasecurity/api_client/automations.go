@@ -19,20 +19,29 @@ type AutomationQuery struct {
 	Filter []AutomationFilter `json:"filter"`
 }
 
+type AutomationJiraIssue struct {
+	Template string `json:"template"`
+	ParentID string `json:"parent_id,omitempty"`
+}
+
 type AutomationAction struct {
-	ID             string      `json:"id,omitempty"`
-	Type           int32       `json:"type"`
-	OrganizationID string      `json:"organization,omitempty"`
-	Data           interface{} `json:"data"`
+	ID             string                 `json:"id,omitempty"`
+	Type           int32                  `json:"type"`
+	OrganizationID string                 `json:"organization,omitempty"`
+	Data           map[string]interface{} `json:"data"`
+}
+
+func (a *AutomationAction) IsJiraIssue() bool {
+	return a.Type == AutomationJiraActionID
 }
 
 type Automation struct {
 	ID             string             `json:"id,omitempty"`
 	Name           string             `json:"name"`
 	Description    string             `json:"description"`
+	OrganizationID string             `json:"organization,omitempty"`
 	Query          AutomationQuery    `json:"dsl_filter"`
 	Actions        []AutomationAction `json:"actions"`
-	OrganizationID string             `json:"organization,omitempty"`
 }
 
 type automationAPIResponseType struct {

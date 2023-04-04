@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -55,7 +54,6 @@ type automationResourceModel struct {
 	Query          automationQueryModel     `tfsdk:"query"`
 	JiraIssue      automationJiraIssueModel `tfsdk:"jira_issue"`
 	OrganizationID types.String             `tfsdk:"organization_id"`
-	Actions        []automationActionModel  `tfsdk:"actions"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -125,35 +123,6 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"actions": schema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"id": schema.StringAttribute{
-							Computed: true,
-							PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseStateForUnknown(),
-							},
-						},
-						"type": schema.Int64Attribute{
-							Computed: true,
-							PlanModifiers: []planmodifier.Int64{
-								int64planmodifier.UseStateForUnknown(),
-							},
-						},
-						"organization_id": schema.StringAttribute{
-							Computed: true,
-							PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseStateForUnknown(),
-							},
-						},
-						"data": schema.MapAttribute{
-							Computed:    true,
-							ElementType: types.StringType,
-						},
-					},
-				},
-			},
 			"jira_issue": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Create a Jira ticket using template.",
@@ -200,16 +169,16 @@ func generateFilterRules(ctx context.Context, plan automationQueryModel) (api_cl
 func generateActions(plan automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
 	if !plan.JiraIssue.TemplateName.IsNull() {
+		payload := make(map[string]interface{})
+		payload["template"] = plan.JiraIssue.TemplateName.ValueString()
+		if !plan.JiraIssue.ParentIssueID.IsNull() {
+			payload["parent_id"] = plan.JiraIssue.ParentIssueID.ValueString()
+		}
+
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationJiraActionID,
 			OrganizationID: plan.OrganizationID.ValueString(),
-			Data: struct {
-				Template string `json:"template"`
-				ParentID string `json:"parent_id,omitempty"`
-			}{
-				Template: plan.JiraIssue.TemplateName.ValueString(),
-				ParentID: plan.JiraIssue.ParentIssueID.ValueString(),
-			},
+			Data:           payload,
 		})
 	}
 	return actions
@@ -246,18 +215,6 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
 
-	for actionIndex, action := range instance.Actions {
-		dataValue, diags := types.MapValueFrom(ctx, types.StringType, action.Data)
-		resp.Diagnostics.Append(diags...)
-
-		plan.Actions[actionIndex] = automationActionModel{
-			ID:             types.StringValue(action.ID),
-			Type:           types.Int64Value(int64(action.Type)),
-			OrganizationID: types.StringValue(action.OrganizationID),
-			Data:           dataValue,
-		}
-	}
-
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -282,10 +239,9 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 	state.ID = types.StringValue(instance.ID)
-	state.Name = types.StringValue(instance.Name)
-	state.Description = types.StringValue(instance.Description)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 
+	// update query filters
 	var filterRules []automationQueryRuleModel
 	for _, rule := range instance.Query.Filter {
 		var includes []types.String
@@ -309,9 +265,19 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		})
 
 	}
-	state.Query = automationQueryModel{Filter: filterRules}
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	state.Query = automationQueryModel{Filter: filterRules}
+
+	// update actions
+	for _, action := range instance.Actions {
+		if action.IsJiraIssue() {
+			state.JiraIssue.TemplateName = types.StringValue(action.Data["template"].(string))
+			if action.Data["parent_id"] != nil {
+				state.JiraIssue.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
+			}
+		}
 	}
 
 	diags = req.State.Set(ctx, &state)
