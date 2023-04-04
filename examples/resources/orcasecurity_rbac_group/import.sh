@@ -1,1 +1,1 @@
-terraform import hashicups_order.example 123
+terraform import orcasecurity_automation.example AUTOMATION_ID
