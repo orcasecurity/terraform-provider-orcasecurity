@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/automations"
+	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -135,12 +137,14 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 
 // DataSources defines the data sources implemented in the provider.
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		jira_template.NewJiraTemplateDataSource,
+	}
 }
 
 // Resources defines the resources implemented in the provider.
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewAutomationResource,
+		automations.NewAutomationResource,
 	}
 }

@@ -1,4 +1,4 @@
-package orcasecurity
+package automations
 
 import (
 	"context"

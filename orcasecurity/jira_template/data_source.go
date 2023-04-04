@@ -1,4 +1,4 @@
-package orcasecurity
+package jira_template
 
 import (
 	"context"
@@ -44,9 +44,14 @@ func (ds *jiraTemplateDataSource) Schema(_ context.Context, _ datasource.SchemaR
 		Description: "Fetch Jira template data.",
 		Attributes: map[string]schema.Attribute{
 			"jira_template": schema.SingleNestedAttribute{
+				Required: true,
 				Attributes: map[string]schema.Attribute{
-					"id":            schema.StringAttribute{},
-					"template_name": schema.StringAttribute{},
+					"id": schema.StringAttribute{
+						Computed: true,
+					},
+					"template_name": schema.StringAttribute{
+						Required: true,
+					},
 				},
 			},
 		},
