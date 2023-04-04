@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,9 +19,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &automationResource{}
-	_ resource.ResourceWithConfigure   = &automationResource{}
-	_ resource.ResourceWithImportState = &automationResource{}
+	_ resource.Resource                     = &automationResource{}
+	_ resource.ResourceWithConfigure        = &automationResource{}
+	_ resource.ResourceWithImportState      = &automationResource{}
+	_ resource.ResourceWithConfigValidators = &automationResource{}
 )
 
 type automationResource struct {
@@ -64,6 +66,14 @@ func (r *automationResource) Configure(_ context.Context, req resource.Configure
 		return
 	}
 	r.apiClient = req.ProviderData.(*api_client.APIClient)
+}
+
+func (r *automationResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.AtLeastOneOf(
+			path.MatchRoot("jira_issue"),
+		),
+	}
 }
 
 func (r *automationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
