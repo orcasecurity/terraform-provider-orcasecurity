@@ -21,13 +21,13 @@ func (client *APIClient) GetJiraTemplate(ID string) (*JiraTemplate, error) {
 		return nil, err
 	}
 
-	_, body, err := client.doRequest(*req)
+	resp, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
 
 	response := responseType{}
-	err = json.Unmarshal(body, &response)
+	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
 	}

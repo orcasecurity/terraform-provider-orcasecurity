@@ -54,13 +54,17 @@ func (client *APIClient) GetAutomation(automationID string) (*Automation, error)
 		return nil, err
 	}
 
-	_, body, err := client.doRequest(*req)
+	resp, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
 
+	if !resp.IsOk() {
+		return nil, nil
+	}
+
 	response := automationAPIResponseType{}
-	err = json.Unmarshal(body, &response)
+	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
 	}
@@ -81,13 +85,13 @@ func (client *APIClient) CreateAutomation(automation Automation) (*Automation, e
 		return nil, err
 	}
 
-	_, body, err := client.doRequest(*req)
+	resp, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
 
 	response := automationAPIResponseType{}
-	err = json.Unmarshal(body, &response)
+	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
 	}
@@ -109,13 +113,13 @@ func (client *APIClient) UpdateAutomation(ID string, data Automation) (*Automati
 		return nil, err
 	}
 
-	_, body, err := client.doRequest(*req)
+	resp, err := client.doRequest(*req)
 	if err != nil {
 		return nil, err
 	}
 
 	response := automationAPIResponseType{}
-	err = json.Unmarshal(body, &response)
+	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +136,7 @@ func (client *APIClient) DeleteAutomation(ID string) error {
 		return err
 	}
 
-	_, _, err = client.doRequest(*req)
+	_, err = client.doRequest(*req)
 	if err != nil {
 		return err
 	}
