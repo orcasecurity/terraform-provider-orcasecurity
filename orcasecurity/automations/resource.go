@@ -82,6 +82,7 @@ func (r *automationResource) ImportState(ctx context.Context, req resource.Impor
 
 func (r *automationResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
+		Description: "Manage automations",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
