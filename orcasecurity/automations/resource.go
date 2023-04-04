@@ -45,12 +45,12 @@ type automationJiraIssueModel struct {
 }
 
 type automationResourceModel struct {
-	ID             types.String             `tfsdk:"id"`
-	Name           types.String             `tfsdk:"name"`
-	Description    types.String             `tfsdk:"description"`
-	Query          automationQueryModel     `tfsdk:"query"`
-	JiraIssue      automationJiraIssueModel `tfsdk:"jira_issue"`
-	OrganizationID types.String             `tfsdk:"organization_id"`
+	ID             types.String              `tfsdk:"id"`
+	Name           types.String              `tfsdk:"name"`
+	Description    types.String              `tfsdk:"description"`
+	Query          *automationQueryModel     `tfsdk:"query"`
+	JiraIssue      *automationJiraIssueModel `tfsdk:"jira_issue"`
+	OrganizationID types.String              `tfsdk:"organization_id"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -149,7 +149,7 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 	}
 }
 
-func generateFilterRules(ctx context.Context, plan automationQueryModel) (api_client.AutomationQuery, diag.Diagnostics) {
+func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_client.AutomationQuery, diag.Diagnostics) {
 	var filterRules []api_client.AutomationFilter
 	var finalDiags diag.Diagnostics
 
@@ -175,7 +175,7 @@ func generateFilterRules(ctx context.Context, plan automationQueryModel) (api_cl
 	return api_client.AutomationQuery{Filter: filterRules}, finalDiags
 }
 
-func generateActions(plan automationResourceModel) []api_client.AutomationAction {
+func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
 	if !plan.JiraIssue.TemplateName.IsNull() {
 		payload := make(map[string]interface{})
@@ -204,7 +204,7 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 	filterQuery, filterDiags := generateFilterRules(ctx, plan.Query)
 	diags.Append(filterDiags...)
 
-	actions := generateActions(plan)
+	actions := generateActions(&plan)
 
 	createReq := api_client.Automation{
 		Actions:     actions,
@@ -286,12 +286,14 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	state.Query = automationQueryModel{Filter: filterRules}
+	state.Query = &automationQueryModel{Filter: filterRules}
 
 	// update actions
 	for _, action := range instance.Actions {
 		if action.IsJiraIssue() {
-			state.JiraIssue.TemplateName = types.StringValue(action.Data["template"].(string))
+			state.JiraIssue = &automationJiraIssueModel{
+				TemplateName: types.StringValue(action.Data["template"].(string)),
+			}
 			if action.Data["parent_id"] != nil {
 				state.JiraIssue.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
 			}
@@ -324,7 +326,7 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 	filterQuery, filterDiags := generateFilterRules(ctx, plan.Query)
 	diags.Append(filterDiags...)
 
-	actions := generateActions(plan)
+	actions := generateActions(&plan)
 
 	updateReq := api_client.Automation{
 		Actions:        actions,
