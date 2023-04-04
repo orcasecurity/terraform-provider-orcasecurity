@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -233,10 +234,14 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	if instance == nil {
+		tflog.Warn(ctx, fmt.Sprintf("Automation %s is missing on the remote side.", state.ID.ValueString()))
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	state.ID = types.StringValue(instance.ID)
+	state.Name = types.StringValue(instance.Name)
+	state.Description = types.StringValue(instance.Description)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 
 	// update query filters
