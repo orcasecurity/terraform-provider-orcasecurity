@@ -231,6 +231,11 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		)
 		return
 	}
+
+	if instance == nil {
+		resp.State.RemoveResource(ctx)
+	}
+
 	state.ID = types.StringValue(instance.ID)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 
