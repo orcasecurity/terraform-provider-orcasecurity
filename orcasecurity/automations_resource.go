@@ -288,7 +288,7 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		}
 	}
 
-	diags = req.State.Set(ctx, &state)
+	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
