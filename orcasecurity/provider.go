@@ -23,12 +23,16 @@ var (
 )
 
 // New is a helper function to simplify provider server and testing implementation.
-func New() provider.Provider {
-	return &orcasecurityProvider{}
+func New(version string) func() provider.Provider {
+	return func() provider.Provider {
+		return &orcasecurityProvider{version: version}
+	}
 }
 
 // orcasecurityProvider is the provider implementation.
-type orcasecurityProvider struct{}
+type orcasecurityProvider struct {
+	version string
+}
 
 type orcasecurityProviderModel struct {
 	APIEndpoint types.String `tfsdk:"api_endpoint"`
@@ -37,6 +41,7 @@ type orcasecurityProviderModel struct {
 
 // Metadata returns the provider type name.
 func (p *orcasecurityProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.Version = p.version
 	resp.TypeName = "orcasecurity"
 }
 
@@ -96,7 +101,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 		api_endpoint = config.APIEndpoint.ValueString()
 	}
 	if !config.APIToken.IsNull() {
-		api_token = config.APIEndpoint.ValueString()
+		api_token = config.APIToken.ValueString()
 	}
 
 	if api_endpoint == "" {
