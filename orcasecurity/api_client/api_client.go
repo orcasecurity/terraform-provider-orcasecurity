@@ -72,6 +72,7 @@ func (resp *APIResponse) Error() error {
 func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 	req.Header.Set("authorization", fmt.Sprintf("Token %s", c.APIToken))
 	req.Header.Set("content-type", "application/json")
+	req.Header.Set("user-agent", "orca-terraform-provider")
 	res, err := c.HTTPClient.Do(&req)
 	if err != nil {
 		return nil, err
