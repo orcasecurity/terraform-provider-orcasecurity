@@ -1,30 +1,16 @@
 # Terraform Provider for Orca Security
 
-
-## Build provider
-
-Run the following command to build the provider
-
-```shell
-$ go build -o terraform-provider-orcasecurity
-```
-
-## Test sample configuration
-
-First, build and install the provider.
-
-```shell
-$ make install
-```
-
-Then, navigate to the `examples` directory. 
-
-```shell
-$ cd examples
-```
-
-Run the following command to initialize the workspace and apply the sample configuration.
-
-```shell
-$ terraform init && terraform apply
-```
+TODO:
+- clone the repo
+- describe directory layout
+- add .terraformrc
+- running terraform locally
+- how to generate docs
+- how to add documentation examples
+- add .envrc or export vars
+- how to run unit tests
+- how to run acceptance tests
+- how to publish to registry
+- gpg setup for publishing
+- add links to official docs and tutorials
+- 
