@@ -22,6 +22,9 @@ var (
 	_ provider.Provider = &orcasecurityProvider{}
 )
 
+const apiEndpointEnvName = "ORCASECURITY_API_ENDPOINT"
+const apiTokenEnvName = "ORCASECURITY_API_TOKEN"
+
 // New is a helper function to simplify provider server and testing implementation.
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
@@ -52,10 +55,10 @@ func (p *orcasecurityProvider) Schema(_ context.Context, _ provider.SchemaReques
 		Attributes: map[string]schema.Attribute{
 			"api_endpoint": schema.StringAttribute{
 				Optional:    true,
-				Description: "API endpoint",
+				Description: fmt.Sprintf("API endpoint. Alternatively set %s environment variable", apiEndpointEnvName),
 			},
 			"api_token": schema.StringAttribute{
-				Description: "API token",
+				Description: fmt.Sprintf("API token. Alternatively, set %s environment variable", apiTokenEnvName),
 				Optional:    true,
 				Sensitive:   true,
 			},
@@ -76,8 +79,10 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_endpoint"),
 			"Unknown Orca Security API endpoint",
-			"The provider cannot create Orca Security API client as there is an unknown configuration value for the Orca Security API endpoint. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the ORCASECURITY_API_ENDPOINT environment variable.",
+			fmt.Sprintf("The provider cannot create Orca Security API client as there is an unknown configuration value for the Orca Security API endpoint. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the %s environment variable.",
+				apiEndpointEnvName,
+			),
 		)
 	}
 
@@ -85,8 +90,11 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_token"),
 			"Unknown Orca Security API token",
-			"The provider cannot create Orca Security API client as there is an unknown configuration value for the Orca Security API token. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the ORCASECURITY_API_TOKEN environment variable.",
+			fmt.Sprintf(
+				"The provider cannot create Orca Security API client as there is an unknown configuration value for the Orca Security API token. "+
+					"Either target apply the source of the value first, set the value statically in the configuration, or use the %s environment variable.",
+				apiTokenEnvName,
+			),
 		)
 	}
 
@@ -94,8 +102,8 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
-	api_endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
-	api_token := os.Getenv("ORCASECURITY_API_TOKEN")
+	api_endpoint := os.Getenv(apiEndpointEnvName)
+	api_token := os.Getenv(apiTokenEnvName)
 
 	if !config.APIEndpoint.IsNull() {
 		api_endpoint = config.APIEndpoint.ValueString()
@@ -108,18 +116,23 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_endpoint"),
 			"Missing Orca Security API endpoint",
-			"The provider cannot create Orca Security API client as there is a missing or empty value for the Orca Security API endpoint. "+
-				"Set the api_endpoint value in the configuration or use ORCASECURITY_API_ENDPOINT environment variable. "+
+			fmt.Sprintf("The provider cannot create Orca Security API client as there is a missing or empty value for the Orca Security API endpoint. "+
+				"Set the api_endpoint value in the configuration or use %s environment variable. "+
 				"If either is already set, ensure the value is not empty.",
+				apiEndpointEnvName,
+			),
 		)
 	}
 	if api_token == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_token"),
 			"Missing Orca Security API token",
-			"The provider cannot create Orca Security API client as there is a missing or empty value for the Orca Security API token. "+
-				"Set the api_token value in the configuration or use ORCASECURITY_API_TOKEN environment variable. "+
-				"If either is already set, ensure the value is not empty.",
+			fmt.Sprintf(
+				"The provider cannot create Orca Security API client as there is a missing or empty value for the Orca Security API token. "+
+					"Set the api_token value in the configuration or use %s environment variable. "+
+					"If either is already set, ensure the value is not empty.",
+				apiTokenEnvName,
+			),
 		)
 	}
 
