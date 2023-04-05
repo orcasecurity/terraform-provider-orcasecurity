@@ -35,6 +35,7 @@ jobs:
                   version: latest
 
     generate:
+        name: Generate artifacts
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v3
