@@ -1,36 +1,39 @@
 version: "3"
 tasks:
-  install:
-    cmds:
-      - go install
+    install:
+        cmds:
+            - go install
 
-  plan:
-    dir: examples/
-    cmds:
-      - terraform plan
+    plan:
+        dir: demo/
+        cmds:
+            - terraform plan
 
-  apply:
-    dir: examples/
-    cmds:
-      - terraform apply -auto-approve
+    apply:
+        dir: demo/
+        cmds:
+            - terraform apply -auto-approve
 
-  destroy:
-    dir: examples/
-    cmds:
-      - terraform destroy
+    destroy:
+        dir: demo/
+        cmds:
+            - terraform destroy
 
+    docs:
+        cmds:
+            - go generate ./...
 
-  build-plan:
-    cmds:
-      - { task: "install" }
-      - { task: "plan" }
+    build-plan:
+        cmds:
+            - { task: "install" }
+            - { task: "plan" }
 
-  build-apply:
-    cmds:
-      - { task: "install" }
-      - { task: "apply" }
+    build-apply:
+        cmds:
+            - { task: "install" }
+            - { task: "apply" }
 
-  build-destroy:
-    cmds:
-      - { task: "install" }
-      - { task: "destroy" }
+    build-destroy:
+        cmds:
+            - { task: "install" }
+            - { task: "destroy" }
