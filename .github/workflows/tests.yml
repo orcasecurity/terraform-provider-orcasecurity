@@ -79,7 +79,7 @@ jobs:
 
             - run: go mod download
 
-            - run: go test -v -cover ./internal/
+            - run: make test-ci
               timeout-minutes: 10
               # env:
               #   TF_ACC: "1"

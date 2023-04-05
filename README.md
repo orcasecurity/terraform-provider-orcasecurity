@@ -16,6 +16,8 @@ TODO:
 
 
 # publishing
+https://developer.hashicorp.com/terraform/registry/providers/publishing
+
 ## gpg key generation
 https://docs.github.com/en/authentication/managing-commit-signature-verification/generating-a-new-gpg-key
 
