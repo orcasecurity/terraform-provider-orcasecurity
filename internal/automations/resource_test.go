@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// Test resource with Jira issue settings
+// Note, API server must contain two Jira templates configured: "example" and "example updated"
 func TestAccAutomationJiraIssueResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -24,7 +26,7 @@ resource "orcasecurity_automation" "test" {
 	]
   }
   jira_issue = {
-	template_name = "example"
+	template_name = "tf: example"
 	parent_issue = "FOO-1"
   }
 }
@@ -33,8 +35,12 @@ resource "orcasecurity_automation" "test" {
 					// Verify first order item
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", "test description"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_issue.template_name", "example"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_issue.template_name", "tf: example"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_issue.parent_issue", "FOO-1"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.field", "state.status"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.includes.0", "open"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.field", "state.risk_level"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.excludes.0", "high"),
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "organization_id"),
@@ -56,11 +62,12 @@ resource "orcasecurity_automation" "test" {
 				query = {
 				  filter: [
 					  { field: "state.status", includes: ["closed"] },
-					  { field: "state.risk_level", excludes: ["low"] }
+					  { field: "state.risk_level", excludes: ["low"] },
+					  { field: "asset_regions", excludes: ["centralus"] }
 				  ]
 				}
 				jira_issue = {
-				  template_name = "example updated"
+				  template_name = "tf: example updated"
 				  parent_issue = "FOO-2"
 				}
 			}
@@ -69,8 +76,14 @@ resource "orcasecurity_automation" "test" {
 					// Verify first order item
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name updated"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", "test description updated"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_issue.template_name", "example updated"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_issue.template_name", "tf: example updated"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_issue.parent_issue", "FOO-2"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.field", "state.status"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.includes.0", "closed"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.field", "state.risk_level"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.excludes.0", "low"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.2.field", "asset_regions"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.2.excludes.0", "centralus"),
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "organization_id"),
