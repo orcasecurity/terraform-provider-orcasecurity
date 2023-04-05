@@ -66,8 +66,8 @@ jobs:
                     - "1.3.*"
                     - "1.4.*"
         steps:
-            - uses: actions/checkout@3
-            - uses: actions/setup-go@4
+            - uses: actions/checkout@v3
+            - uses: actions/setup-go@v4
               with:
                   go-version-file: "go.mod"
                   cache: true
