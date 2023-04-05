@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/automations"
-	"terraform-provider-orcasecurity/orcasecurity/jira_template"
+	"terraform-provider-orcasecurity/internal/api_client"
+	"terraform-provider-orcasecurity/internal/automations"
+	"terraform-provider-orcasecurity/internal/jira_template"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
