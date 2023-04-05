@@ -32,5 +32,5 @@ provider "orcasecurity" {
 
 ### Optional
 
-- `api_endpoint` (String) API endpoint
-- `api_token` (String, Sensitive) API token
+- `api_endpoint` (String) API endpoint. Alternatively set ORCASECURITY_API_ENDPOINT environment variable
+- `api_token` (String, Sensitive) API token. Alternatively, set ORCASECURITY_API_TOKEN environment variable
