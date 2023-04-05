@@ -39,3 +39,4 @@ override.tf.json
 terraform.rc
 terraform
 .envrc
+.gpg

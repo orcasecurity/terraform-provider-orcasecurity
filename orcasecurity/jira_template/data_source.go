@@ -2,7 +2,7 @@ package jira_template
 
 import (
 	"context"
-	"terraform-provider-orcasecurity/internal/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
