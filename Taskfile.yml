@@ -5,17 +5,17 @@ tasks:
             - go install
 
     plan:
-        dir: examples/
+        dir: demo/
         cmds:
             - terraform plan
 
     apply:
-        dir: examples/
+        dir: demo/
         cmds:
             - terraform apply -auto-approve
 
     destroy:
-        dir: examples/
+        dir: demo/
         cmds:
             - terraform destroy
 

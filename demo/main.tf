@@ -17,7 +17,6 @@ data "orcasecurity_jira_template" "template_a" {
 
 output "jira_template_a" {
   value = data.orcasecurity_jira_template.template_a
-
 }
 
 resource "orcasecurity_automation" "jira_ticket" {
