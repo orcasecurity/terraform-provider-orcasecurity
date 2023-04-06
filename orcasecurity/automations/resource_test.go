@@ -9,7 +9,7 @@ import (
 
 // Test resource with Jira issue settings
 // Note, API server must contain two Jira templates configured: "example" and "example updated"
-func TestAccAutomationJiraIssueResource(t *testing.T) {
+func TestAccAutomationResource_JiraIssue(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{

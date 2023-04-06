@@ -3,12 +3,21 @@
 page_title: "orcasecurity Provider"
 subcategory: ""
 description: |-
-  Interact with Orca Security API
+  This provider is used to interact with the resources supported by Orca Security.
+  The provider needs to be configured with the proper credentials before it can be used.
+  Use the navigation to the left to get information about the available resources.
+  It is required to configure at least two configuration options: apiendpoint and apitoken.
+  Both can be configured using environment variables "ORCASECURITYAPIENDPOINT" and "ORCASECURITYAPITOKEN" respectively.
 ---
 
 # orcasecurity Provider
 
-Interact with Orca Security API
+This provider is used to interact with the resources supported by Orca Security.
+The provider needs to be configured with the proper credentials before it can be used.
+Use the navigation to the left to get information about the available resources.  
+
+It is required to configure at least two configuration options: api_endpoint and api_token. 
+Both can be configured using environment variables "ORCASECURITY_API_ENDPOINT" and "ORCASECURITY_API_TOKEN" respectively.
 
 ## Example Usage
 
@@ -32,5 +41,5 @@ provider "orcasecurity" {
 
 ### Optional
 
-- `api_endpoint` (String) API endpoint. Alternatively set ORCASECURITY_API_ENDPOINT environment variable
-- `api_token` (String, Sensitive) API token. Alternatively, set ORCASECURITY_API_TOKEN environment variable
+- `api_endpoint` (String) API endpoint. Alternatively set `ORCASECURITY_API_ENDPOINT` environment variable.  No default value provided. The provider will not start if none endpoint provided.
+- `api_token` (String, Sensitive) API token. Alternatively, set `ORCASECURITY_API_TOKEN` environment variable.  Please make sure that API token has enough permissions to access Orca Security resources.

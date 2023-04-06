@@ -51,16 +51,24 @@ func (p *orcasecurityProvider) Metadata(_ context.Context, _ provider.MetadataRe
 // Schema defines the provider-level schema for configuration data.
 func (p *orcasecurityProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Interact with Orca Security API",
+		MarkdownDescription: fmt.Sprintf(`
+This provider is used to interact with the resources supported by Orca Security.
+The provider needs to be configured with the proper credentials before it can be used.
+Use the navigation to the left to get information about the available resources.  
+
+It is required to configure at least two configuration options: api_endpoint and api_token. 
+Both can be configured using environment variables "%s" and "%s" respectively.`, apiEndpointEnvName, apiTokenEnvName),
 		Attributes: map[string]schema.Attribute{
 			"api_endpoint": schema.StringAttribute{
-				Optional:    true,
-				Description: fmt.Sprintf("API endpoint. Alternatively set %s environment variable", apiEndpointEnvName),
+				Optional: true,
+				MarkdownDescription: fmt.Sprintf("API endpoint. Alternatively set `%s` environment variable.  ", apiEndpointEnvName) +
+					"No default value provided. The provider will not start if none endpoint provided.",
 			},
 			"api_token": schema.StringAttribute{
-				Description: fmt.Sprintf("API token. Alternatively, set %s environment variable", apiTokenEnvName),
-				Optional:    true,
-				Sensitive:   true,
+				MarkdownDescription: fmt.Sprintf("API token. Alternatively, set `%s` environment variable.  ", apiTokenEnvName) +
+					"Please make sure that API token has enough permissions to access Orca Security resources.",
+				Optional:  true,
+				Sensitive: true,
 			},
 		},
 	}
