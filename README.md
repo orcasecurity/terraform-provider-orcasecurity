@@ -1,27 +1,38 @@
-# Terraform Provider for Orca Security
+Orca Security Terraform Provider
+==================
 
-TODO:
-- clone the repo
-- describe directory layout
-- add .terraformrc
-- running terraform locally
-- how to generate docs
-- how to add documentation examples
-- add .envrc or export vars
-- how to run unit tests
-- how to run acceptance tests
-- how to publish to registry
-- gpg setup for publishing
-- add links to official docs and tutorials
+- Documentation: https://registry.terraform.io/providers/orcasecurity/orcasecurity/latest/docs
 
+Requirements
+------------
 
-# publishing
-https://developer.hashicorp.com/terraform/registry/providers/publishing
+-	[Terraform](https://www.terraform.io/downloads.html) 1.x
+-	[Go](https://golang.org/doc/install) 1.18 (to build the provider plugin)
 
-## gpg key generation
-https://docs.github.com/en/authentication/managing-commit-signature-verification/generating-a-new-gpg-key
+Building The Provider
+---------------------
 
-- gpg --full-generate-key  # at least 4096
-- gpg --list-secret-keys --keyid-format=long
-- gpg --armor --export 3AA5C34371567BD2
-  
+Clone repository to: `$GOPATH/src/github.com/orcasecurity/terraform-provider-orcasecurity`
+
+```sh
+$ mkdir -p $GOPATH/src/github.com/orcasecurity; 
+$ cd $GOPATH/src/github.com/orcasecurity
+$ git clone git@github.com:orcasecurity/terraform-provider-orcasecurity
+```
+
+Enter the provider directory and build the provider
+
+```sh
+$ cd $GOPATH/src/github.com/orcasecurity/terraform-provider-orcasecurity
+$ make build
+```
+
+Using the provider
+----------------------
+
+See the [Orca Security Provider documentation](https://registry.terraform.io/providers/orcasecurity/orcasecurity/latest/docs) to get started using the Orca Security provider.
+
+Developing the Provider
+---------------------------
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for information about contributing to this project.

@@ -3,12 +3,12 @@
 page_title: "orcasecurity_automation Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Manage automations
+  Provider Orca Security automation resource.
 ---
 
 # orcasecurity_automation (Resource)
 
-Manage automations
+Provider Orca Security automation resource.
 
 ## Example Usage
 
@@ -38,17 +38,17 @@ resource "orcasecurity_automation" "example" {
 
 ### Required
 
-- `name` (String) Automation name
-- `query` (Attributes) Trigger query (see [below for nested schema](#nestedatt--query))
+- `name` (String) Automation name.
+- `query` (Attributes) The query to fetch the alerts. (see [below for nested schema](#nestedatt--query))
 
 ### Optional
 
-- `description` (String) Automation description
+- `description` (String) Automation description.
 - `jira_issue` (Attributes) Create a Jira ticket using template. (see [below for nested schema](#nestedatt--jira_issue))
 
 ### Read-Only
 
-- `id` (String) Automation ID
+- `id` (String) Automation ID.
 - `organization_id` (String)
 
 <a id="nestedatt--query"></a>

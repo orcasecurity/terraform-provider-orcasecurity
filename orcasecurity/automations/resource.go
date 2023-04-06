@@ -82,14 +82,14 @@ func (r *automationResource) ImportState(ctx context.Context, req resource.Impor
 
 func (r *automationResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Manage automations",
+		Description: "Provider Orca Security automation resource.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				Description: "Automation ID",
+				Description: "Automation ID.",
 			},
 			"organization_id": schema.StringAttribute{
 				Computed: true,
@@ -98,18 +98,18 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Automation name",
+				Description: "Automation name.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Automation description",
+				Description: "Automation description.",
 				Optional:    true,
 			},
 			"query": schema.SingleNestedAttribute{
-				Description: "Trigger query",
+				Description: "The query to fetch the alerts.",
 				Required:    true,
 				Attributes: map[string]schema.Attribute{
 					"filter": schema.ListNestedAttribute{
