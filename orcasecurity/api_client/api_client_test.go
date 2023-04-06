@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -168,7 +169,7 @@ func TestAPIResponse_Error_ReturnNil(t *testing.T) {
 	}
 }
 
-func TestAPIResponse_AddAuthorizationHeader(t *testing.T) {
+func TestAPIClient_AddAuthorizationHeader(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -185,7 +186,7 @@ func TestAPIResponse_AddAuthorizationHeader(t *testing.T) {
 	}
 }
 
-func TestAPIResponse_AddContentTypeHeader(t *testing.T) {
+func TestAPIClient_AddContentTypeHeader(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -202,7 +203,7 @@ func TestAPIResponse_AddContentTypeHeader(t *testing.T) {
 	}
 }
 
-func TestAPIResponse_AddUserAgentHeader(t *testing.T) {
+func TestAPIClient_AddUserAgentHeader(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -219,19 +220,127 @@ func TestAPIResponse_AddUserAgentHeader(t *testing.T) {
 	}
 }
 
-func TestAPIResponse_Get(t *testing.T) {
+func TestAPIClient_Get(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
 			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Request:    req,
 		}
 	})}
 
 	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	resp, _ := apiClient.Get("/")
+	resp, _ := apiClient.Get("/users")
 
 	body := resp.Body()
 	if string(body) != "ok" {
 		t.Errorf("expected to read 'ok', got %s", body)
+	}
+
+	if resp.response.Request.Method != "GET" {
+		t.Errorf("expected GET, got %s", resp.response.Request.Method)
+	}
+
+	if resp.response.Request.URL.String() != "http://localhost/users" {
+		t.Errorf("expected http://localhost/users, got %+v", resp.response.Request.URL.String())
+	}
+}
+func TestAPIClient_Post(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 201,
+			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Request:    req,
+		}
+	})}
+
+	data := struct {
+		ID string `json:"id"`
+	}{ID: "42"}
+
+	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	resp, _ := apiClient.Post("/users", &data)
+
+	body := resp.Body()
+	if string(body) != "ok" {
+		t.Errorf("expected to read 'ok', got %s", body)
+	}
+
+	if resp.response.Request.Method != "POST" {
+		t.Errorf("expected POST, got %s", resp.response.Request.Method)
+	}
+
+	if resp.response.Request.URL.String() != "http://localhost/users" {
+		t.Errorf("expected http://localhost/users, got %+v", resp.response.Request.URL.String())
+	}
+
+	sent_body, err := io.ReadAll(resp.response.Request.Body)
+	// sent_body, err := resp.response.Request.Body.Read()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if string(sent_body) != `{"id":"42"}` {
+		t.Errorf(`expected POST body to be b'{"id":"42"}', got %s`, sent_body)
+	}
+}
+
+func TestAPIClient_Put(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Request:    req,
+		}
+	})}
+
+	data := struct {
+		ID string `json:"id"`
+	}{ID: "42"}
+
+	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	resp, _ := apiClient.Put("/users", &data)
+
+	body := resp.Body()
+	if string(body) != "ok" {
+		t.Errorf("expected to read 'ok', got %s", body)
+	}
+
+	if resp.response.Request.Method != "PUT" {
+		t.Errorf("expected PUT, got %s", resp.response.Request.Method)
+	}
+
+	if resp.response.Request.URL.String() != "http://localhost/users" {
+		t.Errorf("expected http://localhost/users, got %+v", resp.response.Request.URL.String())
+	}
+
+	sent_body, err := io.ReadAll(resp.response.Request.Body)
+	// sent_body, err := resp.response.Request.Body.Read()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if string(sent_body) != `{"id":"42"}` {
+		t.Errorf(`expected PUT body to be b'{"id":"42"}', got %s`, sent_body)
+	}
+}
+func TestAPIClient_Delete(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 204,
+			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	resp, _ := apiClient.Delete("/users")
+
+	if resp.response.Request.Method != "DELETE" {
+		t.Errorf("expected PUT, got %s", resp.response.Request.Method)
+	}
+
+	if resp.response.Request.URL.String() != "http://localhost/users" {
+		t.Errorf("expected http://localhost/users, got %+v", resp.response.Request.URL.String())
 	}
 }

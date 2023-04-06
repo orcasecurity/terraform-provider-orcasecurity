@@ -3,8 +3,6 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
 )
 
 const AutomationJiraActionID = 10
@@ -67,26 +65,13 @@ func (client *APIClient) GetAutomation(automationID string) (*Automation, error)
 }
 
 func (client *APIClient) CreateAutomation(automation Automation) (*Automation, error) {
-	payload, err := json.Marshal(automation)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest(
-		"POST",
-		fmt.Sprintf("%s/api/rules", client.APIEndpoint),
-		strings.NewReader(string(payload)),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.doRequest(*req)
+	resp, err := client.Post("/api/rules", automation)
 	if err != nil {
 		return nil, err
 	}
 
 	response := automationAPIResponseType{}
-	err = json.Unmarshal(resp.Body(), &response)
+	err = resp.ReadJSON(&response)
 	if err != nil {
 		return nil, err
 	}
@@ -95,20 +80,7 @@ func (client *APIClient) CreateAutomation(automation Automation) (*Automation, e
 }
 
 func (client *APIClient) UpdateAutomation(ID string, data Automation) (*Automation, error) {
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest(
-		"PUT",
-		fmt.Sprintf("%s/api/rules/%s", client.APIEndpoint, ID),
-		strings.NewReader(string(payload)),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.doRequest(*req)
+	resp, err := client.Put(fmt.Sprintf("/api/rules/%s", ID), data)
 	if err != nil {
 		return nil, err
 	}
@@ -122,18 +94,6 @@ func (client *APIClient) UpdateAutomation(ID string, data Automation) (*Automati
 }
 
 func (client *APIClient) DeleteAutomation(ID string) error {
-	req, err := http.NewRequest(
-		"DELETE",
-		fmt.Sprintf("%s/api/rules/%s", client.APIEndpoint, ID),
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	_, err = client.doRequest(*req)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := client.Delete(fmt.Sprintf("/api/rules/%s", ID))
+	return err
 }
