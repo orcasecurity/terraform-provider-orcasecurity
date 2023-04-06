@@ -1,4 +1,4 @@
-name: test
+name: Run test suite
 on:
     workflow_dispatch:
       
@@ -53,7 +53,7 @@ jobs:
 
     # Run acceptance tests in a matrix with Terraform CLI versions
     test:
-        name: Terraform Provider Acceptance Tests
+        name: Terraform Provider Unit Tests
         needs: build
         runs-on: ubuntu-latest
         timeout-minutes: 15
