@@ -23,14 +23,11 @@ linters:
         - govet
         - typecheck
         - unconvert
-        - varcheck
         - staticcheck
         - gosimple
-        # TODO: Enable addition linters
-        # - deadcode
-        # - errcheck
-        # - ineffassign
-        # - unused
+        - errcheck
+        - ineffassign
+        - unused
 
 linters-settings:
     errcheck:
