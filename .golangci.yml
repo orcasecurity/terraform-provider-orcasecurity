@@ -1,6 +1,5 @@
 run:
     timeout: 60m
-    modules-download-mode: vendor
 
 issues:
     max-per-linter: 0
