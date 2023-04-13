@@ -42,12 +42,4 @@ provider "orcasecurity" {
 ### Optional
 
 - `api_endpoint` (String) API endpoint. Alternatively set `ORCASECURITY_API_ENDPOINT` environment variable.  No default value provided. The provider will not start if none endpoint provided.
-  Valid value options are:  
 - `api_token` (String, Sensitive) API token. Alternatively, set `ORCASECURITY_API_TOKEN` environment variable.  Please make sure that API token has enough permissions to access Orca Security resources.
-
-
-### Valid API Endpoints
-- `https://api.orcasecurity.io` for US region
-- `https://api.eu.orcasecurity.io` for EU region
-- `https://api.au.orcasecurity.io/` for OCEANIA region
-  
