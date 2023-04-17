@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
+	"terraform-provider-orcasecurity/orcasecurity/webhooks"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -168,6 +169,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		jira_template.NewJiraTemplateDataSource,
+		webhooks.NewWebhookDataSource,
 	}
 }
 

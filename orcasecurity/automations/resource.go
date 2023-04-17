@@ -47,6 +47,10 @@ type automationJiraIssueModel struct {
 type automationSumoLogicModel struct {
 }
 
+type automationWebhookModel struct {
+	Name types.String `tfsdk:"name"`
+}
+
 type automationResourceModel struct {
 	ID             types.String              `tfsdk:"id"`
 	Name           types.String              `tfsdk:"name"`
@@ -54,6 +58,7 @@ type automationResourceModel struct {
 	Query          *automationQueryModel     `tfsdk:"query"`
 	JiraIssue      *automationJiraIssueModel `tfsdk:"jira_issue"`
 	SumoLogic      *automationSumoLogicModel `tfsdk:"sumologic"`
+	Webhook        *automationWebhookModel   `tfsdk:"webhook"`
 	OrganizationID types.String              `tfsdk:"organization_id"`
 }
 
@@ -77,6 +82,7 @@ func (r *automationResource) ConfigValidators(_ context.Context) []resource.Conf
 		resourcevalidator.AtLeastOneOf(
 			path.MatchRoot("jira_issue"),
 			path.MatchRoot("sumologic"),
+			path.MatchRoot("webhook"),
 		),
 	}
 }
@@ -156,6 +162,16 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				Description: "SumoLogic integration",
 				Attributes:  map[string]schema.Attribute{},
 			},
+			"webhook": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Notify via Web hook.",
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Required:    true,
+						Description: "Webhook name.",
+					},
+				},
+			},
 		},
 	}
 }
@@ -206,6 +222,16 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSumoLogicID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.Webhook != nil {
+		payload := make(map[string]interface{})
+		payload["template"] = plan.Webhook.Name.ValueString()
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationWebhookID,
 			OrganizationID: plan.OrganizationID.ValueString(),
 			Data:           payload,
 		})
@@ -321,6 +347,12 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 
 		if action.IsSumoLogic() {
 			state.SumoLogic = &automationSumoLogicModel{}
+		}
+
+		if action.IsWebhook() {
+			state.Webhook = &automationWebhookModel{
+				Name: types.StringValue(action.Data["template"].(string)),
+			}
 		}
 	}
 

@@ -25,15 +25,15 @@ resource "orcasecurity_automation" "example" {
     ]
   }
   jira_issue = {
-    template_name = "My Template"
-    parent_issue  = "JMB-007" // optional
+    template_name = "My Template" // as on Orca dashboard
+    parent_issue  = "JMB-007"     // optional
   }
 }
 
-// usage witn Sumo Logic integration
+// usage with Sumo Logic integration
 resource "orcasecurity_automation" "example" {
-  name        = "JIRA issues"
-  description = "Automatically create JIRA issues"
+  name        = "Sumo Logic"
+  description = "Integrate Sumo Logic"
   query = {
     filter : [
       { field : "state.status", includes : ["open"] },
@@ -43,6 +43,22 @@ resource "orcasecurity_automation" "example" {
   }
   sumologic = {
 
+  }
+}
+
+// usage with web hooks
+resource "orcasecurity_automation" "example" {
+  name        = "Automation with web hook"
+  description = "Automatically submit data to web hook"
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", excludes : ["centralus"] },
+    ]
+  }
+  webhook = {
+    name = "my-webhook-name" // as on Orca dashboard
   }
 }
 ```
@@ -60,6 +76,7 @@ resource "orcasecurity_automation" "example" {
 - `description` (String) Automation description.
 - `jira_issue` (Attributes) Create a Jira ticket using template. (see [below for nested schema](#nestedatt--jira_issue))
 - `sumologic` (Attributes) SumoLogic integration (see [below for nested schema](#nestedatt--sumologic))
+- `webhook` (Attributes) Notify via Web hook. (see [below for nested schema](#nestedatt--webhook))
 
 ### Read-Only
 
@@ -101,6 +118,14 @@ Optional:
 
 <a id="nestedatt--sumologic"></a>
 ### Nested Schema for `sumologic`
+
+
+<a id="nestedatt--webhook"></a>
+### Nested Schema for `webhook`
+
+Required:
+
+- `name` (String) Webhook name.
 
 ## Import
 
