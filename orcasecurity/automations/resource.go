@@ -44,12 +44,16 @@ type automationJiraIssueModel struct {
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
+type automationSumoLogicModel struct {
+}
+
 type automationResourceModel struct {
 	ID             types.String              `tfsdk:"id"`
 	Name           types.String              `tfsdk:"name"`
 	Description    types.String              `tfsdk:"description"`
 	Query          *automationQueryModel     `tfsdk:"query"`
 	JiraIssue      *automationJiraIssueModel `tfsdk:"jira_issue"`
+	SumoLogic      *automationSumoLogicModel `tfsdk:"sumologic"`
 	OrganizationID types.String              `tfsdk:"organization_id"`
 }
 
@@ -72,6 +76,7 @@ func (r *automationResource) ConfigValidators(_ context.Context) []resource.Conf
 	return []resource.ConfigValidator{
 		resourcevalidator.AtLeastOneOf(
 			path.MatchRoot("jira_issue"),
+			path.MatchRoot("sumologic"),
 		),
 	}
 }
@@ -146,6 +151,11 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
+			"sumologic": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "SumoLogic integration",
+				Attributes:  map[string]schema.Attribute{},
+			},
 		},
 	}
 }
@@ -178,7 +188,7 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 
 func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
-	if !plan.JiraIssue.TemplateName.IsNull() {
+	if plan.JiraIssue != nil && !plan.JiraIssue.TemplateName.IsNull() {
 		payload := make(map[string]interface{})
 		payload["template"] = plan.JiraIssue.TemplateName.ValueString()
 		if !plan.JiraIssue.ParentIssueID.IsNull() {
@@ -187,6 +197,15 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationJiraActionID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.SumoLogic != nil {
+		payload := make(map[string]interface{})
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationSumoLogicID,
 			OrganizationID: plan.OrganizationID.ValueString(),
 			Data:           payload,
 		})
@@ -298,6 +317,10 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 			if action.Data["parent_id"] != nil {
 				state.JiraIssue.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
 			}
+		}
+
+		if action.IsSumoLogic() {
+			state.SumoLogic = &automationSumoLogicModel{}
 		}
 	}
 
