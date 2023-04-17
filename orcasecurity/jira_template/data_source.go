@@ -15,8 +15,8 @@ var (
 )
 
 type jiraTemplateStateModel struct {
-	ID           types.String `tfsdk:"id"`
-	TemplateName types.String `tfsdk:"template_name"`
+	ID   types.String `tfsdk:"id"`
+	Name types.String `tfsdk:"name"`
 }
 
 type jiraTemplateDataSource struct {
@@ -46,7 +46,7 @@ func (ds *jiraTemplateDataSource) Schema(_ context.Context, _ datasource.SchemaR
 			"id": schema.StringAttribute{
 				Computed: true,
 			},
-			"template_name": schema.StringAttribute{
+			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "Template name at Orca",
 			},
@@ -58,14 +58,14 @@ func (ds *jiraTemplateDataSource) Read(ctx context.Context, req datasource.ReadR
 	var state jiraTemplateStateModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 
-	item, err := ds.apiClient.GetJiraTemplateByName(state.TemplateName.ValueString())
+	item, err := ds.apiClient.GetJiraTemplateByName(state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read Jira templates", err.Error())
 		return
 	}
 
 	state.ID = types.StringValue(item.ID)
-	state.TemplateName = types.StringValue(item.TemplateName)
+	state.Name = types.StringValue(item.TemplateName)
 
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

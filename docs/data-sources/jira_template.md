@@ -14,7 +14,7 @@ Fetch JIRA template.
 
 ```terraform
 data "orcasecurity_jira_template" "example" {
-  template_name = "My Template"
+  name = "My Template"
 }
 ```
 
@@ -23,7 +23,7 @@ data "orcasecurity_jira_template" "example" {
 
 ### Required
 
-- `template_name` (String) Template name at Orca
+- `name` (String) Template name at Orca
 
 ### Read-Only
 

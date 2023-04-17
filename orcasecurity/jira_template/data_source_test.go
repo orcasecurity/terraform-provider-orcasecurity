@@ -11,11 +11,11 @@ import (
 
 const testAccDataSourceConfig = orcasecurity.TestProviderConfig + `
 data "orcasecurity_jira_template" "test" {
-  template_name = "example"
+  name = "example"
 }
 `
 
-func TestAccDataSource(t *testing.T) {
+func TestAccJiraTemplateDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
