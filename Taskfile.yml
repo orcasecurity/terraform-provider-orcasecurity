@@ -4,36 +4,21 @@ tasks:
         cmds:
             - go install
 
-    plan:
-        dir: demo/
-        cmds:
-            - terraform plan
-
-    apply:
-        dir: demo/
-        cmds:
-            - terraform apply -auto-approve
-
-    destroy:
-        dir: demo/
-        cmds:
-            - terraform destroy
-
     docs:
         cmds:
             - go generate ./...
 
-    build-plan:
+    plan:
         cmds:
             - { task: "install" }
-            - { task: "plan" }
+            - terraform -chdir=demo plan
 
-    build-apply:
+    apply:
         cmds:
             - { task: "install" }
-            - { task: "apply" }
+            - terraform -chdir=demo apply -auto-approve
 
-    build-destroy:
+    destroy:
         cmds:
             - { task: "install" }
-            - { task: "destroy" }
+            - terraform -chdir=demo destroy

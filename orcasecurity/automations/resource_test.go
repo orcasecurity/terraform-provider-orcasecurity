@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// Test resource with Jira issue settings
+// Test resource with Jira issue settings and common attributes
 // Note, API server must contain two Jira templates configured: "example" and "example updated"
 func TestAccAutomationResource_JiraIssue(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -87,6 +87,61 @@ resource "orcasecurity_automation" "test" {
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "organization_id"),
+				),
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+}
+
+// Test resource with Sumo Logic integration
+func TestAccAutomationResource_SumoLogic(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation" "test" {
+  name = "test name"
+  description = "test description"
+  query = {
+	filter: [
+		{ field: "state.status", includes: ["open"] },
+	]
+  }
+  sumologic = {}
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+				// sumologic has no attributes
+				),
+			},
+			// ImportState testing
+			{
+				ResourceName:      "orcasecurity_automation.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// Update and Read testing (deactivate sumologic)
+			{
+				Config: orcasecurity.TestProviderConfig + `
+			resource "orcasecurity_automation" "test" {
+				name = "test name updated"
+				description = "test description updated"
+				query = {
+				  filter: [
+					  { field: "state.status", includes: ["closed"] },
+				  ]
+				}
+				jira_issue = {
+					template_name = "tf: example updated"
+					parent_issue = "FOO-2"
+				  }
+			}
+			`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+				// sumologic has no attributes
 				),
 			},
 			// Delete testing automatically occurs in TestCase
