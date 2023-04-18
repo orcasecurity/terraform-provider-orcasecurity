@@ -137,12 +137,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.doRequest(*req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return c.doRequest(*req)
 }
 
 // Execute PUT HTTP request.
@@ -161,12 +156,7 @@ func (c *APIClient) Put(path string, data interface{}) (*APIResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.doRequest(*req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return c.doRequest(*req)
 }
 
 // Execute DELETE HTTP request.
@@ -176,10 +166,5 @@ func (c *APIClient) Delete(path string) (*APIResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.doRequest(*req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return c.doRequest(*req)
 }
