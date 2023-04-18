@@ -6,6 +6,8 @@ import (
 )
 
 const AutomationJiraActionID = 10
+const AutomationSumoLogicID = 6
+const AutomationWebhookID = 12
 
 type AutomationFilter struct {
 	Field    string   `json:"field"`
@@ -17,11 +19,6 @@ type AutomationQuery struct {
 	Filter []AutomationFilter `json:"filter"`
 }
 
-type AutomationJiraIssue struct {
-	Template string `json:"template"`
-	ParentID string `json:"parent_id,omitempty"`
-}
-
 type AutomationAction struct {
 	ID             string                 `json:"id,omitempty"`
 	Type           int32                  `json:"type"`
@@ -31,6 +28,14 @@ type AutomationAction struct {
 
 func (a *AutomationAction) IsJiraIssue() bool {
 	return a.Type == AutomationJiraActionID
+}
+
+func (a *AutomationAction) IsSumoLogic() bool {
+	return a.Type == AutomationSumoLogicID
+}
+
+func (a *AutomationAction) IsWebhook() bool {
+	return a.Type == AutomationWebhookID
 }
 
 type Automation struct {
