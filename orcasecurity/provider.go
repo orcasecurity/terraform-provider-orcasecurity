@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
@@ -177,5 +178,6 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		automations.NewAutomationResource,
+		alerts.NewCustomAlertResource,
 	}
 }
