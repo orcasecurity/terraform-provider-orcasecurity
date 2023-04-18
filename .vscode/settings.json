@@ -5,6 +5,7 @@
         "planmodifier",
         "providerserver",
         "stringplanmodifier",
-        "stringvalidator"
+        "stringvalidator",
+        "sumologic"
     ]
 }
