@@ -46,3 +46,19 @@ resource "orcasecurity_automation" "example" {
     name = "my-webhook-name" // as on Orca dashboard
   }
 }
+
+// usage witn Sumo Logic integration
+resource "orcasecurity_automation" "example" {
+  name        = "JIRA issues"
+  description = "Automatically create JIRA issues"
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", excludes : ["centralus"] },
+    ]
+  }
+  sumologic = {
+
+  }
+}
