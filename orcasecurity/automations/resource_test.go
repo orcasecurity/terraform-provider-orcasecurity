@@ -1,11 +1,36 @@
 package automations_test
 
 import (
+	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+func TestAccAutomationResource_RequireAtLeastOneIntegration(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation" "test" {
+  name = "test name"
+  description = "test description"
+  query = {
+	filter: [
+		{ field: "state.status", includes: ["open"] },
+		{ field: "state.risk_level", excludes: ["high"] }
+	]
+  }
+}
+`,
+				ExpectError: regexp.MustCompile("At least one of these attributes must be configured"),
+			},
+		},
+	})
+}
 
 // Test resource with Jira issue settings and common attributes
 // Note, API server must contain two Jira templates configured: "example" and "example updated"

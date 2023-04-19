@@ -265,6 +265,11 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	if err := validateCategory(r.apiClient, plan.Category.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Invalid category", err.Error())
+		return
+	}
+
 	updateReq := api_client.CustomAlert{
 		Name:           plan.Name.ValueString(),
 		Description:    plan.Description.ValueString(),
