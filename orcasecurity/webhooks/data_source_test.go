@@ -24,7 +24,7 @@ func TestAccWebhookDataSource(t *testing.T) {
 			{
 				Config: testAccDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_webhook.test", "name", "tf_test"),
+					resource.TestCheckResourceAttr("data.orcasecurity_webhook.test", "name", "tf_test"),
 					resource.TestCheckResourceAttrWith("data.orcasecurity_webhook.test", "id", func(value string) error {
 						// it must be a valid UUID
 						_, err := uuid.Parse(value)
