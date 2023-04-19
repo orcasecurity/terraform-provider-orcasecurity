@@ -30,7 +30,7 @@ type customAlertResource struct {
 }
 
 type frameworkStateModel struct {
-	ID       types.String `tfsdk:"id"`
+	Name     types.String `tfsdk:"name"`
 	Section  types.String `tfsdk:"section"`
 	Priority types.String `tfsdk:"priority"`
 }
@@ -41,17 +41,16 @@ type remediationTextStateModel struct {
 }
 
 type stateModel struct {
-	ID             types.String  `tfsdk:"id"`
-	Name           types.String  `tfsdk:"name"`
-	Description    types.String  `tfsdk:"description"`
-	Rule           types.String  `tfsdk:"rule"`
-	RuleType       types.String  `tfsdk:"rule_type"`
-	OrganizationID types.String  `tfsdk:"organization_id"`
-	Category       types.String  `tfsdk:"category"`
-	Score          types.Float64 `tfsdk:"score"`
-	AllowAdjusting types.Bool    `tfsdk:"allow_adjusting"`
-	// ConnectToFramework types.Bool    `tfsdk:"connect_to_framework"`
-	// Frameworks         []frameworkStateModel      `tfsdk:"frameworks"`
+	ID              types.String               `tfsdk:"id"`
+	Name            types.String               `tfsdk:"name"`
+	Description     types.String               `tfsdk:"description"`
+	Rule            types.String               `tfsdk:"rule"`
+	RuleType        types.String               `tfsdk:"rule_type"`
+	OrganizationID  types.String               `tfsdk:"organization_id"`
+	Category        types.String               `tfsdk:"category"`
+	Score           types.Float64              `tfsdk:"score"`
+	AllowAdjusting  types.Bool                 `tfsdk:"allow_adjusting"`
+	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
 
@@ -111,22 +110,22 @@ func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaReque
 				Required:    true,
 			},
 			"rule_type": schema.StringAttribute{
-				Description: "Alert type",
+				Description: "Alert type.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"category": schema.StringAttribute{
-				Description: "Category",
+				Description: "Category.",
 				Required:    true,
 			},
 			"score": schema.Float64Attribute{
-				Description: "Alert score",
+				Description: "Alert score.",
 				Required:    true,
 			},
 			"allow_adjusting": schema.BoolAttribute{
-				Description: "Allow Orca to adjust the score using asset context",
+				Description: "Allow Orca to adjust the score using asset context.",
 				Optional:    true,
 			},
 			"remediation_text": schema.SingleNestedAttribute{
@@ -143,13 +142,26 @@ func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaReque
 					},
 				},
 			},
-			// "connect_to_framework": schema.BoolAttribute{
-			// 	Description: "Map to compliance framework",
-			// 	Computed:    true,
-			// 	PlanModifiers: []planmodifier.Bool{
-			// 		boolplanmodifier.UseStateForUnknown(),
-			// 	},
-			// },
+			"compliance_frameworks": schema.ListNestedAttribute{
+				Description: "Attach compliance framework.",
+				Optional:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Required:    true,
+							Description: "Framework name.",
+						},
+						"section": schema.StringAttribute{
+							Required:    true,
+							Description: "Section.",
+						},
+						"priority": schema.StringAttribute{
+							Required:    true,
+							Description: "Priority.",
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -168,14 +180,14 @@ func (r *customAlertResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	createReq := api_client.CustomAlert{
-		Name:         plan.Name.ValueString(),
-		Description:  plan.Description.ValueString(),
-		Rule:         plan.Rule.ValueString(),
-		RuleType:     plan.RuleType.ValueString(),
-		Category:     plan.Category.ValueString(),
-		Score:        plan.Score.ValueFloat64(),
-		ContextScore: plan.AllowAdjusting.ValueBool(),
-		// ConnectToFramework: plan.ConnectToFramework.ValueBool(),
+		Name:                 plan.Name.ValueString(),
+		Description:          plan.Description.ValueString(),
+		Rule:                 plan.Rule.ValueString(),
+		RuleType:             plan.RuleType.ValueString(),
+		Category:             plan.Category.ValueString(),
+		Score:                plan.Score.ValueFloat64(),
+		ContextScore:         plan.AllowAdjusting.ValueBool(),
+		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
 	}
 	if plan.RemediationText != nil {
 		createReq.RemediationText = &api_client.CustomAlertRemediationText{
@@ -242,6 +254,16 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 		Text:   types.StringValue(instance.RemediationText.Text),
 	}
 
+	var frameworks []frameworkStateModel
+	for _, frameworkData := range instance.ComplianceFrameworks {
+		frameworks = append(frameworks, frameworkStateModel{
+			Name:     types.StringValue(frameworkData.Name),
+			Section:  types.StringValue(frameworkData.Section),
+			Priority: types.StringValue(frameworkData.Priority),
+		})
+	}
+	state.Frameworks = frameworks
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -271,14 +293,15 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	updateReq := api_client.CustomAlert{
-		Name:           plan.Name.ValueString(),
-		Description:    plan.Description.ValueString(),
-		Rule:           plan.Rule.ValueString(),
-		RuleType:       plan.RuleType.ValueString(),
-		Score:          plan.Score.ValueFloat64(),
-		ContextScore:   plan.AllowAdjusting.ValueBool(),
-		Category:       plan.Category.ValueString(),
-		OrganizationID: plan.OrganizationID.ValueString(),
+		Name:                 plan.Name.ValueString(),
+		Description:          plan.Description.ValueString(),
+		Rule:                 plan.Rule.ValueString(),
+		RuleType:             plan.RuleType.ValueString(),
+		Score:                plan.Score.ValueFloat64(),
+		ContextScore:         plan.AllowAdjusting.ValueBool(),
+		Category:             plan.Category.ValueString(),
+		OrganizationID:       plan.OrganizationID.ValueString(),
+		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
 	}
 
 	if plan.RemediationText != nil {
@@ -294,15 +317,6 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 		resp.Diagnostics.AddError(
 			"Error updating Alert",
 			"Could not update Alert, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	_, err = r.apiClient.GetCustomAlert(plan.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading Alert",
-			"Could not read Alert ID: "+plan.ID.ValueString()+": "+err.Error(),
 		)
 		return
 	}
@@ -347,4 +361,16 @@ func validateCategory(client *api_client.APIClient, category string) error {
 	sort.Strings(categories)
 	categoryValues := strings.Join(categories, ", ")
 	return fmt.Errorf("invalid category. Please choose from: %s", categoryValues)
+}
+
+func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomAlertComplianceFramework {
+	var frameworksReq []api_client.CustomAlertComplianceFramework
+	for _, frameworkState := range frameworks {
+		frameworksReq = append(frameworksReq, api_client.CustomAlertComplianceFramework{
+			Name:     frameworkState.Name.ValueString(),
+			Section:  frameworkState.Section.ValueString(),
+			Priority: frameworkState.Priority.ValueString(),
+		})
+	}
+	return frameworksReq
 }
