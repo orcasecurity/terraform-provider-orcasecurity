@@ -8,7 +8,7 @@ import (
 )
 
 type CustomAlertComplianceFramework struct {
-	ID       string `json:"id"`
+	Name     string `json:"compliance_framework"`
 	Section  string `json:"category"`
 	Priority string `json:"priority"`
 }
@@ -23,7 +23,6 @@ type CustomAlert struct {
 	ID                   string                           `json:"rule_id,omitempty"`
 	OrganizationID       string                           `json:"organization_id"`
 	Category             string                           `json:"category"`
-	ConnectToFramework   bool                             `json:"connectToFramework"`
 	ContextScore         bool                             `json:"context_score"`
 	Score                float64                          `json:"orca_score"`
 	Name                 string                           `json:"name"`
@@ -31,7 +30,7 @@ type CustomAlert struct {
 	Rule                 string                           `json:"rule"`
 	RuleType             string                           `json:"rule_type,omitempty"` // also "alert_type"
 	ComplianceFrameworks []CustomAlertComplianceFramework `json:"compliance_frameworks,omitempty"`
-	RemediationText      *CustomAlertRemediationText
+	RemediationText      *CustomAlertRemediationText      // managed in a separate API call
 }
 
 func (client *APIClient) GetCustomAlert(id string) (*CustomAlert, error) {
