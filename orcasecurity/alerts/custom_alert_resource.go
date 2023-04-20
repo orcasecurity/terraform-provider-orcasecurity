@@ -324,7 +324,7 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 		}
 	}
 
-	instance, err := r.apiClient.UpdateCustomAlert(plan.ID.ValueString(), updateReq)
+	_, err := r.apiClient.UpdateCustomAlert(plan.ID.ValueString(), updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Alert",
@@ -333,9 +333,9 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	if instance.RemediationText == nil || instance.RemediationText.Text == "" {
-		plan.RemediationText = nil
-	}
+	// if instance.RemediationText == nil || instance.RemediationText.Text == "" {
+	// 	plan.RemediationText = nil
+	// }
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
