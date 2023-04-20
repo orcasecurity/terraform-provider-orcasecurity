@@ -285,7 +285,7 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	instance, err := r.apiClient.GetAutomation(state.ID.ValueString())
+	exists, err := r.apiClient.IsAutomationExists(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Automation",
@@ -293,10 +293,18 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		)
 		return
 	}
-
-	if instance == nil {
+	if !exists {
 		tflog.Warn(ctx, fmt.Sprintf("Automation %s is missing on the remote side.", state.ID.ValueString()))
 		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	instance, err := r.apiClient.GetAutomation(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading Automation",
+			fmt.Sprintf("Could not read Automation ID %s: %s", state.ID.ValueString(), err.Error()),
+		)
 		return
 	}
 

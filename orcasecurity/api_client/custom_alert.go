@@ -33,6 +33,19 @@ type CustomAlert struct {
 	RemediationText      *CustomAlertRemediationText      // managed in a separate API call
 }
 
+func (client *APIClient) IsCustomAlertExists(id string) (bool, error) {
+	resp, err := client.Head(fmt.Sprintf("/api/sonar/rules/%s", id))
+	if resp.StatusCode() == 404 || resp.StatusCode() == 500 {
+		return false, nil
+	}
+
+	// some other error
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (client *APIClient) GetCustomAlert(id string) (*CustomAlert, error) {
 	type responseType struct {
 		Data CustomAlert `json:"data"`
