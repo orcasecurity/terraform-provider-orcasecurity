@@ -21,7 +21,7 @@ type CustomAlertRemediationText struct {
 
 type CustomAlert struct {
 	ID                   string                           `json:"rule_id,omitempty"`
-	OrganizationID       string                           `json:"organization_id"`
+	OrganizationID       string                           `json:"organization,omitempty"`
 	Category             string                           `json:"category"`
 	ContextScore         bool                             `json:"context_score"`
 	Score                float64                          `json:"orca_score"`
@@ -169,6 +169,10 @@ func (client *APIClient) DeleteCustomRemediationText(data CustomAlertRemediation
 	resp, err := client.Execute(*req)
 	if err != nil {
 		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil
 	}
 
 	if resp.StatusCode != 200 {

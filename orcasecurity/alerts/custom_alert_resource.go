@@ -126,7 +126,7 @@ func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaReque
 			},
 			"allow_adjusting": schema.BoolAttribute{
 				Description: "Allow Orca to adjust the score using asset context.",
-				Optional:    true,
+				Required:    true,
 			},
 			"remediation_text": schema.SingleNestedAttribute{
 				Description: "Add custom manual remediation.",
@@ -206,6 +206,15 @@ func (r *customAlertResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	instance, err = r.apiClient.GetCustomAlert(instance.ID)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error refreshing Alert",
+			"Could not create Alert, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
 	plan.ID = types.StringValue(instance.ID)
 	plan.RuleType = types.StringValue(instance.RuleType)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
@@ -249,9 +258,12 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 	state.Category = types.StringValue(instance.Category)
 	state.AllowAdjusting = types.BoolValue(instance.ContextScore)
 	state.Score = types.Float64Value(instance.Score)
-	state.RemediationText = &remediationTextStateModel{
-		Enable: types.BoolValue(instance.RemediationText.Enable),
-		Text:   types.StringValue(instance.RemediationText.Text),
+
+	if instance.RemediationText.Text != "" {
+		state.RemediationText = &remediationTextStateModel{
+			Enable: types.BoolValue(instance.RemediationText.Enable),
+			Text:   types.StringValue(instance.RemediationText.Text),
+		}
 	}
 
 	var frameworks []frameworkStateModel
@@ -312,13 +324,17 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 		}
 	}
 
-	_, err := r.apiClient.UpdateCustomAlert(plan.ID.ValueString(), updateReq)
+	instance, err := r.apiClient.UpdateCustomAlert(plan.ID.ValueString(), updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Alert",
 			"Could not update Alert, unexpected error: "+err.Error(),
 		)
 		return
+	}
+
+	if instance.RemediationText == nil || instance.RemediationText.Text == "" {
+		plan.RemediationText = nil
 	}
 
 	diags = resp.State.Set(ctx, &plan)
