@@ -148,3 +148,57 @@ resource "orcasecurity_automation" "test" {
 		},
 	})
 }
+
+// Test resource with web hook integration
+func TestAccAutomationResource_Webhook(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation" "test" {
+  name = "test name"
+  description = "test description"
+  query = {
+	filter: [
+		{ field: "state.status", includes: ["open"] },
+	]
+  }
+  webhook = {
+	name = "tf_test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+				// sumologic has no attributes
+				),
+			},
+			// ImportState testing
+			{
+				ResourceName:      "orcasecurity_automation.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// Update and Read testing (deactivate sumologic)
+			{
+				Config: orcasecurity.TestProviderConfig + `
+			resource "orcasecurity_automation" "test" {
+				name = "test name updated"
+				description = "test description updated"
+				query = {
+				  filter: [
+					  { field: "state.status", includes: ["closed"] },
+				  ]
+				}
+				sumologic = {}
+			}
+			`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name updated"),
+				),
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+}
