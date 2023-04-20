@@ -80,11 +80,11 @@ resource "orcasecurity_custom_alert" "test" {
   rule = "ActivityLogDetection"
   score = 5.5
   category = "Best practices"
+  allow_adjusting = true
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.enable", "false"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.text", ""),
+					resource.TestCheckNoResourceAttr("orcasecurity_custom_alert.test", "remediation_text"),
 				),
 			},
 			// update
@@ -96,11 +96,12 @@ resource "orcasecurity_custom_alert" "test" {
 					rule = "ActivityLogDetection"
 					score = 5.5
 					category = "Best practices"
+					allow_adjusting = true
 					remediation_text = {
 						enable = true
 						text   = "test text"
 				   }
-				  }
+				}
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.enable", "true"),
@@ -111,14 +112,14 @@ resource "orcasecurity_custom_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_WithRemediationText(t *testing.T) {
+func TestAccCustomAlertResource_UpdateRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
 				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_alert" "test_with_remediation" {
+resource "orcasecurity_custom_alert" "test" {
   name = "test name2"
   description = "test description"
   rule = "ActivityLogDetection"
@@ -132,107 +133,8 @@ resource "orcasecurity_custom_alert" "test_with_remediation" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.enable", "true"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.text", "test text"),
-				),
-			},
-			// import
-			{
-				ResourceName:      "orcasecurity_custom_alert.test_with_remediation",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-			// update
-			{
-				Config: orcasecurity.TestProviderConfig + `
-				resource "orcasecurity_custom_alert" "test_with_remediation" {
-					name = "test name2"
-					description = "test description"
-					rule = "ActivityLogDetection"
-					score = 5.5
-					category = "Best practices"
-					allow_adjusting = false
-					remediation_text = {
-						 enable = false
-						 text   = "test text update"
-					}
-				  }
-			`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.enable", "false"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.text", "test text update"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccCustomAlertResource_DeleteRemediationText(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			// create
-			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_alert" "test_with_remediation" {
-  name = "test name2"
-  description = "test description"
-  rule = "ActivityLogDetection"
-  score = 5.5
-  category = "Best practices"
-  remediation_text = {
-	   enable = true
-	   text   = "test text"
-  }
-}
-`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.enable", "true"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.text", "test text"),
-				),
-			},
-			// update
-			{
-				Config: orcasecurity.TestProviderConfig + `
-				resource "orcasecurity_custom_alert" "test_with_remediation" {
-					name = "test name2"
-					description = "test description"
-					rule = "ActivityLogDetection"
-					score = 5.5
-					category = "Best practices"
-				  }
-			`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.enable", "false"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test_with_remediation", "remediation_text.text", ""),
-				),
-			},
-		},
-	})
-}
-
-func TestAccCustomAlertResource_WithComplianceFramework(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			// create
-			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_alert" "test" {
-  name = "test name2"
-  description = "test description"
-  rule = "ActivityLogDetection"
-  score = 5.5
-  category = "Best practices"
-  compliance_frameworks = [
-     { name = "test_terraform", section = "section_1", priority = "low" }
-  ]
-}
-`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.name", "test_terraform"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.section", "section_1"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.priority", "low"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.enable", "true"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.text", "test text"),
 				),
 			},
 			// import
@@ -250,15 +152,61 @@ resource "orcasecurity_custom_alert" "test" {
 					rule = "ActivityLogDetection"
 					score = 5.5
 					category = "Best practices"
-					compliance_frameworks = [
-						{ name = "test_terraform", section = "section_2", priority = "medium" }
-					 ]
+					allow_adjusting = false
+					remediation_text = {
+						 enable = false
+						 text   = "test text update"
+					}
 				  }
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.name", "test_terraform"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.section", "section_2"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.priority", "medium"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.enable", "false"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.text", "test text update"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCustomAlertResource_DeleteRemediationText(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_alert" "test" {
+  name = "test name2"
+  description = "test description"
+  rule = "ActivityLogDetection"
+  score = 5.5
+  category = "Best practices"
+  allow_adjusting = false
+  remediation_text = {
+	   enable = true
+	   text   = "test text"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.enable", "true"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "remediation_text.text", "test text"),
+				),
+			},
+			// update
+			{
+				Config: orcasecurity.TestProviderConfig + `
+				resource "orcasecurity_custom_alert" "test" {
+					name = "test name2"
+					description = "test description"
+					rule = "ActivityLogDetection"
+					score = 5.5
+					category = "Best practices"
+					allow_adjusting = false
+				  }
+			`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("orcasecurity_custom_alert.test", "remediation_text"),
 				),
 			},
 		},
@@ -278,12 +226,11 @@ resource "orcasecurity_custom_alert" "test" {
   rule = "ActivityLogDetection"
   score = 5.5
   category = "Best practices"
+  allow_adjusting = true
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.name", "test_terraform"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.section", "section_1"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.priority", "low"),
+					resource.TestCheckNoResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks"),
 				),
 			},
 			// import
@@ -301,6 +248,7 @@ resource "orcasecurity_custom_alert" "test" {
 					rule = "ActivityLogDetection"
 					score = 5.5
 					category = "Best practices"
+					allow_adjusting = true
 					compliance_frameworks = [
 						{ name = "test_terraform", section = "section_2", priority = "medium" }
 					 ]
@@ -310,6 +258,104 @@ resource "orcasecurity_custom_alert" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.name", "test_terraform"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.section", "section_2"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.priority", "medium"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCustomAlertResource_UpdateComplianceFramework(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_alert" "test" {
+  name = "test name2"
+  description = "test description"
+  rule = "ActivityLogDetection"
+  score = 5.5
+  category = "Best practices"
+  allow_adjusting = true
+  compliance_frameworks = [
+	{ name = "test_terraform", section = "section_1", priority = "medium" }
+ ]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.section", "section_1"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.priority", "medium"),
+				),
+			},
+			// import
+			{
+				ResourceName:      "orcasecurity_custom_alert.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// update
+			{
+				Config: orcasecurity.TestProviderConfig + `
+				resource "orcasecurity_custom_alert" "test" {
+					name = "test name2"
+					description = "test description"
+					rule = "ActivityLogDetection"
+					score = 5.5
+					category = "Best practices"
+					allow_adjusting = true
+					compliance_frameworks = [
+						{ name = "test_terraform", section = "section_2", priority = "low" }
+					 ]
+				  }
+			`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.section", "section_2"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks.0.priority", "low"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCustomAlertResource_DeleteComplianceFramework(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_alert" "test" {
+  name = "test name2"
+  description = "test description"
+  rule = "ActivityLogDetection"
+  score = 5.5
+  category = "Best practices"
+  allow_adjusting = true
+  compliance_frameworks = [
+	{ name = "test_terraform", section = "section_2", priority = "medium" }
+ ]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(),
+			},
+			// update
+			{
+				Config: orcasecurity.TestProviderConfig + `
+				resource "orcasecurity_custom_alert" "test" {
+					name = "test name2"
+					description = "test description"
+					rule = "ActivityLogDetection"
+					score = 5.5
+					category = "Best practices"
+					allow_adjusting = true
+
+				  }
+			`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("orcasecurity_custom_alert.test", "compliance_frameworks"),
 				),
 			},
 		},
