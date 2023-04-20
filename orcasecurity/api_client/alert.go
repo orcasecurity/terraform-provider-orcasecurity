@@ -194,3 +194,19 @@ func (client *APIClient) DeleteCustomRemediationText(data CustomAlertRemediation
 
 	return nil
 }
+
+func (client *APIClient) GetAlertCategories() ([]string, error) {
+	type responseType struct {
+		Data []string `json:"data"`
+	}
+	res, err := client.Get("/api/alerts/catalog/category")
+	if err != nil {
+		return nil, err
+	}
+
+	response := responseType{}
+	if err = res.ReadJSON(&response); err != nil {
+		return nil, err
+	}
+	return response.Data, nil
+}
