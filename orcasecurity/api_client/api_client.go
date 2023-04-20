@@ -36,9 +36,9 @@ func (resp *APIResponse) StatusCode() int {
 	return resp.response.StatusCode
 }
 
-// Test if request was successful (<300)
+// Test if request was successful (<400)
 func (resp *APIResponse) IsOk() bool {
-	return resp.StatusCode() < 300
+	return resp.StatusCode() < 400
 }
 
 // Read response body.
@@ -115,6 +115,15 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 // Execute GET HTTP request.
 func (c *APIClient) Get(path string) (*APIResponse, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s%s", c.APIEndpoint, path), nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(*req)
+}
+
+// Execute HEAD HTTP request
+func (c *APIClient) Head(path string) (*APIResponse, error) {
+	req, err := http.NewRequest("HEAD", fmt.Sprintf("%s%s", c.APIEndpoint, path), nil)
 	if err != nil {
 		return nil, err
 	}

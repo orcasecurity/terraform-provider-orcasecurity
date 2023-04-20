@@ -245,6 +245,28 @@ func TestAPIClient_Get(t *testing.T) {
 		t.Errorf("expected http://localhost/users, got %+v", resp.response.Request.URL.String())
 	}
 }
+
+func TestAPIClient_Head(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	resp, _ := apiClient.Head("/users")
+
+	if resp.response.Request.Method != "HEAD" {
+		t.Errorf("expected HEAD, got %s", resp.response.Request.Method)
+	}
+
+	if resp.response.Request.URL.String() != "http://localhost/users" {
+		t.Errorf("expected http://localhost/users, got %+v", resp.response.Request.URL.String())
+	}
+}
+
 func TestAPIClient_Post(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{

@@ -234,7 +234,7 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	instance, err := r.apiClient.GetCustomAlert(state.ID.ValueString())
+	exists, err := r.apiClient.IsCustomAlertExists(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Alert",
@@ -243,9 +243,18 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	if instance == nil {
+	if !exists {
 		tflog.Warn(ctx, fmt.Sprintf("Alert %s is missing on the remote side.", state.ID.ValueString()))
 		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	instance, err := r.apiClient.GetCustomAlert(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading Alert",
+			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
+		)
 		return
 	}
 
