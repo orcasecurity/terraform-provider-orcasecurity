@@ -11,7 +11,7 @@ import (
 
 const testAccDataSourceConfig = orcasecurity.TestProviderConfig + `
 data "orcasecurity_jira_template" "test" {
-  name = "example"
+  name = "tf: example"
 }
 `
 
@@ -23,6 +23,7 @@ func TestAccJiraTemplateDataSource(t *testing.T) {
 			{
 				Config: testAccDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.orcasecurity_jira_template.test", "name", "tf: example"),
 					resource.TestCheckResourceAttrWith("data.orcasecurity_jira_template.test", "id", func(value string) error {
 						// it must be a valid UUID
 						_, err := uuid.Parse(value)
