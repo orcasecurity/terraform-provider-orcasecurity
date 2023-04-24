@@ -36,9 +36,9 @@ func (resp *APIResponse) StatusCode() int {
 	return resp.response.StatusCode
 }
 
-// Test if request was successful (<300)
+// Test if request was successful (<400)
 func (resp *APIResponse) IsOk() bool {
-	return resp.StatusCode() < 300
+	return resp.StatusCode() < 400
 }
 
 // Read response body.
@@ -121,6 +121,15 @@ func (c *APIClient) Get(path string) (*APIResponse, error) {
 	return c.doRequest(*req)
 }
 
+// Execute HEAD HTTP request
+func (c *APIClient) Head(path string) (*APIResponse, error) {
+	req, err := http.NewRequest("HEAD", fmt.Sprintf("%s%s", c.APIEndpoint, path), nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(*req)
+}
+
 // Execute POST HTTP request.
 func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
@@ -137,12 +146,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.doRequest(*req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return c.doRequest(*req)
 }
 
 // Execute PUT HTTP request.
@@ -161,12 +165,7 @@ func (c *APIClient) Put(path string, data interface{}) (*APIResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.doRequest(*req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return c.doRequest(*req)
 }
 
 // Execute DELETE HTTP request.
@@ -176,10 +175,5 @@ func (c *APIClient) Delete(path string) (*APIResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.doRequest(*req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return c.doRequest(*req)
 }

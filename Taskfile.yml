@@ -22,3 +22,8 @@ tasks:
         cmds:
             - { task: "install" }
             - terraform -chdir=demo destroy
+
+    refresh:
+        cmds:
+            - { task: "install" }
+            - terraform -chdir=demo refresh
