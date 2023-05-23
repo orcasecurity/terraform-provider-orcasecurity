@@ -23,7 +23,7 @@ type organizationDataSource struct {
 	apiClient *api_client.APIClient
 }
 
-func NewOrganizatinDataSource() datasource.DataSource {
+func NewOrganizationDataSource() datasource.DataSource {
 	return &organizationDataSource{}
 }
 
