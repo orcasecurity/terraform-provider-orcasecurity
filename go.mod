@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/getsentry/sentry-go v0.25.0
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.5.0
 	github.com/hashicorp/terraform-plugin-docs v0.14.1
 	github.com/hashicorp/terraform-plugin-framework v1.3.4
 	github.com/hashicorp/terraform-plugin-framework-validators v0.10.0
