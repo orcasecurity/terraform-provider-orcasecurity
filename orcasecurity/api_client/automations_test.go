@@ -1,7 +1,7 @@
 package api_client_test
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -12,7 +12,7 @@ func TestAutomations_DoesAutomationExist(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -31,7 +31,7 @@ func TestAutomations_DoesAutomationExistFalse(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -44,5 +44,4 @@ func TestAutomations_DoesAutomationExistFalse(t *testing.T) {
 	if exists {
 		t.Error("automation expected to be absent, but it exists")
 	}
-
 }

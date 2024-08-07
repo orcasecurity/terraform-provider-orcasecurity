@@ -2,7 +2,6 @@ package api_client
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
@@ -18,7 +17,7 @@ func TestAPIResponse_StatusCode(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 		}
 	})}
 
@@ -32,7 +31,7 @@ func TestAPIResponse_IsOk_Success(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 		}
 	})}
 
@@ -46,7 +45,7 @@ func TestAPIResponse_IsOk_Failure(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 400,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 		}
 	})}
 
@@ -61,7 +60,7 @@ func TestAPIResponse_Body(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 		}
 	})}
 
@@ -78,7 +77,7 @@ func TestAPIResponse_Read(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 		}
 	})}
 
@@ -98,7 +97,7 @@ func TestAPIResponse_ReadJSON(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`{"status": "ok"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"status": "ok"}`)),
 		}
 	})}
 
@@ -122,7 +121,7 @@ func TestAPIResponse_Error_FromMessage(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 400,
-			Body:       ioutil.NopCloser(strings.NewReader(`{"message": "not ok"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"message": "not ok"}`)),
 		}
 	})}
 
@@ -139,7 +138,7 @@ func TestAPIResponse_Error_FromError(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 400,
-			Body:       ioutil.NopCloser(strings.NewReader(`{"error": "not ok"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"error": "not ok"}`)),
 		}
 	})}
 
@@ -156,7 +155,7 @@ func TestAPIResponse_Error_ReturnNil(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`{}`)),
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
 		}
 	})}
 
@@ -173,7 +172,7 @@ func TestAPIClient_AddAuthorizationHeader(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`{}`)),
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
 			Request:    req,
 		}
 	})}
@@ -190,7 +189,7 @@ func TestAPIClient_AddContentTypeHeader(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`{}`)),
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
 			Request:    req,
 		}
 	})}
@@ -207,7 +206,7 @@ func TestAPIClient_AddUserAgentHeader(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`{}`)),
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
 			Request:    req,
 		}
 	})}
@@ -224,7 +223,7 @@ func TestAPIClient_Get(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -250,7 +249,7 @@ func TestAPIClient_Head(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -271,7 +270,7 @@ func TestAPIClient_Post(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 201,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -311,7 +310,7 @@ func TestAPIClient_Put(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -350,7 +349,7 @@ func TestAPIClient_Delete(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 204,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}

@@ -5,29 +5,9 @@ import (
 	"fmt"
 )
 
-const AutomationAlertDismissalID = 1
-const AutomationAlertScoreChangeID = 28
-const AutomationAWSSecurityHubID = 37
-const AutomationAwsSecurityLakeID = 25
-const AutomationAwsSqsID = 33
-const AutomationAzureDevopsID = 17
-const AutomationAzureSentinelID = 7
-const AutomationCoralogixID = 36
-const AutomationEmailID = 5
-const AutomationGcpPubSubID = 13
-const AutomationGoogleSecurityOperationsSIEMID = 27
-const AutomationJiraID = 10
-const AutomationOpsgenieID = 4
-const AutomationPagerDutyID = 3
-const AutomationSnowflakeID = 26
-const AutomationSplunkID = 8
+const AutomationJiraActionID = 10
 const AutomationSumoLogicID = 6
-const AutomationTinesID = 30
-const AutomationTorqID = 16
 const AutomationWebhookID = 12
-
-// Covers both Slack v1 and Slack v2 integrations.
-const AutomationSlackID = 2
 
 type AutomationFilter struct {
 	Field    string   `json:"field"`
@@ -46,44 +26,22 @@ type AutomationAction struct {
 	Data           map[string]interface{} `json:"data"`
 }
 
-func (a *AutomationAction) IsAlertDismissalTemplate() bool {
-	return a.Type == AutomationAlertDismissalID
+func (a *AutomationAction) IsJiraIssue() bool {
+	return a.Type == AutomationJiraActionID
 }
 
-func (a *AutomationAction) IsAzureDevopsTemplate() bool {
-	return a.Type == AutomationAzureDevopsID
-}
-
-func (a *AutomationAction) IsEmailTemplate() bool {
-	return a.Type == AutomationEmailID
-}
-
-func (a *AutomationAction) IsJiraTemplate() bool {
-	return a.Type == AutomationJiraID
-}
-
-func (a *AutomationAction) IsPagerDutyTemplate() bool {
-	return a.Type == AutomationPagerDutyID
-}
-
-func (a *AutomationAction) IsSumoLogicTemplate() bool {
+func (a *AutomationAction) IsSumoLogic() bool {
 	return a.Type == AutomationSumoLogicID
 }
 
-func (a *AutomationAction) IsWebhookTemplate() bool {
+func (a *AutomationAction) IsWebhook() bool {
 	return a.Type == AutomationWebhookID
 }
 
-func (a *AutomationAction) IsSlackV2() bool {
-	return a.Type == AutomationSlackID
-}
-
+// Automation is a struct composed of an ID, name, Description, OrganizationID, Query, and Actions.
 type Automation struct {
 	ID             string             `json:"id,omitempty"`
 	Name           string             `json:"name"`
-	BusinessUnits  []string           `json:"business_units"`
-	Enabled        bool               `json:"is_enabled"`
-	SonarQuery     map[string]int     `json:"sonar_query"`
 	Description    string             `json:"description"`
 	OrganizationID string             `json:"organization,omitempty"`
 	Query          AutomationQuery    `json:"dsl_filter"`
@@ -94,6 +52,7 @@ type automationAPIResponseType struct {
 	Data Automation `json:"data"`
 }
 
+// GetAutomation is a function on the client struct. Will return an Automation and error.
 func (client *APIClient) GetAutomation(automationID string) (*Automation, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/rules/%s", automationID))
 	if err != nil {
@@ -112,6 +71,7 @@ func (client *APIClient) GetAutomation(automationID string) (*Automation, error)
 	return &response.Data, nil
 }
 
+// DoesAutomationExist is a function on the client struct.
 func (client *APIClient) DoesAutomationExist(id string) (bool, error) {
 	resp, _ := client.Head(fmt.Sprintf("/api/rules/%s", id))
 	return resp.StatusCode() == 200, nil
