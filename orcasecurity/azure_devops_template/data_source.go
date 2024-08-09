@@ -36,7 +36,7 @@ func (ds *azureDevopsTemplateDataSource) Configure(_ context.Context, req dataso
 }
 
 func (ds *azureDevopsTemplateDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_azure_devops_template"
+	resp.TypeName = "orcasecurity_azure_devops_template"
 }
 
 func (ds *azureDevopsTemplateDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -48,7 +48,7 @@ func (ds *azureDevopsTemplateDataSource) Schema(_ context.Context, _ datasource.
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Template name at Orca",
+				Description: "The Intregration Template name",
 			},
 		},
 	}

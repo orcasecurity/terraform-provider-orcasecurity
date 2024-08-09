@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
+	"terraform-provider-orcasecurity/orcasecurity/azure_devops_template"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
@@ -172,6 +173,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		jira_template.NewJiraTemplateDataSource,
+		azure_devops_template.NewAzureDevopsTemplateDataSource,
 		webhooks.NewWebhookDataSource, organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
 	}

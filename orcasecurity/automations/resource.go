@@ -44,6 +44,11 @@ type automationJiraIssueModel struct {
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
+type automationAzureDevopsWorkItemModel struct {
+	TemplateName  types.String `tfsdk:"template_name"`
+	ParentIssueID types.String `tfsdk:"parent_issue"`
+}
+
 type automationSumoLogicModel struct {
 }
 
@@ -52,14 +57,15 @@ type automationWebhookModel struct {
 }
 
 type automationResourceModel struct {
-	ID             types.String              `tfsdk:"id"`
-	Name           types.String              `tfsdk:"name"`
-	Description    types.String              `tfsdk:"description"`
-	Query          *automationQueryModel     `tfsdk:"query"`
-	JiraIssue      *automationJiraIssueModel `tfsdk:"jira_issue"`
-	SumoLogic      *automationSumoLogicModel `tfsdk:"sumologic"`
-	Webhook        *automationWebhookModel   `tfsdk:"webhook"`
-	OrganizationID types.String              `tfsdk:"organization_id"`
+	ID                  types.String                        `tfsdk:"id"`
+	Name                types.String                        `tfsdk:"name"`
+	Description         types.String                        `tfsdk:"description"`
+	Query               *automationQueryModel               `tfsdk:"query"`
+	JiraIssue           *automationJiraIssueModel           `tfsdk:"jira_issue"`
+	AzureDevopsWorkItem *automationAzureDevopsWorkItemModel `tfsdk:"azure_devops_work_item"`
+	SumoLogic           *automationSumoLogicModel           `tfsdk:"sumologic"`
+	Webhook             *automationWebhookModel             `tfsdk:"webhook"`
+	OrganizationID      types.String                        `tfsdk:"organization_id"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -81,6 +87,7 @@ func (r *automationResource) ConfigValidators(_ context.Context) []resource.Conf
 	return []resource.ConfigValidator{
 		resourcevalidator.AtLeastOneOf(
 			path.MatchRoot("jira_issue"),
+			path.MatchRoot("azure_devops_work_item"),
 			path.MatchRoot("sumologic"),
 			path.MatchRoot("webhook"),
 		),
@@ -157,6 +164,20 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
+			"azure_devops_work_item": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Create a Azure Devops Work Item using template.",
+				Attributes: map[string]schema.Attribute{
+					"template_name": schema.StringAttribute{
+						Required:    true,
+						Description: "An ADO work item template to use.",
+					},
+					"parent_issue": schema.StringAttribute{
+						Optional:    true,
+						Description: "Automatically nest under parent issue.",
+					},
+				},
+			},
 			"sumologic": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "SumoLogic integration",
@@ -213,6 +234,20 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationJiraActionID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.AzureDevopsWorkItem != nil && !plan.AzureDevopsWorkItem.TemplateName.IsNull() {
+		payload := make(map[string]interface{})
+		payload["template"] = plan.AzureDevopsWorkItem.TemplateName.ValueString()
+		if !plan.AzureDevopsWorkItem.ParentIssueID.IsNull() {
+			payload["parent_id"] = plan.AzureDevopsWorkItem.ParentIssueID.ValueString()
+		}
+
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationAzureDevopsActionID,
 			OrganizationID: plan.OrganizationID.ValueString(),
 			Data:           payload,
 		})
@@ -350,6 +385,15 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 			}
 			if action.Data["parent_id"] != nil {
 				state.JiraIssue.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
+			}
+		}
+
+		if action.IsAzureDevopsWorkItem() {
+			state.AzureDevopsWorkItem = &automationAzureDevopsWorkItemModel{
+				TemplateName: types.StringValue(action.Data["template"].(string)),
+			}
+			if action.Data["parent_id"] != nil {
+				state.AzureDevopsWorkItem.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
 			}
 		}
 

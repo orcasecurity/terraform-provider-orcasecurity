@@ -41,14 +41,14 @@ func (ds *jiraTemplateDataSource) Metadata(ctx context.Context, req datasource.M
 
 func (ds *jiraTemplateDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Fetch JIRA template.",
+		Description: "Fetch Jira template.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Template name at Orca",
+				Description: "The Intregration Template name",
 			},
 		},
 	}

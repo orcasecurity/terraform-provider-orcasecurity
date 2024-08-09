@@ -12,7 +12,7 @@ type AzureDevopsTemplate struct {
 	TemplateName string `json:"template_name"`
 }
 
-func (client *APIClient) AzureDevopsTemplateByName(name string) (*AzureDevopsTemplate, error) {
+func (client *APIClient) GetAzureDevopsTemplateByName(name string) (*AzureDevopsTemplate, error) {
 	resp, err := client.Get(
 		fmt.Sprintf("/api/external_service/config?service_name=%s&template_name=%s",
 			AzureDevopsServiceConfigName, url.QueryEscape(name),

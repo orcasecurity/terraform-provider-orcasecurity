@@ -89,6 +89,7 @@ resource "orcasecurity_automation" "example" {
 
 ### Optional
 
+- `azure_devops_work_item` (Attributes) Create a Azure Devops Work Item using template. (see [below for nested schema](#nestedatt--azure_devops_work_item))
 - `description` (String) Automation description.
 - `jira_issue` (Attributes) Create a Jira ticket using template. (see [below for nested schema](#nestedatt--jira_issue))
 - `sumologic` (Attributes) SumoLogic integration (see [below for nested schema](#nestedatt--sumologic))
@@ -118,6 +119,18 @@ Optional:
 - `excludes` (List of String)
 - `includes` (List of String)
 
+
+
+<a id="nestedatt--azure_devops_work_item"></a>
+### Nested Schema for `azure_devops_work_item`
+
+Required:
+
+- `template_name` (String) An ADO work item template to use.
+
+Optional:
+
+- `parent_issue` (String) Automatically nest under parent issue.
 
 
 <a id="nestedatt--jira_issue"></a>
