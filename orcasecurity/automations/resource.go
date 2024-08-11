@@ -177,6 +177,7 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 }
 
 func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_client.AutomationQuery, diag.Diagnostics) {
+	//filterRules is an instance of an array of structs containing a string (Field) and 2 different arrays of strings.
 	var filterRules []api_client.AutomationFilter
 	var finalDiags diag.Diagnostics
 
@@ -258,6 +259,7 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 		Description: plan.Description.ValueString(),
 		Query:       filterQuery,
 	}
+
 	instance, err := r.apiClient.CreateAutomation(createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(

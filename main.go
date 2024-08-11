@@ -40,11 +40,13 @@ func main() {
 		log.Printf("Sentry.Init failure: %s", err)
 	}
 
+	//Specifying a Protocol Version 6 provider: https://developer.hashicorp.com/terraform/plugin/framework/provider-servers
 	opts := providerserver.ServeOpts{
 		Address: "registry.terraform.io/orcasecurity/orcasecurity",
 		Debug:   debug,
 	}
 
+	//This begins the Terraform Provider server: https://developer.hashicorp.com/terraform/plugin/framework/provider-servers
 	err = providerserver.Serve(context.Background(), orcasecurity.New(version), opts)
 	if err != nil {
 		log.Fatal(err.Error())

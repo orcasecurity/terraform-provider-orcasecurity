@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
+	"terraform-provider-orcasecurity/orcasecurity/business_units"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
@@ -21,7 +22,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// Ensure the implementation satisfies the expected interfaces
+// Here we declare the provider.Provider interface.
+// Interfaces are named collections of method signatures.
 var (
 	_ provider.Provider = &orcasecurityProvider{}
 )
@@ -78,7 +80,7 @@ Both can be configured using environment variables "%s" and "%s" respectively.`,
 	}
 }
 
-// Configure prepares a Orca Security API client for data sources and resources.
+// Configure prepares an Orca Security API client for data sources and resources.
 func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var config orcasecurityProviderModel
 	diagnostics := req.Config.Get(ctx, &config)
@@ -182,5 +184,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 	return []func() resource.Resource{
 		automations.NewAutomationResource,
 		alerts.NewCustomAlertResource,
+		business_units.NewBusinessUnitResource,
 	}
 }
