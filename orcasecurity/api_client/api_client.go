@@ -20,7 +20,7 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	apiclient := APIClient{
 		APIEndpoint: *endpoint,
 		APIToken:    *token,
-		HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		HTTPClient:  &http.Client{Timeout: 30 * time.Second},
 	}
 	return &apiclient, nil
 }

@@ -135,6 +135,7 @@ func (client *APIClient) UpdateCustomAlert(id string, data CustomAlert) (*Custom
 
 	return &response.Data, err
 }
+
 func (client *APIClient) DeleteCustomAlert(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/sonar/rules/%s", id))
 	return err
@@ -164,6 +165,7 @@ func (client *APIClient) SetCustomRemediationText(data CustomAlertRemediationTex
 	}
 	return err
 }
+
 func (client *APIClient) DeleteCustomRemediationText(data CustomAlertRemediationText) error {
 	payload, err := json.Marshal(&data)
 	if err != nil {

@@ -90,9 +90,11 @@ func (ds *sonarQueryDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 }
 
 func (ds *sonarQueryDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	//state is of type SonarQueryFilterModel w/ Query, Results, Limit, StartAtIndex as fields
 	var state sonarQueryFilterModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 
+	//queryString is stored in state
 	queryString := state.Query.ValueString()
 	query := make(map[string]interface{})
 	err := json.Unmarshal([]byte(queryString), &query)

@@ -7,6 +7,9 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
+	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
+	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
+	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
@@ -21,7 +24,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// Ensure the implementation satisfies the expected interfaces
+// Ensure the implementation satisfies the expected interfaces.
+// We are setting multiple variables at once by using var()
 var (
 	_ provider.Provider = &orcasecurityProvider{}
 )
@@ -41,12 +45,13 @@ type orcasecurityProvider struct {
 	version string
 }
 
+// orcacasecurityProviderModel contains 2 variables: APIEndpoint and APITOKEN.
 type orcasecurityProviderModel struct {
 	APIEndpoint types.String `tfsdk:"api_endpoint"`
 	APIToken    types.String `tfsdk:"api_token"`
 }
 
-// Metadata returns the provider type name.
+// Metadata is a method on orcasecurityProvider - returns the provider type name.
 func (p *orcasecurityProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.Version = p.version
 	resp.TypeName = "orcasecurity"
@@ -182,5 +187,8 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 	return []func() resource.Resource{
 		automations.NewAutomationResource,
 		alerts.NewCustomAlertResource,
+		discovery_view.NewDiscoveryViewResource,
+		custom_widget.NewCustomWidgetResource,
+		custom_dashboard.NewCustomDashboardResource,
 	}
 }
