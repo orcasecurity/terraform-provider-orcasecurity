@@ -7,6 +7,8 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
+	"terraform-provider-orcasecurity/orcasecurity/custom_role"
+	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
@@ -182,5 +184,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 	return []func() resource.Resource{
 		automations.NewAutomationResource,
 		alerts.NewCustomAlertResource,
+		custom_role.NewCustomRoleResource,
+		group.NewGroupResource,
 	}
 }
