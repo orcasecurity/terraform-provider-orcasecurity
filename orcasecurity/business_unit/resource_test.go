@@ -28,7 +28,7 @@ resource "orcasecurity_business_unit" "business_unit_for_aws" {
 			},
 			// import
 			{
-				ResourceName:      "orcasecurity_custom_role.tf-custom-role-1",
+				ResourceName:      "orcasecurity_business_unit.business_unit_for_aws",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -43,8 +43,8 @@ resource "orcasecurity_business_unit" "business_unit_for_azure" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_role.tf-custom-role-1", "name", "custom_role_1"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_role.tf-custom-role-1", "description", "First Custom Role with 2 permissons"),
+					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_azure", "name", "Azure"),
+					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_azure", "filter_data.cloud_provider[0]", "azure"),
 				),
 			},
 		},

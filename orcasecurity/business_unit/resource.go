@@ -121,7 +121,7 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 	}
 }
 
-func generateCloudProviderFilter(ctx context.Context, plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
+func generateCloudProviderFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var cpFilter = filter.CloudProvider
 	var finalDiags diag.Diagnostics
@@ -132,7 +132,7 @@ func generateCloudProviderFilter(ctx context.Context, plan *businessUnitFilterMo
 	return api_client.BusinessUnitFilter{CloudProvider: cpFilter}, finalDiags
 }
 
-func generateCustomTagsFilter(ctx context.Context, plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
+func generateCustomTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var ctFilter = filter.CustomTags
 	var finalDiags diag.Diagnostics
@@ -143,7 +143,7 @@ func generateCustomTagsFilter(ctx context.Context, plan *businessUnitFilterModel
 	return api_client.BusinessUnitFilter{CustomTags: ctFilter}, finalDiags
 }
 
-func generateInventoryTagsFilter(ctx context.Context, plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
+func generateInventoryTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var itFilter = filter.InventoryTags
 	var finalDiags diag.Diagnostics
@@ -154,7 +154,7 @@ func generateInventoryTagsFilter(ctx context.Context, plan *businessUnitFilterMo
 	return api_client.BusinessUnitFilter{InventoryTags: itFilter}, finalDiags
 }
 
-func generateAccountTagsFilter(ctx context.Context, plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
+func generateAccountTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var atFilter = filter.AccountTags
 	var finalDiags diag.Diagnostics
@@ -165,7 +165,7 @@ func generateAccountTagsFilter(ctx context.Context, plan *businessUnitFilterMode
 	return api_client.BusinessUnitFilter{CloudProvider: atFilter}, finalDiags
 }
 
-func generateCloudAccountsFilter(ctx context.Context, plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
+func generateCloudAccountsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var aiFilter = filter.CloudAccounts
 	var finalDiags diag.Diagnostics
@@ -185,7 +185,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	if len(plan.Filter.CloudProvider) > 0 {
-		filter, filterDiags := generateCloudProviderFilter(ctx, plan.Filter)
+		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -210,7 +210,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			return
 		}
 	} else if len(plan.Filter.CustomTags) > 0 {
-		filter, filterDiags := generateCustomTagsFilter(ctx, plan.Filter)
+		filter, filterDiags := generateCustomTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -235,7 +235,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			return
 		}
 	} else if len(plan.Filter.AccountTags) > 0 {
-		filter, filterDiags := generateAccountTagsFilter(ctx, plan.Filter)
+		filter, filterDiags := generateAccountTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -260,7 +260,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			return
 		}
 	} else if len(plan.Filter.InventoryTags) > 0 {
-		filter, filterDiags := generateInventoryTagsFilter(ctx, plan.Filter)
+		filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -285,7 +285,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			return
 		}
 	} else if len(plan.Filter.CloudAccounts) > 0 {
-		filter, filterDiags := generateCloudAccountsFilter(ctx, plan.Filter)
+		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -372,7 +372,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	if len(plan.Filter.CloudProvider) > 0 {
-		filterQuery, filterDiags := generateCloudProviderFilter(ctx, plan.Filter)
+		filterQuery, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
@@ -404,7 +404,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			return
 		}
 	} else if len(plan.Filter.CustomTags) > 0 {
-		filterQuery, filterDiags := generateCustomTagsFilter(ctx, plan.Filter)
+		filterQuery, filterDiags := generateCustomTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
@@ -436,7 +436,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			return
 		}
 	} else if len(plan.Filter.InventoryTags) > 0 {
-		filterQuery, filterDiags := generateInventoryTagsFilter(ctx, plan.Filter)
+		filterQuery, filterDiags := generateInventoryTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
@@ -468,7 +468,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			return
 		}
 	} else if len(plan.Filter.AccountTags) > 0 {
-		filterQuery, filterDiags := generateAccountTagsFilter(ctx, plan.Filter)
+		filterQuery, filterDiags := generateAccountTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
@@ -500,7 +500,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			return
 		}
 	} else if len(plan.Filter.CloudAccounts) > 0 {
-		filterQuery, filterDiags := generateCloudAccountsFilter(ctx, plan.Filter)
+		filterQuery, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
