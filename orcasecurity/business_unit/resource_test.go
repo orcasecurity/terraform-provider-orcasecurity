@@ -14,20 +14,16 @@ func TestAccBusinessUnitResource_Basic(t *testing.T) {
 			// create
 			{
 				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_role" "tf-custom-role-1" {
-  name = "custom_role_0"
-  permission_groups = [
-    "assets.asset.read",
-    "auth.tokens.write"
-  ]
-
-  description = "First Custom Role with 2 permissons"
-
+resource "orcasecurity_business_unit" "business_unit_for_aws" {
+    name = "AWS"
+    filter_data = {
+        cloud_provider = ["aws"]
+    }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_role.tf-custom-role-1", "name", "custom_role_0"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_role.tf-custom-role-1", "description", "First Custom Role with 2 permissons"),
+					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_aws", "name", "AWS"),
+					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_aws", "filter_data.cloud_provider[0]", "aws"),
 				),
 			},
 			// import
@@ -39,15 +35,11 @@ resource "orcasecurity_custom_role" "tf-custom-role-1" {
 			// update
 			{
 				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_role" "tf-custom-role-1" {
-  name = "custom_role_1"
-  permission_groups = [
-    "assets.asset.read",
-    "auth.tokens.write"
-  ]
-
-  description = "First Custom Role with 2 permissons"
-
+resource "orcasecurity_business_unit" "business_unit_for_azure" {
+    name = "Azure"
+    filter_data = {
+        cloud_provider = ["azure"]
+    }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(

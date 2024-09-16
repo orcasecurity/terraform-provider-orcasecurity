@@ -1,4 +1,4 @@
-package business_units
+package business_unit
 
 import (
 	"context"
