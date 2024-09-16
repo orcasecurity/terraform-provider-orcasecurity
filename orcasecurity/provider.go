@@ -7,7 +7,11 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
+	"terraform-provider-orcasecurity/orcasecurity/business_unit"
+	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_role"
+	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
+	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
@@ -186,5 +190,9 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		alerts.NewCustomAlertResource,
 		custom_role.NewCustomRoleResource,
 		group.NewGroupResource,
+		business_unit.NewBusinessUnitResource,
+		custom_widget.NewCustomWidgetResource,
+		custom_dashboard.NewCustomDashboardResource,
+		discovery_view.NewDiscoveryViewResource,
 	}
 }
