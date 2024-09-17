@@ -7,6 +7,7 @@ import (
 
 const AutomationJiraActionID = 10
 const AutomationSumoLogicID = 6
+const AutomationAzureDevopsActionID = 17
 const AutomationWebhookID = 12
 
 type AutomationFilter struct {
@@ -27,6 +28,10 @@ type AutomationAction struct {
 }
 
 func (a *AutomationAction) IsJiraIssue() bool {
+	return a.Type == AutomationJiraActionID
+}
+
+func (a *AutomationAction) IsAzureDevopsWorkItem() bool {
 	return a.Type == AutomationJiraActionID
 }
 
