@@ -100,7 +100,7 @@ func (r *automationResource) ImportState(ctx context.Context, req resource.Impor
 
 func (r *automationResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Provider Orca Security automation resource.",
+		Description: "The Automation resource allows the creation and management of an Orca Security Automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
