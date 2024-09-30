@@ -17,11 +17,15 @@ type BusinessUnitFilter struct {
 	CloudAccounts []string `json:"cloud_vendor_id,omitempty"`
 }
 
+type BusinessUnitShiftLeftFilter struct {
+	ShiftLeftProjects []string `json:"shiftleft_project_id"`
+}
+
 type BusinessUnit struct {
-	ID   string `json:"filter_id"`
-	Name string `json:"name"`
-	//OrganizationID string             `json:"organization,omitempty"`
-	Filter BusinessUnitFilter `json:"filter_data,omitempty"`
+	ID       string                      `json:"filter_id"`
+	Name     string                      `json:"name"`
+	Filter   BusinessUnitFilter          `json:"filter_data,omitempty"`
+	SLFilter BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data"`
 }
 
 type businessUnitAPIResponseType struct {

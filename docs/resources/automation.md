@@ -3,12 +3,12 @@
 page_title: "orcasecurity_automation Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provider Orca Security automation resource.
+  The Automation resource allows the creation and management of an Orca Security Automation. You can read more about automations here https://docs.orcasecurity.io/docs/automations.
 ---
 
 # orcasecurity_automation (Resource)
 
-Provider Orca Security automation resource.
+The Automation resource allows the creation and management of an Orca Security Automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).
 
 ## Example Usage
 

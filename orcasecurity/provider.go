@@ -15,7 +15,10 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
+	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/webhooks"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -194,5 +197,8 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		custom_widget.NewCustomWidgetResource,
 		custom_dashboard.NewCustomDashboardResource,
 		discovery_view.NewDiscoveryViewResource,
+		shift_left_project.NewShiftLeftProjectResource,
+		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
+		trusted_cloud_account.NewTrustedCloudAccountResource,
 	}
 }
