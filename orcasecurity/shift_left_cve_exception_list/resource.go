@@ -285,14 +285,14 @@ func (r *shiftLeftCveExceptionListResource) Update(ctx context.Context, req reso
 		return
 	}
 
-	var projects []api_client.Project
+	/*var projects []api_client.Project
 	for _, item := range plan.Projects {
 		projects = append(projects, api_client.Project{
 			ProjectID:   item.ProjectID.ValueString(),
 			ProjectName: item.ProjectName.ValueString(),
 			ProjectKey:  item.ProjectKey.ValueString(),
 		})
-	}
+	}*/
 
 	var vulnerabilities []api_client.Vulnerability
 	for _, item := range plan.Vulnerabilities {
