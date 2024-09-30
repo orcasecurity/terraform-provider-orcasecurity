@@ -16,6 +16,13 @@ Provides a Business Unit resource. Please note that Shift Left business units ar
 //Cloud Provider-based Business unit for AWS
 resource "orcasecurity_business_unit" "business_unit_for_aws" {
   name = "AWS"
+
+  shiftleft_filter_data = {
+    shiftleft_project_id = [
+      "c7257bec-9718-47c2-ade7-e08e7caa36e3"
+    ]
+  }
+
   filter_data = {
     cloud_provider = ["aws"]
   }
@@ -27,12 +34,13 @@ resource "orcasecurity_business_unit" "business_unit_for_aws" {
 
 ### Required
 
-- `filter_data` (Attributes) The filter to select the resources of the business unit. (see [below for nested schema](#nestedatt--filter_data))
 - `name` (String) Business Unit name.
 
 ### Optional
 
-- `global_filter` (Boolean) Not sure
+- `filter_data` (Attributes) The filter to select the resources of the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded. (see [below for nested schema](#nestedatt--filter_data))
+- `global_filter` (Boolean) Whether or not this is a business unit all users within your Orca org can use. If set to true, then it is accessible to all other users in your org.
+- `shiftleft_filter_data` (Attributes) The filter to select Shift Left resources for the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded. (see [below for nested schema](#nestedatt--shiftleft_filter_data))
 
 ### Read-Only
 
@@ -48,5 +56,13 @@ Optional:
 - `cloud_vendor_id` (List of String) A list of at least 1 cloud account #s, each provided as a string.
 - `custom_tags` (List of String) A list of at least 1 custom tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).
 - `inventory_tags` (List of String) A list of at least 1 cloud tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).
+
+
+<a id="nestedatt--shiftleft_filter_data"></a>
+### Nested Schema for `shiftleft_filter_data`
+
+Optional:
+
+- `shiftleft_project_id` (List of String) A list of at least 1 Shift Left project IDs.
 
 
