@@ -2,6 +2,7 @@ package custom_widget
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -32,27 +33,31 @@ type customWidgetExtraParmetersSettingsFieldModel struct {
 }
 
 type customWidgetExtraParametersSettingsModel struct {
-	Size              types.String                                  `tfsdk:"size"`
 	Field             *customWidgetExtraParmetersSettingsFieldModel `tfsdk:"field"`
-	RequestParameters types.String                                  `tfsdk:"request_params"`
+	RequestParameters requestParamsModel                            `tfsdk:"request_params"`
+}
+
+type requestParamsModel struct {
+	Query       types.String   `tfsdk:"query"`
+	GroupBy     []types.String `tfsdk:"group_by"`
+	GroupByList []types.String `tfsdk:"group_by_list"`
 }
 
 type customWidgetExtraParametersModel struct {
-	Type              types.String                               `tfsdk:"type"`
-	Category          types.String                               `tfsdk:"category"`
-	EmptyStateMessage types.String                               `tfsdk:"empty_state_message"`
-	Size              types.String                               `tfsdk:"size"`
-	IsNew             types.Bool                                 `tfsdk:"is_new"`
-	Title             types.String                               `tfsdk:"title"`
-	Subtitle          types.String                               `tfsdk:"subtitle"`
-	Description       types.String                               `tfsdk:"description"`
-	Settings          []customWidgetExtraParametersSettingsModel `tfsdk:"settings"`
+	Type              types.String                             `tfsdk:"type"`
+	Category          types.String                             `tfsdk:"category"`
+	EmptyStateMessage types.String                             `tfsdk:"empty_state_message"`
+	Size              types.String                             `tfsdk:"default_size"`
+	IsNew             types.Bool                               `tfsdk:"is_new"`
+	Title             types.String                             `tfsdk:"title"`
+	Subtitle          types.String                             `tfsdk:"subtitle"`
+	Description       types.String                             `tfsdk:"description"`
+	Settings          customWidgetExtraParametersSettingsModel `tfsdk:"settings"`
 }
 
 type customWidgetResourceModel struct {
 	ID                types.String                      `tfsdk:"id"`
 	Name              types.String                      `tfsdk:"name"`
-	FilterData        map[string]interface{}            `tfsdk:"filter_data"`
 	ExtraParameters   *customWidgetExtraParametersModel `tfsdk:"extra_params"`
 	OrganizationLevel types.Bool                        `tfsdk:"organization_level"`
 	ViewType          types.String                      `tfsdk:"view_type"`
@@ -90,16 +95,11 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Custom widget title.",
+				Description: "An internal, unique name for the widget.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
-			},
-			"filter_data": schema.MapAttribute{
-				Description: "Should be left empty for custom dashboards.",
-				ElementType: types.StringType,
-				Required:    true,
 			},
 			"organization_level": schema.BoolAttribute{
 				Description: "If set to true, it is a shared widget (can be viewed by any member of your Orca org). If set to false, it is a personal widget (can be viewed only by you, not other members of your Orca org).",
@@ -124,8 +124,8 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						Description: "When no objects are returned by the widget's underlying Discovery query, the widget would present this message.",
 						Required:    true,
 					},
-					"size": schema.StringAttribute{
-						Description: "Defautl size of the identified widget. Possible values are sm (small), md (medium), or lg (large).",
+					"default_size": schema.StringAttribute{
+						Description: "Default size of the widget. Possible values are sm (small), md (medium), or lg (large).",
 						Required:    true,
 					},
 					"is_new": schema.BoolAttribute{
@@ -133,38 +133,53 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						Required:    true,
 					},
 					"title": schema.StringAttribute{
-						Description: "Custom widget title.",
+						Description: "Custom widget title that will be presented in the UI.",
 						Required:    true,
 					},
 					"subtitle": schema.StringAttribute{
-						Description: "Custom widget subtitle.",
+						Description: "Custom widget subtitle that will be presented in the UI.",
 						Required:    true,
 					},
 					"description": schema.StringAttribute{
 						Description: "Custom widget description (the text that appears in the info bubble).",
 						Required:    true,
 					},
-					"settings": schema.ListNestedAttribute{
-						Required: true,
-						NestedObject: schema.NestedAttributeObject{
-							Attributes: map[string]schema.Attribute{
-								"size": schema.StringAttribute{
-									Description: "Size of the custom widget. Possible values are sm (small), md (medium), or lg (large).",
-									Required:    true,
-								},
-								"field": schema.SingleNestedAttribute{
-									Required: true,
-									Attributes: map[string]schema.Attribute{
-										"name": schema.StringAttribute{
-											Required: true,
-										},
-										"type": schema.StringAttribute{
-											Required: true,
-										},
+					"settings": schema.SingleNestedAttribute{
+						Description: "These are the settings for the custom widget.",
+						Required:    true,
+						Attributes: map[string]schema.Attribute{
+							"field": schema.SingleNestedAttribute{
+								Description: "The name and type are also required here for grouping.",
+								Required:    true,
+								Attributes: map[string]schema.Attribute{
+									"name": schema.StringAttribute{
+										Description: "Name of the grouping method. For inventory-based queries, a common value is 'CloudAccount.Name'. To see other options, please use Chrome DevTools and the Orca UI to monitor what values this can be.",
+										Required:    true,
+									},
+									"type": schema.StringAttribute{
+										Description: "The name's type (normally 'str' for string).",
+										Required:    true,
 									},
 								},
-								"request_params": schema.StringAttribute{
-									Required: true,
+							},
+							"request_params": schema.SingleNestedAttribute{
+								Description: "These settings define the query and the grouping for the widget. For inventory-based queries, a common setting is to set 'group_by' to 'Type' and 'group_by_list' to 'CloudAccount.Name'.",
+								Required:    true,
+								Attributes: map[string]schema.Attribute{
+									"query": schema.StringAttribute{
+										Description: "Discovery query that the widget will use for its data.",
+										Required:    true,
+									},
+									"group_by": schema.ListAttribute{
+										ElementType: types.StringType,
+										Description: "How to group the returned results.",
+										Required:    true,
+									},
+									"group_by_list": schema.ListAttribute{
+										ElementType: types.StringType,
+										Description: "How to group the returned results.",
+										Required:    true,
+									},
 								},
 							},
 						},
@@ -184,15 +199,54 @@ func generateField(plan *customWidgetExtraParametersSettingsModel) api_client.Cu
 	return field
 }
 
-// Settings
+func generateRequestParameters(plan *requestParamsModel) api_client.RequestParams {
+	var request_params api_client.RequestParams
+
+	queryString := plan.Query
+	query := make(map[string]interface{})
+	_ = json.Unmarshal([]byte(queryString.ValueString()), &query)
+
+	group_by_string := make([]string, 0)
+	group_by_list_string := make([]string, 0)
+	additional_models_list_string := make([]string, 0)
+
+	for i := range plan.GroupBy {
+		group_by_string = append(group_by_string, plan.GroupByList[i].ValueString())
+	}
+
+	for j := range plan.GroupByList {
+		group_by_list_string = append(group_by_list_string, plan.GroupByList[j].ValueString())
+	}
+
+	for k := 1; k <= 3; k++ {
+		additional_models_list_string = append(additional_models_list_string, "CloudAccount")
+		additional_models_list_string = append(additional_models_list_string, "CodeOrigins")
+		additional_models_list_string = append(additional_models_list_string, "CustomTags")
+		fmt.Println(k)
+	}
+
+	request_params = api_client.RequestParams{
+		Query:            query,
+		GroupBy:          group_by_string,
+		GroupByList:      group_by_list_string,
+		AdditionalModels: additional_models_list_string,
+	}
+
+	return request_params
+}
+
 func generateSettings(plan *customWidgetExtraParametersModel) []api_client.CustomWidgetExtraParametersSettings {
 	var settings []api_client.CustomWidgetExtraParametersSettings
+	sizelist := [3]string{"sm", "md", "lg"}
 
-	for _, item := range plan.Settings {
+	item := plan.Settings
+
+	for i := 1; i <= 3; i++ {
+		fmt.Println(i)
 		settings = append(settings, api_client.CustomWidgetExtraParametersSettings{
-			Size:              item.Size.ValueString(),
+			Size:              sizelist[i],
 			Field:             generateField(&item),
-			RequestParameters: item.RequestParameters.ValueString(),
+			RequestParameters: generateRequestParameters(&item.RequestParameters),
 		})
 	}
 
@@ -246,15 +300,6 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	instance, err = r.apiClient.GetCustomWidget(instance.ID)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error refreshing custom widget with error",
-			"Could not refresh custom widget, unexpected error and Instace ID: .",
-		)
-		return
-	}
-
 	plan.ID = types.StringValue(instance.ID)
 
 	diags = resp.State.Set(ctx, plan)
@@ -287,41 +332,13 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	instance, err := r.apiClient.GetCustomWidget(state.ID.ValueString())
+	_, err = r.apiClient.GetCustomWidget(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading custom widget",
 			fmt.Sprintf("Could not read custom widget ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
-	}
-
-	state.ID = types.StringValue(instance.ID)
-	state.Name = types.StringValue(instance.Name)
-	state.OrganizationLevel = types.BoolValue(instance.OrganizationLevel)
-	state.ViewType = types.StringValue(instance.ViewType)
-	state.FilterData = instance.FilterData
-
-	var settings []customWidgetExtraParametersSettingsModel
-
-	for _, item := range instance.ExtraParameters.Settings {
-		settings = append(state.ExtraParameters.Settings, customWidgetExtraParametersSettingsModel{
-			Size:              types.StringValue(item.Size),
-			Field:             &customWidgetExtraParmetersSettingsFieldModel{Name: types.StringValue(item.Field.Name), Type: types.StringValue(item.Field.Type)},
-			RequestParameters: types.StringValue(item.RequestParameters),
-		})
-	}
-
-	state.ExtraParameters = &customWidgetExtraParametersModel{
-		Type:              types.StringValue(instance.ExtraParameters.Type),
-		Category:          types.StringValue(instance.ExtraParameters.Category),
-		EmptyStateMessage: types.StringValue(instance.ExtraParameters.EmptyStateMessage),
-		Size:              types.StringValue(instance.ExtraParameters.Size),
-		IsNew:             types.BoolValue(instance.ExtraParameters.IsNew),
-		Title:             types.StringValue(instance.ExtraParameters.Title),
-		Subtitle:          types.StringValue(instance.ExtraParameters.Subtitle),
-		Description:       types.StringValue(instance.ExtraParameters.Description),
-		Settings:          settings,
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -347,32 +364,12 @@ func (r *customWidgetResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	var settings []api_client.CustomWidgetExtraParametersSettings
-
-	for _, item := range plan.ExtraParameters.Settings {
-		settings = append(settings, api_client.CustomWidgetExtraParametersSettings{
-			Size:              item.Size.ValueString(),
-			Field:             api_client.CustomWidgetExtraParametersSettingsField{Name: item.Field.Name.ValueString(), Type: item.Field.Type.ValueString()},
-			RequestParameters: item.RequestParameters.ValueString(),
-		})
-	}
-
-	api_client_extra_parameters := api_client.CustomWidgetExtraParameters{
-		Type:              plan.ExtraParameters.Type.ValueString(),
-		Category:          plan.ExtraParameters.Category.ValueString(),
-		EmptyStateMessage: plan.ExtraParameters.EmptyStateMessage.ValueString(),
-		Size:              plan.ExtraParameters.Size.ValueString(),
-		IsNew:             plan.ExtraParameters.IsNew.ValueBool(),
-		Title:             plan.ExtraParameters.Title.ValueString(),
-		Subtitle:          plan.ExtraParameters.Subtitle.ValueString(),
-		Description:       plan.ExtraParameters.Description.ValueString(),
-		Settings:          settings,
-	}
+	api_client_extra_parameters := generateExtraParameters(&plan)
 
 	updateReq := api_client.CustomWidget{
 		ID:                plan.ID.ValueString(),
 		Name:              plan.Name.ValueString(),
-		FilterData:        plan.FilterData,
+		FilterData:        make(map[string]interface{}),
 		ExtraParameters:   api_client_extra_parameters,
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.ValueString(),
@@ -383,37 +380,14 @@ func (r *customWidgetResource) Update(ctx context.Context, req resource.UpdateRe
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating custom widget",
-			"Could not create custom widget, unexpected error: "+err.Error(),
+			"Could not update custom widget, unexpected error: "+err.Error(),
 		)
 		return
 	}
-
-	instance, err = r.apiClient.GetCustomWidget(plan.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating discovery view",
-			"Could not read discovery view, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	/*
-		plan.ExtraParameters = &customWidgetExtraParametersModel{
-			Type:              types.StringValue(instance.ExtraParameters.Type),
-			Category:          types.StringValue(instance.ExtraParameters.Category),
-			EmptyStateMessage: types.StringValue(instance.ExtraParameters.EmptyStateMessage),
-			Size:              types.StringValue(instance.ExtraParameters.Size),
-			IsNew:             types.BoolValue(instance.ExtraParameters.IsNew),
-			Title:             types.StringValue(instance.ExtraParameters.Title),
-			Subtitle:          types.StringValue(instance.ExtraParameters.Subtitle),
-			Description:       types.StringValue(instance.ExtraParameters.Description),
-			Settings:          settings,
-		}*/
 
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationLevel = types.BoolValue(instance.OrganizationLevel)
 	plan.Name = types.StringValue(instance.Name)
-	//plan.ExtraParameters = instance.ExtraParameters
 	plan.ViewType = types.StringValue(instance.ViewType)
 
 	diags = resp.State.Set(ctx, plan)
