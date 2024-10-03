@@ -14,103 +14,40 @@ Provides a custom widget resource. According to Oxford Languages, a widget is an
 
 ```terraform
 //custom widget resource
+//custom widget resource
 resource "orcasecurity_custom_widget" "tf-custom-widget-1" {
-  name = "Custom Widget 1"
-
+  name               = "Custom Widget 45"
   organization_level = true
   view_type          = "customs_widgets"
-  filter_data        = {}
-
-
   extra_params = {
     type                = "PIE_CHART_SINGLE",
     category            = "Custom",
     empty_state_message = "No data found",
-    size                = "sm",
+    default_size        = "sm",
     is_new              = true,
-    title               = "Custom Widget 1",
+    title               = "Custom Widget 45",
     subtitle            = "Sample subtitle",
     description         = "Sample description",
-    settings = [
-      {
-        size = "sm",
-        field = {
-          name = "Vm.Compute.Content.Inventory.Region",
-          type = "str"
-        },
-        request_params = jsonencode({
-          "query" : {
-            "models" : [
-              "AwsEc2Instance"
-            ],
-            "type" : "object_set"
-          },
-          "additional_models[]" : [
-            "CloudAccount",
-            "CodeOrigins",
-            "CustomTags"
+    settings = {
+      request_params = {
+        query = jsonencode({
+          "models" : [
+            "GcpApiKey"
           ],
-          "group_by" : [
-            "Type"
-          ],
-          "group_by[]" : [
-            "Vm.Compute.Content.Inventory.Region"
-          ]
+          "type" : "object_set"
         })
-      },
-      {
-        size = "md",
-        field = {
-          name = "Vm.Compute.Content.Inventory.Region",
-          type = "str"
-        },
-        request_params = jsonencode({
-          "query" : {
-            "models" : [
-              "AwsEc2Instance"
-            ],
-            "type" : "object_set"
-          },
-          "additional_models[]" : [
-            "CloudAccount",
-            "CodeOrigins",
-            "CustomTags"
-          ],
-          "group_by" : [
-            "Type"
-          ],
-          "group_by[]" : [
-            "Vm.Compute.Content.Inventory.Region"
-          ]
-        })
-      },
-      {
-        size = "lg",
-        field = {
-          "name" : "Vm.Compute.Content.Inventory.Region",
-          "type" : "str"
-        },
-        request_params = jsonencode({
-          "query" : {
-            "models" : [
-              "AwsEc2Instance"
-            ],
-            "type" : "object_set"
-          },
-          "additional_models[]" : [
-            "CloudAccount",
-            "CodeOrigins",
-            "CustomTags"
-          ],
-          "group_by" : [
-            "Type"
-          ],
-          "group_by[]" : [
-            "Vm.Compute.Content.Inventory.Region"
-          ]
-        })
+        group_by : [
+          "Type"
+        ],
+        group_by_list = [
+          "CloudAccount.Name"
+        ]
       }
-    ]
+      field = {
+        name = "CloudAccount.Name",
+        type = "str"
+      }
+    }
   }
 }
 ```
@@ -121,8 +58,7 @@ resource "orcasecurity_custom_widget" "tf-custom-widget-1" {
 ### Required
 
 - `extra_params` (Attributes) (see [below for nested schema](#nestedatt--extra_params))
-- `filter_data` (Map of String) Should be left empty for custom dashboards.
-- `name` (String) Custom widget title.
+- `name` (String) An internal, unique name for the widget.
 - `organization_level` (Boolean) If set to true, it is a shared widget (can be viewed by any member of your Orca org). If set to false, it is a personal widget (can be viewed only by you, not other members of your Orca org).
 - `view_type` (String) Should be set to 'customs_widgets' for custom dashboards.
 
@@ -136,13 +72,13 @@ resource "orcasecurity_custom_widget" "tf-custom-widget-1" {
 Required:
 
 - `category` (String) Should be set to 'custom' for custom dashboards.
+- `default_size` (String) Default size of the widget. Possible values are sm (small), md (medium), or lg (large).
 - `description` (String) Custom widget description (the text that appears in the info bubble).
 - `empty_state_message` (String) When no objects are returned by the widget's underlying Discovery query, the widget would present this message.
 - `is_new` (Boolean) Should be set to true for a widget you are creating for the first time in Terraform.
-- `settings` (Attributes List) (see [below for nested schema](#nestedatt--extra_params--settings))
-- `size` (String) Defautl size of the identified widget. Possible values are sm (small), md (medium), or lg (large).
-- `subtitle` (String) Custom widget subtitle.
-- `title` (String) Custom widget title.
+- `settings` (Attributes) These are the settings for the custom widget. (see [below for nested schema](#nestedatt--extra_params--settings))
+- `subtitle` (String) Custom widget subtitle that will be presented in the UI.
+- `title` (String) Custom widget title that will be presented in the UI.
 - `type` (String) Type of custom widget to create. Can be set to 'PIE_CHART_SINGLE' (for pie charts) only, at the moment.
 
 <a id="nestedatt--extra_params--settings"></a>
@@ -150,16 +86,25 @@ Required:
 
 Required:
 
-- `field` (Attributes) (see [below for nested schema](#nestedatt--extra_params--settings--field))
-- `request_params` (String)
-- `size` (String) Size of the custom widget. Possible values are sm (small), md (medium), or lg (large).
+- `field` (Attributes) The name and type are also required here for grouping. (see [below for nested schema](#nestedatt--extra_params--settings--field))
+- `request_params` (Attributes) These settings define the query and the grouping for the widget. For inventory-based queries, a common setting is to set 'group_by' to 'Type' and 'group_by_list' to 'CloudAccount.Name'. (see [below for nested schema](#nestedatt--extra_params--settings--request_params))
 
 <a id="nestedatt--extra_params--settings--field"></a>
 ### Nested Schema for `extra_params.settings.field`
 
 Required:
 
-- `name` (String)
-- `type` (String)
+- `name` (String) Name of the grouping method. For inventory-based queries, a common value is 'CloudAccount.Name'. To see other options, please use Chrome DevTools and the Orca UI to monitor what values this can be.
+- `type` (String) The name's type (normally 'str' for string).
+
+
+<a id="nestedatt--extra_params--settings--request_params"></a>
+### Nested Schema for `extra_params.settings.request_params`
+
+Required:
+
+- `group_by` (List of String) How to group the returned results.
+- `group_by_list` (List of String) How to group the returned results.
+- `query` (String) Discovery query that the widget will use for its data.
 
 

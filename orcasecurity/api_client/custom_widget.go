@@ -9,17 +9,17 @@ type CustomWidgetExtraParametersSettingsField struct {
 	Type string `json:"type"`
 }
 
-type CustomWidgetExtraParametersSettingsRequestParametersQuery struct {
+type RequestParams struct {
 	Query            map[string]interface{} `json:"query"`
-	AdditionalModels []string               `json:"additional_models[]"`
 	GroupBy          []string               `json:"group_by"`
-	GroupByArray     []string               `json:"group_by[]"`
+	GroupByList      []string               `json:"group_by[]"`
+	AdditionalModels []string               `json:"additional_models[]"`
 }
 
 type CustomWidgetExtraParametersSettings struct {
 	Size              string                                   `json:"size"`
 	Field             CustomWidgetExtraParametersSettingsField `json:"field"`
-	RequestParameters string                                   `json:"requestParams"`
+	RequestParameters RequestParams                            `json:"requestParams"`
 }
 
 type CustomWidgetExtraParameters struct {
@@ -66,9 +66,7 @@ func (client *APIClient) GetCustomWidget(id string) (*CustomWidget, error) {
 		return nil, err
 	}
 
-	customWidget := response.Data
-	customWidget.ID = id
-	return &customWidget, nil
+	return &response.Data, nil
 }
 
 func (client *APIClient) CreateCustomWidget(data CustomWidget) (*CustomWidget, error) {
@@ -83,8 +81,6 @@ func (client *APIClient) CreateCustomWidget(data CustomWidget) (*CustomWidget, e
 		return nil, err
 	}
 
-	//customWidget := response.Data
-	//customWidget.ID = response.Data.ID
 	return &response.Data, nil
 }
 
