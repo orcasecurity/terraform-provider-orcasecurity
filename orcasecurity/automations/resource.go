@@ -320,7 +320,7 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	exists, err := r.apiClient.IsAutomationExists(state.ID.ValueString())
+	exists, err := r.apiClient.DoesAutomationExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Automation",
