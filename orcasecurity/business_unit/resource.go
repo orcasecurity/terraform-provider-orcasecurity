@@ -210,43 +210,16 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) == 0 {
-		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-		createReq := api_client.BusinessUnit{
-			Name:     plan.Name.ValueString(),
-			SLFilter: slFilter,
-		}
-
-		instance, err := r.apiClient.CreateBusinessUnit(createReq)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error creating business unit",
-				"Could not create business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-		plan.ID = types.StringValue(instance.ID)
-
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) > 0 {
-		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
+	if plan.Filter != nil && plan.Filter.CloudProvider != nil {
+		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
-		createReq := api_client.BusinessUnit{}
+		//EmptyBuslf := api_client.BusinessUnitShiftLeftFilter{}
 
-		if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 {
-			slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-			createReq = api_client.BusinessUnit{
-				Name:     plan.Name.ValueString(),
-				SLFilter: slFilter,
-				Filter:   filter,
-			}
-
+		createReq := api_client.BusinessUnit{
+			Name:            plan.Name.ValueString(),
+			Filter:          filter,
+			ShiftLeftFilter: nil,
 		}
 
 		instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -265,8 +238,8 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.CloudProvider) > 0 {
-		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
+	} else if plan.Filter != nil && plan.Filter.CloudAccounts != nil && (plan.ShiftLeftFilter == nil || plan.ShiftLeftFilter.ShiftLeftProjects == nil) {
+		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -290,7 +263,62 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.CustomTags) > 0 {
+	} else if plan.ShiftLeftFilter != nil && plan.ShiftLeftFilter.ShiftLeftProjects != nil && (plan.Filter == nil || plan.Filter.CloudAccounts == nil) {
+		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
+		createReq := api_client.BusinessUnit{
+			Name:            plan.Name.ValueString(),
+			ShiftLeftFilter: &slFilter,
+		}
+
+		instance, err := r.apiClient.CreateBusinessUnit(createReq)
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating business unit",
+				"Could not create business unit, unexpected error: "+err.Error(),
+			)
+			return
+		}
+		plan.ID = types.StringValue(instance.ID)
+
+		diags = resp.State.Set(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else if plan.ShiftLeftFilter != nil && plan.ShiftLeftFilter.ShiftLeftProjects != nil && plan.Filter != nil && plan.Filter.CloudAccounts != nil {
+		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
+		diags.Append(filterDiags...)
+
+		createReq := api_client.BusinessUnit{}
+
+		if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 {
+			slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
+			createReq = api_client.BusinessUnit{
+				Name:            plan.Name.ValueString(),
+				ShiftLeftFilter: &slFilter,
+				Filter:          filter,
+			}
+
+		}
+
+		instance, err := r.apiClient.CreateBusinessUnit(createReq)
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating business unit",
+				"Could not create business unit, unexpected error: "+err.Error(),
+			)
+			return
+		}
+		plan.ID = types.StringValue(instance.ID)
+
+		diags = resp.State.Set(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else if plan.Filter != nil && plan.Filter.CustomTags != nil {
 		filter, filterDiags := generateCustomTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
@@ -315,7 +343,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.AccountTags) > 0 {
+	} else if plan.Filter != nil && plan.Filter.AccountTags != nil {
 		filter, filterDiags := generateAccountTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
@@ -340,33 +368,8 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.InventoryTags) > 0 {
+	} else if plan.Filter != nil && plan.Filter.InventoryTags != nil {
 		filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-
-		createReq := api_client.BusinessUnit{
-			Name:   plan.Name.ValueString(),
-			Filter: filter,
-		}
-
-		instance, err := r.apiClient.CreateBusinessUnit(createReq)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error creating business unit",
-				"Could not create business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-		plan.ID = types.StringValue(instance.ID)
-
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if len(plan.Filter.CloudAccounts) > 0 && len(plan.ShiftLeftFilter.ShiftLeftProjects) == 0 {
-		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
@@ -451,59 +454,6 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) == 0 {
-		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-		updateReq := api_client.BusinessUnit{
-			ID:       plan.ID.ValueString(),
-			Name:     plan.Name.ValueString(),
-			SLFilter: slFilter,
-		}
-
-		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-		plan.ID = types.StringValue(instance.ID)
-
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) > 0 {
-		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-
-		updateReq := api_client.BusinessUnit{
-			Name:     plan.Name.ValueString(),
-			SLFilter: slFilter,
-			Filter:   filter,
-		}
-
-		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-		plan.ID = types.StringValue(instance.ID)
-
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	}
-
 	if len(plan.Filter.CloudProvider) > 0 {
 		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
@@ -532,6 +482,57 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 
 		diags = resp.State.Set(ctx, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) == 0 {
+		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
+		updateReq := api_client.BusinessUnit{
+			ID:              plan.ID.ValueString(),
+			Name:            plan.Name.ValueString(),
+			ShiftLeftFilter: &slFilter,
+		}
+
+		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating business unit",
+				"Could not update business unit, unexpected error: "+err.Error(),
+			)
+			return
+		}
+		plan.ID = types.StringValue(instance.ID)
+
+		diags = resp.State.Set(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) > 0 {
+		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
+		diags.Append(filterDiags...)
+		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
+
+		updateReq := api_client.BusinessUnit{
+			Name:            plan.Name.ValueString(),
+			ShiftLeftFilter: &slFilter,
+			Filter:          filter,
+		}
+
+		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating business unit",
+				"Could not update business unit, unexpected error: "+err.Error(),
+			)
+			return
+		}
+		plan.ID = types.StringValue(instance.ID)
+
+		diags = resp.State.Set(ctx, plan)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
