@@ -18,14 +18,14 @@ type BusinessUnitFilter struct {
 }
 
 type BusinessUnitShiftLeftFilter struct {
-	ShiftLeftProjects []string `json:"shiftleft_project_id"`
+	ShiftLeftProjects []string `json:"shiftleft_project_id,omitempty"`
 }
 
 type BusinessUnit struct {
-	ID       string                      `json:"filter_id"`
-	Name     string                      `json:"name"`
-	Filter   BusinessUnitFilter          `json:"filter_data,omitempty"`
-	SLFilter BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data"`
+	ID              string                       `json:"filter_id"`
+	Name            string                       `json:"name"`
+	Filter          BusinessUnitFilter           `json:"filter_data,omitempty"`
+	ShiftLeftFilter *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
 }
 
 type businessUnitAPIResponseType struct {
