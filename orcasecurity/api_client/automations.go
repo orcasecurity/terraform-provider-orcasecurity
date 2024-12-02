@@ -43,6 +43,7 @@ func (a *AutomationAction) IsWebhook() bool {
 	return a.Type == AutomationWebhookID
 }
 
+// Automation is a struct composed of an ID, name, Description, OrganizationID, Query, and Actions.
 type Automation struct {
 	ID             string             `json:"id,omitempty"`
 	Name           string             `json:"name"`
@@ -56,6 +57,7 @@ type automationAPIResponseType struct {
 	Data Automation `json:"data"`
 }
 
+// GetAutomation is a function on the client struct. Will return an Automation and error.
 func (client *APIClient) GetAutomation(automationID string) (*Automation, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/rules/%s", automationID))
 	if err != nil {
@@ -74,7 +76,8 @@ func (client *APIClient) GetAutomation(automationID string) (*Automation, error)
 	return &response.Data, nil
 }
 
-func (client *APIClient) IsAutomationExists(id string) (bool, error) {
+// DoesAutomationExist is a function on the client struct.
+func (client *APIClient) DoesAutomationExist(id string) (bool, error) {
 	resp, _ := client.Head(fmt.Sprintf("/api/rules/%s", id))
 	return resp.StatusCode() == 200, nil
 }
