@@ -15,7 +15,7 @@ permissions:
 jobs:
     build:
         name: Build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-22.04
         timeout-minutes: 5
         steps:
             - name: Checkout
@@ -32,7 +32,7 @@ jobs:
 
     lint:
         name: Lint
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-22.04
         timeout-minutes: 5
         steps:
             - name: Checkout
@@ -53,7 +53,7 @@ jobs:
 
     generate:
         name: Generate artifacts
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-22.04
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
@@ -70,7 +70,7 @@ jobs:
     test:
         name: Terraform Provider Unit Tests
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-22.04
         timeout-minutes: 15
         strategy:
             fail-fast: false
