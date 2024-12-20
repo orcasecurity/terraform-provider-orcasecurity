@@ -3,12 +3,12 @@
 page_title: "orcasecurity_custom_alert Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provider Orca Security custom alerts resource.
+  Provides a custom alert resource.
 ---
 
 # orcasecurity_custom_alert (Resource)
 
-Provider Orca Security custom alerts resource.
+Provides a custom alert resource.
 
 ## Example Usage
 
@@ -57,19 +57,19 @@ resource "orcasecurity_custom_alert" "myalert" {
 
 - `allow_adjusting` (Boolean) Allow Orca to adjust the score using asset context.
 - `category` (String) Category.
-- `name` (String) Automation name.
+- `name` (String) Custom sonar alert name.
 - `rule` (String) Rule query.
 - `score` (Number) Alert score.
 
 ### Optional
 
 - `compliance_frameworks` (Attributes List) Attach compliance framework. (see [below for nested schema](#nestedatt--compliance_frameworks))
-- `description` (String) Automation description.
+- `description` (String) Custom sonar alert description.
 - `remediation_text` (Attributes) Add custom manual remediation. (see [below for nested schema](#nestedatt--remediation_text))
 
 ### Read-Only
 
-- `id` (String) Automation ID.
+- `id` (String) Custom alert ID.
 - `organization_id` (String)
 - `rule_type` (String) Alert type.
 

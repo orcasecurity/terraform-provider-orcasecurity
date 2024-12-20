@@ -79,14 +79,14 @@ func (r *customAlertResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Provider Orca Security custom alerts resource.",
+		Description: "Provides a custom alert resource.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				Description: "Automation ID.",
+				Description: "Custom alert ID.",
 			},
 			"organization_id": schema.StringAttribute{
 				Computed: true,
@@ -95,14 +95,14 @@ func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaReque
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Automation name.",
+				Description: "Custom sonar alert name.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Automation description.",
+				Description: "Custom sonar alert description.",
 				Optional:    true,
 			},
 			"rule": schema.StringAttribute{
