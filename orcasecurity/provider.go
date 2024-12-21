@@ -20,7 +20,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
-	"terraform-provider-orcasecurity/orcasecurity/webhooks"
+	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -182,7 +182,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		jira_template.NewJiraTemplateDataSource,
-		webhooks.NewWebhookDataSource, organizations.NewOrganizationDataSource,
+		webhook.NewWebhookDataSource, organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
 	}
 }
