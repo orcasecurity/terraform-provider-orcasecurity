@@ -52,7 +52,6 @@ type stateModel struct {
 	RuleJson        types.String               `tfsdk:"rule_json"`
 	OrcaScore       types.Float64              `tfsdk:"orca_score"`
 	ContextScore    types.Bool                 `tfsdk:"context_score"`
-	Severity        types.Float64              `tfsdk:"severity"`
 	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
@@ -103,7 +102,7 @@ func (r *customDiscoveryAlertResource) Schema(_ context.Context, req resource.Sc
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				Description: "Identifier your Orca organization.",
+				Description: "Orca organization ID.",
 			},
 			"name": schema.StringAttribute{
 				Description: "Custom alert name.",
@@ -117,16 +116,12 @@ func (r *customDiscoveryAlertResource) Schema(_ context.Context, req resource.Sc
 				Optional:    true,
 			},
 			"category": schema.StringAttribute{
-				Description: "Category of the risk that the alert presents.",
+				Description: "Alert category. Valid values are `Access control`, `Authentication`, `Best practices`, `Data at risk`, `Data protection`, `IAM misconfigurations`, `Lateral movement`, `Logging and monitoring`, `Malicious activity`, `Malware`, `Neglected assets`, `Network misconfigurations`, `Source code vulnerabilities`, `Suspicious activity`, `System integrity`, `Vendor services misconfigurations`, `Vulnerabilities`, and `Workload misconfigurations`.",
 				Required:    true,
 			},
 			"rule_json": schema.StringAttribute{
 				Description: "The discovery query (JSON) used to define the rule.",
 				Optional:    true,
-			},
-			"severity": schema.Float64Attribute{
-				Description: "Alert severity.",
-				Required:    true,
 			},
 			"orca_score": schema.Float64Attribute{
 				Description: "The base score of the alert.",
@@ -141,31 +136,31 @@ func (r *customDiscoveryAlertResource) Schema(_ context.Context, req resource.Sc
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"enable": schema.BoolAttribute{
-						Description: "Show on all alerts of this alert type for all users.",
+						Description: "Whether or not all users are able to see the remediation instructions for this alert. To enable all users to see them, set this to `true`.",
 						Optional:    true,
 					},
 					"text": schema.StringAttribute{
-						Description: "The remediation instructions.",
+						Description: "Remediation description.",
 						Required:    true,
 					},
 				},
 			},
 			"compliance_frameworks": schema.ListNestedAttribute{
-				Description: "The custom compliance frameworks that this control relates to.",
+				Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls.",
 				Optional:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
 							Required:    true,
-							Description: "Framework name.",
+							Description: "Custom framework name.",
 						},
 						"section": schema.StringAttribute{
 							Required:    true,
-							Description: "Section.",
+							Description: "Custom framework section.",
 						},
 						"priority": schema.StringAttribute{
 							Required:    true,
-							Description: "Priority.",
+							Description: "Custom framework control priority. Valid values are `high`, `medium`, and `low`.",
 						},
 					},
 				},
@@ -205,7 +200,6 @@ func (r *customDiscoveryAlertResource) Create(ctx context.Context, req resource.
 		Description:          plan.Description.ValueString(),
 		RuleType:             plan.RuleType.ValueString(),
 		Category:             plan.Category.ValueString(),
-		Severity:             plan.Severity.ValueFloat64(),
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
@@ -284,7 +278,6 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	state.Name = types.StringValue(instance.Name)
 	state.Description = types.StringValue(instance.Description)
 	state.RuleType = types.StringValue(instance.RuleType)
-	state.Severity = types.Float64Value(instance.Severity)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 	state.Category = types.StringValue(instance.Category)
 	state.ContextScore = types.BoolValue(instance.ContextScore)
@@ -351,7 +344,6 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
 		RuleJson:             query,
-		Severity:             plan.Severity.ValueFloat64(),
 		RuleType:             plan.RuleType.ValueString(),
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),

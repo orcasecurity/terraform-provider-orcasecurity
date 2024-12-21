@@ -19,7 +19,6 @@ type CustomDiscoveryAlert struct {
 	OrganizationID       string                                    `json:"organization,omitempty"`
 	Category             string                                    `json:"category"`
 	ContextScore         bool                                      `json:"context_score"`
-	Severity             float64                                   `json:"severity"`
 	OrcaScore            float64                                   `json:"orca_score"`
 	RuleJson             map[string]interface{}                    `json:"rule_json"`
 	RuleType             string                                    `json:"rule_type,omitempty"`

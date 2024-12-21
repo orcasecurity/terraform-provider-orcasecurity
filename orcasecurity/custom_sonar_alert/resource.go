@@ -48,8 +48,8 @@ type stateModel struct {
 	RuleType        types.String               `tfsdk:"rule_type"`
 	OrganizationID  types.String               `tfsdk:"organization_id"`
 	Category        types.String               `tfsdk:"category"`
-	Score           types.Float64              `tfsdk:"score"`
-	AllowAdjusting  types.Bool                 `tfsdk:"allow_adjusting"`
+	OrcaScore       types.Float64              `tfsdk:"orca_score"`
+	ContextScore    types.Bool                 `tfsdk:"context_score"`
 	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
@@ -79,7 +79,7 @@ func (r *customSonarAlertResource) ImportState(ctx context.Context, req resource
 
 func (r *customSonarAlertResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Provides a custom alert resource.",
+		Description: "Provides a custom sonar-based alert.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -93,47 +93,48 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Description: "Orca organization ID.",
 			},
 			"name": schema.StringAttribute{
-				Description: "Custom sonar alert name.",
+				Description: "Custom alert name.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Custom sonar alert description.",
+				Description: "Custom alert description.",
 				Optional:    true,
 			},
 			"rule": schema.StringAttribute{
-				Description: "Rule query.",
+				Description: "Sonar query that defines the rule.",
 				Required:    true,
 			},
 			"rule_type": schema.StringAttribute{
-				Description: "Alert type.",
+				Description: "Custom alert rule type (unique, Orca-computed identifier).",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"category": schema.StringAttribute{
-				Description: "Category.",
+				Description: "Alert category. Valid values are `Access control`, `Authentication`, `Best practices`, `Data at risk`, `Data protection`, `IAM misconfigurations`, `Lateral movement`, `Logging and monitoring`, `Malicious activity`, `Malware`, `Neglected assets`, `Network misconfigurations`, `Source code vulnerabilities`, `Suspicious activity`, `System integrity`, `Vendor services misconfigurations`, `Vulnerabilities`, and `Workload misconfigurations`.",
 				Required:    true,
 			},
-			"score": schema.Float64Attribute{
+			"orca_score": schema.Float64Attribute{
 				Description: "Alert score.",
 				Required:    true,
 			},
-			"allow_adjusting": schema.BoolAttribute{
+			"context_score": schema.BoolAttribute{
 				Description: "Allow Orca to adjust the score using asset context.",
 				Required:    true,
 			},
 			"remediation_text": schema.SingleNestedAttribute{
-				Description: "Add custom manual remediation.",
+				Description: "A container for the remediation instructions that will appear on the 'Remediation' tab for the alert.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"enable": schema.BoolAttribute{
-						Description: "Show on all alerts of this alert type for all users.",
+						Description: "Whether or not all users are able to see the remediation instructions for this alert. To enable all users to see them, set this to `true`.",
 						Optional:    true,
 					},
 					"text": schema.StringAttribute{
@@ -143,21 +144,21 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				},
 			},
 			"compliance_frameworks": schema.ListNestedAttribute{
-				Description: "Attach compliance framework.",
+				Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls.",
 				Optional:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
 							Required:    true,
-							Description: "Framework name.",
+							Description: "Custom framework name.",
 						},
 						"section": schema.StringAttribute{
 							Required:    true,
-							Description: "Section.",
+							Description: "Custom framework section.",
 						},
 						"priority": schema.StringAttribute{
 							Required:    true,
-							Description: "Priority.",
+							Description: "Custom framework control priority. Valid values are `high`, `medium`, and `low`.",
 						},
 					},
 				},
@@ -185,8 +186,8 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		Rule:                 plan.Rule.ValueString(),
 		RuleType:             plan.RuleType.ValueString(),
 		Category:             plan.Category.ValueString(),
-		Score:                plan.Score.ValueFloat64(),
-		ContextScore:         plan.AllowAdjusting.ValueBool(),
+		OrcaScore:            plan.OrcaScore.ValueFloat64(),
+		ContextScore:         plan.ContextScore.ValueBool(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
 	}
 	if plan.RemediationText != nil {
@@ -265,8 +266,8 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 	state.RuleType = types.StringValue(instance.RuleType)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 	state.Category = types.StringValue(instance.Category)
-	state.AllowAdjusting = types.BoolValue(instance.ContextScore)
-	state.Score = types.Float64Value(instance.Score)
+	state.ContextScore = types.BoolValue(instance.ContextScore)
+	state.OrcaScore = types.Float64Value(instance.OrcaScore)
 
 	if instance.RemediationText.Text != "" {
 		state.RemediationText = &remediationTextStateModel{
@@ -318,8 +319,8 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		Description:          plan.Description.ValueString(),
 		Rule:                 plan.Rule.ValueString(),
 		RuleType:             plan.RuleType.ValueString(),
-		Score:                plan.Score.ValueFloat64(),
-		ContextScore:         plan.AllowAdjusting.ValueBool(),
+		OrcaScore:            plan.OrcaScore.ValueFloat64(),
+		ContextScore:         plan.ContextScore.ValueBool(),
 		Category:             plan.Category.ValueString(),
 		OrganizationID:       plan.OrganizationID.ValueString(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
