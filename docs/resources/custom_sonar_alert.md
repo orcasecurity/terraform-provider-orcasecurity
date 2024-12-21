@@ -3,49 +3,51 @@
 page_title: "orcasecurity_custom_sonar_alert Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a custom alert resource.
+  Provides a custom sonar-based alert.
 ---
 
 # orcasecurity_custom_sonar_alert (Resource)
 
-Provides a custom alert resource.
+Provides a custom sonar-based alert.
 
 ## Example Usage
 
 ```terraform
-resource "orcasecurity_custom_alert" "myalert" {
-  name            = "Alert name"
-  description     = "Alert description"
-  rule            = "ActivityLogDetection"
-  score           = 5.5
-  category        = "Best practices"
-  allow_adjusting = false
+# simple sonar-based custom alert
+resource "orcasecurity_custom_sonar_alert" "example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule          = "AzureVNet with NetworkInterfaces"
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
 }
 
-// with remediation text
-resource "orcasecurity_custom_alert" "myalert" {
-  name            = "Alert name"
-  description     = "Alert description"
-  rule            = "ActivityLogDetection"
-  score           = 5.5
-  category        = "Best practices"
-  allow_adjusting = false
+# sonar-based custom alert with remediation steps
+resource "orcasecurity_custom_sonar_alert" "example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule          = "AzureVNet with NetworkInterfaces"
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
   remediation_text = {
     enable = true
-    text   = "This is a remediation text."
+    text   = "Add resources to this VNet via a network interface or delete this VNet."
   }
 }
 
-// with custom compliance frameworks
-resource "orcasecurity_custom_alert" "myalert" {
-  name            = "Alert name"
-  description     = "Alert description"
-  rule            = "ActivityLogDetection"
-  score           = 5.5
-  category        = "Best practices"
-  allow_adjusting = false
+# sonar-based custom alert with custom compliance frameworks associations
+resource "orcasecurity_custom_sonar_alert" "example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule          = "AzureVNet with NetworkInterfaces"
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
   compliance_frameworks = [
-    { name = "framework name", section = "framework section", priority = "low" }
+    { name = "framework 1 name", section = "framework 1 section", priority = "low" },
+    { name = "framework 2 name", section = "framework 2 section", priority = "medium" }
   ]
 }
 ```
@@ -55,32 +57,32 @@ resource "orcasecurity_custom_alert" "myalert" {
 
 ### Required
 
-- `allow_adjusting` (Boolean) Allow Orca to adjust the score using asset context.
-- `category` (String) Category.
-- `name` (String) Custom sonar alert name.
-- `rule` (String) Rule query.
-- `score` (Number) Alert score.
+- `category` (String) Alert category. Valid values are `Access control`, `Authentication`, `Best practices`, `Data at risk`, `Data protection`, `IAM misconfigurations`, `Lateral movement`, `Logging and monitoring`, `Malicious activity`, `Malware`, `Neglected assets`, `Network misconfigurations`, `Source code vulnerabilities`, `Suspicious activity`, `System integrity`, `Vendor services misconfigurations`, `Vulnerabilities`, and `Workload misconfigurations`.
+- `context_score` (Boolean) Allow Orca to adjust the score using asset context.
+- `name` (String) Custom alert name.
+- `orca_score` (Number) Alert score.
+- `rule` (String) Sonar query that defines the rule.
 
 ### Optional
 
-- `compliance_frameworks` (Attributes List) Attach compliance framework. (see [below for nested schema](#nestedatt--compliance_frameworks))
-- `description` (String) Custom sonar alert description.
-- `remediation_text` (Attributes) Add custom manual remediation. (see [below for nested schema](#nestedatt--remediation_text))
+- `compliance_frameworks` (Attributes List) The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. (see [below for nested schema](#nestedatt--compliance_frameworks))
+- `description` (String) Custom alert description.
+- `remediation_text` (Attributes) A container for the remediation instructions that will appear on the 'Remediation' tab for the alert. (see [below for nested schema](#nestedatt--remediation_text))
 
 ### Read-Only
 
 - `id` (String) Custom alert ID.
-- `organization_id` (String)
-- `rule_type` (String) Alert type.
+- `organization_id` (String) Orca organization ID.
+- `rule_type` (String) Custom alert rule type (unique, Orca-computed identifier).
 
 <a id="nestedatt--compliance_frameworks"></a>
 ### Nested Schema for `compliance_frameworks`
 
 Required:
 
-- `name` (String) Framework name.
-- `priority` (String) Priority.
-- `section` (String) Section.
+- `name` (String) Custom framework name.
+- `priority` (String) Custom framework control priority. Valid values are `high`, `medium`, and `low`.
+- `section` (String) Custom framework section.
 
 
 <a id="nestedatt--remediation_text"></a>
@@ -92,7 +94,7 @@ Required:
 
 Optional:
 
-- `enable` (Boolean) Show on all alerts of this alert type for all users.
+- `enable` (Boolean) Whether or not all users are able to see the remediation instructions for this alert. To enable all users to see them, set this to `true`.
 
 ## Import
 

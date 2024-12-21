@@ -13,21 +13,41 @@ Provides a custom discovery-based alert.
 ## Example Usage
 
 ```terraform
-//custom discovery-based alert
+# simple discovery-based custom alert
 resource "orcasecurity_custom_discovery_alert" "alert_discovery" {
-  name          = "custom-alert"
-  rule_json     = jsonencode({ "models" : ["AzureAksCluster"], "type" : "object_set" })
-  category      = "Lateral movement"
-  orca_score    = 5.0
-  description   = "description"
-  severity      = 1
-  context_score = true
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule_json     = jsonencode({ "models" : ["AzureVNet"], "type" : "object_set", "with" : { "models" : ["AzureNetworkInterface"], "type" : "object_set", "keys" : ["NetworkInterfaces"], "operator" : "has", "negate" : true } })
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
+}
+
+# discovery-based custom alert with remediation steps
+resource "orcasecurity_custom_discovery_alert" "example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule_json     = jsonencode({ "models" : ["AzureVNet"], "type" : "object_set", "with" : { "models" : ["AzureNetworkInterface"], "type" : "object_set", "keys" : ["NetworkInterfaces"], "operator" : "has", "negate" : true } })
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
+  remediation_text = {
+    enable = true
+    text   = "Add resources to this VNet via a network interface or delete this VNet."
+  }
+}
+
+# discovery-based custom alert with custom compliance frameworks associations
+resource "orcasecurity_custom_discovery_alert" "example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule_json     = jsonencode({ "models" : ["AzureVNet"], "type" : "object_set", "with" : { "models" : ["AzureNetworkInterface"], "type" : "object_set", "keys" : ["NetworkInterfaces"], "operator" : "has", "negate" : true } })
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
   compliance_frameworks = [
-    {
-      name     = "test-fw"
-      section  = "Account"
-      priority = "medium"
-    }
+    { name = "framework 1 name", section = "framework 1 section", priority = "low" },
+    { name = "framework 2 name", section = "framework 2 section", priority = "medium" }
   ]
 }
 ```
@@ -37,15 +57,14 @@ resource "orcasecurity_custom_discovery_alert" "alert_discovery" {
 
 ### Required
 
-- `category` (String) Category of the risk that the alert presents.
+- `category` (String) Alert category. Valid values are `Access control`, `Authentication`, `Best practices`, `Data at risk`, `Data protection`, `IAM misconfigurations`, `Lateral movement`, `Logging and monitoring`, `Malicious activity`, `Malware`, `Neglected assets`, `Network misconfigurations`, `Source code vulnerabilities`, `Suspicious activity`, `System integrity`, `Vendor services misconfigurations`, `Vulnerabilities`, and `Workload misconfigurations`.
 - `context_score` (Boolean) Allows Orca to adjust the score using asset context.
 - `name` (String) Custom alert name.
 - `orca_score` (Number) The base score of the alert.
-- `severity` (Number) Alert severity.
 
 ### Optional
 
-- `compliance_frameworks` (Attributes List) The custom compliance frameworks that this control relates to. (see [below for nested schema](#nestedatt--compliance_frameworks))
+- `compliance_frameworks` (Attributes List) The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. (see [below for nested schema](#nestedatt--compliance_frameworks))
 - `description` (String) Custom alert description.
 - `remediation_text` (Attributes) A container for the remediation instructions that will appear on the 'Remediation' tab for the alert. (see [below for nested schema](#nestedatt--remediation_text))
 - `rule_json` (String) The discovery query (JSON) used to define the rule.
@@ -53,7 +72,7 @@ resource "orcasecurity_custom_discovery_alert" "alert_discovery" {
 ### Read-Only
 
 - `id` (String) Custom alert ID.
-- `organization_id` (String) Identifier your Orca organization.
+- `organization_id` (String) Orca organization ID.
 - `rule_type` (String) Custom alert rule type (unique, Orca-computed identifier).
 
 <a id="nestedatt--compliance_frameworks"></a>
@@ -61,9 +80,9 @@ resource "orcasecurity_custom_discovery_alert" "alert_discovery" {
 
 Required:
 
-- `name` (String) Framework name.
-- `priority` (String) Priority.
-- `section` (String) Section.
+- `name` (String) Custom framework name.
+- `priority` (String) Custom framework control priority. Valid values are `high`, `medium`, and `low`.
+- `section` (String) Custom framework section.
 
 
 <a id="nestedatt--remediation_text"></a>
@@ -71,11 +90,11 @@ Required:
 
 Required:
 
-- `text` (String) The remediation instructions.
+- `text` (String) Remediation description.
 
 Optional:
 
-- `enable` (Boolean) Show on all alerts of this alert type for all users.
+- `enable` (Boolean) Whether or not all users are able to see the remediation instructions for this alert. To enable all users to see them, set this to `true`.
 
 ## Import
 

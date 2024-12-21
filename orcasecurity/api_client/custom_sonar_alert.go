@@ -24,7 +24,7 @@ type CustomAlert struct {
 	OrganizationID       string                                `json:"organization,omitempty"`
 	Category             string                                `json:"category"`
 	ContextScore         bool                                  `json:"context_score"`
-	Score                float64                               `json:"orca_score"`
+	OrcaScore            float64                               `json:"orca_score"`
 	Name                 string                                `json:"name"`
 	Description          string                                `json:"details"`
 	Rule                 string                                `json:"rule"`
