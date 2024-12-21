@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestAutomations_IsAutomationExists(t *testing.T) {
+func TestAutomations_DoesAutomationExist(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -18,7 +18,7 @@ func TestAutomations_IsAutomationExists(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.IsAutomationExists("1")
+	exists, err := apiClient.DoesAutomationExist("1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -27,7 +27,7 @@ func TestAutomations_IsAutomationExists(t *testing.T) {
 	}
 
 }
-func TestAutomations_IsAutomationExistsFalse(t *testing.T) {
+func TestAutomations_DoesAutomationExistFalse(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
@@ -37,7 +37,7 @@ func TestAutomations_IsAutomationExistsFalse(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.IsAutomationExists("1")
+	exists, err := apiClient.DoesAutomationExist("1")
 	if err != nil {
 		t.Error(err)
 	}
