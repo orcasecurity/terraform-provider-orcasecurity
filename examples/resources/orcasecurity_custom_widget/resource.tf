@@ -1,5 +1,4 @@
 //custom widget resource
-//custom widget resource
 resource "orcasecurity_custom_widget" "tf-custom-widget-1" {
   name               = "Custom Widget 45"
   organization_level = true

@@ -1,0 +1,1 @@
+terraform import orcasecurity_custom_sonar_alert.example RULE_ID

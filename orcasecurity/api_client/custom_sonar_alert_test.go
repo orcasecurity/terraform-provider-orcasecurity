@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestCustomAlert_IsCustomAlertExists(t *testing.T) {
+func TestCustomAlert_DoesCustomSonarAlertExist(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -18,7 +18,7 @@ func TestCustomAlert_IsCustomAlertExists(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.IsCustomAlertExists("1")
+	exists, err := apiClient.DoesCustomSonarAlertExist("1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -27,7 +27,7 @@ func TestCustomAlert_IsCustomAlertExists(t *testing.T) {
 	}
 
 }
-func TestAutomations_IsCustomAlertExists404(t *testing.T) {
+func TestAutomations_DoesCustomSonarAlertExist404(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
@@ -37,7 +37,7 @@ func TestAutomations_IsCustomAlertExists404(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.IsCustomAlertExists("1")
+	exists, err := apiClient.DoesCustomSonarAlertExist("1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -47,7 +47,7 @@ func TestAutomations_IsCustomAlertExists404(t *testing.T) {
 
 }
 
-func TestAutomations_IsCustomAlertExists500(t *testing.T) {
+func TestAutomations_DoesCustomSonarAlertExist500(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 500,
@@ -57,7 +57,7 @@ func TestAutomations_IsCustomAlertExists500(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.IsCustomAlertExists("1")
+	exists, err := apiClient.DoesCustomSonarAlertExist("1")
 	if err != nil {
 		t.Error(err)
 	}

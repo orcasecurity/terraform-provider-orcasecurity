@@ -74,7 +74,7 @@ func (client *APIClient) GetAutomation(automationID string) (*Automation, error)
 	return &response.Data, nil
 }
 
-func (client *APIClient) IsAutomationExists(id string) (bool, error) {
+func (client *APIClient) DoesAutomationExist(id string) (bool, error) {
 	resp, _ := client.Head(fmt.Sprintf("/api/rules/%s", id))
 	return resp.StatusCode() == 200, nil
 }
