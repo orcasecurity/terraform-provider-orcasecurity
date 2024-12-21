@@ -1,7 +1,8 @@
-package alerts
+package custom_discovery_alert
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -19,13 +20,13 @@ import (
 )
 
 var (
-	_ resource.Resource                     = &customAlertResource{}
-	_ resource.ResourceWithConfigure        = &customAlertResource{}
-	_ resource.ResourceWithImportState      = &customAlertResource{}
-	_ resource.ResourceWithConfigValidators = &customAlertResource{}
+	_ resource.Resource                     = &customDiscoveryAlertResource{}
+	_ resource.ResourceWithConfigure        = &customDiscoveryAlertResource{}
+	_ resource.ResourceWithImportState      = &customDiscoveryAlertResource{}
+	_ resource.ResourceWithConfigValidators = &customDiscoveryAlertResource{}
 )
 
-type customAlertResource struct {
+type customDiscoveryAlertResource struct {
 	apiClient *api_client.APIClient
 }
 
@@ -41,95 +42,102 @@ type remediationTextStateModel struct {
 }
 
 type stateModel struct {
-	ID              types.String               `tfsdk:"id"`
-	Name            types.String               `tfsdk:"name"`
-	Description     types.String               `tfsdk:"description"`
-	Rule            types.String               `tfsdk:"rule"`
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	// Rule            types.String               `tfsdk:"rule"` //Even though it's in the API response (as a null value), this can be safely commented because it's not a required field to create the custom alert.
 	RuleType        types.String               `tfsdk:"rule_type"`
 	OrganizationID  types.String               `tfsdk:"organization_id"`
 	Category        types.String               `tfsdk:"category"`
-	Score           types.Float64              `tfsdk:"score"`
-	AllowAdjusting  types.Bool                 `tfsdk:"allow_adjusting"`
+	RuleJson        types.String               `tfsdk:"rule_json"`
+	OrcaScore       types.Float64              `tfsdk:"orca_score"`
+	ContextScore    types.Bool                 `tfsdk:"context_score"`
+	Severity        types.Float64              `tfsdk:"severity"`
 	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
 
-func NewCustomAlertResource() resource.Resource {
-	return &customAlertResource{}
+func NewCustomDiscoveryAlertResource() resource.Resource {
+	return &customDiscoveryAlertResource{}
 }
 
-func (r *customAlertResource) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
-	res.TypeName = req.ProviderTypeName + "_custom_alert"
+func (r *customDiscoveryAlertResource) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
+	res.TypeName = req.ProviderTypeName + "_custom_discovery_alert"
 }
 
-func (r *customAlertResource) Configure(_ context.Context, req resource.ConfigureRequest, res *resource.ConfigureResponse) {
+func (r *customDiscoveryAlertResource) Configure(_ context.Context, req resource.ConfigureRequest, res *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
 	r.apiClient = req.ProviderData.(*api_client.APIClient)
 }
 
-func (r *customAlertResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+func (r *customDiscoveryAlertResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{}
 }
 
-func (r *customAlertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *customDiscoveryAlertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
+func (r *customDiscoveryAlertResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Provider Orca Security custom alerts resource.",
+		Description: "Provides a custom discovery-based alert.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				Description: "Automation ID.",
+				Description: "Custom alert ID.",
+			},
+			"rule_type": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "Custom alert rule type (unique, Orca-computed identifier).",
 			},
 			"organization_id": schema.StringAttribute{
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Description: "Identifier your Orca organization.",
 			},
 			"name": schema.StringAttribute{
-				Description: "Automation name.",
+				Description: "Custom alert name.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Automation description.",
+				Description: "Custom alert description.",
 				Optional:    true,
 			},
-			"rule": schema.StringAttribute{
-				Description: "Rule query.",
-				Required:    true,
-			},
-			"rule_type": schema.StringAttribute{
-				Description: "Alert type.",
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
 			"category": schema.StringAttribute{
-				Description: "Category.",
+				Description: "Category of the risk that the alert presents.",
 				Required:    true,
 			},
-			"score": schema.Float64Attribute{
-				Description: "Alert score.",
+			"rule_json": schema.StringAttribute{
+				Description: "The discovery query (JSON) used to define the rule.",
+				Optional:    true,
+			},
+			"severity": schema.Float64Attribute{
+				Description: "Alert severity.",
 				Required:    true,
 			},
-			"allow_adjusting": schema.BoolAttribute{
-				Description: "Allow Orca to adjust the score using asset context.",
+			"orca_score": schema.Float64Attribute{
+				Description: "The base score of the alert.",
+				Required:    true,
+			},
+			"context_score": schema.BoolAttribute{
+				Description: "Allows Orca to adjust the score using asset context.",
 				Required:    true,
 			},
 			"remediation_text": schema.SingleNestedAttribute{
-				Description: "Add custom manual remediation.",
+				Description: "A container for the remediation instructions that will appear on the 'Remediation' tab for the alert.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"enable": schema.BoolAttribute{
@@ -137,13 +145,13 @@ func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaReque
 						Optional:    true,
 					},
 					"text": schema.StringAttribute{
-						Description: "Remediation description.",
+						Description: "The remediation instructions.",
 						Required:    true,
 					},
 				},
 			},
 			"compliance_frameworks": schema.ListNestedAttribute{
-				Description: "Attach compliance framework.",
+				Description: "The custom compliance frameworks that this control relates to.",
 				Optional:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -166,7 +174,7 @@ func (r *customAlertResource) Schema(_ context.Context, req resource.SchemaReque
 	}
 }
 
-func (r *customAlertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *customDiscoveryAlertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan stateModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -179,25 +187,39 @@ func (r *customAlertResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	createReq := api_client.CustomAlert{
+	//Generate API request body from plan
+	queryString := plan.RuleJson.ValueString()
+	query := make(map[string]interface{})
+	err := json.Unmarshal([]byte(queryString), &query)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating custom alert",
+			"Could not create custom alert, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	createReq := api_client.CustomDiscoveryAlert{
 		Name:                 plan.Name.ValueString(),
+		RuleJson:             query,
 		Description:          plan.Description.ValueString(),
-		Rule:                 plan.Rule.ValueString(),
 		RuleType:             plan.RuleType.ValueString(),
 		Category:             plan.Category.ValueString(),
-		Score:                plan.Score.ValueFloat64(),
-		ContextScore:         plan.AllowAdjusting.ValueBool(),
+		Severity:             plan.Severity.ValueFloat64(),
+		OrcaScore:            plan.OrcaScore.ValueFloat64(),
+		ContextScore:         plan.ContextScore.ValueBool(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
 	}
+
 	if plan.RemediationText != nil {
-		createReq.RemediationText = &api_client.CustomAlertRemediationText{
+		createReq.RemediationText = &api_client.CustomDiscoveryAlertRemediationText{
 			AlertType: "", // available only after alert creation
 			Enable:    plan.RemediationText.Enable.ValueBool(),
 			Text:      plan.RemediationText.Text.ValueString(),
 		}
 	}
 
-	instance, err := r.apiClient.CreateCustomAlert(createReq)
+	instance, err := r.apiClient.CreateCustomDiscoveryAlert(createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Alert",
@@ -206,7 +228,7 @@ func (r *customAlertResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	instance, err = r.apiClient.GetCustomAlert(instance.ID)
+	instance, err = r.apiClient.GetCustomDiscoveryAlert(instance.ID)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error refreshing Alert",
@@ -226,7 +248,7 @@ func (r *customAlertResource) Create(ctx context.Context, req resource.CreateReq
 	}
 }
 
-func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state stateModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -234,7 +256,7 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	exists, err := r.apiClient.IsCustomAlertExists(state.ID.ValueString())
+	exists, err := r.apiClient.DoesCustomDiscoveryAlertExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Alert",
@@ -249,7 +271,7 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	instance, err := r.apiClient.GetCustomAlert(state.ID.ValueString())
+	instance, err := r.apiClient.GetCustomDiscoveryAlert(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Alert",
@@ -261,12 +283,12 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
 	state.Description = types.StringValue(instance.Description)
-	state.Rule = types.StringValue(instance.Rule)
 	state.RuleType = types.StringValue(instance.RuleType)
+	state.Severity = types.Float64Value(instance.Severity)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 	state.Category = types.StringValue(instance.Category)
-	state.AllowAdjusting = types.BoolValue(instance.ContextScore)
-	state.Score = types.Float64Value(instance.Score)
+	state.ContextScore = types.BoolValue(instance.ContextScore)
+	state.OrcaScore = types.Float64Value(instance.OrcaScore)
 
 	if instance.RemediationText.Text != "" {
 		state.RemediationText = &remediationTextStateModel{
@@ -275,7 +297,7 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 		}
 	}
 
-	var frameworks []frameworkStateModel
+	/*var frameworks []frameworkStateModel
 	for _, frameworkData := range instance.ComplianceFrameworks {
 		frameworks = append(frameworks, frameworkStateModel{
 			Name:     types.StringValue(frameworkData.Name),
@@ -283,7 +305,7 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 			Priority: types.StringValue(frameworkData.Priority),
 		})
 	}
-	state.Frameworks = frameworks
+	state.Frameworks = frameworks*/
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -292,7 +314,7 @@ func (r *customAlertResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 }
 
-func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan stateModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -313,27 +335,40 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	updateReq := api_client.CustomAlert{
+	//Generate API request body from plan
+	queryString := plan.RuleJson.ValueString()
+	query := make(map[string]interface{})
+	err := json.Unmarshal([]byte(queryString), &query)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating custom alert",
+			"Could not update custom alert, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	updateReq := api_client.CustomDiscoveryAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
-		Rule:                 plan.Rule.ValueString(),
+		RuleJson:             query,
+		Severity:             plan.Severity.ValueFloat64(),
 		RuleType:             plan.RuleType.ValueString(),
-		Score:                plan.Score.ValueFloat64(),
-		ContextScore:         plan.AllowAdjusting.ValueBool(),
+		OrcaScore:            plan.OrcaScore.ValueFloat64(),
+		ContextScore:         plan.ContextScore.ValueBool(),
 		Category:             plan.Category.ValueString(),
 		OrganizationID:       plan.OrganizationID.ValueString(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
 	}
 
 	if plan.RemediationText != nil {
-		updateReq.RemediationText = &api_client.CustomAlertRemediationText{
+		updateReq.RemediationText = &api_client.CustomDiscoveryAlertRemediationText{
 			AlertType: plan.RuleType.ValueString(),
 			Enable:    plan.RemediationText.Enable.ValueBool(),
 			Text:      plan.RemediationText.Text.ValueString(),
 		}
 	}
 
-	_, err := r.apiClient.UpdateCustomAlert(plan.ID.ValueString(), updateReq)
+	_, err = r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Alert",
@@ -353,7 +388,7 @@ func (r *customAlertResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 }
 
-func (r *customAlertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *customDiscoveryAlertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state stateModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -361,7 +396,7 @@ func (r *customAlertResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	err := r.apiClient.DeleteCustomAlert(state.ID.ValueString())
+	err := r.apiClient.DeleteCustomDiscoveryAlert(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting Alert",
@@ -388,10 +423,10 @@ func validateCategory(client *api_client.APIClient, category string) error {
 	return fmt.Errorf("invalid category. Please choose from: %s", categoryValues)
 }
 
-func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomAlertComplianceFramework {
-	var frameworksReq []api_client.CustomAlertComplianceFramework
+func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomDiscoveryAlertComplianceFramework {
+	var frameworksReq []api_client.CustomDiscoveryAlertComplianceFramework
 	for _, frameworkState := range frameworks {
-		frameworksReq = append(frameworksReq, api_client.CustomAlertComplianceFramework{
+		frameworksReq = append(frameworksReq, api_client.CustomDiscoveryAlertComplianceFramework{
 			Name:     frameworkState.Name.ValueString(),
 			Section:  frameworkState.Section.ValueString(),
 			Priority: frameworkState.Priority.ValueString(),
