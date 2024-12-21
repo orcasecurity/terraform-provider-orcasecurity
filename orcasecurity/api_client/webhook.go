@@ -8,11 +8,21 @@ import (
 const WebhookServiceConfigName = "webhook"
 
 type Webhook struct {
-	ID           string `json:"id"`
+	ID string `json:"id"`
+
+	Config       Config `json:"config"`
+	CreatedAt    string `json:"created_at"`
+	IsEnabled    bool   `json:"is_enabled"`
 	TemplateName string `json:"template_name"`
 }
 
-func (client *APIClient) GetWebhookByName(name string) (*JiraTemplate, error) {
+type Config struct {
+	CustomHeaders map[string]string `json:"custom_headers"`
+	Type          string            `json:"type"`
+	WebhookUrl    string            `json:"webhook_url"`
+}
+
+func (client *APIClient) GetWebhookByName(name string) (*Webhook, error) {
 	resp, err := client.Get(
 		fmt.Sprintf("/api/external_service/config?service_name=%s&template_name=%s",
 			WebhookServiceConfigName, url.QueryEscape(name),
@@ -23,7 +33,7 @@ func (client *APIClient) GetWebhookByName(name string) (*JiraTemplate, error) {
 	}
 
 	type responseType struct {
-		Data []JiraTemplate `json:"data"`
+		Data []Webhook `json:"data"`
 	}
 
 	response := responseType{}
@@ -37,7 +47,7 @@ func (client *APIClient) GetWebhookByName(name string) (*JiraTemplate, error) {
 	}
 
 	if len(response.Data) > 1 {
-		return nil, fmt.Errorf("too many results for webhook '%s'. expected one", name)
+		return nil, fmt.Errorf("too many results for webhook '%s'. expected one but got %d.", name, len(response.Data))
 	}
 
 	return &response.Data[0], nil

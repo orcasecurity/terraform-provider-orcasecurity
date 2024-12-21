@@ -3,18 +3,18 @@
 page_title: "orcasecurity_webhook Data Source - orcasecurity"
 subcategory: ""
 description: |-
-  Fetch Web hook.
+  This data source allows you to pull data about a given webhook based on its name.
 ---
 
 # orcasecurity_webhook (Data Source)
 
-Fetch Web hook.
+This data source allows you to pull data about a given webhook based on its name.
 
 ## Example Usage
 
 ```terraform
-data "orcasecurity_webhook" "mywebhook" {
-  name = "the-webhook-name" // as on Orca dashboard
+data "orcasecurity_webhook" "example" {
+  name = "the-webhook-name" //as shown in Webhooks popup: https://app.orcasecurity.io/integrations?configure=%22webhookModalId%22
 }
 ```
 
@@ -23,10 +23,22 @@ data "orcasecurity_webhook" "mywebhook" {
 
 ### Required
 
-- `name` (String) Web hook name at Orca
+- `name` (String) Human-friendly name that you've selected for the Webhook.
 
 ### Read-Only
 
+- `config` (Attributes) (see [below for nested schema](#nestedatt--config))
+- `created_at` (String) When the webhook was created (in Unix timestamp-like format).
 - `id` (String) The ID of this resource.
+- `is_enabled` (Boolean) Whether the webhook is enabled or not.
+
+<a id="nestedatt--config"></a>
+### Nested Schema for `config`
+
+Read-Only:
+
+- `custom_headers` (Map of String) They key-value pairs that are the HTTP headers sent by Orca to the webhook URL.
+- `type` (String)
+- `webhook_url` (String) The URL of the webhook.
 
 
