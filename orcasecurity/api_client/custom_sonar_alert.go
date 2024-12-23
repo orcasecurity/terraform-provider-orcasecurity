@@ -7,33 +7,33 @@ import (
 	"strings"
 )
 
-type CustomAlertComplianceFramework struct {
+type CustomSonarAlertComplianceFramework struct {
 	Name     string `json:"compliance_framework"`
 	Section  string `json:"category"`
 	Priority string `json:"priority"`
 }
 
-type CustomAlertRemediationText struct {
+type CustomSonarAlertRemediationText struct {
 	AlertType string `json:"alert_type"`
 	Enable    bool   `json:"enabled"`
 	Text      string `json:"custom_text"`
 }
 
 type CustomAlert struct {
-	ID                   string                           `json:"rule_id,omitempty"`
-	OrganizationID       string                           `json:"organization,omitempty"`
-	Category             string                           `json:"category"`
-	ContextScore         bool                             `json:"context_score"`
-	Score                float64                          `json:"orca_score"`
-	Name                 string                           `json:"name"`
-	Description          string                           `json:"details"`
-	Rule                 string                           `json:"rule"`
-	RuleType             string                           `json:"rule_type,omitempty"` // also "alert_type"
-	ComplianceFrameworks []CustomAlertComplianceFramework `json:"compliance_frameworks,omitempty"`
-	RemediationText      *CustomAlertRemediationText      // managed in a separate API call
+	ID                   string                                `json:"rule_id,omitempty"`
+	OrganizationID       string                                `json:"organization,omitempty"`
+	Category             string                                `json:"category"`
+	ContextScore         bool                                  `json:"context_score"`
+	OrcaScore            float64                               `json:"orca_score"`
+	Name                 string                                `json:"name"`
+	Description          string                                `json:"details"`
+	Rule                 string                                `json:"rule"`
+	RuleType             string                                `json:"rule_type,omitempty"` // also "alert_type"
+	ComplianceFrameworks []CustomSonarAlertComplianceFramework `json:"compliance_frameworks,omitempty"`
+	RemediationText      *CustomSonarAlertRemediationText      // managed in a separate API call
 }
 
-func (client *APIClient) IsCustomAlertExists(id string) (bool, error) {
+func (client *APIClient) DoesCustomSonarAlertExist(id string) (bool, error) {
 	resp, err := client.Head(fmt.Sprintf("/api/sonar/rules/%s", id))
 	if resp.StatusCode() == 404 || resp.StatusCode() == 500 {
 		return false, nil
@@ -46,7 +46,7 @@ func (client *APIClient) IsCustomAlertExists(id string) (bool, error) {
 	return true, nil
 }
 
-func (client *APIClient) GetCustomAlert(id string) (*CustomAlert, error) {
+func (client *APIClient) GetCustomSonarAlert(id string) (*CustomAlert, error) {
 	type responseType struct {
 		Data CustomAlert `json:"data"`
 	}
@@ -65,11 +65,11 @@ func (client *APIClient) GetCustomAlert(id string) (*CustomAlert, error) {
 	alert := response.Data
 
 	// add remediation value
-	remediation, err := client.GetCustomRemediationText(alert.RuleType)
+	remediation, err := client.GetCustomSonarAlertRemediationText(alert.RuleType)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching remediation text: %s", err.Error())
 	}
-	alert.RemediationText = &CustomAlertRemediationText{
+	alert.RemediationText = &CustomSonarAlertRemediationText{
 		AlertType: remediation.AlertType,
 		Enable:    remediation.Enable,
 		Text:      remediation.Text,
@@ -78,7 +78,7 @@ func (client *APIClient) GetCustomAlert(id string) (*CustomAlert, error) {
 	return &alert, nil
 }
 
-func (client *APIClient) CreateCustomAlert(data CustomAlert) (*CustomAlert, error) {
+func (client *APIClient) CreateCustomSonarAlert(data CustomAlert) (*CustomAlert, error) {
 	type responseType struct {
 		Data CustomAlert `json:"data"`
 	}
@@ -98,7 +98,7 @@ func (client *APIClient) CreateCustomAlert(data CustomAlert) (*CustomAlert, erro
 	// set remediation
 	if data.RemediationText != nil {
 		data.RemediationText.AlertType = alert.RuleType
-		if err = client.SetCustomRemediationText(*data.RemediationText); err != nil {
+		if err = client.SetCustomSonarAlertRemediationText(*data.RemediationText); err != nil {
 			return nil, fmt.Errorf("remediation text create failed: %s", err.Error())
 		}
 	}
@@ -106,7 +106,7 @@ func (client *APIClient) CreateCustomAlert(data CustomAlert) (*CustomAlert, erro
 	return alert, nil
 }
 
-func (client *APIClient) UpdateCustomAlert(id string, data CustomAlert) (*CustomAlert, error) {
+func (client *APIClient) UpdateCustomSonarAlert(id string, data CustomAlert) (*CustomAlert, error) {
 	type responseType struct {
 		Data CustomAlert `json:"data"`
 	}
@@ -122,49 +122,49 @@ func (client *APIClient) UpdateCustomAlert(id string, data CustomAlert) (*Custom
 
 	// update remediation
 	if data.RemediationText == nil {
-		if err = client.DeleteCustomRemediationText(CustomAlertRemediationText{
+		if err = client.DeleteCustomSonarAlertRemediationText(CustomSonarAlertRemediationText{
 			AlertType: data.RuleType,
 		}); err != nil {
 			return nil, fmt.Errorf("remediation text delete failed: %s", err.Error())
 		}
 	} else {
-		if err = client.SetCustomRemediationText(*data.RemediationText); err != nil {
+		if err = client.SetCustomSonarAlertRemediationText(*data.RemediationText); err != nil {
 			return nil, fmt.Errorf("remediation text update failed: %s", err.Error())
 		}
 	}
 
 	return &response.Data, err
 }
-func (client *APIClient) DeleteCustomAlert(id string) error {
+func (client *APIClient) DeleteCustomSonarAlert(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/sonar/rules/%s", id))
 	return err
 }
 
-func (client *APIClient) GetCustomRemediationText(ruleType string) (*CustomAlertRemediationText, error) {
+func (client *APIClient) GetCustomSonarAlertRemediationText(ruleType string) (*CustomSonarAlertRemediationText, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/alerts/custom_remediation_text?alert_type=%s", ruleType))
 	if resp.StatusCode() == 404 {
-		return &CustomAlertRemediationText{}, nil
+		return &CustomSonarAlertRemediationText{}, nil
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	response := CustomAlertRemediationText{}
+	response := CustomSonarAlertRemediationText{}
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
 	return &response, err
 }
 
-func (client *APIClient) SetCustomRemediationText(data CustomAlertRemediationText) error {
+func (client *APIClient) SetCustomSonarAlertRemediationText(data CustomSonarAlertRemediationText) error {
 	resp, err := client.Put("/api/alerts/custom_remediation_text", data)
 	if resp.StatusCode() == 404 {
 		_, err = client.Post("/api/alerts/custom_remediation_text", data)
 	}
 	return err
 }
-func (client *APIClient) DeleteCustomRemediationText(data CustomAlertRemediationText) error {
+func (client *APIClient) DeleteCustomSonarAlertRemediationText(data CustomSonarAlertRemediationText) error {
 	payload, err := json.Marshal(&data)
 	if err != nil {
 		return err
@@ -195,7 +195,7 @@ func (client *APIClient) DeleteCustomRemediationText(data CustomAlertRemediation
 	return nil
 }
 
-func (client *APIClient) GetAlertCategories() ([]string, error) {
+func (client *APIClient) GetSonarAlertCategories() ([]string, error) {
 	type responseType struct {
 		Data []string `json:"data"`
 	}

@@ -1,1 +1,0 @@
-terraform import orcasecurity_custom_alert.example RULE_ID

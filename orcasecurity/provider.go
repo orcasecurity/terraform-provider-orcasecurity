@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"terraform-provider-orcasecurity/orcasecurity/alerts"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automations"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
+	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_role"
+	"terraform-provider-orcasecurity/orcasecurity/custom_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
@@ -19,7 +20,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
-	"terraform-provider-orcasecurity/orcasecurity/webhooks"
+	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -181,7 +182,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		jira_template.NewJiraTemplateDataSource,
-		webhooks.NewWebhookDataSource, organizations.NewOrganizationDataSource,
+		webhook.NewWebhookDataSource, organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
 	}
 }
@@ -190,7 +191,8 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		automations.NewAutomationResource,
-		alerts.NewCustomAlertResource,
+		custom_discovery_alert.NewCustomDiscoveryAlertResource,
+		custom_sonar_alert.NewCustomSonarAlertResource,
 		custom_role.NewCustomRoleResource,
 		group.NewGroupResource,
 		business_unit.NewBusinessUnitResource,
