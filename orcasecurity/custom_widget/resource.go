@@ -241,7 +241,7 @@ func generateSettings(plan *customWidgetExtraParametersModel) []api_client.Custo
 
 	item := plan.Settings
 
-	for i := 1; i <= 3; i++ {
+	for i := 0; i <= 2; i++ {
 		fmt.Println(i)
 		settings = append(settings, api_client.CustomWidgetExtraParametersSettings{
 			Size:              sizelist[i],
