@@ -20,15 +20,9 @@ func TestAccCustomSonarAlertResource_Basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			// create
 			{
-<<<<<<< HEAD
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_sonar_alert" "test" {
-  name = "test name"
-=======
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "%s" "%s" {
   name = "%s"
->>>>>>> alert-docs-update
   description = "test description"
   rule = "ActivityLogDetection"
   score = 5.5
@@ -37,11 +31,7 @@ resource "%s" "%s" {
 }
 `, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
-<<<<<<< HEAD
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "name", "test name"),
-=======
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", fmt.Sprintf("%s", OrcaObject)),
->>>>>>> alert-docs-update
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "description", "test description"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "rule", "ActivityLogDetection"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "score", "5.5"),

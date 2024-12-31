@@ -47,11 +47,7 @@ func (client *APIClient) GetWebhookByName(name string) (*Webhook, error) {
 	}
 
 	if len(response.Data) > 1 {
-<<<<<<< HEAD
-		return nil, fmt.Errorf("too many results for webhook '%s'. expected one but got %d.", name, len(response.Data))
-=======
 		return nil, fmt.Errorf("too many results for webhook '%s'. expected one but got %d", name, len(response.Data))
->>>>>>> alert-docs-update
 	}
 
 	return &response.Data[0], nil
