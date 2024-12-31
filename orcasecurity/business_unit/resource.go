@@ -389,10 +389,8 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
-		createReq := api_client.BusinessUnit{}
-
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-		createReq = api_client.BusinessUnit{
+		createReq := api_client.BusinessUnit{
 			Name:            plan.Name.ValueString(),
 			ShiftLeftFilter: &slFilter,
 			Filter:          &filter,

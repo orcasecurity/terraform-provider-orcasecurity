@@ -31,7 +31,7 @@ func TestAccWebhookDataSource(t *testing.T) {
 			{
 				Config: testAccDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("data.%s.%s", DataSourceType, DataSource), "name", fmt.Sprintf("%s", OrcaObject)),
+					resource.TestCheckResourceAttr(fmt.Sprintf("data.%s.%s", DataSourceType, DataSource), "name", OrcaObject),
 					resource.TestCheckResourceAttrWith(fmt.Sprintf("data.%s.%s", DataSourceType, DataSource), "id", func(value string) error {
 						// it must be a valid UUID
 						_, err := uuid.Parse(value)

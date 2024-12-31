@@ -29,7 +29,7 @@ resource "%s" "%s" {
 }
 `, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "account_name", fmt.Sprintf("%s", OrcaObject)),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "account_name", OrcaObject),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "description", "Dummy Description"),
 				),
 			},
@@ -50,7 +50,7 @@ resource "%s" "%s" {
 				}
 				`, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "account_name", fmt.Sprintf("%s", OrcaObject)),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "account_name", OrcaObject),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "description", "Dummy Description"),
 				),
 			},

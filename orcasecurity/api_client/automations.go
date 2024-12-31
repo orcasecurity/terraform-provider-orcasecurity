@@ -66,7 +66,7 @@ type Automation struct {
 	Name           string             `json:"name"`
 	BusinessUnits  []string           `json:"business_units"`
 	Enabled        bool               `json:"is_enabled"`
-	SonarQuery     map[string]int     `json:sonar_query`
+	SonarQuery     map[string]int     `json:"sonar_query"`
 	Description    string             `json:"description"`
 	OrganizationID string             `json:"organization,omitempty"`
 	Query          AutomationQuery    `json:"dsl_filter"`
