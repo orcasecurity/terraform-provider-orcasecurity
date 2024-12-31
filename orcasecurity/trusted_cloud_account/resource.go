@@ -145,7 +145,7 @@ func (r *trustedCloudAccountResource) Create(ctx context.Context, req resource.C
 		return
 	}
 
-	plan.ID = types.Int64Value(int64(instance.ID))
+	plan.ID = types.Int64Value(instance.ID)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
