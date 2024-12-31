@@ -39,33 +39,74 @@ type automationQueryModel struct {
 	Filter []automationQueryRuleModel `tfsdk:"filter"`
 }
 
-type automationJiraIssueModel struct {
+type automationAlertDismissalTemplateModel struct {
+	Reason        types.String `tfsdk:"reason"`
+	Justification types.String `tfsdk:"justification"`
+}
+
+type automationAlertScoreDecreaseTemplateModel struct {
+	Reason        types.String `tfsdk:"reason"`
+	Justification types.String `tfsdk:"justification"`
+}
+
+type automationAlertScoreIncreaseTemplateModel struct {
+	Reason        types.String `tfsdk:"reason"`
+	Justification types.String `tfsdk:"justification"`
+}
+
+type automationAlertScoreSpecifyTemplateModel struct {
+	NewScore      types.Float64 `tfsdk:"new_score"`
+	Reason        types.String  `tfsdk:"reason"`
+	Justification types.String  `tfsdk:"justification"`
+}
+
+type automationAzureDevopsTemplateModel struct {
 	TemplateName  types.String `tfsdk:"template_name"`
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
-type automationAzureDevopsWorkItemModel struct {
+type automationEmailTemplateModel struct {
+	EmailAddresses types.List `tfsdk:"email"`
+	MultiAlerts    types.Bool `tfsdk:"multi_alerts"`
+}
+
+type automationJiraTemplateModel struct {
 	TemplateName  types.String `tfsdk:"template_name"`
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
-type automationSumoLogicModel struct {
+type automationSlackTemplateModel struct {
+	Channel   types.String `tfsdk:"channel"`
+	Workspace types.String `tfsdk:"workspace"`
 }
 
-type automationWebhookModel struct {
+type automationSumoLogicTemplateModel struct {
+}
+
+type automationWebhookTemplateModel struct {
 	Name types.String `tfsdk:"name"`
 }
 
 type automationResourceModel struct {
-	ID                  types.String                        `tfsdk:"id"`
-	Name                types.String                        `tfsdk:"name"`
-	Description         types.String                        `tfsdk:"description"`
-	Query               *automationQueryModel               `tfsdk:"query"`
-	JiraIssue           *automationJiraIssueModel           `tfsdk:"jira_issue"`
-	AzureDevopsWorkItem *automationAzureDevopsWorkItemModel `tfsdk:"azure_devops_work_item"`
-	SumoLogic           *automationSumoLogicModel           `tfsdk:"sumologic"`
-	Webhook             *automationWebhookModel             `tfsdk:"webhook"`
-	OrganizationID      types.String                        `tfsdk:"organization_id"`
+	ID            types.String          `tfsdk:"id"`
+	Name          types.String          `tfsdk:"name"`
+	BusinessUnits types.List            `tfsdk:"business_units"`
+	Description   types.String          `tfsdk:"description"`
+	Enabled       types.Bool            `tfsdk:"enabled"`
+	Query         *automationQueryModel `tfsdk:"query"`
+
+	AlertDismissalTemplate     *automationAlertDismissalTemplateModel     `tfsdk:"alert_dismissal_details"`
+	AlertScoreDecreaseTemplate *automationAlertScoreDecreaseTemplateModel `tfsdk:"alert_score_decrease_details"`
+	AlertScoreIncreaseTemplate *automationAlertScoreIncreaseTemplateModel `tfsdk:"alert_score_increase_details"`
+	AlertScoreSpecifyTemplate  *automationAlertScoreSpecifyTemplateModel  `tfsdk:"alert_score_specify_details"`
+	AzureDevopsTemplate        *automationAzureDevopsTemplateModel        `tfsdk:"azure_devops_template"`
+	EmailTemplate              *automationEmailTemplateModel              `tfsdk:"email_template"`
+	JiraTemplate               *automationJiraTemplateModel               `tfsdk:"jira_template"`
+	SlackTemplate              *automationSlackTemplateModel              `tfsdk:"slack_template"`
+	SumoLogicTemplate          *automationSumoLogicTemplateModel          `tfsdk:"sumo_logic_template"`
+	WebhookTemplate            *automationWebhookTemplateModel            `tfsdk:"webhook_template"`
+
+	OrganizationID types.String `tfsdk:"organization_id"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -86,10 +127,16 @@ func (r *automationResource) Configure(_ context.Context, req resource.Configure
 func (r *automationResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		resourcevalidator.AtLeastOneOf(
-			path.MatchRoot("jira_issue"),
-			path.MatchRoot("azure_devops_work_item"),
-			path.MatchRoot("sumologic"),
-			path.MatchRoot("webhook"),
+			path.MatchRoot("alert_dismissal_details"),
+			path.MatchRoot("alert_score_decrease_details"),
+			path.MatchRoot("alert_score_increase_details"),
+			path.MatchRoot("alert_score_specify_details"),
+			path.MatchRoot("azure_devops_template"),
+			path.MatchRoot("email_template"),
+			path.MatchRoot("jira_template"),
+			path.MatchRoot("slack_template"),
+			path.MatchRoot("sumo_logic_template"),
+			path.MatchRoot("webhook_template"),
 		),
 	}
 }
@@ -100,7 +147,7 @@ func (r *automationResource) ImportState(ctx context.Context, req resource.Impor
 
 func (r *automationResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "The Automation resource allows the creation and management of an Orca Security Automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).",
+		Description: "Provides an automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -122,26 +169,44 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
+			"business_units": schema.ListAttribute{
+				Description: "Business units that this automation applies to, specified by their Orca ID. The business unit list cannot be changed after creation.",
+				Optional:    true,
+				ElementType: types.StringType,
+			},
 			"description": schema.StringAttribute{
 				Description: "Automation description.",
 				Optional:    true,
 			},
+			"enabled": schema.BoolAttribute{
+				Description: "Automation status.",
+				Required:    true,
+			},
 			"query": schema.SingleNestedAttribute{
-				Description: "The query to fetch the alerts.",
+				Description: "The query that selects the alerts this automation applies to.",
 				Required:    true,
 				Attributes: map[string]schema.Attribute{
 					"filter": schema.ListNestedAttribute{
-						Required: true,
+						Description: "List of filters upon which alerts are selected.",
+						Required:    true,
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"field": schema.StringAttribute{
+									Description: `When ` + "`includes`" + " is used, the automation applies to the specified field. Valid values include (but are not limited to):\n" +
+										"  - `category`" + " - alert categories\n" +
+										"  - `asset_regions`" + " - regions where the assets reside\n" +
+										"  - `cve_list`" + " - CVEs linked to the alerts\n" +
+										"  - `state.risk_level`" + " - alert risk scores\n" +
+										"  - `state.status`" + " - alert statuses\n",
 									Required: true,
 								},
 								"includes": schema.ListAttribute{
+									Description: "When `includes` is used, the automation applies to the specified field.",
 									Optional:    true,
 									ElementType: types.StringType,
 								},
 								"excludes": schema.ListAttribute{
+									Description: "When `excludes` is used, the automation applies to the negation of the specified field.",
 									Optional:    true,
 									ElementType: types.StringType,
 								},
@@ -150,23 +215,69 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"jira_issue": schema.SingleNestedAttribute{
+			"alert_dismissal_details": schema.SingleNestedAttribute{
 				Optional:    true,
-				Description: "Create a Jira ticket using template.",
+				Description: "Details regarding dismissed alerts.",
 				Attributes: map[string]schema.Attribute{
-					"template_name": schema.StringAttribute{
-						Required:    true,
-						Description: "A Jira issue template to use.",
-					},
-					"parent_issue": schema.StringAttribute{
+					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "Automatically nest under parent issue.",
+						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable Risk`, `False Positives`, `Non-Actionable`, `Non-Production`, and `Other`.",
+					},
+					"justification": schema.StringAttribute{
+						Optional:    true,
+						Description: "More detailed reasoning as to why these alerts are being dismissed.",
 					},
 				},
 			},
-			"azure_devops_work_item": schema.SingleNestedAttribute{
+			"alert_score_decrease_details": schema.SingleNestedAttribute{
 				Optional:    true,
-				Description: "Create a Azure Devops Work Item using template.",
+				Description: "Details regarding the new score for the selected alerts.",
+				Attributes: map[string]schema.Attribute{
+					"reason": schema.StringAttribute{
+						Optional:    true,
+						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
+					},
+					"justification": schema.StringAttribute{
+						Optional:    true,
+						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+					},
+				},
+			},
+			"alert_score_increase_details": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Details regarding the new score for the selected alerts.",
+				Attributes: map[string]schema.Attribute{
+					"reason": schema.StringAttribute{
+						Optional:    true,
+						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
+					},
+					"justification": schema.StringAttribute{
+						Optional:    true,
+						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+					},
+				},
+			},
+			"alert_score_specify_details": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Details regarding the new score for the selected alerts.",
+				Attributes: map[string]schema.Attribute{
+					"new_score": schema.Float64Attribute{
+						Required:    true,
+						Description: "New score to be assigned to the selected alerts.",
+					},
+					"reason": schema.StringAttribute{
+						Optional:    true,
+						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
+					},
+					"justification": schema.StringAttribute{
+						Optional:    true,
+						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+					},
+				},
+			},
+			"azure_devops_template": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Azure DevOps template to use for the automation.",
 				Attributes: map[string]schema.Attribute{
 					"template_name": schema.StringAttribute{
 						Required:    true,
@@ -178,14 +289,57 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"sumologic": schema.SingleNestedAttribute{
+			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
-				Description: "SumoLogic integration",
+				Description: "Email settings.",
+				Attributes: map[string]schema.Attribute{
+					"email": schema.ListAttribute{
+						ElementType: types.StringType,
+						Required:    true,
+						Description: "Email addresses to send the alerts to",
+					},
+					"multi_alerts": schema.BoolAttribute{
+						Required:    true,
+						Description: "`true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.",
+					},
+				},
+			},
+			"jira_template": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Jira integration template to use for the automation.",
+				Attributes: map[string]schema.Attribute{
+					"template_name": schema.StringAttribute{
+						Required:    true,
+						Description: "Name of the Jira integration template.",
+					},
+					"parent_issue": schema.StringAttribute{
+						Optional:    true,
+						Description: "Automatically nest under this parent issue.",
+					},
+				},
+			},
+			"slack_template": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Slack template to use for the automation.",
+				Attributes: map[string]schema.Attribute{
+					"workspace": schema.StringAttribute{
+						Required:    true,
+						Description: "Slack workspace to use.",
+					},
+					"channel": schema.StringAttribute{
+						Required:    true,
+						Description: "Slack channel ID to post the alert to. Example: `C04CLKEF7PU`.",
+					},
+				},
+			},
+			"sumo_logic_template": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Sumo Logic template to use for the automation.",
 				Attributes:  map[string]schema.Attribute{},
 			},
-			"webhook": schema.SingleNestedAttribute{
+			"webhook_template": schema.SingleNestedAttribute{
 				Optional:    true,
-				Description: "Notify via Web hook.",
+				Description: "Webhook template to use for the automation.",
 				Attributes: map[string]schema.Attribute{
 					"name": schema.StringAttribute{
 						Required:    true,
@@ -225,35 +379,111 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 
 func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
-	if plan.JiraIssue != nil && !plan.JiraIssue.TemplateName.IsNull() {
-		payload := make(map[string]interface{})
-		payload["template"] = plan.JiraIssue.TemplateName.ValueString()
-		if !plan.JiraIssue.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraIssue.ParentIssueID.ValueString()
-		}
 
+	if plan.AlertDismissalTemplate != nil {
+		payload := make(map[string]interface{})
+		payload["reason"] = plan.AlertDismissalTemplate.Reason.ValueString()
+		payload["justification"] = plan.AlertDismissalTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationJiraActionID,
+			Type:           api_client.AutomationAlertDismissalID,
 			OrganizationID: plan.OrganizationID.ValueString(),
 			Data:           payload,
 		})
 	}
 
-	if plan.AzureDevopsWorkItem != nil && !plan.AzureDevopsWorkItem.TemplateName.IsNull() {
+	if plan.AlertScoreDecreaseTemplate != nil {
 		payload := make(map[string]interface{})
-		payload["template"] = plan.AzureDevopsWorkItem.TemplateName.ValueString()
-		if !plan.AzureDevopsWorkItem.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.AzureDevopsWorkItem.ParentIssueID.ValueString()
-		}
-
+		payload["decrease_orca_score"] = 1
+		payload["reason"] = plan.AlertScoreDecreaseTemplate.Reason.ValueString()
+		payload["justification"] = plan.AlertScoreDecreaseTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAzureDevopsActionID,
+			Type:           api_client.AutomationAlertScoreChangeID,
 			OrganizationID: plan.OrganizationID.ValueString(),
 			Data:           payload,
 		})
 	}
 
-	if plan.SumoLogic != nil {
+	if plan.AlertScoreIncreaseTemplate != nil {
+		payload := make(map[string]interface{})
+		payload["increase_orca_score"] = 1
+		payload["reason"] = plan.AlertScoreIncreaseTemplate.Reason.ValueString()
+		payload["justification"] = plan.AlertScoreIncreaseTemplate.Justification.ValueString()
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationAlertScoreChangeID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.AlertScoreSpecifyTemplate != nil {
+		payload := make(map[string]interface{})
+		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
+		payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
+		payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationAlertScoreChangeID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.JiraTemplate != nil && !plan.JiraTemplate.TemplateName.IsNull() {
+		payload := make(map[string]interface{})
+		payload["template"] = plan.JiraTemplate.TemplateName.ValueString()
+		if !plan.JiraTemplate.ParentIssueID.IsNull() {
+			payload["parent_id"] = plan.JiraTemplate.ParentIssueID.ValueString()
+		}
+
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationJiraID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.AzureDevopsTemplate != nil && !plan.AzureDevopsTemplate.TemplateName.IsNull() {
+		payload := make(map[string]interface{})
+		payload["template"] = plan.AzureDevopsTemplate.TemplateName.ValueString()
+		if !plan.AzureDevopsTemplate.ParentIssueID.IsNull() {
+			payload["parent_id"] = plan.AzureDevopsTemplate.ParentIssueID.ValueString()
+		}
+
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationAzureDevopsID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.EmailTemplate != nil {
+		payload := make(map[string]interface{})
+
+		var emailAddresses []string
+		_ = plan.EmailTemplate.EmailAddresses.ElementsAs(context.Background(), &emailAddresses, false)
+
+		payload["email"] = emailAddresses
+
+		payload["multi_alerts"] = plan.EmailTemplate.MultiAlerts.ValueBool()
+
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationEmailID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.SlackTemplate != nil {
+		payload := make(map[string]interface{})
+		payload["workspace"] = plan.SlackTemplate.Workspace.ValueString()
+		payload["channel"] = plan.SlackTemplate.Channel.ValueString()
+		actions = append(actions, api_client.AutomationAction{
+			Type:           api_client.AutomationSlackID,
+			OrganizationID: plan.OrganizationID.ValueString(),
+			Data:           payload,
+		})
+	}
+
+	if plan.SumoLogicTemplate != nil {
 		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSumoLogicID,
@@ -262,9 +492,9 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 		})
 	}
 
-	if plan.Webhook != nil {
+	if plan.WebhookTemplate != nil {
 		payload := make(map[string]interface{})
-		payload["template"] = plan.Webhook.Name.ValueString()
+		payload["template"] = plan.WebhookTemplate.Name.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationWebhookID,
 			OrganizationID: plan.OrganizationID.ValueString(),
@@ -287,11 +517,16 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 
 	actions := generateActions(&plan)
 
+	businessUnits := []string{}
+	_ = plan.BusinessUnits.ElementsAs(context.Background(), businessUnits, false)
+
 	createReq := api_client.Automation{
-		Actions:     actions,
-		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueString(),
-		Query:       filterQuery,
+		Actions:       actions,
+		Name:          plan.Name.ValueString(),
+		BusinessUnits: businessUnits,
+		Description:   plan.Description.ValueString(),
+		Enabled:       plan.Enabled.ValueBool(),
+		Query:         filterQuery,
 	}
 	instance, err := r.apiClient.CreateAutomation(createReq)
 	if err != nil {
@@ -379,30 +614,30 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 
 	// update actions
 	for _, action := range instance.Actions {
-		if action.IsJiraIssue() {
-			state.JiraIssue = &automationJiraIssueModel{
+		if action.IsJiraTemplate() {
+			state.JiraTemplate = &automationJiraTemplateModel{
 				TemplateName: types.StringValue(action.Data["template"].(string)),
 			}
 			if action.Data["parent_id"] != nil {
-				state.JiraIssue.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
+				state.JiraTemplate.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
 			}
 		}
 
-		if action.IsAzureDevopsWorkItem() {
-			state.AzureDevopsWorkItem = &automationAzureDevopsWorkItemModel{
+		if action.IsAzureDevopsTemplate() {
+			state.AzureDevopsTemplate = &automationAzureDevopsTemplateModel{
 				TemplateName: types.StringValue(action.Data["template"].(string)),
 			}
 			if action.Data["parent_id"] != nil {
-				state.AzureDevopsWorkItem.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
+				state.AzureDevopsTemplate.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
 			}
 		}
 
-		if action.IsSumoLogic() {
-			state.SumoLogic = &automationSumoLogicModel{}
+		if action.IsSumoLogicTemplate() {
+			state.SumoLogicTemplate = &automationSumoLogicTemplateModel{}
 		}
 
-		if action.IsWebhook() {
-			state.Webhook = &automationWebhookModel{
+		if action.IsWebhookTemplate() {
+			state.WebhookTemplate = &automationWebhookTemplateModel{
 				Name: types.StringValue(action.Data["template"].(string)),
 			}
 		}
@@ -436,11 +671,16 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	actions := generateActions(&plan)
 
+	businessUnits := []string{}
+	_ = plan.BusinessUnits.ElementsAs(context.Background(), businessUnits, false)
+
 	updateReq := api_client.Automation{
 		Actions:        actions,
 		Query:          filterQuery,
 		Name:           plan.Name.ValueString(),
+		BusinessUnits:  businessUnits,
 		Description:    plan.Description.ValueString(),
+		Enabled:        plan.Enabled.ValueBool(),
 		OrganizationID: plan.OrganizationID.ValueString(),
 	}
 
@@ -448,7 +688,7 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Automation",
-			"Could not update Automation, unexpected error: "+err.Error(),
+			fmt.Sprintf("Could not update Automation, unexpected error: %d::", len(businessUnits))+err.Error(),
 		)
 		return
 	}

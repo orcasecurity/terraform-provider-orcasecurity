@@ -1,14 +1,44 @@
-//Cloud Provider-based Business unit for AWS
-resource "orcasecurity_business_unit" "business_unit_for_aws" {
-  name = "AWS"
-
-  shiftleft_filter_data = {
-    shiftleft_project_id = [
-      "c7257bec-9718-47c2-ade7-e08e7caa36e3"
-    ]
-  }
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
 
   filter_data = {
-    cloud_provider = ["aws"]
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Tag-based Business Unit for All Resources with the Env:Prod tag or Sensitive:True tag.
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
   }
 }

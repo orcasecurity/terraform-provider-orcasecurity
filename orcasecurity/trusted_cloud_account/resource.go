@@ -28,10 +28,11 @@ type trustedCloudAccountResource struct {
 }
 
 type trustedCloudAccountResourceModel struct {
-	ID             types.Int64  `tfsdk:"id"`
-	Name           types.String `tfsdk:"account_name"`
-	Description    types.String `tfsdk:"description"`
-	CloudProvider  types.String `tfsdk:"cloud_provider"`
+	ID            types.Int64  `tfsdk:"id"`
+	Name          types.String `tfsdk:"account_name"`
+	Description   types.String `tfsdk:"description"`
+	CloudProvider types.String `tfsdk:"cloud_provider"`
+	//Provider       types.String `tfsdk:"provider"`
 	CloudAccountID types.String `tfsdk:"cloud_provider_id"`
 }
 
@@ -51,20 +52,50 @@ func (r *trustedCloudAccountResource) Configure(_ context.Context, req resource.
 }
 
 func (r *trustedCloudAccountResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	id, err := strconv.ParseInt(req.ID, 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error importing trusted cloud account",
+			"Could not convert ID to int64: "+err.Error(),
+		)
+		return
+	}
+
+	// Get the resource from API using the ID
+	account, err := r.apiClient.GetTrustedCloudAccount(strconv.Itoa(int(id)))
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error importing trusted cloud account",
+			fmt.Sprintf("Could not get trusted cloud account with ID %d: %v", id, err),
+		)
+		return
+	}
+
+	// Add debug logging
+	tflog.Debug(ctx, "Received account from API", map[string]interface{}{
+		"account": fmt.Sprintf("%+v", account),
+	})
+
+	// Set all attributes in state
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_name"), account.Name)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("description"), account.Description)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cloud_provider"), account.CloudProvider)...)
+	//resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("provider"), account.Provider)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cloud_provider_id"), account.CloudAccountID)...)
 }
 
 func (r *trustedCloudAccountResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	//tflog.Error(ctx, "Setting up Schema")
 	resp.Schema = schema.Schema{
-		Description: "Provides a trusted cloud account resource.",
+		Description: "Provides a trusted cloud account.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Computed: true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
-				Description: "Trusted cloud account ID.",
+				Description: "Orca Identifier for the trusted cloud account.",
 			},
 			"account_name": schema.StringAttribute{
 				Description: "Human-friendly name for the trusted cloud account.",
@@ -74,11 +105,11 @@ func (r *trustedCloudAccountResource) Schema(ctx context.Context, req resource.S
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Cloud account description.",
+				Description: "Description of the trusted cloud account.",
 				Required:    true,
 			},
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud Provider. Potential options are aws, azure, etc.",
+				Description: "Cloud Provider. Valid values are `alicloud`, `aws`, `azure`, `gcp`, and `oci`.",
 				Required:    true,
 			},
 			"cloud_provider_id": schema.StringAttribute{
@@ -100,6 +131,7 @@ func (r *trustedCloudAccountResource) Create(ctx context.Context, req resource.C
 	createReq := api_client.TrustedCloudAccount{
 		Name:           plan.Name.ValueString(),
 		CloudProvider:  plan.CloudProvider.ValueString(),
+		Provider:       plan.CloudProvider.ValueString(),
 		CloudAccountID: plan.CloudAccountID.ValueString(),
 		Description:    plan.Description.ValueString(),
 	}
@@ -145,19 +177,6 @@ func (r *trustedCloudAccountResource) Read(ctx context.Context, req resource.Rea
 		return
 	}
 
-	instance, err := r.apiClient.GetTrustedCloudAccount(strconv.Itoa(int(state.ID.ValueInt64())))
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading cloud account",
-			fmt.Sprintf("Could not read cloud account ID %s: %s", strconv.Itoa(int(state.ID.ValueInt64())), err.Error()),
-		)
-		return
-	}
-
-	state.ID = types.Int64Value(int64(instance.ID))
-	state.Description = types.StringValue(instance.Description)
-	state.Name = types.StringValue(instance.Name)
-
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -174,9 +193,10 @@ func (r *trustedCloudAccountResource) Update(ctx context.Context, req resource.U
 	}
 
 	updateReq := api_client.TrustedCloudAccount{
-		ID:             int(plan.ID.ValueInt64()),
+		ID:             plan.ID.ValueInt64(),
 		Name:           plan.Name.ValueString(),
 		CloudProvider:  plan.CloudProvider.ValueString(),
+		Provider:       plan.CloudProvider.ValueString(),
 		CloudAccountID: plan.CloudAccountID.ValueString(),
 		Description:    plan.Description.ValueString(),
 	}
@@ -189,19 +209,6 @@ func (r *trustedCloudAccountResource) Update(ctx context.Context, req resource.U
 		)
 		return
 	}
-
-	instance, err := r.apiClient.GetTrustedCloudAccount(strconv.Itoa(int(plan.ID.ValueInt64())))
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating cloud account",
-			"Could not read cloud account, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	plan.ID = types.Int64Value(int64(instance.ID))
-	plan.Description = types.StringValue(instance.Description)
-	plan.Name = types.StringValue(instance.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -218,11 +225,11 @@ func (r *trustedCloudAccountResource) Delete(ctx context.Context, req resource.D
 		return
 	}
 
-	err := r.apiClient.DeleteTrustedCloudAccount(state.ID.String()[1 : len(state.ID.String())-1])
+	err := r.apiClient.DeleteTrustedCloudAccount(strconv.Itoa(int(state.ID.ValueInt64())))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting cloud account",
-			"Could not delete cloud account, unexpected error: "+err.Error(),
+			fmt.Sprintf("Could not delete cloud account with ID %d. unexpected error: ", state.ID)+err.Error(),
 		)
 		return
 	}

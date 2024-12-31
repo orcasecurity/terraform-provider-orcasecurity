@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccCustomAlertResource_Basic(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -19,7 +19,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
   context_score = false
 }
@@ -48,7 +47,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 				description = "test description updated"
 				rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 				orca_score = 9.5
-				severity = 1
 				context_score = true
 				category = "Malware"
 			}
@@ -66,7 +64,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_AddRemediationText(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_AddRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -79,7 +77,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   context_score = true
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
 }
 `,
@@ -112,7 +109,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_UpdateRemediationText(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_UpdateRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -124,7 +121,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
   context_score = true
   remediation_text = {
@@ -169,7 +165,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_DeleteRemediationText(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_DeleteRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -181,7 +177,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
   context_score = true
   remediation_text = {
@@ -203,7 +198,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
-					severity = 1
+			
 					category = "Best practices"
 					context_score = true
 				  }
@@ -216,7 +211,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_AddComplianceFramework(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_AddComplianceFramework(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -228,7 +223,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
   context_score = true
 }
@@ -251,7 +245,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
-					severity = 1
+			
 					category = "Best practices"
 					context_score = true
 					compliance_frameworks = [
@@ -269,7 +263,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_UpdateComplianceFramework(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_UpdateComplianceFramework(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -281,7 +275,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
   context_score = true
   compliance_frameworks = [
@@ -309,7 +302,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
-					severity = 1
+			
 					category = "Best practices"
 					context_score = true
 					compliance_frameworks = [
@@ -327,7 +320,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_DeleteComplianceFramework(t *testing.T) {
+func TestAccCustomDiscoveryAlertResource_DeleteComplianceFramework(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -339,7 +332,6 @@ resource "orcasecurity_custom_discovery_alert" "test" {
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
-  severity = 1
   category = "Best practices"
   context_score = true
   compliance_frameworks = [
@@ -357,7 +349,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
-					severity = 1
+			
 					category = "Best practices"
 					context_score = true
 

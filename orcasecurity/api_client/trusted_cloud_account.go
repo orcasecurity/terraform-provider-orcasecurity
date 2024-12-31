@@ -7,10 +7,11 @@ import (
 )
 
 type TrustedCloudAccount struct {
-	ID             int    `json:"id,omitempty"`
+	ID             int64  `json:"id,omitempty"`
 	Name           string `json:"account_name"`
 	Description    string `json:"description"`
-	CloudProvider  string `json:"provider"`
+	CloudProvider  string `json:"cloud_provider,omitempty"`
+	Provider       string `json:"provider,omitempty"`
 	CloudAccountID string `json:"cloud_provider_id"`
 }
 
@@ -20,8 +21,8 @@ type trustedCloudAccountAPIResponseType struct {
 }
 
 type trustedCloudAccountAPIResponseTypeRead struct {
-	Data   TrustedCloudAccount `json:"data[0]"`
-	Status string              `json:"status"`
+	Data   []TrustedCloudAccount `json:"data"`
+	Status string                `json:"status"`
 }
 
 func (client *APIClient) DoesTrustedCloudAccountExist(id string) (bool, error) {
@@ -43,7 +44,7 @@ func (client *APIClient) GetTrustedCloudAccount(id string) (*TrustedCloudAccount
 	if err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return &response.Data[0], nil
 }
 
 func (client *APIClient) CreateTrustedCloudAccount(data TrustedCloudAccount) (*TrustedCloudAccount, error) {
@@ -61,7 +62,7 @@ func (client *APIClient) CreateTrustedCloudAccount(data TrustedCloudAccount) (*T
 }
 
 func (client *APIClient) UpdateTrustedCloudAccount(data TrustedCloudAccount) (*TrustedCloudAccount, error) {
-	resp, err := client.Put(fmt.Sprintf("/api/organization/trusted_accounts?id=%s", strconv.Itoa(data.ID)), data)
+	resp, err := client.Put(fmt.Sprintf("/api/organization/trusted_accounts?id=%s", strconv.Itoa(int(data.ID))), data)
 	if err != nil {
 		return nil, err
 	}
