@@ -29,15 +29,15 @@ type businessUnitResource struct {
 }
 
 type businessUnitFilterModel struct {
-	CloudProvider []types.String `tfsdk:"cloud_provider"`
-	CustomTags    []types.String `tfsdk:"custom_tags"`
-	InventoryTags []types.String `tfsdk:"inventory_tags"`
-	AccountTags   []types.String `tfsdk:"accounts_tags_info_list"`
-	CloudAccounts []types.String `tfsdk:"cloud_vendor_id"`
+	CloudProviders []types.String `tfsdk:"cloud_providers"`
+	CustomTags     []types.String `tfsdk:"custom_tags"`
+	CloudTags      []types.String `tfsdk:"cloud_tags"`
+	AccountTags    []types.String `tfsdk:"cloud_account_tags"`
+	CloudAccounts  []types.String `tfsdk:"cloud_account_ids"`
 }
 
 type businessUnitShiftLeftFilterModel struct {
-	ShiftLeftProjects []types.String `tfsdk:"shiftleft_project_id"`
+	ShiftLeftProjects []types.String `tfsdk:"shiftleft_project_ids"`
 }
 
 type businessUnitResourceModel struct {
@@ -64,13 +64,103 @@ func (r *businessUnitResource) Configure(_ context.Context, req resource.Configu
 }
 
 func (r *businessUnitResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	businessUnitId := req.ID
+	/*if err != nil {
+		resp.Diagnostics.AddError(
+			"Error importing business unit",
+			"Could not convert ID to int64: "+err.Error(),
+		)
+		return
+	}*/
+
+	businessUnit, err := r.apiClient.GetBusinessUnit(businessUnitId)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error importing business unit",
+			fmt.Sprintf("Could not get business unit with ID %s: %v", businessUnitId, err),
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), businessUnitId)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), businessUnit.Name)...)
+
+	// Create a new state model
+	state := businessUnitResourceModel{
+		ID:   types.StringValue(businessUnitId),
+		Name: types.StringValue(businessUnit.Name),
+	}
+
+	// Only set ShiftLeftFilter if it exists in the API response
+	if businessUnit.ShiftLeftFilter != nil && len(businessUnit.ShiftLeftFilter.ShiftLeftProjects) > 0 {
+		shiftLeftProjects := make([]types.String, len(businessUnit.ShiftLeftFilter.ShiftLeftProjects))
+		for i, project := range businessUnit.ShiftLeftFilter.ShiftLeftProjects {
+			shiftLeftProjects[i] = types.StringValue(project)
+		}
+
+		state.ShiftLeftFilter = &businessUnitShiftLeftFilterModel{
+			ShiftLeftProjects: shiftLeftProjects,
+		}
+	}
+
+	if businessUnit.Filter != nil {
+
+		filter := &businessUnitFilterModel{}
+		hasFilterData := false
+
+		if len(businessUnit.Filter.CloudProviders) > 0 {
+			filter.CloudProviders = make([]types.String, len(businessUnit.Filter.CloudProviders))
+			for i, provider := range businessUnit.Filter.CloudProviders {
+				filter.CloudProviders[i] = types.StringValue(provider)
+			}
+			hasFilterData = true
+		}
+
+		if len(businessUnit.Filter.CloudAccounts) > 0 {
+			filter.CloudAccounts = make([]types.String, len(businessUnit.Filter.CloudAccounts))
+			for i, account := range businessUnit.Filter.CloudAccounts {
+				filter.CloudAccounts[i] = types.StringValue(account)
+			}
+			hasFilterData = true
+		}
+
+		if len(businessUnit.Filter.AccountTags) > 0 {
+			filter.AccountTags = make([]types.String, len(businessUnit.Filter.AccountTags))
+			for i, accountTags := range businessUnit.Filter.AccountTags {
+				filter.AccountTags[i] = types.StringValue(accountTags)
+			}
+			hasFilterData = true
+		}
+
+		if len(businessUnit.Filter.CloudTags) > 0 {
+			filter.CloudTags = make([]types.String, len(businessUnit.Filter.CloudTags))
+			for i, cloudTags := range businessUnit.Filter.CloudTags {
+				filter.CloudTags[i] = types.StringValue(cloudTags)
+			}
+			hasFilterData = true
+		}
+
+		if len(businessUnit.Filter.CustomTags) > 0 {
+			filter.CustomTags = make([]types.String, len(businessUnit.Filter.CustomTags))
+			for i, customTags := range businessUnit.Filter.CustomTags {
+				filter.CustomTags[i] = types.StringValue(customTags)
+			}
+			hasFilterData = true
+		}
+
+		if hasFilterData {
+			state.Filter = filter
+		}
+	}
+
+	// Set the entire state at once
+	diags := resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	//tflog.Error(ctx, "Setting up Schema")
 	resp.Schema = schema.Schema{
-		Description: "Provides a Business Unit resource. Please note that Shift Left business units are not yet supported in this Terraform Provider.",
+		Description: "Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).\n\nPlease note that a business unit cannot be composed of multiple, different filter types. You cannot compose 1 business unit that uses both cloud tags and custom tags, for example.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -94,8 +184,8 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				Description: "The filter to select Shift Left resources for the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
-					"shiftleft_project_id": schema.ListAttribute{
-						Description: "A list of at least 1 Shift Left project IDs.",
+					"shiftleft_project_ids": schema.ListAttribute{
+						Description: "A list of 1 or more Shift Left project IDs.",
 						ElementType: types.StringType,
 						Optional:    true,
 					},
@@ -105,28 +195,28 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				Description: "The filter to select the resources of the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
-					"cloud_provider": schema.ListAttribute{
-						Description: "A list of at least 1 cloud provider, each provided as a string.",
+					"cloud_providers": schema.ListAttribute{
+						Description: "A list of 1 or more cloud providers. Valid values are `alicloud`, `aws`, `azure`, `gcp`, `oci`, and `shiftleft`.",
 						ElementType: types.StringType,
 						Optional:    true,
 					},
-					"cloud_vendor_id": schema.ListAttribute{
-						Description: "A list of at least 1 cloud account #s, each provided as a string.",
+					"cloud_account_ids": schema.ListAttribute{
+						Description: "A list of 1 or more cloud account IDs.",
 						ElementType: types.StringType,
 						Optional:    true,
 					},
-					"accounts_tags_info_list": schema.ListAttribute{
-						Description: "A list of at least 1 account tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).",
+					"cloud_account_tags": schema.ListAttribute{
+						Description: "A list of 1 or more cloud account tags. The key and value should be separated by a vertical line (|), rather than a colon(:).",
 						ElementType: types.StringType,
 						Optional:    true,
 					},
-					"inventory_tags": schema.ListAttribute{
-						Description: "A list of at least 1 cloud tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).",
+					"cloud_tags": schema.ListAttribute{
+						Description: "A list of 1 or more cloud tags (for AWS and Azure) or labels (for GCP). The key and value should be separated by a vertical line (|), rather than a colon(:).",
 						ElementType: types.StringType,
 						Optional:    true,
 					},
 					"custom_tags": schema.ListAttribute{
-						Description: "A list of at least 1 custom tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).",
+						Description: "A list of 1 or more custom tags. The key and value should be separated by a vertical line (|), rather than a colon(:).",
 						ElementType: types.StringType,
 						Optional:    true,
 					},
@@ -138,13 +228,13 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 
 func generateCloudProviderFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
-	var cpFilter = filter.CloudProvider
+	var cpFilter = filter.CloudProviders
 	var finalDiags diag.Diagnostics
 
-	for _, item := range plan.CloudProvider {
+	for _, item := range plan.CloudProviders {
 		cpFilter = append(cpFilter, item.ValueString())
 	}
-	return api_client.BusinessUnitFilter{CloudProvider: cpFilter}, finalDiags
+	return api_client.BusinessUnitFilter{CloudProviders: cpFilter}, finalDiags
 }
 
 func generateCustomTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
@@ -160,13 +250,13 @@ func generateCustomTagsFilter(plan *businessUnitFilterModel) (api_client.Busines
 
 func generateInventoryTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
-	var itFilter = filter.InventoryTags
+	var itFilter = filter.CloudTags
 	var finalDiags diag.Diagnostics
 
-	for _, item := range plan.InventoryTags {
+	for _, item := range plan.CloudTags {
 		itFilter = append(itFilter, item.ValueString())
 	}
-	return api_client.BusinessUnitFilter{InventoryTags: itFilter}, finalDiags
+	return api_client.BusinessUnitFilter{CloudTags: itFilter}, finalDiags
 }
 
 func generateAccountTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
@@ -177,7 +267,7 @@ func generateAccountTagsFilter(plan *businessUnitFilterModel) (api_client.Busine
 	for _, item := range plan.AccountTags {
 		atFilter = append(atFilter, item.ValueString())
 	}
-	return api_client.BusinessUnitFilter{CloudProvider: atFilter}, finalDiags
+	return api_client.BusinessUnitFilter{AccountTags: atFilter}, finalDiags
 }
 
 func generateCloudAccountsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
@@ -210,16 +300,13 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	if plan.Filter != nil && plan.Filter.CloudProvider != nil {
+	if plan.Filter != nil && plan.Filter.CloudProviders != nil {
 		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
-		//EmptyBuslf := api_client.BusinessUnitShiftLeftFilter{}
-
 		createReq := api_client.BusinessUnit{
-			Name:            plan.Name.ValueString(),
-			Filter:          filter,
-			ShiftLeftFilter: nil,
+			Name:   plan.Name.ValueString(),
+			Filter: &filter,
 		}
 
 		instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -233,18 +320,13 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	} else if plan.Filter != nil && plan.Filter.CloudAccounts != nil && (plan.ShiftLeftFilter == nil || plan.ShiftLeftFilter.ShiftLeftProjects == nil) {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
 			Name:   plan.Name.ValueString(),
-			Filter: filter,
+			Filter: &filter,
 		}
 
 		instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -258,11 +340,6 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	} else if plan.ShiftLeftFilter != nil && plan.ShiftLeftFilter.ShiftLeftProjects != nil && (plan.Filter == nil || plan.Filter.CloudAccounts == nil) {
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
 		createReq := api_client.BusinessUnit{
@@ -281,11 +358,6 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	} else if plan.ShiftLeftFilter != nil && plan.ShiftLeftFilter.ShiftLeftProjects != nil && plan.Filter != nil && plan.Filter.CloudAccounts != nil {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
@@ -297,7 +369,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			createReq = api_client.BusinessUnit{
 				Name:            plan.Name.ValueString(),
 				ShiftLeftFilter: &slFilter,
-				Filter:          filter,
+				Filter:          &filter,
 			}
 
 		}
@@ -313,18 +385,37 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
+	} else if plan.ShiftLeftFilter != nil && plan.ShiftLeftFilter.ShiftLeftProjects != nil && plan.Filter != nil && plan.Filter.CloudProviders != nil {
+		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
+		diags.Append(filterDiags...)
+
+		createReq := api_client.BusinessUnit{}
+
+		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
+		createReq = api_client.BusinessUnit{
+			Name:            plan.Name.ValueString(),
+			ShiftLeftFilter: &slFilter,
+			Filter:          &filter,
+		}
+
+		instance, err := r.apiClient.CreateBusinessUnit(createReq)
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating business unit",
+				"Could not create business unit, unexpected error: "+err.Error(),
+			)
 			return
 		}
+		plan.ID = types.StringValue(instance.ID)
+
 	} else if plan.Filter != nil && plan.Filter.CustomTags != nil {
 		filter, filterDiags := generateCustomTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
 			Name:   plan.Name.ValueString(),
-			Filter: filter,
+			Filter: &filter,
 		}
 
 		instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -338,18 +429,13 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	} else if plan.Filter != nil && plan.Filter.AccountTags != nil {
 		filter, filterDiags := generateAccountTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
 			Name:   plan.Name.ValueString(),
-			Filter: filter,
+			Filter: &filter,
 		}
 
 		instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -363,18 +449,13 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.Filter != nil && plan.Filter.InventoryTags != nil {
+	} else if plan.Filter != nil && plan.Filter.CloudTags != nil {
 		filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		createReq := api_client.BusinessUnit{
 			Name:   plan.Name.ValueString(),
-			Filter: filter,
+			Filter: &filter,
 		}
 
 		instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -388,11 +469,11 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		}
 		plan.ID = types.StringValue(instance.ID)
 
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	}
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 }
@@ -454,13 +535,13 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	if len(plan.Filter.CloudProvider) > 0 {
+	if len(plan.Filter.CloudProviders) > 0 {
 		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
 			Name:   plan.Name.ValueString(),
-			Filter: filter,
+			Filter: &filter,
 		}
 
 		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
@@ -518,7 +599,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		updateReq := api_client.BusinessUnit{
 			Name:            plan.Name.ValueString(),
 			ShiftLeftFilter: &slFilter,
-			Filter:          filter,
+			Filter:          &filter,
 		}
 
 		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
@@ -542,7 +623,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
-			Filter: filter,
+			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
 
@@ -569,12 +650,12 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.InventoryTags) > 0 {
+	} else if len(plan.Filter.CloudTags) > 0 {
 		filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
-			Filter: filter,
+			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
 
@@ -606,7 +687,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
-			Filter: filter,
+			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
 
@@ -638,7 +719,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		diags.Append(filterDiags...)
 
 		updateReq := api_client.BusinessUnit{
-			Filter: filter,
+			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
 

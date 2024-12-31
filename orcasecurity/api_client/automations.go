@@ -5,10 +5,16 @@ import (
 	"fmt"
 )
 
-const AutomationJiraActionID = 10
+const AutomationAlertDismissalID = 1
+const AutomationAlertScoreChangeID = 28
+const AutomationEmailID = 5
+const AutomationJiraID = 10
 const AutomationSumoLogicID = 6
-const AutomationAzureDevopsActionID = 17
+const AutomationAzureDevopsID = 17
 const AutomationWebhookID = 12
+
+// Covers both Slack v1 and Slack v2 integrations.
+const AutomationSlackID = 2
 
 type AutomationFilter struct {
 	Field    string   `json:"field"`
@@ -27,25 +33,40 @@ type AutomationAction struct {
 	Data           map[string]interface{} `json:"data"`
 }
 
-func (a *AutomationAction) IsJiraIssue() bool {
-	return a.Type == AutomationJiraActionID
+func (a *AutomationAction) IsAlertDismissalTemplate() bool {
+	return a.Type == AutomationAlertDismissalID
 }
 
-func (a *AutomationAction) IsAzureDevopsWorkItem() bool {
-	return a.Type == AutomationJiraActionID
+func (a *AutomationAction) IsAzureDevopsTemplate() bool {
+	return a.Type == AutomationAzureDevopsID
 }
 
-func (a *AutomationAction) IsSumoLogic() bool {
+func (a *AutomationAction) IsEmailTemplate() bool {
+	return a.Type == AutomationEmailID
+}
+
+func (a *AutomationAction) IsJiraTemplate() bool {
+	return a.Type == AutomationJiraID
+}
+
+func (a *AutomationAction) IsSumoLogicTemplate() bool {
 	return a.Type == AutomationSumoLogicID
 }
 
-func (a *AutomationAction) IsWebhook() bool {
+func (a *AutomationAction) IsWebhookTemplate() bool {
 	return a.Type == AutomationWebhookID
+}
+
+func (a *AutomationAction) IsSlackV2() bool {
+	return a.Type == AutomationSlackID
 }
 
 type Automation struct {
 	ID             string             `json:"id,omitempty"`
 	Name           string             `json:"name"`
+	BusinessUnits  []string           `json:"business_units"`
+	Enabled        bool               `json:"is_enabled"`
+	SonarQuery     map[string]int     `json:sonar_query`
 	Description    string             `json:"description"`
 	OrganizationID string             `json:"organization,omitempty"`
 	Query          AutomationQuery    `json:"dsl_filter"`

@@ -91,24 +91,35 @@ func (c *APIClient) Execute(req http.Request) (*http.Response, error) {
 }
 
 func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
+	// Log request details
+	fmt.Printf("Making request to: %s %s\n", req.Method, req.URL)
+
 	res, err := c.Execute(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request execution failed: %v", err)
 	}
 	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
+
+	// Log response details
+	fmt.Printf("Response Status: %d\n", res.StatusCode)
+	fmt.Printf("Response Body: %s\n", string(body))
 
 	response := APIResponse{
 		_body:    body,
 		response: res,
 	}
+
 	if !response.IsOk() {
-		return &response, response.Error()
+		err := response.Error()
+		return &response, fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
+			res.StatusCode, string(body), err)
 	}
+
 	return &response, nil
 }
 
@@ -134,19 +145,30 @@ func (c *APIClient) Head(path string) (*APIResponse, error) {
 func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal payload: %v", err)
 	}
+
+	fullURL := fmt.Sprintf("%s%s", c.APIEndpoint, path)
+	fmt.Printf("Making POST request to: %s\n", fullURL) // Debug log
 
 	req, err := http.NewRequest(
 		"POST",
-		fmt.Sprintf("%s%s", c.APIEndpoint, path),
+		fullURL,
 		strings.NewReader(string(payload)),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v, URL: %s", err, fullURL)
 	}
 
-	return c.doRequest(*req)
+	// Add debug logging for request payload
+	fmt.Printf("Request payload: %s\n", string(payload))
+
+	response, err := c.doRequest(*req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v, URL: %s, payload: %s", err, fullURL, string(payload))
+	}
+
+	return response, nil
 }
 
 // Execute PUT HTTP request.
