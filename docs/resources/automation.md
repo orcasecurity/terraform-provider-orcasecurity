@@ -3,42 +3,44 @@
 page_title: "orcasecurity_automation Resource - orcasecurity"
 subcategory: ""
 description: |-
-  The Automation resource allows the creation and management of an Orca Security Automation. You can read more about automations here https://docs.orcasecurity.io/docs/automations.
+  Provides an automation. You can read more about automations here https://docs.orcasecurity.io/docs/automations.
 ---
 
 # orcasecurity_automation (Resource)
 
-The Automation resource allows the creation and management of an Orca Security Automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).
+Provides an automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).
 
 ## Example Usage
 
 ```terraform
-// usage with jira template
+# automation that sends alerts to Jira
 resource "orcasecurity_automation" "example" {
-  name        = "JIRA issues"
-  description = "Automatically create JIRA issues"
+  name        = "Jira"
+  description = "Send high, critical alerts on our central resources to the SecOps Jira template (project)"
+  enabled     = true
   query = {
     filter : [
       { field : "state.status", includes : ["open"] },
       { field : "state.risk_level", includes : ["high", "critical"] },
-      { field : "asset_regions", excludes : ["centralus"] },
+      { field : "asset_regions", includes : ["centralus"] },
     ]
   }
   jira_issue = {
-    template_name = "My Template" // as on Orca dashboard
-    parent_issue  = "JMB-007"     // optional
+    template_name = "SecOps"  # name of Jira template
+    parent_issue  = "JMB-007" // optional
   }
 }
 
-// usage with Sumo Logic integration
+# automation that sends alerts to Sumo Logic
 resource "orcasecurity_automation" "example" {
   name        = "Sumo Logic"
-  description = "Integrate Sumo Logic"
+  description = "Send high, critical alerts on our central resources to our Sumo Logic instance"
+  enabled     = true
   query = {
     filter : [
       { field : "state.status", includes : ["open"] },
       { field : "state.risk_level", includes : ["high", "critical"] },
-      { field : "asset_regions", excludes : ["centralus"] },
+      { field : "asset_regions", includes : ["centralus"] },
     ]
   }
   sumologic = {
@@ -46,35 +48,136 @@ resource "orcasecurity_automation" "example" {
   }
 }
 
-// usage with web hooks
+# automation that sends alert data to a Webhook URL
 resource "orcasecurity_automation" "example" {
-  name        = "Automation with web hook"
-  description = "Automatically submit data to web hook"
+  name        = "Webhook"
+  description = "Send high, critical alerts on our central resources to a Webhook URL"
+  enabled     = true
   query = {
     filter : [
       { field : "state.status", includes : ["open"] },
       { field : "state.risk_level", includes : ["high", "critical"] },
-      { field : "asset_regions", excludes : ["centralus"] },
+      { field : "asset_regions", includes : ["centralus"] },
     ]
   }
   webhook = {
-    name = "my-webhook-name" // as on Orca dashboard
+    name = "my-webhook-name" # name of Webhook template
   }
 }
 
-// usage witn Sumo Logic integration
+# automation that sends alert data to email addresses
 resource "orcasecurity_automation" "example" {
-  name        = "JIRA issues"
-  description = "Automatically create JIRA issues"
+  name        = "Email"
+  description = "Send high, critical alerts on our central resources to the 2 Does"
+  enabled     = true
   query = {
     filter : [
       { field : "state.status", includes : ["open"] },
       { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+  email_template = {
+    email        = ["john.doe@orca.security", "jane.doe@orca.security"]
+    multi_alerts = true
+  }
+}
+
+# automation that dismisses alerts on a specific business unit
+resource "orcasecurity_automation" "example" {
+  name           = "Dismiss alerts"
+  description    = "Dismiss high, critical alerts on our central resources"
+  business_units = ["43008048-8a3f-4daa-8e38-290842d28c62"]
+  enabled        = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+
+  alert_dismissal_details = {
+    reason        = "Non-Production"
+    justification = "These are test applications, not production applications."
+  }
+}
+
+# automation that changes the risk score of alerts
+resource "orcasecurity_automation" "example" {
+  name        = "Change Orca Score to 3.0"
+  description = "Decrease alert scores of high, critical alerts on our central resources"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+
+  alert_score_specify_details = {
+    new_score     = 2.7
+    reason        = "Non-Production"
+    justification = "These are test applications, not production applications."
+  }
+}
+
+# automation that decreases the risk score of alerts
+resource "orcasecurity_automation" "example" {
+  name        = "Decrease score"
+  description = "Decrease alert scores of high, critical alerts on our central resources"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+
+  alert_score_decrease_details = {
+    reason        = "Non-Production"
+    justification = "These are test applications, not production applications."
+  }
+}
+
+# automation that increases the risk score of alerts
+resource "orcasecurity_automation" "example" {
+  name        = "Increase score"
+  description = "Increase alert scores of medium, high alerts on our central resources"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["medium", "high"] },
       { field : "asset_regions", excludes : ["centralus"] },
     ]
   }
-  sumologic = {
 
+  alert_score_increase_details = {
+    reason        = "Non-Production"
+    justification = "These are test applications, not production applications."
+  }
+}
+
+# automation that sends alerts to a Slack channel
+resource "orcasecurity_automation" "example" {
+  name        = "Slack"
+  description = "Send high, critical malware alerts on our central resources to the SecOps Slack channel"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "category", includes : ["malware"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+
+  slack_template = {
+    workspace = "My Company Workspace"
+    channel   = "C04CLAAAAA"
   }
 }
 ```
@@ -84,16 +187,24 @@ resource "orcasecurity_automation" "example" {
 
 ### Required
 
+- `enabled` (Boolean) Automation status.
 - `name` (String) Automation name.
-- `query` (Attributes) The query to fetch the alerts. (see [below for nested schema](#nestedatt--query))
+- `query` (Attributes) The query that selects the alerts this automation applies to. (see [below for nested schema](#nestedatt--query))
 
 ### Optional
 
-- `azure_devops_work_item` (Attributes) Create a Azure Devops Work Item using template. (see [below for nested schema](#nestedatt--azure_devops_work_item))
+- `alert_dismissal_details` (Attributes) Details regarding dismissed alerts. (see [below for nested schema](#nestedatt--alert_dismissal_details))
+- `alert_score_decrease_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
+- `alert_score_increase_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
+- `alert_score_specify_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
+- `azure_devops_template` (Attributes) Azure DevOps template to use for the automation. (see [below for nested schema](#nestedatt--azure_devops_template))
+- `business_units` (List of String) Business units that this automation applies to, specified by their Orca ID. The business unit list cannot be changed after creation.
 - `description` (String) Automation description.
-- `jira_issue` (Attributes) Create a Jira ticket using template. (see [below for nested schema](#nestedatt--jira_issue))
-- `sumologic` (Attributes) SumoLogic integration (see [below for nested schema](#nestedatt--sumologic))
-- `webhook` (Attributes) Notify via Web hook. (see [below for nested schema](#nestedatt--webhook))
+- `email_template` (Attributes) Email settings. (see [below for nested schema](#nestedatt--email_template))
+- `jira_template` (Attributes) Jira integration template to use for the automation. (see [below for nested schema](#nestedatt--jira_template))
+- `slack_template` (Attributes) Slack template to use for the automation. (see [below for nested schema](#nestedatt--slack_template))
+- `sumo_logic_template` (Attributes) Sumo Logic template to use for the automation. (see [below for nested schema](#nestedatt--sumo_logic_template))
+- `webhook_template` (Attributes) Webhook template to use for the automation. (see [below for nested schema](#nestedatt--webhook_template))
 
 ### Read-Only
 
@@ -105,24 +216,69 @@ resource "orcasecurity_automation" "example" {
 
 Required:
 
-- `filter` (Attributes List) (see [below for nested schema](#nestedatt--query--filter))
+- `filter` (Attributes List) List of filters upon which alerts are selected. (see [below for nested schema](#nestedatt--query--filter))
 
 <a id="nestedatt--query--filter"></a>
 ### Nested Schema for `query.filter`
 
 Required:
 
-- `field` (String)
+- `field` (String) When `includes` is used, the automation applies to the specified field. Valid values include (but are not limited to):
+  - `category` - alert categories
+  - `asset_regions` - regions where the assets reside
+  - `cve_list` - CVEs linked to the alerts
+  - `state.risk_level` - alert risk scores
+  - `state.status` - alert statuses
 
 Optional:
 
-- `excludes` (List of String)
-- `includes` (List of String)
+- `excludes` (List of String) When `excludes` is used, the automation applies to the negation of the specified field.
+- `includes` (List of String) When `includes` is used, the automation applies to the specified field.
 
 
 
-<a id="nestedatt--azure_devops_work_item"></a>
-### Nested Schema for `azure_devops_work_item`
+<a id="nestedatt--alert_dismissal_details"></a>
+### Nested Schema for `alert_dismissal_details`
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are being dismissed.
+- `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable Risk`, `False Positives`, `Non-Actionable`, `Non-Production`, and `Other`.
+
+
+<a id="nestedatt--alert_score_decrease_details"></a>
+### Nested Schema for `alert_score_decrease_details`
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
+- `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
+
+
+<a id="nestedatt--alert_score_increase_details"></a>
+### Nested Schema for `alert_score_increase_details`
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
+- `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
+
+
+<a id="nestedatt--alert_score_specify_details"></a>
+### Nested Schema for `alert_score_specify_details`
+
+Required:
+
+- `new_score` (Number) New score to be assigned to the selected alerts.
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
+- `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
+
+
+<a id="nestedatt--azure_devops_template"></a>
+### Nested Schema for `azure_devops_template`
 
 Required:
 
@@ -133,24 +289,42 @@ Optional:
 - `parent_issue` (String) Automatically nest under parent issue.
 
 
-<a id="nestedatt--jira_issue"></a>
-### Nested Schema for `jira_issue`
+<a id="nestedatt--email_template"></a>
+### Nested Schema for `email_template`
 
 Required:
 
-- `template_name` (String) A Jira issue template to use.
+- `email` (List of String) Email addresses to send the alerts to
+- `multi_alerts` (Boolean) `true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.
+
+
+<a id="nestedatt--jira_template"></a>
+### Nested Schema for `jira_template`
+
+Required:
+
+- `template_name` (String) Name of the Jira integration template.
 
 Optional:
 
-- `parent_issue` (String) Automatically nest under parent issue.
+- `parent_issue` (String) Automatically nest under this parent issue.
 
 
-<a id="nestedatt--sumologic"></a>
-### Nested Schema for `sumologic`
+<a id="nestedatt--slack_template"></a>
+### Nested Schema for `slack_template`
+
+Required:
+
+- `channel` (String) Slack channel ID to post the alert to. Example: `C04CLKEF7PU`.
+- `workspace` (String) Slack workspace to use.
 
 
-<a id="nestedatt--webhook"></a>
-### Nested Schema for `webhook`
+<a id="nestedatt--sumo_logic_template"></a>
+### Nested Schema for `sumo_logic_template`
+
+
+<a id="nestedatt--webhook_template"></a>
+### Nested Schema for `webhook_template`
 
 Required:
 

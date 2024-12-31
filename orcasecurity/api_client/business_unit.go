@@ -10,11 +10,11 @@ import (
 }*/
 
 type BusinessUnitFilter struct {
-	CloudProvider []string `json:"cloud_provider,omitempty"`
-	CustomTags    []string `json:"custom_tags,omitempty"`
-	InventoryTags []string `json:"inventory_tags,omitempty"`
-	AccountTags   []string `json:"accounts_tags_info_list,omitempty"`
-	CloudAccounts []string `json:"cloud_vendor_id,omitempty"`
+	CloudProviders []string `json:"cloud_provider,omitempty"`
+	CustomTags     []string `json:"custom_tags,omitempty"`
+	CloudTags      []string `json:"inventory_tags,omitempty"`
+	AccountTags    []string `json:"accounts_tags_info_list,omitempty"`
+	CloudAccounts  []string `json:"cloud_vendor_id,omitempty"`
 }
 
 type BusinessUnitShiftLeftFilter struct {
@@ -24,7 +24,7 @@ type BusinessUnitShiftLeftFilter struct {
 type BusinessUnit struct {
 	ID              string                       `json:"filter_id"`
 	Name            string                       `json:"name"`
-	Filter          BusinessUnitFilter           `json:"filter_data,omitempty"`
+	Filter          *BusinessUnitFilter          `json:"filter_data,omitempty"`
 	ShiftLeftFilter *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
 }
 

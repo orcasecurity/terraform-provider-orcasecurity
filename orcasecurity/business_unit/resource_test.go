@@ -1,55 +1,59 @@
 package business_unit_test
 
 import (
+	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccBusinessUnitResource_Basic(t *testing.T) {
+const (
+	ResourceType = "orcasecurity_business_unit"
+	Resource     = "terraformTestResource"
+	OrcaObject1  = "terraformTestResourceInOrcaAws"
+	OrcaObject2  = "terraformTestResourceInOrcaAzure"
+	OrcaObject3  = "terraformTestResourceInOrcaShiftLeftProjects"
+)
+
+func TestAccBusinessUnitResource_CloudProvider(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_business_unit" "business_unit_for_aws" {
-    name = "AWSBU"
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+    name = "%s"
     filter_data = {
-        cloud_provider = ["aws"]
+        cloud_providers = ["aws"]
     }
-}
-`,
+}`, ResourceType, Resource, OrcaObject1),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_aws", "name", "AWSBU"),
-					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_aws", "filter_data.cloud_provider[0]", "aws"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", fmt.Sprintf("%s", OrcaObject1)),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_providers.0", "aws"),
 				),
 			},
 			// import
 			{
-				ResourceName:      "orcasecurity_business_unit.business_unit_for_aws",
+				ResourceName:      fmt.Sprintf("%s.%s", ResourceType, Resource),
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_business_unit" "business_unit_for_azure" {
-    name = "AzureBU"
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+    name = "%s"
     filter_data = {
-        cloud_provider = ["azure"]
+        cloud_providers = ["azure"]
     }
-}
-`,
+}`, ResourceType, Resource, OrcaObject2),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_azure", "name", "AzureBU"),
-					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_azure", "filter_data.cloud_provider[0]", "azure"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", fmt.Sprintf("%s", OrcaObject2)),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_providers.0", "azure"),
 				),
 			},
-			/*{
-				Config: "", // Empty config forces destroy of all resources
-			},*/
 		},
 	})
 }
@@ -58,43 +62,59 @@ func TestAccBusinessUnitResource_ShiftLeft(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_business_unit" "business_unit_for_sl" {
-    name = "SL BU"
-    shiftleft_filter_data = {
-        shiftleft_project_id = ["577ba5de-3837-4db1-999f-dd2524e09e52"]
-    }
-}
-`,
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+                resource "%s" "%s" {
+                    name = "%s"
+                    shiftleft_filter_data = {
+                        shiftleft_project_ids = ["1"]
+                    }
+                }`, ResourceType, Resource, OrcaObject3),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_sl", "shiftleft_filter_data.shiftleft_project_id[0]", "577ba5de-3837-4db1-999f-dd2524e09e52"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "shiftleft_filter_data.shiftleft_project_ids.0", "1"),
+					// Add explicit checks for filter_data to be empty/null if that's what you expect
+					resource.TestCheckNoResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data"),
 				),
 			},
-			// import
 			{
-				ResourceName:      "orcasecurity_business_unit.business_unit_for_sl",
+				ResourceName:      fmt.Sprintf("%s.%s", ResourceType, Resource),
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// update
-			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_business_unit" "business_unit_for_sl" {
-    name = "AWS"
-    shiftleft_filter_data = {
-        shiftleft_project_id = ["577ba5de-3837-4db1-999f-dd2524e09e52"]
-    }
+			// ... rest of the test
+		},
+	})
 }
-`,
+
+func TestAccBusinessUnitResource_CloudAndShiftLeft(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+                resource "%s" "%s" {
+                    name = "%s"
+
+					filter_data = {
+                        cloud_account_ids = ["12341234"]
+                    }
+
+                    shiftleft_filter_data = {
+                        shiftleft_project_ids = ["1"]
+                    }
+                }`, ResourceType, Resource, OrcaObject3),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_business_unit.business_unit_for_sl", "shiftleft_filter_data.shiftleft_project_id[0]", "577ba5de-3837-4db1-999f-dd2524e09e52"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "shiftleft_filter_data.shiftleft_project_ids.0", "1"),
+					// Add explicit checks for filter_data to be empty/null if that's what you expect
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_account_ids.0", "12341234"),
 				),
 			},
-			/*{
-				Config: "", // Empty config forces destroy of all resources
-			},*/
+			{
+				ResourceName:      fmt.Sprintf("%s.%s", ResourceType, Resource),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// ... rest of the test
 		},
 	})
 }

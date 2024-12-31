@@ -1,30 +1,37 @@
 package custom_sonar_alert_test
 
 import (
+	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccCustomAlertResource_Basic(t *testing.T) {
+const (
+	ResourceType = "orcasecurity_custom_sonar_alert"
+	Resource     = "terraformTestResource"
+	OrcaObject   = "terraformTestResourceInOrca"
+)
+
+func TestAccCustomSonarAlertResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_sonar_alert" "test" {
-  name = "test name"
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+  name = "%s"
   description = "test description"
   rule = "ActivityLogDetection"
   score = 5.5
   category = "Best practices"
   allow_adjusting = false
 }
-`,
+`, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "name", "test name"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", fmt.Sprintf("%s", OrcaObject)),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "description", "test description"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "rule", "ActivityLogDetection"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "score", "5.5"),
@@ -67,7 +74,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_AddRemediationText(t *testing.T) {
+func TestAccCustomSonarAlertResource_AddRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -112,7 +119,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_UpdateRemediationText(t *testing.T) {
+func TestAccCustomSonarAlertResource_UpdateRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -168,7 +175,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_DeleteRemediationText(t *testing.T) {
+func TestAccCustomSonarAlertResource_DeleteRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -213,7 +220,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_AddComplianceFramework(t *testing.T) {
+func TestAccCustomSonarAlertResource_AddComplianceFramework(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -264,7 +271,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_UpdateComplianceFramework(t *testing.T) {
+func TestAccCustomSonarAlertResource_UpdateComplianceFramework(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -320,7 +327,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	})
 }
 
-func TestAccCustomAlertResource_DeleteComplianceFramework(t *testing.T) {
+func TestAccCustomSonarAlertResource_DeleteComplianceFramework(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{

@@ -15,10 +15,10 @@ $ $GOPATH/bin/terraform-provider-orcasecurity
 In order to test the provider, you can simply run `make test`.
 
 ```sh
-$ make test
+$ make test-unit
 ```
 
-In order to run the full suite of acceptance tests, run `make testacc`.
+In order to run the full suite of acceptance tests, run `make test-acc`.
 
 *Note:* Acceptance tests create real resources. You have to be a Orca Security customer to execute them.
 
@@ -29,19 +29,19 @@ export ORCASECURITY_API_TOKEN=YOURSECRETAPITOKEN
 ```
 
 ```sh
-$ make testacc
+$ make test-acc
 ```
 
 In order to run a specific acceptance test, use the `TESTARGS` environment variable. For example, the following command will run `TestAccAutomationResource_JiraIssue` acceptance test only:
 
 ```sh
-$ make testacc TESTARGS='-run=TestAccAutomationResource_JiraIssue'
+$ make test-acc TESTARGS='-run=TestAccAutomationResource_JiraIssue'
 ```
 
 All acceptance tests for a specific package can be run by setting the `PKG_NAME` environment variable. For example:
 
 ```sh
-$ make testacc PKG_NAME=orcasecurity/automations
+$ make test-acc PKG_NAME=orcasecurity/automations
 ```
 
 In order to check changes you made locally to the provider, you can use the binary you just compiled by adding the following
