@@ -43,11 +43,11 @@ func (client *APIClient) GetWebhookByName(name string) (*Webhook, error) {
 	}
 
 	if len(response.Data) == 0 {
-		return nil, fmt.Errorf("webhook named '%s' does not exists", name)
+		return nil, fmt.Errorf("webhook named '%s' does not exist", name)
 	}
 
 	if len(response.Data) > 1 {
-		return nil, fmt.Errorf("too many results for webhook '%s'. expected one but got %d.", name, len(response.Data))
+		return nil, fmt.Errorf("too many results for webhook '%s'. expected one but got %d", name, len(response.Data))
 	}
 
 	return &response.Data[0], nil
