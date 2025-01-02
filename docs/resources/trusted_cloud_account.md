@@ -3,22 +3,22 @@
 page_title: "orcasecurity_trusted_cloud_account Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a trusted cloud account resource.
+  Provides a trusted cloud account.
 ---
 
 # orcasecurity_trusted_cloud_account (Resource)
 
-Provides a trusted cloud account resource.
+Provides a trusted cloud account.
 
 ## Example Usage
 
 ```terraform
-// Trusted cloud account 
-resource "orcasecurity_trusted_cloud_account" "account-1" {
-  account_name      = "test44912"
-  description       = "test2"
+# trusted cloud account
+resource "orcasecurity_trusted_cloud_account" "example" {
+  account_name      = "Vendor account"
+  description       = "This is the AWS account for a security vendor we use. This account allows them to read risks in our cloud environment."
   cloud_provider    = "aws"
-  cloud_provider_id = "12341234123445678912"
+  cloud_provider_id = "123412341234"
 }
 ```
 
@@ -28,12 +28,12 @@ resource "orcasecurity_trusted_cloud_account" "account-1" {
 ### Required
 
 - `account_name` (String) Human-friendly name for the trusted cloud account.
-- `cloud_provider` (String) Cloud Provider. Potential options are aws, azure, etc.
+- `cloud_provider` (String) Cloud Provider. Valid values are `alicloud`, `aws`, `azure`, `gcp`, and `oci`.
 - `cloud_provider_id` (String) Account ID for the cloud account.
-- `description` (String) Cloud account description.
+- `description` (String) Description of the trusted cloud account.
 
 ### Read-Only
 
-- `id` (Number) Trusted cloud account ID.
+- `id` (Number) Orca Identifier for the trusted cloud account.
 
 

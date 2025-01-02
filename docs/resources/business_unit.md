@@ -3,28 +3,61 @@
 page_title: "orcasecurity_business_unit Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a Business Unit resource. Please note that Shift Left business units are not yet supported in this Terraform Provider.
+  Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on Business Units https://docs.orcasecurity.io/docs/business-unit-feature.
+  Please note that a business unit cannot be composed of multiple, different filter types. You cannot compose 1 business unit that uses both cloud tags and custom tags, for example.
 ---
 
 # orcasecurity_business_unit (Resource)
 
-Provides a Business Unit resource. Please note that Shift Left business units are not yet supported in this Terraform Provider.
+Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).
+
+Please note that a business unit cannot be composed of multiple, different filter types. You cannot compose 1 business unit that uses both cloud tags and custom tags, for example.
 
 ## Example Usage
 
 ```terraform
-//Cloud Provider-based Business unit for AWS
-resource "orcasecurity_business_unit" "business_unit_for_aws" {
-  name = "AWS"
-
-  shiftleft_filter_data = {
-    shiftleft_project_id = [
-      "c7257bec-9718-47c2-ade7-e08e7caa36e3"
-    ]
-  }
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
 
   filter_data = {
-    cloud_provider = ["aws"]
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Tag-based Business Unit for All Resources with the Env:Prod tag or Sensitive:True tag.
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
+  }
+}
+
+// Cloud Provider-based Business Unit for AWS and all Shift Left projects
+resource "orcasecurity_business_unit" "example" {
+  name = "AWS and Shift Left"
+
+  filter_data = {
+    cloud_provider = ["aws", "shiftleft"]
   }
 }
 ```
@@ -51,11 +84,11 @@ resource "orcasecurity_business_unit" "business_unit_for_aws" {
 
 Optional:
 
-- `accounts_tags_info_list` (List of String) A list of at least 1 account tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).
-- `cloud_provider` (List of String) A list of at least 1 cloud provider, each provided as a string.
-- `cloud_vendor_id` (List of String) A list of at least 1 cloud account #s, each provided as a string.
-- `custom_tags` (List of String) A list of at least 1 custom tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).
-- `inventory_tags` (List of String) A list of at least 1 cloud tag, each provided as a string. The key and value should be separated by a vertical line (|), rather than a colon(:).
+- `cloud_account_ids` (List of String) A list of 1 or more cloud account IDs.
+- `cloud_account_tags` (List of String) A list of 1 or more cloud account tags. The key and value should be separated by a vertical line (|), rather than a colon(:).
+- `cloud_providers` (List of String) A list of 1 or more cloud providers. Valid values are `alicloud`, `aws`, `azure`, `gcp`, `oci`, and `shiftleft`.
+- `cloud_tags` (List of String) A list of 1 or more cloud tags (for AWS and Azure) or labels (for GCP). The key and value should be separated by a vertical line (|), rather than a colon(:).
+- `custom_tags` (List of String) A list of 1 or more custom tags. The key and value should be separated by a vertical line (|), rather than a colon(:).
 
 
 <a id="nestedatt--shiftleft_filter_data"></a>
@@ -63,6 +96,6 @@ Optional:
 
 Optional:
 
-- `shiftleft_project_id` (List of String) A list of at least 1 Shift Left project IDs.
+- `shiftleft_project_ids` (List of String) A list of 1 or more Shift Left project IDs.
 
 
