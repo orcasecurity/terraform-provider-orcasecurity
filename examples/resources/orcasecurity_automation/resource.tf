@@ -1,4 +1,21 @@
-# automation that sends alerts to Jira
+# automation that sends alerts to Jira (each alert is 1 ticket)
+resource "orcasecurity_automation" "example" {
+  name        = "Jira"
+  description = "Send high, critical alerts on our central resources to the SecOps Jira template (project)"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+  jira_issue = {
+    template_name = "SecOps" # name of Jira template
+  }
+}
+
+# automation that sends alerts to Jira under a parent issue
 resource "orcasecurity_automation" "example" {
   name        = "Jira"
   description = "Send high, critical alerts on our central resources to the SecOps Jira template (project)"
@@ -12,7 +29,7 @@ resource "orcasecurity_automation" "example" {
   }
   jira_issue = {
     template_name = "SecOps"  # name of Jira template
-    parent_issue  = "JMB-007" // optional
+    parent_issue  = "JMB-007" #parent issue Jira ID
   }
 }
 
