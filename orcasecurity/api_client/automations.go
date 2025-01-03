@@ -7,10 +7,23 @@ import (
 
 const AutomationAlertDismissalID = 1
 const AutomationAlertScoreChangeID = 28
-const AutomationEmailID = 5
-const AutomationJiraID = 10
-const AutomationSumoLogicID = 6
+const AutomationAWSSecurityHubID = 37
+const AutomationAwsSecurityLakeID = 25
+const AutomationAwsSqsID = 33
 const AutomationAzureDevopsID = 17
+const AutomationAzureSentinelID = 7
+const AutomationCoralogixID = 36
+const AutomationEmailID = 5
+const AutomationGcpPubSubID = 13
+const AutomationGoogleSecurityOperationsSIEMID = 27
+const AutomationJiraID = 10
+const AutomationOpsgenieID = 4
+const AutomationPagerDutyID = 3
+const AutomationSnowflakeID = 26
+const AutomationSplunkID = 8
+const AutomationSumoLogicID = 6
+const AutomationTinesID = 30
+const AutomationTorqID = 16
 const AutomationWebhookID = 12
 
 // Covers both Slack v1 and Slack v2 integrations.
@@ -47,6 +60,10 @@ func (a *AutomationAction) IsEmailTemplate() bool {
 
 func (a *AutomationAction) IsJiraTemplate() bool {
 	return a.Type == AutomationJiraID
+}
+
+func (a *AutomationAction) IsPagerDutyTemplate() bool {
+	return a.Type == AutomationPagerDutyID
 }
 
 func (a *AutomationAction) IsSumoLogicTemplate() bool {

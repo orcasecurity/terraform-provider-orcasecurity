@@ -13,7 +13,24 @@ Provides an automation. You can read more about automations [here](https://docs.
 ## Example Usage
 
 ```terraform
-# automation that sends alerts to Jira
+# automation that sends alerts to Jira (each alert is 1 ticket)
+resource "orcasecurity_automation" "example" {
+  name        = "Jira"
+  description = "Send high, critical alerts on our central resources to the SecOps Jira template (project)"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.risk_level", includes : ["high", "critical"] },
+      { field : "asset_regions", includes : ["centralus"] },
+    ]
+  }
+  jira_issue = {
+    template_name = "SecOps" # name of Jira template
+  }
+}
+
+# automation that sends alerts to Jira under a parent issue
 resource "orcasecurity_automation" "example" {
   name        = "Jira"
   description = "Send high, critical alerts on our central resources to the SecOps Jira template (project)"
@@ -27,7 +44,7 @@ resource "orcasecurity_automation" "example" {
   }
   jira_issue = {
     template_name = "SecOps"  # name of Jira template
-    parent_issue  = "JMB-007" // optional
+    parent_issue  = "JMB-007" #parent issue Jira ID
   }
 }
 
@@ -197,13 +214,26 @@ resource "orcasecurity_automation" "example" {
 - `alert_score_decrease_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
 - `alert_score_increase_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
+- `aws_security_hub_template` (Attributes) AWS Security Hub template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_hub_template))
+- `aws_security_lake_template` (Attributes) AWS Security Lake template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_lake_template))
+- `aws_sqs_template` (Attributes) AWS SQS template to use for the automation. (see [below for nested schema](#nestedatt--aws_sqs_template))
 - `azure_devops_template` (Attributes) Azure DevOps template to use for the automation. (see [below for nested schema](#nestedatt--azure_devops_template))
+- `azure_sentinel_template` (Attributes) Azure Sentinel template to use for the automation. (see [below for nested schema](#nestedatt--azure_sentinel_template))
 - `business_units` (List of String) Business units that this automation applies to, specified by their Orca ID. The business unit list cannot be changed after creation.
+- `coralogix_template` (Attributes) Coralogix template to use for the automation. (see [below for nested schema](#nestedatt--coralogix_template))
 - `description` (String) Automation description.
 - `email_template` (Attributes) Email settings. (see [below for nested schema](#nestedatt--email_template))
-- `jira_template` (Attributes) Jira integration template to use for the automation. (see [below for nested schema](#nestedatt--jira_template))
+- `gcp_pub_sub_template` (Attributes) GCP Pub/Sub template to use for the automation. (see [below for nested schema](#nestedatt--gcp_pub_sub_template))
+- `jira_cloud_template` (Attributes) Jira Cloud integration template to use for the automation. (see [below for nested schema](#nestedatt--jira_cloud_template))
+- `jira_server_template` (Attributes) Jira Server integration template to use for the automation. (see [below for nested schema](#nestedatt--jira_server_template))
+- `opsgenie_template` (Attributes) Opsgenie template to use for the automation. (see [below for nested schema](#nestedatt--opsgenie_template))
+- `pager_duty_template` (Attributes) Pager Duty template to use for the automation. (see [below for nested schema](#nestedatt--pager_duty_template))
 - `slack_template` (Attributes) Slack template to use for the automation. (see [below for nested schema](#nestedatt--slack_template))
+- `snowflake_template` (Attributes) Snowflake template to use for the automation. (see [below for nested schema](#nestedatt--snowflake_template))
+- `splunk_template` (Attributes) Splunk template to use for the automation. (see [below for nested schema](#nestedatt--splunk_template))
 - `sumo_logic_template` (Attributes) Sumo Logic template to use for the automation. (see [below for nested schema](#nestedatt--sumo_logic_template))
+- `tines_template` (Attributes) Tines template to use for the automation. (see [below for nested schema](#nestedatt--tines_template))
+- `torq_template` (Attributes) Torq template to use for the automation. (see [below for nested schema](#nestedatt--torq_template))
 - `webhook_template` (Attributes) Webhook template to use for the automation. (see [below for nested schema](#nestedatt--webhook_template))
 
 ### Read-Only
@@ -277,16 +307,52 @@ Optional:
 - `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
 
 
+<a id="nestedatt--aws_security_hub_template"></a>
+### Nested Schema for `aws_security_hub_template`
+
+Required:
+
+- `template` (String) AWS Security Hub template name.
+
+
+<a id="nestedatt--aws_security_lake_template"></a>
+### Nested Schema for `aws_security_lake_template`
+
+Required:
+
+- `template` (String) AWS Security Lake template name.
+
+
+<a id="nestedatt--aws_sqs_template"></a>
+### Nested Schema for `aws_sqs_template`
+
+Required:
+
+- `template` (String) AWS SQS template name.
+
+
 <a id="nestedatt--azure_devops_template"></a>
 ### Nested Schema for `azure_devops_template`
 
 Required:
 
-- `template_name` (String) An ADO work item template to use.
+- `template` (String) An ADO work item template to use.
 
 Optional:
 
 - `parent_issue` (String) Automatically nest under parent issue.
+
+
+<a id="nestedatt--azure_sentinel_template"></a>
+### Nested Schema for `azure_sentinel_template`
+
+
+<a id="nestedatt--coralogix_template"></a>
+### Nested Schema for `coralogix_template`
+
+Required:
+
+- `template` (String) Coralogix template name.
 
 
 <a id="nestedatt--email_template"></a>
@@ -298,16 +364,52 @@ Required:
 - `multi_alerts` (Boolean) `true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.
 
 
-<a id="nestedatt--jira_template"></a>
-### Nested Schema for `jira_template`
+<a id="nestedatt--gcp_pub_sub_template"></a>
+### Nested Schema for `gcp_pub_sub_template`
 
 Required:
 
-- `template_name` (String) Name of the Jira integration template.
+- `template` (String) GCP Pub/Sub template name.
+
+
+<a id="nestedatt--jira_cloud_template"></a>
+### Nested Schema for `jira_cloud_template`
+
+Required:
+
+- `template` (String) Name of the Jira Cloud integration template.
 
 Optional:
 
 - `parent_issue` (String) Automatically nest under this parent issue.
+
+
+<a id="nestedatt--jira_server_template"></a>
+### Nested Schema for `jira_server_template`
+
+Required:
+
+- `template` (String) Name of the Jira Server integration template.
+
+Optional:
+
+- `parent_issue` (String) Automatically nest under this parent issue.
+
+
+<a id="nestedatt--opsgenie_template"></a>
+### Nested Schema for `opsgenie_template`
+
+Required:
+
+- `template` (String) Opsgenie template name.
+
+
+<a id="nestedatt--pager_duty_template"></a>
+### Nested Schema for `pager_duty_template`
+
+Required:
+
+- `template` (String) Pager Duty template name.
 
 
 <a id="nestedatt--slack_template"></a>
@@ -319,8 +421,36 @@ Required:
 - `workspace` (String) Slack workspace to use.
 
 
+<a id="nestedatt--snowflake_template"></a>
+### Nested Schema for `snowflake_template`
+
+
+<a id="nestedatt--splunk_template"></a>
+### Nested Schema for `splunk_template`
+
+Required:
+
+- `template` (String) Splunk template name.
+
+
 <a id="nestedatt--sumo_logic_template"></a>
 ### Nested Schema for `sumo_logic_template`
+
+
+<a id="nestedatt--tines_template"></a>
+### Nested Schema for `tines_template`
+
+Required:
+
+- `template` (String) Tines template name.
+
+
+<a id="nestedatt--torq_template"></a>
+### Nested Schema for `torq_template`
+
+Required:
+
+- `template` (String) Torq template name.
 
 
 <a id="nestedatt--webhook_template"></a>
@@ -328,7 +458,7 @@ Required:
 
 Required:
 
-- `name` (String) Webhook name.
+- `template` (String) Webhook template name.
 
 ## Import
 
