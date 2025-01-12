@@ -34,6 +34,11 @@ jobs:
               with:
                   cache: true
                   go-version-file: "go.mod"
+          
+            - name: Set up Terraform
+              uses: hashicorp/setup-terraform@v3
+              with:
+                  terraform_version: "1.10.0"
 
             - name: Import GPG key
               id: import_gpg
