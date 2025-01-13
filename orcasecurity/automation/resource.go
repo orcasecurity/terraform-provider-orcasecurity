@@ -1,4 +1,4 @@
-package automations
+package automation
 
 import (
 	"context"
@@ -135,7 +135,7 @@ type automationTorqTemplateModel struct {
 }
 
 type automationWebhookTemplateModel struct {
-	Name types.String `tfsdk:"name"`
+	Name types.String `tfsdk:"template"`
 }
 
 type automationResourceModel struct {

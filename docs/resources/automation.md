@@ -25,8 +25,8 @@ resource "orcasecurity_automation" "example" {
       { field : "asset_regions", includes : ["centralus"] },
     ]
   }
-  jira_issue = {
-    template_name = "SecOps" # name of Jira template
+  jira_cloud_template = {
+    template = "SecOps" # name of Jira template
   }
 }
 
@@ -42,9 +42,9 @@ resource "orcasecurity_automation" "example" {
       { field : "asset_regions", includes : ["centralus"] },
     ]
   }
-  jira_issue = {
-    template_name = "SecOps"  # name of Jira template
-    parent_issue  = "JMB-007" #parent issue Jira ID
+  jira_cloud_template = {
+    template     = "SecOps"  # name of Jira template
+    parent_issue = "JMB-007" #parent issue Jira ID
   }
 }
 
@@ -77,8 +77,8 @@ resource "orcasecurity_automation" "example" {
       { field : "asset_regions", includes : ["centralus"] },
     ]
   }
-  webhook = {
-    name = "my-webhook-name" # name of Webhook template
+  webhook_template = {
+    template = "test-webhook" # name of Webhook template
   }
 }
 
