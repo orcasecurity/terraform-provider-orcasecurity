@@ -1,4 +1,4 @@
-package automations_test
+package automation_test
 
 import (
 	"regexp"
