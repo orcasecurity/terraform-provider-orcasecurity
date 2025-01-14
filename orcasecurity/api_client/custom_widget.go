@@ -5,20 +5,25 @@ import (
 )
 
 type CustomWidgetExtraParametersSettingsField struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
 }
 
 type RequestParams struct {
 	Query            map[string]interface{} `json:"query"`
 	GroupBy          []string               `json:"group_by"`
-	GroupByList      []string               `json:"group_by[]"`
+	GroupByList      []string               `json:"group_by[],omitempty"`
 	AdditionalModels []string               `json:"additional_models[]"`
+	Limit            int64                  `json:"limit,omitempty"`
+	OrderBy          []string               `json:"order_by[],omitempty"`
+	StartAtIndex     int64                  `json:"start_at_index"`
+	EnablePagination bool                   `json:"enable_pagination"`
 }
 
 type CustomWidgetExtraParametersSettings struct {
 	Size              string                                   `json:"size"`
-	Field             CustomWidgetExtraParametersSettingsField `json:"field"`
+	Columns           []string                                 `json:"columns"`
+	Field             CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
 	RequestParameters RequestParams                            `json:"requestParams"`
 }
 
@@ -35,12 +40,36 @@ type CustomWidgetExtraParameters struct {
 }
 
 type CustomWidget struct {
-	ID                string                      `json:"preference_id"`
+	ID                string                      `json:"id"`
 	Name              string                      `json:"name"`
 	FilterData        map[string]interface{}      `json:"filter_data"`
 	OrganizationLevel bool                        `json:"organization_level"`
 	ViewType          string                      `json:"view_type"`
 	ExtraParameters   CustomWidgetExtraParameters `json:"extra_params"`
+}
+
+// Struct for Create/Update API responses
+type customWidgetCreateResponse struct {
+	Data struct {
+		PreferenceID      string                      `json:"preference_id"`
+		Name              string                      `json:"name"`
+		FilterData        map[string]interface{}      `json:"filter_data"`
+		OrganizationLevel bool                        `json:"organization_level"`
+		ViewType          string                      `json:"view_type"`
+		ExtraParameters   CustomWidgetExtraParameters `json:"extra_params"`
+	} `json:"data"`
+}
+
+// Struct for Read API responses
+type customWidgetReadResponse struct {
+	Data struct {
+		ID                string                      `json:"id"`
+		Name              string                      `json:"name"`
+		FilterData        map[string]interface{}      `json:"filter_data"`
+		OrganizationLevel bool                        `json:"organization_level"`
+		ViewType          string                      `json:"view_type"`
+		ExtraParameters   CustomWidgetExtraParameters `json:"extra_params"`
+	} `json:"data"`
 }
 
 type customWidgetAPIResponseType struct {
@@ -61,12 +90,20 @@ func (client *APIClient) GetCustomWidget(id string) (*CustomWidget, error) {
 		return nil, err
 	}
 
-	response := customWidgetAPIResponseType{}
+	response := customWidgetReadResponse{}
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
 
-	return &response.Data, nil
+	// Map the response to your internal struct
+	return &CustomWidget{
+		ID:                response.Data.ID,
+		Name:              response.Data.Name,
+		FilterData:        response.Data.FilterData,
+		OrganizationLevel: response.Data.OrganizationLevel,
+		ViewType:          response.Data.ViewType,
+		ExtraParameters:   response.Data.ExtraParameters,
+	}, nil
 }
 
 func (client *APIClient) CreateCustomWidget(data CustomWidget) (*CustomWidget, error) {
@@ -75,13 +112,19 @@ func (client *APIClient) CreateCustomWidget(data CustomWidget) (*CustomWidget, e
 		return nil, err
 	}
 
-	response := customWidgetAPIResponseType{}
-	err = resp.ReadJSON(&response)
-	if err != nil {
+	response := customWidgetCreateResponse{}
+	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
 
-	return &response.Data, nil
+	return &CustomWidget{
+		ID:                response.Data.PreferenceID,
+		Name:              response.Data.Name,
+		FilterData:        response.Data.FilterData,
+		OrganizationLevel: response.Data.OrganizationLevel,
+		ViewType:          response.Data.ViewType,
+		ExtraParameters:   response.Data.ExtraParameters,
+	}, nil
 }
 
 func (client *APIClient) UpdateCustomWidget(data CustomWidget) (*CustomWidget, error) {
