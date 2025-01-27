@@ -97,5 +97,3 @@ Optional:
 Optional:
 
 - `shiftleft_project_ids` (List of String) A list of 1 or more Shift Left project IDs.
-
-

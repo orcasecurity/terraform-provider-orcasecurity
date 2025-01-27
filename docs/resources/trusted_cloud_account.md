@@ -35,5 +35,3 @@ resource "orcasecurity_trusted_cloud_account" "example" {
 ### Read-Only
 
 - `id` (Number) Orca Identifier for the trusted cloud account.
-
-
