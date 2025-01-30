@@ -8,7 +8,7 @@ terraform {
 
 provider "orcasecurity" {
   api_endpoint = "https://api.orcasecurity.io"
-  api_token = var.api_token
+  api_token    = var.api_token
 }
 
 module "alert_metrics_widgets" {
@@ -16,35 +16,35 @@ module "alert_metrics_widgets" {
 }
 
 resource "orcasecurity_custom_dashboard" "alert_metrics_dashboard" {
-  name                    = "Alert Metrics"
-  organization_level      = true
-  filter_data             = {}
-  view_type               = "dashboard"
+  name               = "Alert Metrics"
+  organization_level = true
+  filter_data        = {}
+  view_type          = "dashboard"
   extra_params = {
     description = ""
     widgets_config = [
       {
-        id = "alerts-by-severity"
+        id   = "alerts-by-severity"
         size = "sm"
       },
       {
-        id = "risk-categories-alerts-over-time"
+        id   = "risk-categories-alerts-over-time"
         size = "sm"
       },
       {
-        id = "created-and-resolved-alerts-over-time"
+        id   = "created-and-resolved-alerts-over-time"
         size = "sm"
       },
       {
-        id = module.alert_metrics_widgets.closed_alerts_30_days_widget_id
+        id   = module.alert_metrics_widgets.closed_alerts_30_days_widget_id
         size = "sm"
       },
       {
-        id = module.alert_metrics_widgets.closed_alerts_30_days_category_widget_id
+        id   = module.alert_metrics_widgets.closed_alerts_30_days_category_widget_id
         size = "sm"
       },
       {
-        id = module.alert_metrics_widgets.closed_alerts_30_days_account_widget_id
+        id   = module.alert_metrics_widgets.closed_alerts_30_days_account_widget_id
         size = "sm"
       }
     ]

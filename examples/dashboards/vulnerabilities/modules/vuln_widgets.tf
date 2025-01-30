@@ -24,61 +24,61 @@ resource "orcasecurity_custom_widget" "vulnerability_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Vulnerabilities"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -102,70 +102,70 @@ resource "orcasecurity_custom_widget" "priority_vulnerabilities_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Vulnerabilities"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               },
               {
-                "key": "CreatedAt",
-                "type": "datetime",
-                "values": [
+                "key" : "CreatedAt",
+                "type" : "datetime",
+                "values" : [
                   14
                 ],
-                "operator": "before_past",
-                value_type: "days"
+                "operator" : "before_past",
+                value_type : "days"
               },
               {
-                "key": "RiskLevel",
-                "type": "str",
-                "values": [
+                "key" : "RiskLevel",
+                "type" : "str",
+                "values" : [
                   "critical",
                   "high"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 100
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 100
         enable_pagination = true
       }
     }
@@ -189,66 +189,66 @@ resource "orcasecurity_custom_widget" "cisa_kev_public_assets_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Vulnerabilities"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Labels",
-                "type": "list",
-                "values": [
+                "key" : "Labels",
+                "type" : "list",
+                "values" : [
                   {
-                    "key": "Labels",
-                    "type": "str",
-                    "values": [
+                    "key" : "Labels",
+                    "type" : "str",
+                    "values" : [
                       "cisa_kev"
                     ],
-                    "operator": "in"
+                    "operator" : "in"
                   }
                 ],
-                "operator": "any_match"
+                "operator" : "any_match"
               },
               {
-                "keys": [
+                "keys" : [
                   "Inventory"
                 ],
-                "type": "object_set",
-                "with": {
-                  "key": "Exposure",
-                  "type": "str",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "key" : "Exposure",
+                  "type" : "str",
+                  "values" : [
                     "public_facing"
                   ],
-                  "operator": "in"
+                  "operator" : "in"
                 },
-                "models": [
+                "models" : [
                   "Inventory"
                 ],
-                "operator": "has"
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ],
@@ -281,86 +281,86 @@ resource "orcasecurity_custom_widget" "fixable_critical_vulnerabilities_widget" 
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Vulnerability"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "keys": [
+                "keys" : [
                   "CVE"
                 ],
-                "type": "object_set",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "keys": [
+                      "keys" : [
                         "VulnerablePackages"
                       ],
-                      "type": "object_set",
-                      "with": {
-                        "key": "Fixed",
-                        "type": "bool",
-                        "values": [
+                      "type" : "object_set",
+                      "with" : {
+                        "key" : "Fixed",
+                        "type" : "bool",
+                        "values" : [
                           true
                         ],
-                        "operator": "eq"
+                        "operator" : "eq"
                       },
-                      "models": [
+                      "models" : [
                         "VulnerablePackage"
                       ],
-                      "operator": "has"
+                      "operator" : "has"
                     },
                     {
-                      "key": "Cvss3Severity",
-                      "type": "str",
-                      "values": [
+                      "key" : "Cvss3Severity",
+                      "type" : "str",
+                      "values" : [
                         "CRITICAL"
                       ],
-                      "operator": "in"
+                      "operator" : "in"
                     },
                     {
-                      "key": "HasExploit",
-                      "type": "bool",
-                      "values": [
+                      "key" : "HasExploit",
+                      "type" : "bool",
+                      "values" : [
                         true
                       ],
-                      "operator": "eq"
+                      "operator" : "eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "models": [
+                "models" : [
                   "CVE"
                 ],
-                "operator": "has"
+                "operator" : "has"
               },
               {
-                "keys": [
+                "keys" : [
                   "CVEVendorData"
                 ],
-                "type": "object_set",
-                "models": [
+                "type" : "object_set",
+                "models" : [
                   "CVEDescription"
                 ],
-                "operator": "has"
+                "operator" : "has"
               },
               {
-                "key": "FirstSeen",
-                "type": "datetime",
-                "values": [
+                "key" : "FirstSeen",
+                "type" : "datetime",
+                "values" : [
                   14
                 ],
-                "operator": "before_past",
-                "value_type": "days"
+                "operator" : "before_past",
+                "value_type" : "days"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Vulnerability"
           ]
         })
@@ -396,61 +396,61 @@ resource "orcasecurity_custom_widget" "priority_vulnerabilities_alerts_source_wi
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Vulnerability"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "keys": [
+                "keys" : [
                   "CVE"
                 ],
-                "type": "object_set",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "keys": [
+                      "keys" : [
                         "VulnerablePackages"
                       ],
-                      "type": "object_set",
-                      "models": [
+                      "type" : "object_set",
+                      "models" : [
                         "VulnerablePackage"
                       ],
-                      "operator": "has"
+                      "operator" : "has"
                     },
                     {
-                      "key": "Cvss3Severity",
-                      "type": "str",
-                      "values": [
+                      "key" : "Cvss3Severity",
+                      "type" : "str",
+                      "values" : [
                         "CRITICAL"
                       ],
-                      "operator": "in"
+                      "operator" : "in"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "models": [
+                "models" : [
                   "CVE"
                 ],
-                "operator": "has"
+                "operator" : "has"
               },
               {
-                "keys": [
+                "keys" : [
                   "CVEVendorData"
                 ],
-                "type": "object_set",
-                "models": [
+                "type" : "object_set",
+                "models" : [
                   "CVEDescription"
                 ],
-                "operator": "has"
+                "operator" : "has"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Vulnerability"
           ]
         })
@@ -486,61 +486,61 @@ resource "orcasecurity_custom_widget" "prevalent_critical_vulnerabilities_widget
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Vulnerability"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "keys": [
+                "keys" : [
                   "CVE"
                 ],
-                "type": "object_set",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "keys": [
+                      "keys" : [
                         "VulnerablePackages"
                       ],
-                      "type": "object_set",
-                      "models": [
+                      "type" : "object_set",
+                      "models" : [
                         "VulnerablePackage"
                       ],
-                      "operator": "has"
+                      "operator" : "has"
                     },
                     {
-                      "key": "Cvss3Severity",
-                      "type": "str",
-                      "values": [
+                      "key" : "Cvss3Severity",
+                      "type" : "str",
+                      "values" : [
                         "CRITICAL"
                       ],
-                      "operator": "in"
+                      "operator" : "in"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "models": [
+                "models" : [
                   "CVE"
                 ],
-                "operator": "has"
+                "operator" : "has"
               },
               {
-                "keys": [
+                "keys" : [
                   "CVEVendorData"
                 ],
-                "type": "object_set",
-                "models": [
+                "type" : "object_set",
+                "models" : [
                   "CVEDescription"
                 ],
-                "operator": "has"
+                "operator" : "has"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Vulnerability"
           ]
         })

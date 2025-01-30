@@ -1,4 +1,4 @@
 variable "api_token" {
-  type = string
+  type    = string
   default = ""
 }

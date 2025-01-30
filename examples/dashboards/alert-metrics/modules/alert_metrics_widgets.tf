@@ -23,14 +23,14 @@ resource "orcasecurity_custom_widget" "closed_alerts_30_days_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Neglected assets",
                   "Vendor services misconfigurations",
                   "Workload misconfigurations",
@@ -48,29 +48,29 @@ resource "orcasecurity_custom_widget" "closed_alerts_30_days_widget" {
                   "System integrity",
                   "Suspicious activity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "closed"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "ClosedTime",
-                "values": [
+                "key" : "ClosedTime",
+                "values" : [
                   30
                 ],
-                "type": "datetime",
-                "operator": "in_past",
-                "value_type": "days"
+                "type" : "datetime",
+                "operator" : "in_past",
+                "value_type" : "days"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -106,14 +106,14 @@ resource "orcasecurity_custom_widget" "closed_alerts_30_days_category_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Neglected assets",
                   "Vendor services misconfigurations",
                   "Workload misconfigurations",
@@ -131,20 +131,20 @@ resource "orcasecurity_custom_widget" "closed_alerts_30_days_category_widget" {
                   "System integrity",
                   "Suspicious activity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "closed"
                 ],
-                "operator": "in"
+                "operator" : "in"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -180,14 +180,14 @@ resource "orcasecurity_custom_widget" "closed_alerts_30_days_account_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Neglected assets",
                   "Vendor services misconfigurations",
                   "Workload misconfigurations",
@@ -205,29 +205,29 @@ resource "orcasecurity_custom_widget" "closed_alerts_30_days_account_widget" {
                   "System integrity",
                   "Suspicious activity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "closed"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "ClosedTime",
-                "values": [
+                "key" : "ClosedTime",
+                "values" : [
                   30
                 ],
-                "type": "datetime",
-                "operator": "in_past",
-                "value_type": "days"
+                "type" : "datetime",
+                "operator" : "in_past",
+                "value_type" : "days"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })

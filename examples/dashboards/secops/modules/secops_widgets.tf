@@ -23,21 +23,21 @@ resource "orcasecurity_custom_widget" "malware_event_monitoring_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "key": "Category",
-            "type": "str",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "key" : "Category",
+            "type" : "str",
+            "values" : [
               "Malicious activity",
               "Suspicious activity",
               "Malware"
             ],
-            "operator": "in"
+            "operator" : "in"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -73,34 +73,34 @@ resource "orcasecurity_custom_widget" "real_time_sensor_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "AlertSource",
-                "type": "str",
-                "values": [
+                "key" : "AlertSource",
+                "type" : "str",
+                "values" : [
                   "Orca Sensor"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -136,38 +136,38 @@ resource "orcasecurity_custom_widget" "cspm_secure_config_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Labels",
-                "type": "list",
-                "values": [
+                "key" : "Labels",
+                "type" : "list",
+                "values" : [
                   {
-                    "key": "Labels",
-                    "type": "str",
-                    "values": [
+                    "key" : "Labels",
+                    "type" : "str",
+                    "values" : [
                       "CSPM"
                     ],
-                    "operator": "in"
+                    "operator" : "in"
                   }
                 ],
-                "operator": "any_match"
+                "operator" : "any_match"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -204,47 +204,47 @@ resource "orcasecurity_custom_widget" "top_cspm_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Labels",
-                "type": "list",
-                "values": [
+                "key" : "Labels",
+                "type" : "list",
+                "values" : [
                   {
-                    "key": "Labels",
-                    "type": "str",
-                    "values": [
+                    "key" : "Labels",
+                    "type" : "str",
+                    "values" : [
                       "CSPM"
                     ],
-                    "operator": "in"
+                    "operator" : "in"
                   }
                 ],
-                "operator": "any_match"
+                "operator" : "any_match"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
         group_by : [
           "Score"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -269,43 +269,43 @@ resource "orcasecurity_custom_widget" "top_sensor_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "AlertSource",
-                "type": "str",
-                "values": [
+                "key" : "AlertSource",
+                "type" : "str",
+                "values" : [
                   "Orca Sensor"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
         group_by : [
           "Score"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }

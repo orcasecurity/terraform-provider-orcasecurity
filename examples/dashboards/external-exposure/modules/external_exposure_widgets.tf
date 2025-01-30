@@ -23,14 +23,14 @@ resource "orcasecurity_custom_widget" "public_facing_assets_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Neglected assets",
                   "Vendor services misconfigurations",
                   "Workload misconfigurations",
@@ -48,29 +48,29 @@ resource "orcasecurity_custom_widget" "public_facing_assets_widget" {
                   "System integrity",
                   "Suspicious activity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "closed"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "ClosedTime",
-                "values": [
+                "key" : "ClosedTime",
+                "values" : [
                   30
                 ],
-                "type": "datetime",
-                "operator": "in_past",
-                "value_type": "days"
+                "type" : "datetime",
+                "operator" : "in_past",
+                "value_type" : "days"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -106,89 +106,89 @@ resource "orcasecurity_custom_widget" "vm_public_ingress_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Network misconfigurations"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "Inventory"
                 ],
-                "type": "object_set",
-                "with": {
-                  "key": "NewSubCategory",
-                  "type": "str",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "key" : "NewSubCategory",
+                  "type" : "str",
+                  "values" : [
                     "Virtual Instances"
                   ],
-                  "operator": "in"
+                  "operator" : "in"
                 },
-                "models": [
+                "models" : [
                   "Inventory"
                 ],
-                "operator": "has"
+                "operator" : "has"
               },
               {
-                "type": "operation",
-                "values": [
+                "type" : "operation",
+                "values" : [
                   {
-                    "key": "AlertType",
-                    "type": "str",
-                    "values": [
+                    "key" : "AlertType",
+                    "type" : "str",
+                    "values" : [
                       "0.0.0.0"
                     ],
-                    "operator": "containing"
+                    "operator" : "containing"
                   },
                   {
-                    "key": "AlertType",
-                    "type": "str",
-                    "values": [
+                    "key" : "AlertType",
+                    "type" : "str",
+                    "values" : [
                       "public"
                     ],
-                    "operator": "containing"
+                    "operator" : "containing"
                   },
                   {
-                    "key": "AlertType",
-                    "type": "str",
-                    "values": [
+                    "key" : "AlertType",
+                    "type" : "str",
+                    "values" : [
                       "unrestricted"
                     ],
-                    "operator": "containing"
+                    "operator" : "containing"
                   },
                   {
-                    "key": "AlertType",
-                    "type": "str",
-                    "values": [
+                    "key" : "AlertType",
+                    "type" : "str",
+                    "values" : [
                       "common"
                     ],
-                    "operator": "containing"
+                    "operator" : "containing"
                   }
                 ],
-                "operator": "or"
+                "operator" : "or"
               },
               {
-                "key": "AlertType",
-                "type": "str",
-                "values": [
+                "key" : "AlertType",
+                "type" : "str",
+                "values" : [
                   "ingress"
                 ],
-                "operator": "containing"
+                "operator" : "containing"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -224,57 +224,57 @@ resource "orcasecurity_custom_widget" "public_facing_neglected_compute_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Neglected assets"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "Inventory"
                 ],
-                "type": "object_set",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "Exposure",
-                      "type": "str",
-                      "values": [
+                      "key" : "Exposure",
+                      "type" : "str",
+                      "values" : [
                         "public_facing"
                       ],
-                      "operator": "in"
+                      "operator" : "in"
                     },
                     {
-                      "key": "NewCategory",
-                      "type": "str",
-                      "values": [
+                      "key" : "NewCategory",
+                      "type" : "str",
+                      "values" : [
                         "Compute Services"
                       ],
-                      "operator": "in"
+                      "operator" : "in"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "models": [
+                "models" : [
                   "Inventory"
                 ],
-                "operator": "has"
+                "operator" : "has"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -311,60 +311,60 @@ resource "orcasecurity_custom_widget" "attack_paths_public_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "AttackPathPrioritization"
                 ],
-                "type": "object_set",
-                "models": [
+                "type" : "object_set",
+                "models" : [
                   "AttackPathPrioritizedAlert"
                 ],
-                "operator": "has"
+                "operator" : "has"
               },
               {
-                "keys": [
+                "keys" : [
                   "Inventory"
                 ],
-                "type": "object_set",
-                "with": {
-                  "key": "Exposure",
-                  "type": "str",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "key" : "Exposure",
+                  "type" : "str",
+                  "values" : [
                     "public_facing"
                   ],
-                  "operator": "in"
+                  "operator" : "in"
                 },
-                "models": [
+                "models" : [
                   "Inventory"
                 ],
-                "operator": "has"
+                "operator" : "has"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
         group_by : [
           "Score"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -388,43 +388,43 @@ resource "orcasecurity_custom_widget" "public_assets_priority_risk_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Exposure",
-                "type": "str",
-                "values": [
+                "key" : "Exposure",
+                "type" : "str",
+                "values" : [
                   "public_facing"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "NewCategory",
-                "type": "str",
-                "values": [
+                "key" : "NewCategory",
+                "type" : "str",
+                "values" : [
                   "Kubernetes",
                   "Data Storage",
                   "Compute Services",
                   "AI And Machine Learning",
                   "CI Source"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "RiskLevel",
-                "type": "str",
-                "values": [
+                "key" : "RiskLevel",
+                "type" : "str",
+                "values" : [
                   "critical",
                   "high"
                 ],
-                "operator": "in"
+                "operator" : "in"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Inventory"
           ]
         })
@@ -460,64 +460,64 @@ resource "orcasecurity_custom_widget" "cisa_kev_public_assets_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Vulnerabilities"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Labels",
-                "type": "list",
-                "values": [
+                "key" : "Labels",
+                "type" : "list",
+                "values" : [
                   {
-                    "key": "Labels",
-                    "type": "str",
-                    "values": [
+                    "key" : "Labels",
+                    "type" : "str",
+                    "values" : [
                       "cisa_kev"
                     ],
-                    "operator": "in"
+                    "operator" : "in"
                   }
                 ],
-                "operator": "any_match"
+                "operator" : "any_match"
               },
               {
-                "keys": [
+                "keys" : [
                   "Inventory"
                 ],
-                "type": "object_set",
-                "with": {
-                  "key": "Exposure",
-                  "type": "str",
-                  "values": [
+                "type" : "object_set",
+                "with" : {
+                  "key" : "Exposure",
+                  "type" : "str",
+                  "values" : [
                     "public_facing"
                   ],
-                  "operator": "in"
+                  "operator" : "in"
                 },
-                "models": [
+                "models" : [
                   "Inventory"
                 ],
-                "operator": "has"
+                "operator" : "has"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Alert"
           ]
         })
@@ -553,33 +553,33 @@ resource "orcasecurity_custom_widget" "public_data_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "keys": [
+          "keys" : [
             "Inventory"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "NewCategory",
-                "type": "str",
-                "values": [
+                "key" : "NewCategory",
+                "type" : "str",
+                "values" : [
                   "Data Storage"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Exposure",
-                "type": "str",
-                "values": [
+                "key" : "Exposure",
+                "type" : "str",
+                "values" : [
                   "public_facing"
                 ],
-                "operator": "in"
+                "operator" : "in"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           },
-          "models": [
+          "models" : [
             "Inventory"
           ]
         })

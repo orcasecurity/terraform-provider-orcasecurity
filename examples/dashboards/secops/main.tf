@@ -8,7 +8,7 @@ terraform {
 
 provider "orcasecurity" {
   api_endpoint = "https://api.orcasecurity.io"
-  api_token = var.api_token
+  api_token    = var.api_token
 }
 
 module "secops_widgets" {
@@ -16,43 +16,43 @@ module "secops_widgets" {
 }
 
 resource "orcasecurity_custom_dashboard" "secops_dashboard" {
-  name                    = "SecOps"
-  organization_level      = true
-  filter_data             = {}
-  view_type               = "dashboard"
+  name               = "SecOps"
+  organization_level = true
+  filter_data        = {}
+  view_type          = "dashboard"
   extra_params = {
     description = ""
     widgets_config = [
       {
-        id = "alerts-on-exposed-assets"
+        id   = "alerts-on-exposed-assets"
         size = "sm"
       },
       {
-        id = module.secops_widgets.malware_event_monitoring_widget_id
+        id   = module.secops_widgets.malware_event_monitoring_widget_id
         size = "sm"
       },
       {
-        id = module.secops_widgets.real_time_sensor_widget_id
+        id   = module.secops_widgets.real_time_sensor_widget_id
         size = "sm"
       },
       {
-        id = module.secops_widgets.cspm_secure_config_widget_id
+        id   = module.secops_widgets.cspm_secure_config_widget_id
         size = "sm"
       },
       {
-        id = module.secops_widgets.top_cspm_alerts_widget_id
+        id   = module.secops_widgets.top_cspm_alerts_widget_id
         size = "sm"
       },
       {
-        id = module.secops_widgets.top_sensor_alerts_widget_id
+        id   = module.secops_widgets.top_sensor_alerts_widget_id
         size = "sm"
       },
       {
-        id = "top-attack-path-entry-points"
+        id   = "top-attack-path-entry-points"
         size = "sm"
       },
       {
-        id = "alerts-pending-action"
+        id   = "alerts-pending-action"
         size = "md"
       }
     ]

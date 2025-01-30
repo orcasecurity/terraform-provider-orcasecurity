@@ -24,39 +24,39 @@ resource "orcasecurity_custom_widget" "malware_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Malware"
                 ],
-                "operator": "in"
+                "operator" : "in"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -81,61 +81,61 @@ resource "orcasecurity_custom_widget" "vulnerability_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Vulnerabilities"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -160,61 +160,61 @@ resource "orcasecurity_custom_widget" "data_risk_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Data at risk"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -239,61 +239,61 @@ resource "orcasecurity_custom_widget" "iam_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "IAM misconfigurations"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -318,61 +318,61 @@ resource "orcasecurity_custom_widget" "authentication_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Authentication"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -380,7 +380,7 @@ resource "orcasecurity_custom_widget" "authentication_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "lateral_movement_alerts_widget" {
-  name = "Top 10 Lateral Movement Alerts"
+  name               = "Top 10 Lateral Movement Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -397,61 +397,61 @@ resource "orcasecurity_custom_widget" "lateral_movement_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Lateral movement"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -459,7 +459,7 @@ resource "orcasecurity_custom_widget" "lateral_movement_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "suspicious_activity_alerts_widget" {
-  name = "Top 10 Suspicious Activity Alerts"
+  name               = "Top 10 Suspicious Activity Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -476,61 +476,61 @@ resource "orcasecurity_custom_widget" "suspicious_activity_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Suspicious activity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -538,7 +538,7 @@ resource "orcasecurity_custom_widget" "suspicious_activity_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "malicious_activity_alerts_widget" {
-  name = "Top 10 Malicious Activity Alerts"
+  name               = "Top 10 Malicious Activity Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -555,61 +555,61 @@ resource "orcasecurity_custom_widget" "malicious_activity_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Malicious activity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -617,7 +617,7 @@ resource "orcasecurity_custom_widget" "malicious_activity_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "data_protection_alerts_widget" {
-  name = "Top 10 Data Protection Alerts"
+  name               = "Top 10 Data Protection Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -634,61 +634,61 @@ resource "orcasecurity_custom_widget" "data_protection_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Data protection"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -696,7 +696,7 @@ resource "orcasecurity_custom_widget" "data_protection_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "logging_monitoring_alerts_widget" {
-  name = "Top 10 Logging and Monitoring Alerts"
+  name               = "Top 10 Logging and Monitoring Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -713,61 +713,61 @@ resource "orcasecurity_custom_widget" "logging_monitoring_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Logging and monitoring"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -775,7 +775,7 @@ resource "orcasecurity_custom_widget" "logging_monitoring_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "neglected_assets_alerts_widget" {
-  name = "Top 10 Neglected Assets Alerts"
+  name               = "Top 10 Neglected Assets Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -792,61 +792,61 @@ resource "orcasecurity_custom_widget" "neglected_assets_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Neglected assets"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -854,7 +854,7 @@ resource "orcasecurity_custom_widget" "neglected_assets_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "network_misconfiguration_alerts_widget" {
-  name = "Top 10 Network Misconfiguration Alerts"
+  name               = "Top 10 Network Misconfiguration Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -871,61 +871,61 @@ resource "orcasecurity_custom_widget" "network_misconfiguration_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "Network misconfigurations"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -933,7 +933,7 @@ resource "orcasecurity_custom_widget" "network_misconfiguration_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "ai_security_alerts_widget" {
-  name = "Top 10 AI Security Alerts"
+  name               = "Top 10 AI Security Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -950,49 +950,49 @@ resource "orcasecurity_custom_widget" "ai_security_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "limit": 10,
-          "models": [
+          "limit" : 10,
+          "models" : [
             "Alert"
           ],
-          "type": "object_set", 
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Labels",
-                "type": "list",
-                "values": [
+                "key" : "Labels",
+                "type" : "list",
+                "values" : [
                   {
-                    "key": "Labels",
-                    "type": "str",
-                    "values": [
+                    "key" : "Labels",
+                    "type" : "str",
+                    "values" : [
                       "Source: AI Security"
                     ],
-                    "operator": "in"
+                    "operator" : "in"
                   }
                 ],
-                "operator": "any_match"
+                "operator" : "any_match"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           }
         }),
-        
+
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -1000,7 +1000,7 @@ resource "orcasecurity_custom_widget" "ai_security_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "api_security_alerts_widget" {
-  name = "Top 10 API Security Alerts"
+  name               = "Top 10 API Security Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -1017,49 +1017,49 @@ resource "orcasecurity_custom_widget" "api_security_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "limit": 10,
-          "models": [
+          "limit" : 10,
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Labels",
-                "type": "list",
-                "values": [
+                "key" : "Labels",
+                "type" : "list",
+                "values" : [
                   {
-                    "key": "Labels", 
-                    "type": "str",
-                    "values": [
+                    "key" : "Labels",
+                    "type" : "str",
+                    "values" : [
                       "source: apisec"
                     ],
-                    "operator": "in"
+                    "operator" : "in"
                   }
                 ],
-                "operator": "any_match"
+                "operator" : "any_match"
               }
             ],
-            "operator": "and"
+            "operator" : "and"
           }
         }),
-        
+
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
@@ -1067,7 +1067,7 @@ resource "orcasecurity_custom_widget" "api_security_alerts_widget" {
 }
 
 resource "orcasecurity_custom_widget" "file_integrity_alerts_widget" {
-  name = "Top 10 File Integrity Alerts"
+  name               = "Top 10 File Integrity Alerts"
   organization_level = true
   extra_params = {
     type                = "alert-table",
@@ -1084,61 +1084,61 @@ resource "orcasecurity_custom_widget" "file_integrity_alerts_widget" {
       ]
       request_params = {
         query = jsonencode({
-          "models": [
+          "models" : [
             "Alert"
           ],
-          "type": "object_set",
-          "with": {
-            "operator": "and",
-            "type": "operation",
-            "values": [
+          "type" : "object_set",
+          "with" : {
+            "operator" : "and",
+            "type" : "operation",
+            "values" : [
               {
-                "key": "Status",
-                "type": "str",
-                "values": [
+                "key" : "Status",
+                "type" : "str",
+                "values" : [
                   "open",
                   "in_progress"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "key": "Category",
-                "type": "str",
-                "values": [
+                "key" : "Category",
+                "type" : "str",
+                "values" : [
                   "System integrity"
                 ],
-                "operator": "in"
+                "operator" : "in"
               },
               {
-                "keys": [
+                "keys" : [
                   "CloudAccount"
                 ],
-                "type": "object",
-                "with": {
-                  "type": "operation",
-                  "values": [
+                "type" : "object",
+                "with" : {
+                  "type" : "operation",
+                  "values" : [
                     {
-                      "key": "CloudProvider",
-                      "type": "str",
-                      "values": [
+                      "key" : "CloudProvider",
+                      "type" : "str",
+                      "values" : [
                         "shiftleft"
                       ],
-                      "operator": "not_eq"
+                      "operator" : "not_eq"
                     }
                   ],
-                  "operator": "and"
+                  "operator" : "and"
                 },
-                "model": "CloudAccount",
-                "operator": "has"
+                "model" : "CloudAccount",
+                "operator" : "has"
               }
             ],
-        }})
+        } })
         group_by : [
           "Name"
         ]
-        start_at_index = 0
-        order_by = ["Score"]
-        limit = 10
+        start_at_index    = 0
+        order_by          = ["Score"]
+        limit             = 10
         enable_pagination = true
       }
     }
