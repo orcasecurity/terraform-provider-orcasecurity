@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
@@ -133,6 +134,17 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 	if !config.APIToken.IsNull() {
 		api_token = config.APIToken.ValueString()
 	}
+
+	// Trim trailing slashes from the API endpoint
+	trimmedEndpoint := strings.TrimRight(api_endpoint, "/")
+	if trimmedEndpoint != api_endpoint {
+		tflog.Warn(ctx, "Trailing slash detected in 'api_endpoint'. It has been automatically removed.", map[string]interface{}{
+			"original": api_endpoint,
+			"trimmed":  trimmedEndpoint,
+		})
+	}
+
+	api_endpoint = trimmedEndpoint
 
 	if api_endpoint == "" {
 		resp.Diagnostics.AddAttributeError(
