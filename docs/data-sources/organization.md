@@ -27,5 +27,3 @@ output "myorganization" {
 
 - `id` (String) The ID of this resource.
 - `name` (String) Organization name
-
-

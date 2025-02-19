@@ -70,5 +70,3 @@ Optional:
 
 - `expiration` (String) Expiration date. Format should be "YYYY/MM/DD". To permanently exclude the vulnerability, do not use this field. To temporarily exclude the vulnerability, specify an Expiration Date. After this date, the vulnerability is no longer excluded.
 - `repositories_urls` (List of String) [NOT YET SUPPORTED] Code repositories (identified by their URLs) to associate with this exception list.
-
-

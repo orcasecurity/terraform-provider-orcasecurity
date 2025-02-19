@@ -52,5 +52,3 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 Required:
 
 - `query` (String) Discovery query that will be created. Should be in JSON format.
-
-

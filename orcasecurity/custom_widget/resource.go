@@ -310,8 +310,12 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 
 	if plan.ExtraParameters.Type.ValueString() == "donut" {
 		widgetType = "PIE_CHART_SINGLE"
-	} else if plan.ExtraParameters.Type.ValueString() == "table" {
+	} else if plan.ExtraParameters.Type.ValueString() == "asset-table" {
 		widgetType = "ASSETS_TABLE"
+	} else if plan.ExtraParameters.Type.ValueString() == "alert-table" {
+		widgetType = "ALERTS_TABLE"
+	} else {
+		widgetType = plan.ExtraParameters.Type.ValueString()
 	}
 
 	extra_params := api_client.CustomWidgetExtraParameters{

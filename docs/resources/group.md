@@ -38,5 +38,3 @@ resource "orcasecurity_group" "tf-group-1" {
 ### Read-Only
 
 - `id` (String) Group ID.
-
-

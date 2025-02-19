@@ -38,5 +38,3 @@ resource "orcasecurity_custom_role" "tf-custom-role-1" {
 ### Read-Only
 
 - `id` (String) Custom role ID.
-
-

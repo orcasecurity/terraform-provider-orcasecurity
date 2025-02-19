@@ -44,5 +44,3 @@ resource "orcasecurity_shift_left_project" "shift_left_project_1" {
 ### Read-Only
 
 - `id` (String) Shift Left project ID.
-
-
