@@ -40,5 +40,3 @@ Read-Only:
 - `custom_headers` (Map of String) They key-value pairs that are the HTTP headers sent by Orca to the webhook URL.
 - `type` (String)
 - `webhook_url` (String) The URL of the webhook.
-
-

@@ -65,5 +65,3 @@ Required:
 
 - `id` (String) ID of the identified widget.
 - `size` (String) Size of the identified widget. Possible values are sm (small), md (medium), or lg (large).
-
-

@@ -6,8 +6,8 @@ description: |-
   This provider is used to interact with the resources supported by Orca Security.
   The provider needs to be configured with the proper credentials before it can be used.
   Use the navigation to the left to get information about the available resources.
-  It is required to configure at least two configuration options: apiendpoint and apitoken.
-  Both can be configured using environment variables "ORCASECURITYAPIENDPOINT" and "ORCASECURITYAPITOKEN" respectively.
+  It is required to configure at least two configuration options: api_endpoint and api_token.
+  Both can be configured using environment variables "ORCASECURITY_API_ENDPOINT" and "ORCASECURITY_API_TOKEN" respectively.
 ---
 
 # orcasecurity Provider
