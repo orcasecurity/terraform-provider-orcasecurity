@@ -22,6 +22,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
+	"terraform-provider-orcasecurity/orcasecurity/user"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -196,6 +197,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		jira_template.NewJiraTemplateDataSource,
 		webhook.NewWebhookDataSource, organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
+		user.NewUserDataSource,
 	}
 }
 
