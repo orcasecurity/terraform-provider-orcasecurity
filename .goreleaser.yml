@@ -1,10 +1,6 @@
-# FINAL .goreleaser.yml
+# FINAL .goreleaser.yml for GitHub Actions
 version: 2
 project_name: terraform-provider-orcasecurity
-
-before:
-  hooks:
-    - go mod tidy
 
 builds:
   - id: terraform-provider-orcasecurity
@@ -18,7 +14,6 @@ builds:
     main: .
     ldflags:
       - -s -w
-    binary: '{{ .ProjectName }}_v{{ .Version }}'
 
 archives:
   - id: terraform-provider-orcasecurity
@@ -32,14 +27,15 @@ checksum:
 
 signs:
   - cmd: gpg
+    artifacts: checksum
     args:
-      - "--pinentry-mode"
-      - "loopback"
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}"
       - "--output"
       - "${signature}"
       - "--detach-sign"
       - "${artifact}"
-    artifacts: checksum
     output: true
 
 release:
