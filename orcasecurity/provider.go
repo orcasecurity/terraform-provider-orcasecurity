@@ -17,10 +17,12 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
+	"terraform-provider-orcasecurity/orcasecurity/role"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
+	"terraform-provider-orcasecurity/orcasecurity/user"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -196,6 +198,8 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		jira_template.NewJiraTemplateDataSource,
 		webhook.NewWebhookDataSource, organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
+		user.NewUserDataSource,
+		role.NewRoleDataSource,
 	}
 }
 
