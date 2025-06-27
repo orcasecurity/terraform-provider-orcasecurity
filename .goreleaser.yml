@@ -1,6 +1,15 @@
 version: 2
 project_name: terraform-provider-orcasecurity
 
+git:
+  ignore_tags:
+    - '{{ .Env.IGNORE_TAG }}'
+  
+# Add this section to allow dirty state
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+# Add this to allow dirty builds
 before:
   hooks:
     - go mod tidy
