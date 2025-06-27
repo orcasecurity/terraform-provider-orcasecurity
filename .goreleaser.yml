@@ -44,6 +44,3 @@ signs:
 
 release:
   prerelease: auto
-
-changelog:
-  skip: true
