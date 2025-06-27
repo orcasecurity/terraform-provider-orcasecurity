@@ -34,8 +34,7 @@ archives:
 
 checksum:
   extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+    - glob: 'terraform-provider-orcasecurity_*_manifest.json'
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
   algorithm: sha256
 
@@ -52,6 +51,6 @@ signs:
 
 release:
   extra_files:
-    - glob: 'terraform-registry-manifest.json'
+    - glob: 'terraform-provider-orcasecurity_*_manifest.json'
   draft: false
   prerelease: auto

@@ -26,13 +26,13 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
               with:
-                  # Allow goreleaser to acce`ss older tag information.
+                  # Allow goreleaser to access older tag information.
                   fetch-depth: 0
 
             - name: Set up Go
               uses: actions/setup-go@v5
               with:
-                  cache: true
+                  cache: false
                   go-version-file: "go.mod"
 
             - name: Import GPG key
@@ -42,11 +42,17 @@ jobs:
                   gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
                   passphrase: ${{ secrets.PASSPHRASE }}
 
+            - name: Generate manifest
+              run: |
+                VERSION=${GITHUB_REF#refs/tags/}
+                echo '{"version":1,"metadata":{"protocol_versions":["5.0"]}}' > terraform-provider-orcasecurity_${VERSION}_manifest.json
+
+
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v6
               with:
                 distribution: goreleaser
-                version: latest
+                version: '~> v2'
                 args: release --clean
               env:
                 GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
