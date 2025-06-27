@@ -1,37 +1,46 @@
-# Updated .goreleaser.yml
 version: 2
 project_name: terraform-provider-orcasecurity
 
+before:
+  hooks:
+    - go mod tidy
+
 builds:
-  - id: terraform-provider-orcasecurity
-    binary: terraform-provider-orcasecurity_v{{ .Version }}
+  - env:
+      - CGO_ENABLED=0
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
     goos:
-      - linux
+      - freebsd
       - windows
+      - linux
       - darwin
     goarch:
       - amd64
+      - '386'
+      - arm
       - arm64
-    main: .
-    ldflags:
-      - -s -w
     ignore:
-      - goos: windows
-        goarch: arm64
+      - goos: darwin
+        goarch: '386'
+    binary: '{{ .ProjectName }}_v{{ .Version }}'
 
 archives:
-  - id: terraform-provider-orcasecurity
+  - format: zip
     name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
-    format: zip
-    builds:
-      - terraform-provider-orcasecurity
 
 checksum:
+  extra_files:
+    - glob: 'terraform-registry-manifest.json'
+      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+  algorithm: sha256
 
 signs:
-  - cmd: gpg
-    artifacts: checksum
+  - artifacts: checksum
     args:
       - "--batch"
       - "--local-user"
@@ -40,7 +49,9 @@ signs:
       - "${signature}"
       - "--detach-sign"
       - "${artifact}"
-    output: true
 
 release:
+  extra_files:
+    - glob: 'terraform-registry-manifest.json'
+  draft: false
   prerelease: auto
