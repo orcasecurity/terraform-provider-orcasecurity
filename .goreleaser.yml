@@ -1,9 +1,10 @@
-# FINAL .goreleaser.yml for GitHub Actions
+# Updated .goreleaser.yml
 version: 2
 project_name: terraform-provider-orcasecurity
 
 builds:
   - id: terraform-provider-orcasecurity
+    binary: terraform-provider-orcasecurity_v{{ .Version }}
     goos:
       - linux
       - windows
@@ -14,6 +15,9 @@ builds:
     main: .
     ldflags:
       - -s -w
+    ignore:
+      - goos: windows
+        goarch: arm64
 
 archives:
   - id: terraform-provider-orcasecurity
