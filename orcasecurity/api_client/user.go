@@ -6,12 +6,12 @@ import (
 )
 
 type user struct {
-	ID       string   `json:"user_id"`
-	Email    string   `json:"email"`
-	First    string   `json:"first"`
-	Last     string   `json:"last"`
-	MFARequired bool  `json:"mfa_required"`
-	MFAEnabled bool   `json:"mfa_enabled"`
+	ID          string `json:"user_id"`
+	Email       string `json:"email"`
+	First       string `json:"first"`
+	Last        string `json:"last"`
+	MFARequired bool   `json:"mfa_required"`
+	MFAEnabled  bool   `json:"mfa_enabled"`
 }
 
 func (client *APIClient) GetUserByEmail(email string) (*user, error) {
@@ -39,4 +39,3 @@ func (client *APIClient) GetUserByEmail(email string) (*user, error) {
 	}
 	return &response.Data[0], nil
 }
-	
