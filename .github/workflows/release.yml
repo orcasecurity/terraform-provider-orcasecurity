@@ -42,18 +42,12 @@ jobs:
                   gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
                   passphrase: ${{ secrets.PASSPHRASE }}
 
-            - name: Generate manifest
-              run: |
-                VERSION=${GITHUB_REF#refs/tags/v}  # Strip the 'v' prefix
-                echo '{"version":1,"metadata":{"protocol_versions":["5.0"]}}' > terraform-provider-orcasecurity_${VERSION}_manifest.json
-                ls -la terraform-provider-orcasecurity_*_manifest.json
-
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v6
               with:
                 distribution: goreleaser
                 version: '~> v2'
-                args: release --clean --skip=validate
+                args: release --clean
               env:
                 GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
