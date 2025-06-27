@@ -33,8 +33,11 @@ resource "orcasecurity_custom_role" "tf-custom-role-1" {
 
 - `description` (String) Custom role description.
 - `name` (String) Custom role name. Must be unique across your Orca org.
-- `permission_groups` (Set of String) Permissions to assign to the group. Possible permissions
+- `permission_groups` (Set of String) Permissions to assign to the group.
 
 ### Read-Only
 
+- `created_at` (String) When the role was created.
 - `id` (String) Custom role ID.
+- `is_custom` (Boolean) Whether this is a custom role.
+- `updated_at` (String) When the role was last updated.

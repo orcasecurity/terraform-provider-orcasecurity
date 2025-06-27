@@ -1,4 +1,4 @@
-package user_test
+package role_test
 
 import (
 	"testing"
@@ -10,12 +10,12 @@ import (
 )
 
 const testAccDataSourceConfig = orcasecurity.TestProviderConfig + `
-data "orcasecurity_user" "test" {
-	email = "example@orcasecurity.io"
+data "orcasecurity_role" "test" {
+	name = "Administrator"
 }
 `
 
-func TestAccUserDataSource(t *testing.T) {
+func TestAccRoleDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -23,8 +23,8 @@ func TestAccUserDataSource(t *testing.T) {
 			{
 				Config: testAccDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.orcasecurity_user.test", "email", "example@orcasecurity.io"),
-					resource.TestCheckResourceAttrWith("data.orcasecurity_user.test", "id", func(value string) error {
+					resource.TestCheckResourceAttr("data.orcasecurity_role.test", "name", "Administrator"),
+					resource.TestCheckResourceAttrWith("data.orcasecurity_role.test", "id", func(value string) error {
 						// it must be a valid UUID
 						_, err := uuid.Parse(value)
 						return err

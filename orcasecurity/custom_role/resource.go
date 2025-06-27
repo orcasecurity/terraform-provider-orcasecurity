@@ -6,6 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -36,9 +37,9 @@ type customRoleResourceModel struct {
 	ID               types.String `tfsdk:"id"`
 	Name             types.String `tfsdk:"name"`
 	PermissionGroups types.Set    `tfsdk:"permission_groups"`
-	//ExpirationDate   types.String `tfsdk:"expiration_date"`
-	Description types.String `tfsdk:"description"`
-	//CreatedBy        createdByResourceModel `tfsdk:"created_by"`
+	Description      types.String `tfsdk:"description"`
+	CreatedAt        types.String `tfsdk:"created_at"`
+	UpdatedAt        types.String `tfsdk:"updated_at"`
 }
 
 func NewCustomRoleResource() resource.Resource {
@@ -61,7 +62,6 @@ func (r *customRoleResource) ImportState(ctx context.Context, req resource.Impor
 }
 
 func (r *customRoleResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	//tflog.Error(ctx, "Setting up Schema")
 	resp.Schema = schema.Schema{
 		Description: "Provides a custom role resource.",
 		Attributes: map[string]schema.Attribute{
@@ -80,7 +80,7 @@ func (r *customRoleResource) Schema(ctx context.Context, req resource.SchemaRequ
 				},
 			},
 			"permission_groups": schema.SetAttribute{
-				Description: "Permissions to assign to the group. Possible permissions",
+				Description: "Permissions to assign to the group.",
 				ElementType: types.StringType,
 				Required:    true,
 			},
@@ -88,27 +88,18 @@ func (r *customRoleResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Description: "Custom role description.",
 				Required:    true,
 			},
-			/*"expiration_date": schema.StringAttribute{
-				Description: "NOT YET SUPPORTED. Date and Time (expressed in Zulu format) after which the role should no longer be active/usable.",
-				Optional:    true,
+			"is_custom": schema.BoolAttribute{
+				Description: "Whether this is a custom role.",
+				Computed:    true,
 			},
-			"created_by": schema.SingleNestedAttribute{
-				Computed: true,
-				Attributes: map[string]schema.Attribute{
-					"id": schema.StringAttribute{
-						Description: "ID of user/entity that created this role.",
-						Computed:    true,
-					},
-					"first_name": schema.StringAttribute{
-						Description: "First name of user/entity that created this role.",
-						Computed:    true,
-					},
-					"last_name": schema.StringAttribute{
-						Description: "Last name of user/entity that created this role.",
-						Computed:    true,
-					},
-				},
-			},*/
+			"created_at": schema.StringAttribute{
+				Description: "When the role was created.",
+				Computed:    true,
+			},
+			"updated_at": schema.StringAttribute{
+				Description: "When the role was last updated.",
+				Computed:    true,
+			},
 		},
 	}
 }
@@ -127,7 +118,7 @@ func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequ
 		permissions = append(permissions, item.String()[1:len(item.String())-1])
 	}
 
-	createReq := api_client.CustomRole{
+	createReq := api_client.Role{
 		Name:             plan.Name.ValueString(),
 		PermissionGroups: permissions,
 		Description:      plan.Description.ValueString(),
@@ -192,18 +183,26 @@ func (r *customRoleResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	state.ID = types.StringValue(instance.ID)
-	state.Description = types.StringValue(instance.Description)
-	state.Name = types.StringValue(instance.Name)
-	/*state.CreatedBy.ID = types.StringValue(instance.CreatedBy.ID)
-	state.CreatedBy.FirstName = types.StringValue(instance.CreatedBy.FirstName)
-	state.CreatedBy.LastName = types.StringValue(instance.CreatedBy.LastName)*/
-
-	diags = resp.State.Set(ctx, &state)
+	// Convert permission groups to Terraform set
+	permissionElements := make([]attr.Value, len(instance.PermissionGroups))
+	for i, perm := range instance.PermissionGroups {
+		permissionElements[i] = types.StringValue(perm)
+	}
+	permissionSet, diags := types.SetValue(types.StringType, permissionElements)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	state.ID = types.StringValue(instance.ID)
+	state.Name = types.StringValue(instance.Name)
+	state.Description = types.StringValue(instance.Description)
+	state.PermissionGroups = permissionSet
+	state.CreatedAt = types.StringValue(instance.CreatedAt)
+	state.UpdatedAt = types.StringValue(instance.UpdatedAt)
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *customRoleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -220,7 +219,7 @@ func (r *customRoleResource) Update(ctx context.Context, req resource.UpdateRequ
 		permissions = append(permissions, item.String()[1:len(item.String())-1])
 	}
 
-	updateReq := api_client.CustomRole{
+	updateReq := api_client.Role{
 		ID:               plan.ID.ValueString(),
 		Name:             plan.Name.ValueString(),
 		PermissionGroups: permissions,
@@ -267,7 +266,7 @@ func (r *customRoleResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	err := r.apiClient.DeleteCustomRole(state.ID.String()[1 : len(state.ID.String())-1])
+	err := r.apiClient.DeleteCustomRole(state.ID.ValueString()) // Fixed string manipulation
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting custom role",

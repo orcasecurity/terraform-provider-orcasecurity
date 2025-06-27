@@ -4,23 +4,8 @@ import (
 	"fmt"
 )
 
-/*type CreatedBy struct {
-	ID        string `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-}*/
-
-type CustomRole struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	PermissionGroups []string `json:"permission_groups"`
-	//ExpirationDate   string   `json:"expiration_date"`
-	Description string `json:"description"`
-	//CreatedBy        CreatedBy `json:"created_by"`
-}
-
 type customRoleAPIResponseType struct {
-	Data CustomRole `json:"data"`
+	Data Role `json:"data"`
 }
 
 func (client *APIClient) DoesCustomRoleExist(id string) (bool, error) {
@@ -28,7 +13,7 @@ func (client *APIClient) DoesCustomRoleExist(id string) (bool, error) {
 	return resp.StatusCode() == 200, nil
 }
 
-func (client *APIClient) GetCustomRole(id string) (*CustomRole, error) {
+func (client *APIClient) GetCustomRole(id string) (*Role, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/rbac/roles/%s", id))
 	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
 		return nil, nil
@@ -47,7 +32,7 @@ func (client *APIClient) GetCustomRole(id string) (*CustomRole, error) {
 	return &customRole, nil
 }
 
-func (client *APIClient) CreateCustomRole(data CustomRole) (*CustomRole, error) {
+func (client *APIClient) CreateCustomRole(data Role) (*Role, error) {
 	resp, err := client.Post("/api/rbac/roles", data)
 	if err != nil {
 		return nil, err
@@ -61,7 +46,7 @@ func (client *APIClient) CreateCustomRole(data CustomRole) (*CustomRole, error) 
 	return &response.Data, nil
 }
 
-func (client *APIClient) UpdateCustomRole(data CustomRole) (*CustomRole, error) {
+func (client *APIClient) UpdateCustomRole(data Role) (*Role, error) {
 	resp, err := client.Put(fmt.Sprintf("/api/rbac/roles/%s", data.ID), data)
 	if err != nil {
 		return nil, err
