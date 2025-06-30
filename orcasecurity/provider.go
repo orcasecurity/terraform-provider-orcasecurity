@@ -8,6 +8,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
+	cloudaccount "terraform-provider-orcasecurity/orcasecurity/cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_role"
@@ -200,6 +201,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		sonar.NewSonarQueryDataSource,
 		user.NewUserDataSource,
 		role.NewRoleDataSource,
+		cloudaccount.NewCloudAccountDataSource,
 	}
 }
 
