@@ -202,6 +202,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		user.NewUserDataSource,
 		role.NewRoleDataSource,
 		cloudaccount.NewCloudAccountDataSource,
+		group.NewGroupDataSource,
 	}
 }
 
