@@ -1,0 +1,50 @@
+# Example 1: Fetch business unit by name
+data "orcasecurity_business_unit_by_name" "aws_footprint" {
+  name = "AWS FootPrint"
+}
+
+# Example 2: Fetch a different business unit
+data "orcasecurity_business_unit_by_name" "digital_bu" {
+  name = "Digital"
+}
+
+# Output examples showing how to access the data
+output "business_unit_info" {
+  value = {
+    # Basic information
+    bu_id = data.orcasecurity_business_unit_by_name.aws_footprint.id
+    name  = data.orcasecurity_business_unit_by_name.aws_footprint.name
+
+    # Filter configuration
+    cloud_providers = data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_providers
+    custom_tags     = data.orcasecurity_business_unit_by_name.aws_footprint.filter.custom_tags
+    cloud_tags      = data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_tags
+    account_tags    = data.orcasecurity_business_unit_by_name.aws_footprint.filter.account_tags
+    cloud_accounts  = data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_accounts
+
+    # Shift left filter configuration
+    shift_left_projects = data.orcasecurity_business_unit_by_name.aws_footprint.shift_left_filter.shift_left_projects
+  }
+}
+
+# Example of using business unit data for conditional logic
+output "has_aws_provider" {
+  description = "Check if the business unit includes AWS cloud provider"
+  value       = contains(data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_providers, "aws")
+}
+
+# Example of accessing filter counts
+output "filter_summary" {
+  description = "Summary of filters configured for the business unit"
+  value = {
+    cloud_providers_count     = length(data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_providers)
+    custom_tags_count         = length(data.orcasecurity_business_unit_by_name.aws_footprint.filter.custom_tags)
+    cloud_accounts_count      = length(data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_accounts)
+    shift_left_projects_count = length(data.orcasecurity_business_unit_by_name.aws_footprint.shift_left_filter.shift_left_projects)
+  }
+}
+
+# Example using the data in a local value
+locals {
+  business_unit_cloud_accounts = data.orcasecurity_business_unit_by_name.aws_footprint.filter.cloud_accounts
+}

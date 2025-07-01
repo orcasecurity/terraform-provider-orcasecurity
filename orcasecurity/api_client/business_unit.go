@@ -28,6 +28,20 @@ type BusinessUnit struct {
 	ShiftLeftFilter *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
 }
 
+type BusinessUnitListItem struct {
+	ID              string                       `json:"id"`
+	Name            string                       `json:"name"`
+	Filter          *BusinessUnitFilter          `json:"filter_data,omitempty"`
+	ShiftLeftFilter *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
+}
+
+type businessUnitListResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		GlobalFilters []BusinessUnitListItem `json:"global_filters"`
+	} `json:"data"`
+}
+
 type businessUnitAPIResponseType struct {
 	Data BusinessUnit `json:"data"`
 }
@@ -38,8 +52,13 @@ func (client *APIClient) GetBusinessUnit(businessUnitID string) (*BusinessUnit, 
 		return nil, err
 	}
 
-	if !resp.IsOk() {
+	// Handle 404 specifically - return nil instead of error
+	if resp.StatusCode() == 404 {
 		return nil, nil
+	}
+
+	if !resp.IsOk() {
+		return nil, fmt.Errorf("API returned error - %s", resp.Error())
 	}
 
 	response := businessUnitAPIResponseType{}
@@ -86,4 +105,37 @@ func (client *APIClient) UpdateBusinessUnit(ID string, data BusinessUnit) (*Busi
 func (client *APIClient) DeleteBusinessUnit(ID string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/filters/%s", ID))
 	return err
+}
+
+func (client *APIClient) GetBusinessUnitByName(name string) (*BusinessUnit, error) {
+	resp, err := client.Get("/api/filters")
+	if err != nil {
+		return nil, err
+	}
+
+	response := businessUnitListResponse{}
+	err = json.Unmarshal(resp.Body(), &response)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(response.Data.GlobalFilters) == 0 {
+		return nil, fmt.Errorf("business unit with name '%s' does not exist", name)
+	}
+
+	// Find exact match by name
+	for _, bu := range response.Data.GlobalFilters {
+		if bu.Name == name {
+			// Convert BusinessUnitListItem to BusinessUnit
+			result := &BusinessUnit{
+				ID:              bu.ID,
+				Name:            bu.Name,
+				Filter:          bu.Filter,
+				ShiftLeftFilter: bu.ShiftLeftFilter,
+			}
+			return result, nil
+		}
+	}
+
+	return nil, fmt.Errorf("business unit with name '%s' does not exist", name)
 }
