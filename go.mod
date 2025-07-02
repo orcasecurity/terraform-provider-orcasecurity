@@ -1,13 +1,13 @@
 module terraform-provider-orcasecurity
 
-go 1.23.0
+go 1.23.7
 
 toolchain go1.24.1
 
 require (
 	github.com/getsentry/sentry-go v0.34.0
 	github.com/google/uuid v1.6.0
-	github.com/hashicorp/terraform-plugin-docs v0.21.0
+	github.com/hashicorp/terraform-plugin-docs v0.22.0
 	github.com/hashicorp/terraform-plugin-framework v1.15.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
 	github.com/hashicorp/terraform-plugin-go v0.28.0
