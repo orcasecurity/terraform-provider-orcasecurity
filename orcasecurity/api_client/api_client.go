@@ -199,3 +199,33 @@ func (c *APIClient) Delete(path string) (*APIResponse, error) {
 
 	return c.doRequest(*req)
 }
+
+// Execute DELETE HTTP request with body.
+func (c *APIClient) DeleteWithBody(path string, data interface{}) (*APIResponse, error) {
+	payload, err := json.Marshal(&data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal payload: %v", err)
+	}
+
+	fullURL := fmt.Sprintf("%s%s", c.APIEndpoint, path)
+	fmt.Printf("Making DELETE request with body to: %s\n", fullURL) // Debug log
+
+	req, err := http.NewRequest(
+		"DELETE",
+		fullURL,
+		strings.NewReader(string(payload)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v, URL: %s", err, fullURL)
+	}
+
+	// Add debug logging for request payload
+	fmt.Printf("Request payload: %s\n", string(payload))
+
+	response, err := c.doRequest(*req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v, URL: %s, payload: %s", err, fullURL, string(payload))
+	}
+
+	return response, nil
+}
