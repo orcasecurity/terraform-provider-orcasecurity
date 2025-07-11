@@ -8,6 +8,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
+	cloudaccount "terraform-provider-orcasecurity/orcasecurity/cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_role"
@@ -15,12 +16,15 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
+	"terraform-provider-orcasecurity/orcasecurity/group_permissions"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
+	"terraform-provider-orcasecurity/orcasecurity/role"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
+	"terraform-provider-orcasecurity/orcasecurity/user"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -196,6 +200,11 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		jira_template.NewJiraTemplateDataSource,
 		webhook.NewWebhookDataSource, organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
+		user.NewUserDataSource,
+		role.NewRoleDataSource,
+		cloudaccount.NewCloudAccountDataSource,
+		group.NewGroupDataSource,
+		business_unit.NewBusinessUnitDataSource,
 	}
 }
 
@@ -207,6 +216,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		custom_sonar_alert.NewCustomSonarAlertResource,
 		custom_role.NewCustomRoleResource,
 		group.NewGroupResource,
+		group_permissions.NewGroupPermissionResource,
 		business_unit.NewBusinessUnitResource,
 		custom_widget.NewCustomWidgetResource,
 		custom_dashboard.NewCustomDashboardResource,
