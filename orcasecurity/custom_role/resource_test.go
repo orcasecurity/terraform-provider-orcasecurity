@@ -78,7 +78,9 @@ resource "orcasecurity_custom_role" "tf-custom-role-1" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_role.tf-custom-role-1", "permission_groups[1]", "auth.tokens.write"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_custom_role.tf-custom-role-1", "permission_groups.*", "assets.asset.read"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_custom_role.tf-custom-role-1", "permission_groups.*", "auth.tokens.write"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_role.tf-custom-role-1", "permission_groups.#", "2"),
 				),
 			},
 			// update

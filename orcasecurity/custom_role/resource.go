@@ -38,6 +38,7 @@ type customRoleResourceModel struct {
 	Name             types.String `tfsdk:"name"`
 	PermissionGroups types.Set    `tfsdk:"permission_groups"`
 	Description      types.String `tfsdk:"description"`
+	IsCustom         types.Bool   `tfsdk:"is_custom"`
 	CreatedAt        types.String `tfsdk:"created_at"`
 	UpdatedAt        types.String `tfsdk:"updated_at"`
 }
@@ -143,6 +144,9 @@ func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	plan.ID = types.StringValue(instance.ID)
+	plan.IsCustom = types.BoolValue(instance.IsCustom)
+	plan.CreatedAt = types.StringValue(instance.CreatedAt)
+	plan.UpdatedAt = types.StringValue(instance.UpdatedAt)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -198,6 +202,7 @@ func (r *customRoleResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Name = types.StringValue(instance.Name)
 	state.Description = types.StringValue(instance.Description)
 	state.PermissionGroups = permissionSet
+	state.IsCustom = types.BoolValue(instance.IsCustom)
 	state.CreatedAt = types.StringValue(instance.CreatedAt)
 	state.UpdatedAt = types.StringValue(instance.UpdatedAt)
 
@@ -245,8 +250,21 @@ func (r *customRoleResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	plan.ID = types.StringValue(instance.ID)
+	plan.IsCustom = types.BoolValue(instance.IsCustom)
+	plan.CreatedAt = types.StringValue(instance.CreatedAt)
+	plan.UpdatedAt = types.StringValue(instance.UpdatedAt)
 	plan.Description = types.StringValue(instance.Description)
 	plan.Name = types.StringValue(instance.Name)
+	permissionElements := make([]attr.Value, len(instance.PermissionGroups))
+	for i, perm := range instance.PermissionGroups {
+		permissionElements[i] = types.StringValue(perm)
+	}
+	permissionSet, diags := types.SetValue(types.StringType, permissionElements)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.PermissionGroups = permissionSet
 	/*plan.CreatedBy.ID = types.StringValue(instance.CreatedBy.ID)
 	plan.CreatedBy.FirstName = types.StringValue(instance.CreatedBy.FirstName)
 	plan.CreatedBy.LastName = types.StringValue(instance.CreatedBy.LastName)*/
