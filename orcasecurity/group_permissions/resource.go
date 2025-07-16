@@ -6,6 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -27,13 +28,13 @@ type groupPermissionResource struct {
 }
 
 type groupPermissionResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	GroupID          types.String `tfsdk:"group_id"`
-	AllCloudAccounts types.Bool   `tfsdk:"all_cloud_accounts"`
-	CloudAccounts    types.Set    `tfsdk:"cloud_accounts"`
-	RoleID           types.String `tfsdk:"role_id"`
-	BusinessUnits    types.Set    `tfsdk:"business_units"`
-	ShiftleftProjects types.Set `tfsdk:"shiftleft_projects"`
+	ID                types.String `tfsdk:"id"`
+	GroupID           types.String `tfsdk:"group_id"`
+	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	CloudAccounts     types.Set    `tfsdk:"cloud_accounts"`
+	RoleID            types.String `tfsdk:"role_id"`
+	BusinessUnits     types.Set    `tfsdk:"business_units"`
+	ShiftleftProjects types.Set    `tfsdk:"shiftleft_projects"`
 }
 
 func NewGroupPermissionResource() resource.Resource {
@@ -113,19 +114,40 @@ func (r *groupPermissionResource) Create(ctx context.Context, req resource.Creat
 
 	var cloudAccounts []string
 	if !plan.AllCloudAccounts.ValueBool() {
-		for _, item := range plan.CloudAccounts.Elements() {
-			cloudAccounts = append(cloudAccounts, item.String()[1:len(item.String())-1])
+		diags.Append(plan.CloudAccounts.ElementsAs(ctx, &cloudAccounts, false)...)
+		if diags.HasError() {
+			return
 		}
+		if len(cloudAccounts) == 0 {
+			resp.Diagnostics.AddError(
+				"Error creating group permission",
+				"if all_cloud_accounts is false, cloud_accounts must have at least one element",
+			)
+			return
+		}
+	} else {
+		cloudAccounts = []string{}
 	}
 
 	var businessUnits []string
-	for _, item := range plan.BusinessUnits.Elements() {
-		businessUnits = append(businessUnits, item.String()[1:len(item.String())-1])
+	diags.Append(plan.BusinessUnits.ElementsAs(ctx, &businessUnits, false)...)
+	if diags.HasError() {
+		return
 	}
 
 	var shiftleftProjects []string
-	for _, item := range plan.ShiftleftProjects.Elements() {
-		shiftleftProjects = append(shiftleftProjects, item.String()[1:len(item.String())-1])
+	if plan.ShiftleftProjects.IsNull() || plan.ShiftleftProjects.IsUnknown() {
+		shiftleftProjects = []string{}
+	} else {
+		diags.Append(plan.ShiftleftProjects.ElementsAs(ctx, &shiftleftProjects, false)...)
+		if diags.HasError() {
+			return
+		}
+	}
+
+	var cloudAccountInfos []api_client.CloudAccountInfo
+	for _, caID := range cloudAccounts {
+		cloudAccountInfos = append(cloudAccountInfos, api_client.CloudAccountInfo{ID: caID})
 	}
 
 	createReq := api_client.GroupPermission{
@@ -133,7 +155,7 @@ func (r *groupPermissionResource) Create(ctx context.Context, req resource.Creat
 			ID: plan.GroupID.ValueString(),
 		},
 		AllCloudAccounts: plan.AllCloudAccounts.ValueBool(),
-		CloudAccounts:    cloudAccounts,
+		CloudAccounts:    cloudAccountInfos,
 		Role: api_client.RoleInfo{
 			ID: plan.RoleID.ValueString(),
 		},
@@ -151,6 +173,7 @@ func (r *groupPermissionResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	plan.ID = types.StringValue(instance.ID)
+	tflog.Debug(ctx, fmt.Sprintf("Created GroupPermission with ID: %s", instance.ID))
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -187,28 +210,79 @@ func (r *groupPermissionResource) Read(ctx context.Context, req resource.ReadReq
 	state.AllCloudAccounts = types.BoolValue(instance.AllCloudAccounts)
 	state.RoleID = types.StringValue(instance.Role.ID)
 
-	// Sets can be tricky, we'll just overwrite them
-	cloudAccounts, diags := types.SetValueFrom(ctx, types.StringType, instance.CloudAccounts)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	var cloudAccountStrings []string
+	if instance.AllCloudAccounts {
+		cloudAccountStrings = []string{}
+	} else if len(instance.CloudAccounts) == 0 {
+		cloudAccountStrings = []string{}
+	} else {
+		for _, ca := range instance.CloudAccounts {
+			cloudAccountStrings = append(cloudAccountStrings, ca.ID)
+		}
 	}
-	state.CloudAccounts = cloudAccounts
 
-	businessUnits, diags := types.SetValueFrom(ctx, types.StringType, instance.UserFilters)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	var cloudAccountsSet types.Set
+	if len(cloudAccountStrings) == 0 {
+		cloudAccountsSet = types.SetNull(types.StringType)
+	} else {
+		var diags diag.Diagnostics
+		cloudAccountsSet, diags = types.SetValueFrom(ctx, types.StringType, cloudAccountStrings)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
-	state.BusinessUnits = businessUnits
+	state.CloudAccounts = cloudAccountsSet
 
-	shiftleftProjects, diags := types.SetValueFrom(ctx, types.StringType, instance.ShiftleftProjects)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	var businessUnitsStrings []string
+	if len(instance.UserFilters) == 0 {
+		businessUnitsStrings = []string{}
+	} else {
+		businessUnitsStrings = instance.UserFilters
 	}
-	state.ShiftleftProjects = shiftleftProjects
 
+	var businessUnitsSet types.Set
+	if len(businessUnitsStrings) == 0 {
+		businessUnitsSet = types.SetNull(types.StringType)
+	} else {
+		var diags diag.Diagnostics
+		businessUnitsSet, diags = types.SetValueFrom(ctx, types.StringType, businessUnitsStrings)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	state.BusinessUnits = businessUnitsSet
+
+	var shiftleftProjectsStrings []string
+	if instance.ShiftleftProjects == nil {
+		shiftleftProjectsStrings = []string{}
+	} else if slp, ok := instance.ShiftleftProjects.([]interface{}); ok {
+		if len(slp) == 0 {
+			shiftleftProjectsStrings = []string{}
+		} else {
+			for _, v := range slp {
+				if s, ok := v.(string); ok {
+					shiftleftProjectsStrings = append(shiftleftProjectsStrings, s)
+				}
+			}
+		}
+	} else if slpMap, ok := instance.ShiftleftProjects.(map[string]interface{}); ok && len(slpMap) == 0 {
+		shiftleftProjectsStrings = []string{}
+	}
+
+	var shiftleftProjectsSet types.Set
+	if len(shiftleftProjectsStrings) == 0 {
+		shiftleftProjectsSet = types.SetNull(types.StringType)
+	} else {
+		var diags diag.Diagnostics
+		shiftleftProjectsSet, diags = types.SetValueFrom(ctx, types.StringType, shiftleftProjectsStrings)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	state.ShiftleftProjects = shiftleftProjectsSet
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

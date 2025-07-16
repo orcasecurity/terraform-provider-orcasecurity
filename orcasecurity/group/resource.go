@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -119,13 +120,24 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	instance, err = r.apiClient.GetGroup(instance.ID)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error refreshing group",
-			"Could not create group, unexpected error: "+err.Error(),
-		)
-		return
+	// Add retry logic for GetGroup
+	const maxRetries = 5
+	const delay = 2 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		instance, err = r.apiClient.GetGroup(instance.ID)
+		if err == nil {
+			break
+		}
+		if i < maxRetries-1 {
+			time.Sleep(delay)
+		} else {
+			resp.Diagnostics.AddError(
+				"Error refreshing group",
+				"Could not create group, unexpected error after multiple retries: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	plan.ID = types.StringValue(instance.ID)
