@@ -25,7 +25,7 @@ Both can be configured using environment variables "ORCASECURITY_API_ENDPOINT" a
 terraform {
   required_providers {
     orcasecurity = {
-      source = "orcasecurity/orcasecurity"
+      source = "deastrom/orcasecurity"
     }
   }
 }
