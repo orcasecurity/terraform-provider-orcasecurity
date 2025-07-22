@@ -42,4 +42,5 @@ terraform
 .envrc
 .gpg
 demo
+.vscode
 

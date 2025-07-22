@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +16,7 @@ type APIClient struct {
 	HTTPClient  *http.Client
 }
 
+// Returns an API client.
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	apiclient := APIClient{
 		APIEndpoint: *endpoint,
@@ -25,18 +26,18 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	return &apiclient, nil
 }
 
-// Convenience wrapper over http.Response
+// A wrapper over http.Response.
 type APIResponse struct {
 	_body    []byte
 	response *http.Response
 }
 
-// Return response status code
+// Returns response status code
 func (resp *APIResponse) StatusCode() int {
 	return resp.response.StatusCode
 }
 
-// Test if request was successful (<400)
+// Tests if the request had a status code <400 (implying it was successful).
 func (resp *APIResponse) IsOk() bool {
 	return resp.StatusCode() < 400
 }
@@ -100,7 +101,7 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
