@@ -20,6 +20,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
+	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
@@ -214,5 +215,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		shift_left_project.NewShiftLeftProjectResource,
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
 		trusted_cloud_account.NewTrustedCloudAccountResource,
+		system_sonar_alert.NewSystemSonarAlertResource,
 	}
 }
