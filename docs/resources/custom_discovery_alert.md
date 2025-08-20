@@ -100,6 +100,8 @@ Optional:
 
 Import is supported using the following syntax:
 
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
 ```shell
 //import NOT supported yet as of December 21st, 2024.
 terraform import orcasecurity_custom_discovery_alert.example RULE_ID
