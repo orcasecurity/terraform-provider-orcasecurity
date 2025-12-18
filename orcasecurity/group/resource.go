@@ -188,7 +188,7 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	var users []string
+	users := []string{}
 
 	for _, item := range plan.Users.Elements() {
 		users = append(users, item.String()[1:len(item.String())-1])
