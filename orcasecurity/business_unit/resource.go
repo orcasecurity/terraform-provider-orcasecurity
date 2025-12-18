@@ -487,6 +487,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
 
 		updateReq := api_client.BusinessUnit{
+			ID:              plan.ID.ValueString(),
 			Name:            plan.Name.ValueString(),
 			ShiftLeftFilter: &slFilter,
 			Filter:          &filter,
