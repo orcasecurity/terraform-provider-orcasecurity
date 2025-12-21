@@ -278,14 +278,13 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"field": schema.StringAttribute{
-									Description: `Field to filter on. Valid values include (but are not limited to):
-  - ` + "`category`" + ` - alert categories
-  - ` + "`asset_regions`" + ` - regions where the assets reside
-  - ` + "`cve_list`" + ` - CVEs linked to the alerts
-  - ` + "`state.risk_level`" + ` - alert risk scores
-  - ` + "`state.status`" + ` - alert statuses
-  - ` + "`state.orca_score`" + ` - numeric Orca score (use with range)
-`,
+									Description: "Field to filter on. Valid values include (but are not limited to): " +
+										"`category` (alert categories), " +
+										"`asset_regions` (regions where assets reside), " +
+										"`cve_list` (CVEs linked to alerts), " +
+										"`state.risk_level` (alert risk levels), " +
+										"`state.status` (alert statuses), " +
+										"`state.orca_score` (numeric Orca score - use with range).",
 									Required: true,
 								},
 								"includes": schema.ListAttribute{
