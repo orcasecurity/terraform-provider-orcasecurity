@@ -38,10 +38,12 @@ type automationQueryRuleRangeModel struct {
 }
 
 type automationQueryRuleModel struct {
-	Field    types.String                   `tfsdk:"field"`
-	Includes types.List                     `tfsdk:"includes"`
-	Excludes types.List                     `tfsdk:"excludes"`
-	Range    *automationQueryRuleRangeModel `tfsdk:"range"`
+	Field         types.String                   `tfsdk:"field"`
+	Includes      types.List                     `tfsdk:"includes"`
+	Excludes      types.List                     `tfsdk:"excludes"`
+	Prefix        types.List                     `tfsdk:"prefix"`
+	ExcludePrefix types.List                     `tfsdk:"exclude_prefix"`
+	Range         *automationQueryRuleRangeModel `tfsdk:"range"`
 }
 
 type automationQueryModel struct {
@@ -294,6 +296,16 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 								},
 								"excludes": schema.ListAttribute{
 									Description: "When `excludes` is used, the automation applies to the negation of the specified field values.",
+									Optional:    true,
+									ElementType: types.StringType,
+								},
+								"prefix": schema.ListAttribute{
+									Description: "Match values that start with any of the specified prefixes.",
+									Optional:    true,
+									ElementType: types.StringType,
+								},
+								"exclude_prefix": schema.ListAttribute{
+									Description: "Exclude values that start with any of the specified prefixes.",
 									Optional:    true,
 									ElementType: types.StringType,
 								},
@@ -605,6 +617,18 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 			finalDiags.Append(diags...)
 		}
 
+		var prefix []string
+		if !item.Prefix.IsNull() && !item.Prefix.IsUnknown() {
+			diags := item.Prefix.ElementsAs(ctx, &prefix, false)
+			finalDiags.Append(diags...)
+		}
+
+		var excludePrefix []string
+		if !item.ExcludePrefix.IsNull() && !item.ExcludePrefix.IsUnknown() {
+			diags := item.ExcludePrefix.ElementsAs(ctx, &excludePrefix, false)
+			finalDiags.Append(diags...)
+		}
+
 		var rangeFilter *api_client.AutomationRange
 		if item.Range != nil {
 			rangeFilter = &api_client.AutomationRange{}
@@ -631,10 +655,12 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 		}
 
 		filterRules = append(filterRules, api_client.AutomationFilter{
-			Field:    item.Field.ValueString(),
-			Includes: includes,
-			Excludes: excludes,
-			Range:    rangeFilter,
+			Field:         item.Field.ValueString(),
+			Includes:      includes,
+			Excludes:      excludes,
+			Prefix:        prefix,
+			ExcludePrefix: excludePrefix,
+			Range:         rangeFilter,
 		})
 	}
 	return api_client.AutomationQuery{Filter: filterRules}, finalDiags
@@ -985,6 +1011,20 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		excludesList, diags := types.ListValueFrom(ctx, types.StringType, excludes)
 		resp.Diagnostics.Append(diags...)
 
+		var prefixes []types.String
+		for _, prefixValue := range rule.Prefix {
+			prefixes = append(prefixes, types.StringValue(prefixValue))
+		}
+		prefixList, diags := types.ListValueFrom(ctx, types.StringType, prefixes)
+		resp.Diagnostics.Append(diags...)
+
+		var excludePrefixes []types.String
+		for _, excludePrefixValue := range rule.ExcludePrefix {
+			excludePrefixes = append(excludePrefixes, types.StringValue(excludePrefixValue))
+		}
+		excludePrefixList, diags := types.ListValueFrom(ctx, types.StringType, excludePrefixes)
+		resp.Diagnostics.Append(diags...)
+
 		var rangeModel *automationQueryRuleRangeModel
 		if rule.Range != nil {
 			rangeModel = &automationQueryRuleRangeModel{}
@@ -1016,10 +1056,12 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		}
 
 		filterRules = append(filterRules, automationQueryRuleModel{
-			Field:    types.StringValue(rule.Field),
-			Includes: includesList,
-			Excludes: excludesList,
-			Range:    rangeModel,
+			Field:         types.StringValue(rule.Field),
+			Includes:      includesList,
+			Excludes:      excludesList,
+			Prefix:        prefixList,
+			ExcludePrefix: excludePrefixList,
+			Range:         rangeModel,
 		})
 	}
 	if resp.Diagnostics.HasError() {

@@ -217,3 +217,39 @@ resource "orcasecurity_automation" "score_range_example" {
     multi_alerts = true
   }
 }
+
+# automation using prefix filtering
+resource "orcasecurity_automation" "prefix_example" {
+  name        = "Prefix Matching Example"
+  description = "Match assets with names starting with specific prefixes"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "asset_name", prefix : ["prod-", "staging-"] },
+    ]
+  }
+
+  email_template = {
+    email        = ["alerts@example.com"]
+    multi_alerts = true
+  }
+}
+
+# automation using exclude_prefix filtering
+resource "orcasecurity_automation" "exclude_prefix_example" {
+  name        = "Exclude Prefix Example"
+  description = "Exclude assets with names starting with test- or dev-"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "asset_name", exclude_prefix : ["test-", "dev-"] },
+    ]
+  }
+
+  slack_template = {
+    workspace = "Production Workspace"
+    channel   = "C04CLAAAAA"
+  }
+}

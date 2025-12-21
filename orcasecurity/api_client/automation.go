@@ -38,10 +38,12 @@ type AutomationRange struct {
 }
 
 type AutomationFilter struct {
-	Field    string           `json:"field"`
-	Includes []string         `json:"includes,omitempty"`
-	Excludes []string         `json:"excludes,omitempty"`
-	Range    *AutomationRange `json:"range,omitempty"`
+	Field         string           `json:"field"`
+	Includes      []string         `json:"includes,omitempty"`
+	Excludes      []string         `json:"excludes,omitempty"`
+	Prefix        []string         `json:"prefix,omitempty"`
+	ExcludePrefix []string         `json:"exclude_prefix,omitempty"`
+	Range         *AutomationRange `json:"range,omitempty"`
 }
 
 type AutomationQuery struct {
