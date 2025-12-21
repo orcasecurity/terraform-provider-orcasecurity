@@ -419,7 +419,8 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	if len(plan.Filter.CloudProviders) > 0 {
+	if plan.Filter != nil &&
+		len(plan.Filter.CloudProviders) > 0 {
 		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
@@ -451,7 +452,9 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) == 0 {
+	} else if plan.ShiftLeftFilter != nil &&
+		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
+		(plan.Filter == nil || len(plan.Filter.CloudAccounts) == 0) {
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
 		updateReq := api_client.BusinessUnit{
 			ID:              plan.ID.ValueString(),
@@ -475,12 +478,16 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 && len(plan.Filter.CloudAccounts) > 0 {
+	} else if plan.ShiftLeftFilter != nil &&
+		plan.Filter != nil &&
+		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
+		len(plan.Filter.CloudAccounts) > 0 {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
 
 		updateReq := api_client.BusinessUnit{
+			ID:              plan.ID.ValueString(),
 			Name:            plan.Name.ValueString(),
 			ShiftLeftFilter: &slFilter,
 			Filter:          &filter,
@@ -502,7 +509,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.CustomTags) > 0 {
+	} else if plan.Filter != nil && len(plan.Filter.CustomTags) > 0 {
 		filter, filterDiags := generateCustomTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
@@ -534,7 +541,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.CloudTags) > 0 {
+	} else if plan.Filter != nil && len(plan.Filter.CloudTags) > 0 {
 		filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
@@ -566,7 +573,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.AccountTags) > 0 {
+	} else if plan.Filter != nil && len(plan.Filter.AccountTags) > 0 {
 		filter, filterDiags := generateAccountTagsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
@@ -598,7 +605,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if len(plan.Filter.CloudAccounts) > 0 {
+	} else if plan.Filter != nil && len(plan.Filter.CloudAccounts) > 0 {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 

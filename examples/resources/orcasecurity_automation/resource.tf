@@ -182,3 +182,38 @@ resource "orcasecurity_automation" "example" {
     channel   = "C04CLAAAAA"
   }
 }
+
+# automation using range-based filtering for Orca score
+resource "orcasecurity_automation" "high_score_webhook" {
+  name        = "High Orca Score Alerts"
+  description = "Send alerts with Orca score >= 9.2 to webhook"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.orca_score", range : { gte : "9.2" } },
+    ]
+  }
+
+  webhook_template = {
+    template = "incident-io-webhook"
+  }
+}
+
+# automation using multiple range operators
+resource "orcasecurity_automation" "score_range_example" {
+  name        = "Medium Score Range Alerts"
+  description = "Send alerts with Orca score between 5.0 and 8.0 to email"
+  enabled     = true
+  query = {
+    filter : [
+      { field : "state.status", includes : ["open"] },
+      { field : "state.orca_score", range : { gte : "5.0", lte : "8.0" } },
+    ]
+  }
+
+  email_template = {
+    email        = ["security-team@example.com"]
+    multi_alerts = true
+  }
+}
