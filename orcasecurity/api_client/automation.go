@@ -29,10 +29,19 @@ const AutomationWebhookID = 12
 // Covers both Slack v1 and Slack v2 integrations.
 const AutomationSlackID = 2
 
+type AutomationRange struct {
+	Gte *string `json:"gte,omitempty"`
+	Lte *string `json:"lte,omitempty"`
+	Gt  *string `json:"gt,omitempty"`
+	Lt  *string `json:"lt,omitempty"`
+	Eq  *string `json:"eq,omitempty"`
+}
+
 type AutomationFilter struct {
-	Field    string   `json:"field"`
-	Includes []string `json:"includes,omitempty"`
-	Excludes []string `json:"excludes,omitempty"`
+	Field    string           `json:"field"`
+	Includes []string         `json:"includes,omitempty"`
+	Excludes []string         `json:"excludes,omitempty"`
+	Range    *AutomationRange `json:"range,omitempty"`
 }
 
 type AutomationQuery struct {

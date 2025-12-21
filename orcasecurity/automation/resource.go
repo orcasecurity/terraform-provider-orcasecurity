@@ -29,10 +29,19 @@ type automationResource struct {
 	apiClient *api_client.APIClient
 }
 
+type automationQueryRuleRangeModel struct {
+	Gte types.String `tfsdk:"gte"`
+	Lte types.String `tfsdk:"lte"`
+	Gt  types.String `tfsdk:"gt"`
+	Lt  types.String `tfsdk:"lt"`
+	Eq  types.String `tfsdk:"eq"`
+}
+
 type automationQueryRuleModel struct {
-	Field    types.String `tfsdk:"field"`
-	Includes types.List   `tfsdk:"includes"`
-	Excludes types.List   `tfsdk:"excludes"`
+	Field    types.String                   `tfsdk:"field"`
+	Includes types.List                     `tfsdk:"includes"`
+	Excludes types.List                     `tfsdk:"excludes"`
+	Range    *automationQueryRuleRangeModel `tfsdk:"range"`
 }
 
 type automationQueryModel struct {
@@ -269,23 +278,50 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"field": schema.StringAttribute{
-									Description: `When ` + "`includes`" + " is used, the automation applies to the specified field. Valid values include (but are not limited to):\n" +
-										"  - `category`" + " - alert categories\n" +
-										"  - `asset_regions`" + " - regions where the assets reside\n" +
-										"  - `cve_list`" + " - CVEs linked to the alerts\n" +
-										"  - `state.risk_level`" + " - alert risk scores\n" +
-										"  - `state.status`" + " - alert statuses\n",
+									Description: "Field to filter on. Valid values include (but are not limited to): " +
+										"`category` (alert categories), " +
+										"`asset_regions` (regions where assets reside), " +
+										"`cve_list` (CVEs linked to alerts), " +
+										"`state.risk_level` (alert risk levels), " +
+										"`state.status` (alert statuses), " +
+										"`state.orca_score` (numeric Orca score - use with range).",
 									Required: true,
 								},
 								"includes": schema.ListAttribute{
-									Description: "When `includes` is used, the automation applies to the specified field.",
+									Description: "When `includes` is used, the automation applies to the specified field values.",
 									Optional:    true,
 									ElementType: types.StringType,
 								},
 								"excludes": schema.ListAttribute{
-									Description: "When `excludes` is used, the automation applies to the negation of the specified field.",
+									Description: "When `excludes` is used, the automation applies to the negation of the specified field values.",
 									Optional:    true,
 									ElementType: types.StringType,
+								},
+								"range": schema.SingleNestedAttribute{
+									Description: "Range-based filtering for numeric fields. Use for fields like `state.orca_score`.",
+									Optional:    true,
+									Attributes: map[string]schema.Attribute{
+										"gte": schema.StringAttribute{
+											Description: "Greater than or equal to (>=).",
+											Optional:    true,
+										},
+										"lte": schema.StringAttribute{
+											Description: "Less than or equal to (<=).",
+											Optional:    true,
+										},
+										"gt": schema.StringAttribute{
+											Description: "Greater than (>).",
+											Optional:    true,
+										},
+										"lt": schema.StringAttribute{
+											Description: "Less than (<).",
+											Optional:    true,
+										},
+										"eq": schema.StringAttribute{
+											Description: "Equal to (=).",
+											Optional:    true,
+										},
+									},
 								},
 							},
 						},
@@ -558,21 +594,47 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 
 	for _, item := range plan.Filter {
 		var includes []string
-		if !item.Includes.IsNull() {
+		if !item.Includes.IsNull() && !item.Includes.IsUnknown() {
 			diags := item.Includes.ElementsAs(ctx, &includes, false)
 			finalDiags.Append(diags...)
 		}
 
 		var excludes []string
-		if !item.Excludes.IsNull() {
+		if !item.Excludes.IsNull() && !item.Excludes.IsUnknown() {
 			diags := item.Excludes.ElementsAs(ctx, &excludes, false)
 			finalDiags.Append(diags...)
+		}
+
+		var rangeFilter *api_client.AutomationRange
+		if item.Range != nil {
+			rangeFilter = &api_client.AutomationRange{}
+			if !item.Range.Gte.IsNull() && !item.Range.Gte.IsUnknown() {
+				gte := item.Range.Gte.ValueString()
+				rangeFilter.Gte = &gte
+			}
+			if !item.Range.Lte.IsNull() && !item.Range.Lte.IsUnknown() {
+				lte := item.Range.Lte.ValueString()
+				rangeFilter.Lte = &lte
+			}
+			if !item.Range.Gt.IsNull() && !item.Range.Gt.IsUnknown() {
+				gt := item.Range.Gt.ValueString()
+				rangeFilter.Gt = &gt
+			}
+			if !item.Range.Lt.IsNull() && !item.Range.Lt.IsUnknown() {
+				lt := item.Range.Lt.ValueString()
+				rangeFilter.Lt = &lt
+			}
+			if !item.Range.Eq.IsNull() && !item.Range.Eq.IsUnknown() {
+				eq := item.Range.Eq.ValueString()
+				rangeFilter.Eq = &eq
+			}
 		}
 
 		filterRules = append(filterRules, api_client.AutomationFilter{
 			Field:    item.Field.ValueString(),
 			Includes: includes,
 			Excludes: excludes,
+			Range:    rangeFilter,
 		})
 	}
 	return api_client.AutomationQuery{Filter: filterRules}, finalDiags
@@ -923,10 +985,41 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		excludesList, diags := types.ListValueFrom(ctx, types.StringType, excludes)
 		resp.Diagnostics.Append(diags...)
 
+		var rangeModel *automationQueryRuleRangeModel
+		if rule.Range != nil {
+			rangeModel = &automationQueryRuleRangeModel{}
+			if rule.Range.Gte != nil {
+				rangeModel.Gte = types.StringValue(*rule.Range.Gte)
+			} else {
+				rangeModel.Gte = types.StringNull()
+			}
+			if rule.Range.Lte != nil {
+				rangeModel.Lte = types.StringValue(*rule.Range.Lte)
+			} else {
+				rangeModel.Lte = types.StringNull()
+			}
+			if rule.Range.Gt != nil {
+				rangeModel.Gt = types.StringValue(*rule.Range.Gt)
+			} else {
+				rangeModel.Gt = types.StringNull()
+			}
+			if rule.Range.Lt != nil {
+				rangeModel.Lt = types.StringValue(*rule.Range.Lt)
+			} else {
+				rangeModel.Lt = types.StringNull()
+			}
+			if rule.Range.Eq != nil {
+				rangeModel.Eq = types.StringValue(*rule.Range.Eq)
+			} else {
+				rangeModel.Eq = types.StringNull()
+			}
+		}
+
 		filterRules = append(filterRules, automationQueryRuleModel{
 			Field:    types.StringValue(rule.Field),
 			Includes: includesList,
 			Excludes: excludesList,
+			Range:    rangeModel,
 		})
 	}
 	if resp.Diagnostics.HasError() {
