@@ -288,13 +288,7 @@ Required:
 
 Required:
 
-- `field` (String) Field to filter on. Valid values include (but are not limited to):
-  - `category` - alert categories
-  - `asset_regions` - regions where the assets reside
-  - `cve_list` - CVEs linked to the alerts
-  - `state.risk_level` - alert risk scores
-  - `state.status` - alert statuses
-  - `state.orca_score` - numeric Orca score (use with range)
+- `field` (String) Field to filter on. Valid values include (but are not limited to): `category` (alert categories), `asset_regions` (regions where assets reside), `cve_list` (CVEs linked to alerts), `state.risk_level` (alert risk levels), `state.status` (alert statuses), `state.orca_score` (numeric Orca score - use with range).
 
 Optional:
 
@@ -312,6 +306,7 @@ Optional:
 - `gte` (String) Greater than or equal to (>=).
 - `lt` (String) Less than (<).
 - `lte` (String) Less than or equal to (<=).
+
 
 
 
