@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 const AutomationAlertDismissalID = 1
@@ -35,6 +36,49 @@ type AutomationRange struct {
 	Gt  *string `json:"gt,omitempty"`
 	Lt  *string `json:"lt,omitempty"`
 	Eq  *string `json:"eq,omitempty"`
+}
+
+// interfaceToStringPtr converts an interface{} value (which may be a number or string
+// from JSON) to a *string. Returns nil if the input is nil.
+func interfaceToStringPtr(v interface{}) *string {
+	if v == nil {
+		return nil
+	}
+	var s string
+	switch val := v.(type) {
+	case float64:
+		s = strconv.FormatFloat(val, 'f', -1, 64)
+	case string:
+		s = val
+	default:
+		return nil
+	}
+	return &s
+}
+
+// UnmarshalJSON implements custom JSON unmarshalling for AutomationRange to handle
+// the API returning numeric values instead of strings for range fields.
+func (r *AutomationRange) UnmarshalJSON(data []byte) error {
+	type rawRange struct {
+		Gte interface{} `json:"gte,omitempty"`
+		Lte interface{} `json:"lte,omitempty"`
+		Gt  interface{} `json:"gt,omitempty"`
+		Lt  interface{} `json:"lt,omitempty"`
+		Eq  interface{} `json:"eq,omitempty"`
+	}
+
+	var raw rawRange
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	r.Gte = interfaceToStringPtr(raw.Gte)
+	r.Lte = interfaceToStringPtr(raw.Lte)
+	r.Gt = interfaceToStringPtr(raw.Gt)
+	r.Lt = interfaceToStringPtr(raw.Lt)
+	r.Eq = interfaceToStringPtr(raw.Eq)
+
+	return nil
 }
 
 type AutomationFilter struct {
