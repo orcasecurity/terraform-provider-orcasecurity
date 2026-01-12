@@ -9,6 +9,8 @@ import (
 	"testing"
 )
 
+const GENERIC_ERR_TEMPLATE = "expected no error, got: %v"
+const GTE_FIVE_ERR_TEMPLATE = "expected Gte to be '5', got: %v"
 
 func TestAutomations_DoesAutomationExist(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
@@ -56,11 +58,11 @@ func TestAutomationRange_UnmarshalJSON_NumericValues(t *testing.T) {
 	var r api_client.AutomationRange
 	err := json.Unmarshal([]byte(jsonData), &r)
 	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+		t.Fatalf(GENERIC_ERR_TEMPLATE, err)
 	}
 
 	if r.Gte == nil || *r.Gte != "5" {
-		t.Errorf("expected Gte to be '5', got: %v", r.Gte)
+		t.Errorf(GTE_FIVE_ERR_TEMPLATE, r.Gte)
 	}
 	if r.Lte == nil || *r.Lte != "10" {
 		t.Errorf("expected Lte to be '10', got: %v", r.Lte)
@@ -83,11 +85,11 @@ func TestAutomationRange_UnmarshalJSON_StringValues(t *testing.T) {
 	var r api_client.AutomationRange
 	err := json.Unmarshal([]byte(jsonData), &r)
 	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+		t.Fatalf(GENERIC_ERR_TEMPLATE, err)
 	}
 
 	if r.Gte == nil || *r.Gte != "5" {
-		t.Errorf("expected Gte to be '5', got: %v", r.Gte)
+		t.Errorf(GTE_FIVE_ERR_TEMPLATE, r.Gte)
 	}
 	if r.Lte == nil || *r.Lte != "10" {
 		t.Errorf("expected Lte to be '10', got: %v", r.Lte)
@@ -101,11 +103,11 @@ func TestAutomationRange_UnmarshalJSON_NullValues(t *testing.T) {
 	var r api_client.AutomationRange
 	err := json.Unmarshal([]byte(jsonData), &r)
 	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+		t.Fatalf(GENERIC_ERR_TEMPLATE, err)
 	}
 
 	if r.Gte == nil || *r.Gte != "5" {
-		t.Errorf("expected Gte to be '5', got: %v", r.Gte)
+		t.Errorf(GTE_FIVE_ERR_TEMPLATE, r.Gte)
 	}
 	if r.Lte != nil {
 		t.Errorf("expected Lte to be nil, got: %v", *r.Lte)
@@ -122,7 +124,7 @@ func TestAutomationRange_UnmarshalJSON_FloatValues(t *testing.T) {
 	var r api_client.AutomationRange
 	err := json.Unmarshal([]byte(jsonData), &r)
 	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+		t.Fatalf(GENERIC_ERR_TEMPLATE, err)
 	}
 
 	if r.Gte == nil || *r.Gte != "3.5" {
@@ -140,7 +142,7 @@ func TestAutomationRange_UnmarshalJSON_EmptyObject(t *testing.T) {
 	var r api_client.AutomationRange
 	err := json.Unmarshal([]byte(jsonData), &r)
 	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+		t.Fatalf(GENERIC_ERR_TEMPLATE, err)
 	}
 
 	if r.Gte != nil {
