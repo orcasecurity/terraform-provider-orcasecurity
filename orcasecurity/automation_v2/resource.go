@@ -186,6 +186,7 @@ func (r *automationV2Resource) ConfigValidators(_ context.Context) []resource.Co
 			path.MatchRoot("tines_template"),
 			path.MatchRoot("torq_template"),
 			path.MatchRoot("opus_template"),
+			path.MatchRoot("panther_template"),
 		),
 	}
 }
