@@ -473,4 +473,3 @@ resource "orcasecurity_automation_v2" "test" {
 		},
 	})
 }
-

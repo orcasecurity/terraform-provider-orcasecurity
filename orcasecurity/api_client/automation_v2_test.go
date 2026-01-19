@@ -414,4 +414,3 @@ func TestAutomationV2_JSONMarshaling(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
-
