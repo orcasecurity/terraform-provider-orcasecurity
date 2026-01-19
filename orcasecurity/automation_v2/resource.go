@@ -1068,6 +1068,24 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	// Refresh computed fields from the API response to prevent perpetual diffs
+	plan.ID = types.StringValue(updatedInstance.ID)
+	plan.OrganizationID = types.StringValue(updatedInstance.OrganizationID)
+
+	// Normalize status field (API returns "success" for enabled automations)
+	normalizedStatus := updatedInstance.Status
+	if normalizedStatus == "success" {
+		normalizedStatus = "enabled"
+	}
+	plan.Status = types.StringValue(normalizedStatus)
+
+	// Refresh end_time from API response (server might normalize the format)
+	if updatedInstance.EndTime != "" {
+		plan.EndTime = types.StringValue(updatedInstance.EndTime)
+	} else {
+		plan.EndTime = types.StringNull()
+	}
+
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
