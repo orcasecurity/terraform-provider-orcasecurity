@@ -207,14 +207,6 @@ func createExternalConfigTemplateSchema(serviceLabel string) schema.SingleNested
 	}
 }
 
-func createEmptyTemplateSchema(serviceLabel string) schema.SingleNestedAttribute {
-	return schema.SingleNestedAttribute{
-		Optional:    true,
-		Description: fmt.Sprintf("%s template to use for the automation.", serviceLabel),
-		Attributes:  map[string]schema.Attribute{},
-	}
-}
-
 func createExternalConfigWithParentTemplateSchema(serviceLabel, parentDescription string) schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Optional:    true,

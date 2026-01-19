@@ -371,7 +371,7 @@ func TestAutomationV2_JSONMarshaling(t *testing.T) {
 				Type: 1,
 				Data: map[string]interface{}{
 					"external_config": "test-config",
-					"type":           "LOGS",
+					"type":            "LOGS",
 				},
 				ExternalConfig: stringPtr("test-config"),
 			},
@@ -414,3 +414,4 @@ func TestAutomationV2_JSONMarshaling(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
