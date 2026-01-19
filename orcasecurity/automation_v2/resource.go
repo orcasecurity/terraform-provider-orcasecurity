@@ -886,6 +886,14 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	if instance == nil {
+		resp.Diagnostics.AddError(
+			"Error creating Automation V2",
+			"Could not create Automation V2: received nil instance from API",
+		)
+		return
+	}
+
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
 
@@ -933,6 +941,14 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 		resp.Diagnostics.AddError(
 			"Error reading Automation V2",
 			fmt.Sprintf("Could not read Automation V2 ID %s: %s", state.ID.ValueString(), err.Error()),
+		)
+		return
+	}
+
+	if instance == nil {
+		resp.Diagnostics.AddError(
+			"Error reading Automation V2",
+			fmt.Sprintf("Could not read Automation V2 ID %s: received nil instance from API", state.ID.ValueString()),
 		)
 		return
 	}
@@ -1018,7 +1034,7 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 		updateReq.EndTime = plan.EndTime.ValueString()
 	}
 
-	_, err = r.apiClient.UpdateAutomationV2(plan.ID.ValueString(), updateReq)
+	updatedInstance, err := r.apiClient.UpdateAutomationV2(plan.ID.ValueString(), updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Automation V2",
@@ -1027,11 +1043,27 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	_, err = r.apiClient.GetAutomationV2(plan.ID.ValueString())
+	if updatedInstance == nil {
+		resp.Diagnostics.AddError(
+			"Error updating Automation V2",
+			fmt.Sprintf("Could not update Automation V2 ID %s: received nil instance from API", plan.ID.ValueString()),
+		)
+		return
+	}
+
+	verifyInstance, err := r.apiClient.GetAutomationV2(plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Automation V2",
 			"Could not read Automation V2 ID: "+plan.ID.ValueString()+": "+err.Error(),
+		)
+		return
+	}
+
+	if verifyInstance == nil {
+		resp.Diagnostics.AddError(
+			"Error reading Automation V2",
+			fmt.Sprintf("Could not read Automation V2 ID %s: received nil instance from API during verification", plan.ID.ValueString()),
 		)
 		return
 	}
