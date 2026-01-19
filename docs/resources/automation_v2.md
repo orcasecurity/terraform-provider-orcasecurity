@@ -3,208 +3,20 @@
 page_title: "orcasecurity_automation_v2 Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides an automation v2 resource. This is the next generation automation system that uses Sonar queries for filtering and supports external service integrations via external configuration IDs.
+  Provides an automation. You can read more about automations here https://docs.orcasecurity.io/docs/automations.
 ---
 
 # orcasecurity_automation_v2 (Resource)
 
-Provides an automation v2 resource. This is the next generation automation system that uses Sonar queries for filtering and supports external service integrations via external configuration IDs.
+Provides an automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).
 
 ## Example Usage
 
 ```terraform
 # Basic automation v2 with Jira Cloud using external configuration
-resource "orcasecurity_automation_v2" "jira_example" {
-  name        = "Critical Alerts to Jira"
-  description = "Send critical alerts to Jira using external config"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  jira_cloud_template = {
-    external_config_id = "12345678-1234-1234-1234-123456789abc"
-    parent_issue       = "SEC-123"
-  }
-}
-
-# Automation with Datadog logs integration
-resource "orcasecurity_automation_v2" "datadog_logs" {
-  name        = "Send Alerts to Datadog Logs"
-  description = "Forward security alerts to Datadog as logs"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  datadog_template = {
-    external_config_id = "87654321-4321-4321-4321-cba987654321"
-    type              = "LOGS"
-  }
-}
-
-# Automation with Datadog events integration
-resource "orcasecurity_automation_v2" "datadog_events" {
-  name        = "Send Alerts to Datadog Events"
-  description = "Forward security alerts to Datadog as events"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  datadog_template = {
-    external_config_id = "87654321-4321-4321-4321-cba987654321"
-    type              = "EVENT"
-  }
-}
-
-# Automation with Slack integration using external config
-resource "orcasecurity_automation_v2" "slack_example" {
-  name        = "Security Alerts to Slack"
-  description = "Send security alerts to Slack channel"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  slack_template = {
-    external_config_id = "11111111-2222-3333-4444-555555555555"
-  }
-}
-
-# Automation with Sumo Logic using external config
-resource "orcasecurity_automation_v2" "sumo_logic_example" {
-  name        = "Forward to Sumo Logic"
-  description = "Send alerts to Sumo Logic for analysis"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  sumo_logic_template = {
-    external_config_id = "test-sumo-config-uuid"
-  }
-}
-
-# Automation with Azure Sentinel using external config
-resource "orcasecurity_automation_v2" "azure_sentinel_example" {
-  name        = "Forward to Azure Sentinel"
-  description = "Send alerts to Azure Sentinel for SIEM analysis"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  azure_sentinel_template = {
-    external_config_id = "test-azure-sentinel-uuid"
-  }
-}
-
-# Automation with email notifications
-resource "orcasecurity_automation_v2" "email_example" {
-  name        = "Email Security Team"
-  description = "Send critical alerts to security team via email"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  email_template = {
-    email        = ["security@company.com", "admin@company.com"]
-    multi_alerts = true
-  }
-}
-
-# Automation with snooze action
-resource "orcasecurity_automation_v2" "snooze_example" {
-  name        = "Auto-snooze Test Alerts"
-  description = "Automatically snooze alerts from test environments"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  snooze_template = {
-    days          = 7
-    reason        = "Test Environment"
-    justification = "These alerts are from test environments and can be snoozed"
-  }
-}
-
-# Automation with webhook integration
-resource "orcasecurity_automation_v2" "webhook_example" {
-  name        = "Custom Webhook Integration"
-  description = "Send alerts to custom webhook endpoint"
-  status      = "enabled"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  webhook_template = {
-    external_config_id = "test-webhook-config-uuid"
-  }
-}
-
-# Automation with end time (temporary automation)
-resource "orcasecurity_automation_v2" "temporary_example" {
-  name        = "Temporary Alert Forwarding"
-  description = "Forward alerts during incident response period"
-  status      = "enabled"
-  end_time    = "2024-12-31T23:59:59Z"
-
-  filter = {
-    sonar_query = jsonencode({
-      models = ["Alert"]
-      type   = "object_set"
-    })
-  }
-
-  email_template = {
-    email        = ["incident-response@company.com"]
-    multi_alerts = false
-  }
-}
-
-# Advanced automation with complex sonar query filtering
-resource "orcasecurity_automation_v2" "advanced_filtering" {
-  name        = "Advanced Alert Filtering"
-  description = "Complex filtering for specific alert types, scores, and cloud providers"
+resource "orcasecurity_automation_v2" "jira_cloud_basic" {
+  name        = "Critical Alerts to Jira Cloud"
+  description = "Send critical security alerts to Jira Cloud using external config"
   status      = "enabled"
 
   filter = {
@@ -243,12 +55,192 @@ resource "orcasecurity_automation_v2" "advanced_filtering" {
               type     = "str"
               values   = ["aws", "azure"]
             }
+          }
+        ]
+      }
+    })
+  }
+
+  jira_cloud_template = {
+    external_config_id = "12345678-1234-1234-1234-123456789abc"
+  }
+}
+
+# Jira Cloud automation with parent issue
+resource "orcasecurity_automation_v2" "jira_cloud_with_parent" {
+  name        = "Security Alerts under Epic"
+  description = "Create Jira tickets under a parent epic for security alerts"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  jira_cloud_template = {
+    external_config_id = "12345678-1234-1234-1234-123456789abc"
+    parent_issue       = "SEC-123"
+  }
+}
+
+# Datadog integration with LOGS type
+resource "orcasecurity_automation_v2" "datadog_logs" {
+  name        = "Forward Alerts to Datadog Logs"
+  description = "Send security alerts to Datadog as structured logs"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  datadog_template = {
+    external_config_id = "87654321-4321-4321-4321-cba987654321"
+    type               = "LOGS"
+  }
+}
+
+# Datadog integration with EVENT type
+resource "orcasecurity_automation_v2" "datadog_events" {
+  name        = "Security Events to Datadog"
+  description = "Send security alerts to Datadog as events"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  datadog_template = {
+    external_config_id = "87654321-4321-4321-4321-cba987654321"
+    type               = "EVENT"
+  }
+}
+
+# Slack integration using external configuration
+resource "orcasecurity_automation_v2" "slack_alerts" {
+  name        = "Security Team Slack Notifications"
+  description = "Send security alerts to Slack channel"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  slack_template = {
+    external_config_id = "11111111-2222-3333-4444-555555555555"
+  }
+}
+
+# Email notifications
+resource "orcasecurity_automation_v2" "email_security_team" {
+  name        = "Email Security Team"
+  description = "Send critical alerts to security team via email"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  email_template = {
+    email        = ["security@company.com", "admin@company.com"]
+    multi_alerts = true
+  }
+}
+
+# Email with individual alerts (not aggregated)
+resource "orcasecurity_automation_v2" "email_individual" {
+  name        = "Individual Alert Emails"
+  description = "Send each alert as a separate email"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  email_template = {
+    email        = ["incident-response@company.com"]
+    multi_alerts = false
+  }
+}
+
+# Snooze automation for test environments
+resource "orcasecurity_automation_v2" "snooze_test_env" {
+  name        = "Auto-snooze Test Environment Alerts"
+  description = "Automatically snooze alerts from test environments for 7 days"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  snooze_template = {
+    days          = 7
+    reason        = "Test Environment"
+    justification = "These alerts are from test environments and can be safely snoozed during development cycles"
+  }
+}
+
+# Advanced filtering with complex sonar query
+resource "orcasecurity_automation_v2" "advanced_filtering" {
+  name        = "Critical AWS/Azure Alerts"
+  description = "Complex filtering for specific alert types and cloud providers"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+      with = {
+        operator = "and"
+        type     = "operation"
+        values = [
+          {
+            key      = "AlertType"
+            operator = "in"
+            type     = "str"
+            values = [
+              "AWS EC2 instance allows public ingress access on NetBIOS port 137",
+              "S3 bucket data is not protected",
+              "SQS queue with public access",
+              "Azure SQL Database with basic sku"
+            ]
           },
           {
-            keys     = ["Inventories"]
-            models   = ["Inventory"]
+            key      = "OrcaScore"
+            operator = "range"
+            type     = "float"
+            values   = [7, 10]
+          },
+          {
+            keys     = ["CloudAccount"]
+            models   = ["CloudAccount"]
             operator = "has"
-            type     = "object_set"
+            type     = "object"
+            with = {
+              key      = "CloudProvider"
+              operator = "in"
+              type     = "str"
+              values   = ["aws", "azure"]
+            }
           }
         ]
       }
@@ -260,10 +252,30 @@ resource "orcasecurity_automation_v2" "advanced_filtering" {
   }
 }
 
-# Automation with multiple external service templates
-resource "orcasecurity_automation_v2" "comprehensive_example" {
-  name        = "Multi-Service Integration"
-  description = "Forward alerts to multiple services"
+# Temporary automation with end time
+resource "orcasecurity_automation_v2" "incident_response" {
+  name        = "Incident Response Monitoring"
+  description = "Enhanced monitoring during incident response period"
+  status      = "enabled"
+  end_time    = "2024-12-31T23:59:59Z"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  email_template = {
+    email        = ["incident-response@company.com", "security-lead@company.com"]
+    multi_alerts = false
+  }
+}
+
+# Multi-service integration example
+resource "orcasecurity_automation_v2" "multi_service_integration" {
+  name        = "Comprehensive Security Monitoring"
+  description = "Forward alerts to multiple security tools and communication channels"
   status      = "enabled"
 
   filter = {
@@ -274,15 +286,19 @@ resource "orcasecurity_automation_v2" "comprehensive_example" {
   }
 
   # Communication services
+  slack_template = {
+    external_config_id = "11111111-2222-3333-4444-555555555555"
+  }
+
+  ms_teams_template = {
+    external_config_id = "22222222-3333-4444-5555-666666666666"
+  }
+
   opsgenie_template = {
     external_config_id = "33333333-4444-5555-6666-777777777777"
   }
 
-  ms_teams_template = {
-    external_config_id = "11111111-2222-3333-4444-555555555555"
-  }
-
-  # SIEM services
+  # SIEM and security platforms
   splunk_template = {
     external_config_id = "44444444-5555-6666-7777-888888888888"
   }
@@ -291,16 +307,68 @@ resource "orcasecurity_automation_v2" "comprehensive_example" {
     external_config_id = "55555555-6666-7777-8888-999999999999"
   }
 
-  # Ticketing services
+  # Ticketing systems
+  jira_cloud_template = {
+    external_config_id = "12345678-1234-1234-1234-123456789abc"
+  }
+
   servicenow_incidents_template = {
     external_config_id = "66666666-7777-8888-9999-aaaaaaaaaaaa"
   }
+}
 
-  monday_template = {
-    external_config_id = "gggggggg-hhhh-iiii-jjjj-kkkkkkkkkkkk"
+# SIEM integrations
+resource "orcasecurity_automation_v2" "siem_integration" {
+  name        = "SIEM Data Integration"
+  description = "Forward security data to multiple SIEM platforms"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
   }
 
-  # Cloud services
+  splunk_template = {
+    external_config_id = "44444444-5555-6666-7777-888888888888"
+  }
+
+  chronicle_template = {
+    external_config_id = "77777777-8888-9999-aaaa-bbbbbbbbbbbb"
+  }
+
+  sumo_logic_template = {
+    external_config_id = "88888888-9999-aaaa-bbbb-cccccccccccc"
+  }
+
+  azure_sentinel_template = {
+    external_config_id = "99999999-aaaa-bbbb-cccc-dddddddddddd"
+  }
+}
+
+# Cloud services integration
+resource "orcasecurity_automation_v2" "cloud_services" {
+  name        = "Cloud Native Security Integration"
+  description = "Integrate with cloud-native security and messaging services"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  # AWS services
+  aws_security_hub_template = {
+    external_config_id = "55555555-6666-7777-8888-999999999999"
+  }
+
+  aws_security_lake_template = {
+    external_config_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+  }
+
   aws_sqs_template = {
     external_config_id = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
   }
@@ -309,8 +377,99 @@ resource "orcasecurity_automation_v2" "comprehensive_example" {
     external_config_id = "cccccccc-dddd-eeee-ffff-gggggggggggg"
   }
 
+  # Google Cloud
   gcp_pub_sub_template = {
     external_config_id = "dddddddd-eeee-ffff-gggg-hhhhhhhhhhhh"
+  }
+}
+
+# DevOps and project management tools
+resource "orcasecurity_automation_v2" "devops_integration" {
+  name        = "DevOps Security Integration"
+  description = "Integrate security alerts with development and project management tools"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  # Jira integrations
+  jira_cloud_template = {
+    external_config_id = "12345678-1234-1234-1234-123456789abc"
+  }
+
+  jira_server_template = {
+    external_config_id = "eeeeeeee-ffff-gggg-hhhh-iiiiiiiiiiii"
+  }
+
+  # Modern project management
+  linear_template = {
+    external_config_id = "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
+  }
+
+  monday_template = {
+    external_config_id = "gggggggg-hhhh-iiii-jjjj-kkkkkkkkkkkk"
+  }
+
+  # Microsoft ecosystem
+  azure_devops_template = {
+    external_config_id = "hhhhhhhh-iiii-jjjj-kkkk-llllllllllll"
+  }
+}
+
+# Webhook and custom integrations
+resource "orcasecurity_automation_v2" "custom_integrations" {
+  name        = "Custom Webhook Integration"
+  description = "Forward alerts to custom endpoints and specialized tools"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  webhook_template = {
+    external_config_id = "iiiiiiii-jjjj-kkkk-llll-mmmmmmmmmmmm"
+  }
+
+  tines_template = {
+    external_config_id = "jjjjjjjj-kkkk-llll-mmmm-nnnnnnnnnnnn"
+  }
+
+  torq_template = {
+    external_config_id = "kkkkkkkk-llll-mmmm-nnnn-oooooooooooo"
+  }
+}
+
+# Data analytics and monitoring
+resource "orcasecurity_automation_v2" "analytics_integration" {
+  name        = "Security Analytics Integration"
+  description = "Forward security data to analytics and monitoring platforms"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  datadog_template = {
+    external_config_id = "87654321-4321-4321-4321-cba987654321"
+    type               = "LOGS"
+  }
+
+  cribl_template = {
+    external_config_id = "llllllll-mmmm-nnnn-oooo-pppppppppppp"
+  }
+
+  snowflake_template = {
+    external_config_id = "mmmmmmmm-nnnn-oooo-pppp-qqqqqqqqqqqq"
   }
 }
 ```
@@ -320,266 +479,369 @@ resource "orcasecurity_automation_v2" "comprehensive_example" {
 
 ### Required
 
-- `filter` (Attributes) The Sonar query filter that selects the alerts this automation applies to. (see [below for nested schema](#nestedatt--filter))
+- `filter` (Attributes) The filter that selects the alerts this automation applies to using sonar_query. (see [below for nested schema](#nestedatt--filter))
 - `name` (String) Automation name.
-- `status` (String) Automation status. Valid values: `enabled`, `disabled`.
 
 ### Optional
 
-- `aws_security_hub_template` (Attributes) AWS Security Hub integration template. (see [below for nested schema](#nestedatt--aws_security_hub_template))
-- `aws_security_lake_template` (Attributes) AWS Security Lake integration template. (see [below for nested schema](#nestedatt--aws_security_lake_template))
-- `aws_sns_template` (Attributes) AWS SNS integration template. (see [below for nested schema](#nestedatt--aws_sns_template))
-- `aws_sqs_template` (Attributes) AWS SQS integration template. (see [below for nested schema](#nestedatt--aws_sqs_template))
-- `azure_devops_template` (Attributes) Azure DevOps integration template. (see [below for nested schema](#nestedatt--azure_devops_template))
-- `azure_sentinel_template` (Attributes) Azure Sentinel integration template. (see [below for nested schema](#nestedatt--azure_sentinel_template))
-- `chronicle_template` (Attributes) Chronicle integration template. (see [below for nested schema](#nestedatt--chronicle_template))
-- `cribl_template` (Attributes) Cribl integration template. (see [below for nested schema](#nestedatt--cribl_template))
-- `datadog_template` (Attributes) Datadog integration template. (see [below for nested schema](#nestedatt--datadog_template))
+- `alert_dismissal_details` (Attributes) Details regarding dismissed alerts. (see [below for nested schema](#nestedatt--alert_dismissal_details))
+- `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
+- `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
+- `alert_score_specify_details` (Attributes) Details regarding specifying a new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
+- `aws_security_hub_template` (Attributes) AWS Security Hub template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_hub_template))
+- `aws_security_lake_template` (Attributes) AWS Security Lake template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_lake_template))
+- `aws_sns_template` (Attributes) AWS SNS template to use for the automation. (see [below for nested schema](#nestedatt--aws_sns_template))
+- `aws_sqs_template` (Attributes) AWS SQS template to use for the automation. (see [below for nested schema](#nestedatt--aws_sqs_template))
+- `azure_devops_template` (Attributes) Azure DevOps template to use for the automation. (see [below for nested schema](#nestedatt--azure_devops_template))
+- `azure_sentinel_template` (Attributes) Azure Sentinel template to use for the automation. (see [below for nested schema](#nestedatt--azure_sentinel_template))
+- `business_units` (List of String) Business units that this automation applies to, specified by their Orca ID. The business unit list cannot be changed after creation.
+- `chronicle_template` (Attributes) Google Chronicle template to use for the automation. (see [below for nested schema](#nestedatt--chronicle_template))
+- `coralogix_template` (Attributes) Coralogix template to use for the automation. (see [below for nested schema](#nestedatt--coralogix_template))
+- `cribl_template` (Attributes) Cribl template to use for the automation. (see [below for nested schema](#nestedatt--cribl_template))
+- `datadog_template` (Attributes) Datadog template to use for the automation. (see [below for nested schema](#nestedatt--datadog_template))
 - `description` (String) Automation description.
-- `email_template` (Attributes) Email notification template. (see [below for nested schema](#nestedatt--email_template))
-- `end_time` (String) Optional end time for the automation in RFC3339 format (e.g., '2024-12-31T23:59:59Z'). The automation will be automatically disabled after this time.
-- `gcp_pub_sub_template` (Attributes) GCP Pub/Sub integration template. (see [below for nested schema](#nestedatt--gcp_pub_sub_template))
-- `jira_cloud_template` (Attributes) Jira Cloud integration template. (see [below for nested schema](#nestedatt--jira_cloud_template))
-- `jira_server_template` (Attributes) Jira Server integration template. (see [below for nested schema](#nestedatt--jira_server_template))
-- `linear_template` (Attributes) Linear integration template. (see [below for nested schema](#nestedatt--linear_template))
-- `monday_template` (Attributes) Monday.com integration template. (see [below for nested schema](#nestedatt--monday_template))
-- `ms_teams_template` (Attributes) Microsoft Teams integration template. (see [below for nested schema](#nestedatt--ms_teams_template))
-- `opsgenie_template` (Attributes) Opsgenie integration template. (see [below for nested schema](#nestedatt--opsgenie_template))
-- `pager_duty_template` (Attributes) PagerDuty integration template. (see [below for nested schema](#nestedatt--pager_duty_template))
-- `panther_template` (Attributes) Panther integration template. (see [below for nested schema](#nestedatt--panther_template))
-- `servicenow_incidents_template` (Attributes) ServiceNow Incidents integration template. (see [below for nested schema](#nestedatt--servicenow_incidents_template))
-- `servicenow_si_incidents_template` (Attributes) ServiceNow Security Incidents integration template. (see [below for nested schema](#nestedatt--servicenow_si_incidents_template))
-- `slack_template` (Attributes) Slack integration template. (see [below for nested schema](#nestedatt--slack_template))
-- `snooze_template` (Attributes) Snooze action template. (see [below for nested schema](#nestedatt--snooze_template))
-- `snowflake_template` (Attributes) Snowflake integration template. (see [below for nested schema](#nestedatt--snowflake_template))
-- `splunk_template` (Attributes) Splunk integration template. (see [below for nested schema](#nestedatt--splunk_template))
-- `sumo_logic_template` (Attributes) Sumo Logic integration template. (see [below for nested schema](#nestedatt--sumo_logic_template))
-- `tines_template` (Attributes) Tines integration template. (see [below for nested schema](#nestedatt--tines_template))
-- `torq_template` (Attributes) Torq integration template. (see [below for nested schema](#nestedatt--torq_template))
-- `webhook_template` (Attributes) Webhook integration template. (see [below for nested schema](#nestedatt--webhook_template))
+- `email_template` (Attributes) Email settings. (see [below for nested schema](#nestedatt--email_template))
+- `end_time` (String) End time for the automation (ISO 8601 format). If specified, the automation will automatically disable after this time.
+- `gcp_pub_sub_template` (Attributes) GCP Pub/Sub template to use for the automation. (see [below for nested schema](#nestedatt--gcp_pub_sub_template))
+- `jira_cloud_template` (Attributes) Jira Cloud template to use for the automation. (see [below for nested schema](#nestedatt--jira_cloud_template))
+- `jira_server_template` (Attributes) Jira Server template to use for the automation. (see [below for nested schema](#nestedatt--jira_server_template))
+- `linear_template` (Attributes) Linear template to use for the automation. (see [below for nested schema](#nestedatt--linear_template))
+- `monday_template` (Attributes) Monday.com template to use for the automation. (see [below for nested schema](#nestedatt--monday_template))
+- `ms_teams_template` (Attributes) Microsoft Teams template to use for the automation. (see [below for nested schema](#nestedatt--ms_teams_template))
+- `opsgenie_template` (Attributes) Opsgenie template to use for the automation. (see [below for nested schema](#nestedatt--opsgenie_template))
+- `opus_template` (Attributes) Opus template to use for the automation. (see [below for nested schema](#nestedatt--opus_template))
+- `pager_duty_template` (Attributes) PagerDuty template to use for the automation. (see [below for nested schema](#nestedatt--pager_duty_template))
+- `panther_template` (Attributes) Panther template to use for the automation. (see [below for nested schema](#nestedatt--panther_template))
+- `servicenow_incidents_template` (Attributes) ServiceNow Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_incidents_template))
+- `servicenow_si_incidents_template` (Attributes) ServiceNow Security Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_si_incidents_template))
+- `slack_template` (Attributes) Slack template to use for the automation. (see [below for nested schema](#nestedatt--slack_template))
+- `snooze_template` (Attributes) Snooze alert settings. (see [below for nested schema](#nestedatt--snooze_template))
+- `snowflake_template` (Attributes) Snowflake template to use for the automation. (see [below for nested schema](#nestedatt--snowflake_template))
+- `splunk_template` (Attributes) Splunk template to use for the automation. (see [below for nested schema](#nestedatt--splunk_template))
+- `status` (String) Automation status. Valid values: 'enabled', 'disabled'.
+- `sumo_logic_template` (Attributes) Sumo Logic template to use for the automation. (see [below for nested schema](#nestedatt--sumo_logic_template))
+- `tines_template` (Attributes) Tines template to use for the automation. (see [below for nested schema](#nestedatt--tines_template))
+- `torq_template` (Attributes) Torq template to use for the automation. (see [below for nested schema](#nestedatt--torq_template))
+- `webhook_template` (Attributes) Webhook template to use for the automation. (see [below for nested schema](#nestedatt--webhook_template))
 
 ### Read-Only
 
 - `id` (String) Automation ID.
-- `organization_id` (String) Organization ID that this automation belongs to.
+- `organization_id` (String)
 
 <a id="nestedatt--filter"></a>
 ### Nested Schema for `filter`
 
 Required:
 
-- `sonar_query` (String) Sonar query in JSON format that defines which alerts this automation applies to. Must be valid JSON containing at minimum 'models' and 'type' fields.
+- `sonar_query` (String) Complete sonar query as JSON string. Copy the entire sonar_query structure from Orca API examples. Supports models, type, with clauses, field conditions, logical operations (and/or), and nested object queries.
+
+
+<a id="nestedatt--alert_dismissal_details"></a>
+### Nested Schema for `alert_dismissal_details`
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are being dismissed.
+- `reason` (String) The reason these alerts are being dismissed.
+
+
+<a id="nestedatt--alert_score_decrease_details"></a>
+### Nested Schema for `alert_score_decrease_details`
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
+- `reason` (String) The reason these alerts are having their score decreased.
+
+
+<a id="nestedatt--alert_score_increase_details"></a>
+### Nested Schema for `alert_score_increase_details`
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
+- `reason` (String) The reason these alerts are having their score increased.
+
+
+<a id="nestedatt--alert_score_specify_details"></a>
+### Nested Schema for `alert_score_specify_details`
+
+Required:
+
+- `new_score` (Number) New score to be assigned to the selected alerts.
+
+Optional:
+
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
+- `reason` (String) The reason these alerts are having their score changed.
+
 
 <a id="nestedatt--aws_security_hub_template"></a>
 ### Nested Schema for `aws_security_hub_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the AWS Security Hub integration.
+- `external_config_id` (String) AWS Security Hub external service config UUID.
+
 
 <a id="nestedatt--aws_security_lake_template"></a>
 ### Nested Schema for `aws_security_lake_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the AWS Security Lake integration.
+- `external_config_id` (String) AWS Security Lake external service config UUID.
+
 
 <a id="nestedatt--aws_sns_template"></a>
 ### Nested Schema for `aws_sns_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the AWS SNS integration.
+- `external_config_id` (String) AWS SNS external service config UUID.
+
 
 <a id="nestedatt--aws_sqs_template"></a>
 ### Nested Schema for `aws_sqs_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the AWS SQS integration.
+- `external_config_id` (String) AWS SQS external service config UUID.
+
 
 <a id="nestedatt--azure_devops_template"></a>
 ### Nested Schema for `azure_devops_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Azure DevOps integration.
+- `external_config_id` (String) Azure DevOps external service config UUID.
+
+Optional:
+
+- `parent_issue` (String) Automatically nest under parent issue.
+
 
 <a id="nestedatt--azure_sentinel_template"></a>
 ### Nested Schema for `azure_sentinel_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Azure Sentinel integration.
+- `external_config_id` (String) Azure Sentinel external service config UUID.
+
 
 <a id="nestedatt--chronicle_template"></a>
 ### Nested Schema for `chronicle_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Chronicle integration.
+- `external_config_id` (String) Google Chronicle external service config UUID.
+
+
+<a id="nestedatt--coralogix_template"></a>
+### Nested Schema for `coralogix_template`
+
+Required:
+
+- `external_config_id` (String) Coralogix external service config UUID.
+
 
 <a id="nestedatt--cribl_template"></a>
 ### Nested Schema for `cribl_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Cribl integration.
+- `external_config_id` (String) Cribl external service config UUID.
+
 
 <a id="nestedatt--datadog_template"></a>
 ### Nested Schema for `datadog_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Datadog integration.
-- `type` (String) Type of Datadog integration. Valid values: `LOGS`, `EVENT`.
+- `external_config_id` (String) Datadog external service config UUID.
+- `type` (String) Type of Datadog integration. Valid values: 'LOGS', 'EVENT'.
+
 
 <a id="nestedatt--email_template"></a>
 ### Nested Schema for `email_template`
 
 Required:
 
-- `email` (List of String) List of email addresses to send notifications to.
-- `multi_alerts` (Boolean) If true, multiple alerts will be aggregated into a single email. If false, each alert will generate a separate email.
+- `email` (List of String) Email addresses to send the alerts to
+- `multi_alerts` (Boolean) `true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.
+
 
 <a id="nestedatt--gcp_pub_sub_template"></a>
 ### Nested Schema for `gcp_pub_sub_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the GCP Pub/Sub integration.
+- `external_config_id` (String) GCP Pub/Sub external service config UUID.
+
 
 <a id="nestedatt--jira_cloud_template"></a>
 ### Nested Schema for `jira_cloud_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Jira Cloud integration.
+- `external_config_id` (String) Jira Cloud external service config UUID.
 
 Optional:
 
-- `parent_issue` (String) Parent issue key to create sub-tasks under (e.g., 'SEC-123').
+- `parent_issue` (String) Automatically nest under this parent issue.
+
 
 <a id="nestedatt--jira_server_template"></a>
 ### Nested Schema for `jira_server_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Jira Server integration.
+- `external_config_id` (String) Jira Server external service config UUID.
+
+Optional:
+
+- `parent_issue` (String) Automatically nest under this parent issue.
+
 
 <a id="nestedatt--linear_template"></a>
 ### Nested Schema for `linear_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Linear integration.
+- `external_config_id` (String) Linear external service config UUID.
+
 
 <a id="nestedatt--monday_template"></a>
 ### Nested Schema for `monday_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Monday.com integration.
+- `external_config_id` (String) Monday.com external service config UUID.
+
 
 <a id="nestedatt--ms_teams_template"></a>
 ### Nested Schema for `ms_teams_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Microsoft Teams integration.
+- `external_config_id` (String) Microsoft Teams external service config UUID.
+
 
 <a id="nestedatt--opsgenie_template"></a>
 ### Nested Schema for `opsgenie_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Opsgenie integration.
+- `external_config_id` (String) Opsgenie external service config UUID.
+
+
+<a id="nestedatt--opus_template"></a>
+### Nested Schema for `opus_template`
+
+Required:
+
+- `external_config_id` (String) Opus external service config UUID.
+
 
 <a id="nestedatt--pager_duty_template"></a>
 ### Nested Schema for `pager_duty_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the PagerDuty integration.
+- `external_config_id` (String) PagerDuty external service config UUID.
+
 
 <a id="nestedatt--panther_template"></a>
 ### Nested Schema for `panther_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Panther integration.
+- `external_config_id` (String) Panther external service config UUID.
+
 
 <a id="nestedatt--servicenow_incidents_template"></a>
 ### Nested Schema for `servicenow_incidents_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the ServiceNow Incidents integration.
+- `external_config_id` (String) ServiceNow Incidents external service config UUID.
+
 
 <a id="nestedatt--servicenow_si_incidents_template"></a>
 ### Nested Schema for `servicenow_si_incidents_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the ServiceNow Security Incidents integration.
+- `external_config_id` (String) ServiceNow Security Incidents external service config UUID.
+
 
 <a id="nestedatt--slack_template"></a>
 ### Nested Schema for `slack_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Slack integration.
+- `external_config_id` (String) Slack external service config UUID.
+
 
 <a id="nestedatt--snooze_template"></a>
 ### Nested Schema for `snooze_template`
 
 Required:
 
-- `days` (Number) Number of days to snooze the alerts for.
-- `justification` (String) Detailed justification for why the alerts are being snoozed.
-- `reason` (String) Reason for snoozing the alerts.
+- `days` (Number) Number of days to snooze (1-365).
+
+Optional:
+
+- `justification` (String) Justification for snoozing.
+- `reason` (String) Reason for snoozing.
+
 
 <a id="nestedatt--snowflake_template"></a>
 ### Nested Schema for `snowflake_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Snowflake integration.
+- `external_config_id` (String) Snowflake external service config UUID.
+
 
 <a id="nestedatt--splunk_template"></a>
 ### Nested Schema for `splunk_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Splunk integration.
+- `external_config_id` (String) Splunk external service config UUID.
+
 
 <a id="nestedatt--sumo_logic_template"></a>
 ### Nested Schema for `sumo_logic_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Sumo Logic integration.
+- `external_config_id` (String) Sumo Logic external service config UUID.
+
 
 <a id="nestedatt--tines_template"></a>
 ### Nested Schema for `tines_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Tines integration.
+- `external_config_id` (String) Tines external service config UUID.
+
 
 <a id="nestedatt--torq_template"></a>
 ### Nested Schema for `torq_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Torq integration.
+- `external_config_id` (String) Torq external service config UUID.
+
 
 <a id="nestedatt--webhook_template"></a>
 ### Nested Schema for `webhook_template`
 
 Required:
 
-- `external_config_id` (String) External configuration ID for the Webhook integration.
+- `external_config_id` (String) Webhook external service config UUID.
 
 ## Import
 
