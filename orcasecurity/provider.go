@@ -7,6 +7,7 @@ import (
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
+	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
@@ -203,6 +204,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		automation.NewAutomationResource,
+		automation_v2.NewAutomationV2Resource,
 		custom_discovery_alert.NewCustomDiscoveryAlertResource,
 		custom_sonar_alert.NewCustomSonarAlertResource,
 		custom_role.NewCustomRoleResource,
