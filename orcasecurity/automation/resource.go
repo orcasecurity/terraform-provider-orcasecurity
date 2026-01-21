@@ -633,23 +633,23 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 		if item.Range != nil {
 			rangeFilter = &api_client.AutomationRange{}
 			if !item.Range.Gte.IsNull() && !item.Range.Gte.IsUnknown() {
-				gte := item.Range.Gte.ValueString()
+				gte := api_client.FlexibleString(item.Range.Gte.ValueString())
 				rangeFilter.Gte = &gte
 			}
 			if !item.Range.Lte.IsNull() && !item.Range.Lte.IsUnknown() {
-				lte := item.Range.Lte.ValueString()
+				lte := api_client.FlexibleString(item.Range.Lte.ValueString())
 				rangeFilter.Lte = &lte
 			}
 			if !item.Range.Gt.IsNull() && !item.Range.Gt.IsUnknown() {
-				gt := item.Range.Gt.ValueString()
+				gt := api_client.FlexibleString(item.Range.Gt.ValueString())
 				rangeFilter.Gt = &gt
 			}
 			if !item.Range.Lt.IsNull() && !item.Range.Lt.IsUnknown() {
-				lt := item.Range.Lt.ValueString()
+				lt := api_client.FlexibleString(item.Range.Lt.ValueString())
 				rangeFilter.Lt = &lt
 			}
 			if !item.Range.Eq.IsNull() && !item.Range.Eq.IsUnknown() {
-				eq := item.Range.Eq.ValueString()
+				eq := api_client.FlexibleString(item.Range.Eq.ValueString())
 				rangeFilter.Eq = &eq
 			}
 		}
@@ -1029,27 +1029,27 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 		if rule.Range != nil {
 			rangeModel = &automationQueryRuleRangeModel{}
 			if rule.Range.Gte != nil {
-				rangeModel.Gte = types.StringValue(*rule.Range.Gte)
+				rangeModel.Gte = types.StringValue(rule.Range.Gte.String())
 			} else {
 				rangeModel.Gte = types.StringNull()
 			}
 			if rule.Range.Lte != nil {
-				rangeModel.Lte = types.StringValue(*rule.Range.Lte)
+				rangeModel.Lte = types.StringValue(rule.Range.Lte.String())
 			} else {
 				rangeModel.Lte = types.StringNull()
 			}
 			if rule.Range.Gt != nil {
-				rangeModel.Gt = types.StringValue(*rule.Range.Gt)
+				rangeModel.Gt = types.StringValue(rule.Range.Gt.String())
 			} else {
 				rangeModel.Gt = types.StringNull()
 			}
 			if rule.Range.Lt != nil {
-				rangeModel.Lt = types.StringValue(*rule.Range.Lt)
+				rangeModel.Lt = types.StringValue(rule.Range.Lt.String())
 			} else {
 				rangeModel.Lt = types.StringNull()
 			}
 			if rule.Range.Eq != nil {
-				rangeModel.Eq = types.StringValue(*rule.Range.Eq)
+				rangeModel.Eq = types.StringValue(rule.Range.Eq.String())
 			} else {
 				rangeModel.Eq = types.StringNull()
 			}
