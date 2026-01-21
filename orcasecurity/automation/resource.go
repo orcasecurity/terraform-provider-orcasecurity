@@ -55,15 +55,14 @@ type automationAlertDismissalTemplateModel struct {
 	Justification types.String `tfsdk:"justification"`
 }
 
-type automationAlertScoreDecreaseTemplateModel struct {
+// Common struct for alert score changes with reason and justification
+type automationAlertScoreChangeBaseModel struct {
 	Reason        types.String `tfsdk:"reason"`
 	Justification types.String `tfsdk:"justification"`
 }
 
-type automationAlertScoreIncreaseTemplateModel struct {
-	Reason        types.String `tfsdk:"reason"`
-	Justification types.String `tfsdk:"justification"`
-}
+type automationAlertScoreDecreaseTemplateModel = automationAlertScoreChangeBaseModel
+type automationAlertScoreIncreaseTemplateModel = automationAlertScoreChangeBaseModel
 
 type automationAlertScoreSpecifyTemplateModel struct {
 	NewScore      types.Float64 `tfsdk:"new_score"`
@@ -71,17 +70,14 @@ type automationAlertScoreSpecifyTemplateModel struct {
 	Justification types.String  `tfsdk:"justification"`
 }
 
-type automationAwsSecurityHubTemplateModel struct {
+// Common struct for templates that only have a name
+type automationTemplateBaseModel struct {
 	Name types.String `tfsdk:"template"`
 }
 
-type automationAwsSecurityLakeTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationAwsSqsTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationAwsSecurityHubTemplateModel = automationTemplateBaseModel
+type automationAwsSecurityLakeTemplateModel = automationTemplateBaseModel
+type automationAwsSqsTemplateModel = automationTemplateBaseModel
 
 type automationAzureDevopsTemplateModel struct {
 	Name          types.String `tfsdk:"template"`
@@ -91,18 +87,14 @@ type automationAzureDevopsTemplateModel struct {
 type automationAzureSentinelTemplateModel struct {
 }
 
-type automationCoralogixTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationCoralogixTemplateModel = automationTemplateBaseModel
 
 type automationEmailTemplateModel struct {
 	EmailAddresses types.List `tfsdk:"email"`
 	MultiAlerts    types.Bool `tfsdk:"multi_alerts"`
 }
 
-type automationGcpPubSubTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationGcpPubSubTemplateModel = automationTemplateBaseModel
 
 type automationJiraCloudTemplateModel struct {
 	Name          types.String `tfsdk:"template"`
@@ -114,13 +106,8 @@ type automationJiraServerTemplateModel struct {
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
-type automationOpsgenieTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationPagerDutyTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationOpsgenieTemplateModel = automationTemplateBaseModel
+type automationPagerDutyTemplateModel = automationTemplateBaseModel
 
 type automationSlackTemplateModel struct {
 	Channel   types.String `tfsdk:"channel"`
@@ -130,24 +117,14 @@ type automationSlackTemplateModel struct {
 type automationSnowflakeTemplateModel struct {
 }
 
-type automationSplunkTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationSplunkTemplateModel = automationTemplateBaseModel
 
 type automationSumoLogicTemplateModel struct {
 }
 
-type automationTinesTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationTorqTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationWebhookTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationTinesTemplateModel = automationTemplateBaseModel
+type automationTorqTemplateModel = automationTemplateBaseModel
+type automationWebhookTemplateModel = automationTemplateBaseModel
 
 type automationResourceModel struct {
 	ID            types.String          `tfsdk:"id"`
@@ -237,6 +214,38 @@ func (r *automationResource) ConfigValidators(_ context.Context) []resource.Conf
 
 func (r *automationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// Helper function to create simple template schema attributes
+func simpleTemplateSchemaAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes: map[string]schema.Attribute{
+			"template": schema.StringAttribute{
+				Required:    true,
+				Description: description + " template name.",
+			},
+		},
+	}
+}
+
+// Helper function to create schema for alert score change details
+func alertScoreChangeSchemaAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes: map[string]schema.Attribute{
+			"reason": schema.StringAttribute{
+				Optional:    true,
+				Description: "The reason these alerts are having their score changed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
+			},
+			"justification": schema.StringAttribute{
+				Optional:    true,
+				Description: "More detailed reasoning as to why these alerts are having their score changed.",
+			},
+		},
+	}
 }
 
 func (r *automationResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
@@ -389,34 +398,8 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"alert_score_decrease_details": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Details regarding the new score for the selected alerts.",
-				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
-					},
-				},
-			},
-			"alert_score_increase_details": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Details regarding the new score for the selected alerts.",
-				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
-					},
-				},
-			},
+			"alert_score_decrease_details": alertScoreChangeSchemaAttribute("Details regarding decreasing the score for the selected alerts."),
+			"alert_score_increase_details": alertScoreChangeSchemaAttribute("Details regarding increasing the score for the selected alerts."),
 			"alert_score_specify_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding the new score for the selected alerts.",
@@ -435,36 +418,9 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"aws_security_hub_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "AWS Security Hub template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "AWS Security Hub template name.",
-					},
-				},
-			},
-			"aws_security_lake_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "AWS Security Lake template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "AWS Security Lake template name.",
-					},
-				},
-			},
-			"aws_sqs_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "AWS SQS template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "AWS SQS template name.",
-					},
-				},
-			},
+			"aws_security_hub_template":  simpleTemplateSchemaAttribute("AWS Security Hub template to use for the automation."),
+			"aws_security_lake_template": simpleTemplateSchemaAttribute("AWS Security Lake template to use for the automation."),
+			"aws_sqs_template":           simpleTemplateSchemaAttribute("AWS SQS template to use for the automation."),
 			"azure_devops_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Azure DevOps template to use for the automation.",
@@ -484,16 +440,7 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				Description: "Azure Sentinel template to use for the automation.",
 				Attributes:  map[string]schema.Attribute{},
 			},
-			"coralogix_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Coralogix template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Coralogix template name.",
-					},
-				},
-			},
+			"coralogix_template": simpleTemplateSchemaAttribute("Coralogix template to use for the automation."),
 			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Email settings.",
@@ -509,16 +456,7 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"gcp_pub_sub_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "GCP Pub/Sub template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "GCP Pub/Sub template name.",
-					},
-				},
-			},
+			"gcp_pub_sub_template": simpleTemplateSchemaAttribute("GCP Pub/Sub template to use for the automation."),
 			"jira_cloud_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Jira Cloud integration template to use for the automation.",
@@ -547,26 +485,8 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"pager_duty_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Pager Duty template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Pager Duty template name.",
-					},
-				},
-			},
-			"opsgenie_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Opsgenie template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Opsgenie template name.",
-					},
-				},
-			},
+			"pager_duty_template": simpleTemplateSchemaAttribute("Pager Duty template to use for the automation."),
+			"opsgenie_template":   simpleTemplateSchemaAttribute("Opsgenie template to use for the automation."),
 			"slack_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Slack template to use for the automation.",
@@ -586,51 +506,15 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				Description: "Snowflake template to use for the automation.",
 				Attributes:  map[string]schema.Attribute{},
 			},
-			"splunk_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Splunk template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Splunk template name.",
-					},
-				},
-			},
+			"splunk_template": simpleTemplateSchemaAttribute("Splunk template to use for the automation."),
 			"sumo_logic_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Sumo Logic template to use for the automation.",
 				Attributes:  map[string]schema.Attribute{},
 			},
-			"tines_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Tines template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Tines template name.",
-					},
-				},
-			},
-			"torq_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Torq template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Torq template name.",
-					},
-				},
-			},
-			"webhook_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Webhook template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Webhook template name.",
-					},
-				},
-			},
+			"tines_template":   simpleTemplateSchemaAttribute("Tines template to use for the automation."),
+			"torq_template":    simpleTemplateSchemaAttribute("Torq template to use for the automation."),
+			"webhook_template": simpleTemplateSchemaAttribute("Webhook template to use for the automation."),
 		},
 	}
 }
