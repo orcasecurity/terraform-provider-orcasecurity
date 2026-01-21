@@ -565,6 +565,203 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 	return api_client.AutomationQuery{Filter: filterRules}, finalDiags
 }
 
+// Helper function to parse actions from API response and populate the model
+func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationAction, model *automationResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	// Reset all templates to nil before parsing
+	model.AlertDismissalTemplate = nil
+	model.AlertScoreDecreaseTemplate = nil
+	model.AlertScoreIncreaseTemplate = nil
+	model.AlertScoreSpecifyTemplate = nil
+	model.AwsSecurityHubTemplate = nil
+	model.AwsSecurityLakeTemplate = nil
+	model.AwsSqsTemplate = nil
+	model.AzureDevopsTemplate = nil
+	model.AzureSentinelTemplate = nil
+	model.CoralogixTemplate = nil
+	model.EmailTemplate = nil
+	model.GcpPubSubTemplate = nil
+	model.JiraCloudTemplate = nil
+	model.JiraServerTemplate = nil
+	model.OpsgenieTemplate = nil
+	model.PagerDutyTemplate = nil
+	model.SlackTemplate = nil
+	model.SnowflakeTemplate = nil
+	model.SplunkTemplate = nil
+	model.SumoLogicTemplate = nil
+	model.TinesTemplate = nil
+	model.TorqTemplate = nil
+	model.WebhookTemplate = nil
+
+	for _, action := range actions {
+		switch action.Type {
+		case api_client.AutomationAlertDismissalID:
+			model.AlertDismissalTemplate = &automationAlertDismissalTemplateModel{
+				Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
+				Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+			}
+
+		case api_client.AutomationAlertScoreChangeID:
+			// Determine which type of score change based on the payload
+			if _, hasDecrease := action.Data["decrease_orca_score"]; hasDecrease {
+				model.AlertScoreDecreaseTemplate = &automationAlertScoreDecreaseTemplateModel{
+					Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
+					Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+				}
+			} else if _, hasIncrease := action.Data["increase_orca_score"]; hasIncrease {
+				model.AlertScoreIncreaseTemplate = &automationAlertScoreIncreaseTemplateModel{
+					Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
+					Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+				}
+			} else if newScore, hasChange := action.Data["change_orca_score"]; hasChange {
+				scoreFloat := 0.0
+				switch v := newScore.(type) {
+				case float64:
+					scoreFloat = v
+				case int:
+					scoreFloat = float64(v)
+				}
+				model.AlertScoreSpecifyTemplate = &automationAlertScoreSpecifyTemplateModel{
+					NewScore:      types.Float64Value(scoreFloat),
+					Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
+					Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+				}
+			}
+
+		case api_client.AutomationAWSSecurityHubID:
+			model.AwsSecurityHubTemplate = &automationAwsSecurityHubTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationAwsSecurityLakeID:
+			model.AwsSecurityLakeTemplate = &automationAwsSecurityLakeTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationAwsSqsID:
+			model.AwsSqsTemplate = &automationAwsSqsTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationAzureDevopsID:
+			model.AzureDevopsTemplate = &automationAzureDevopsTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+			if parentID := getStringFromMap(action.Data, "parent_id"); parentID != "" {
+				model.AzureDevopsTemplate.ParentIssueID = types.StringValue(parentID)
+			}
+
+		case api_client.AutomationAzureSentinelID:
+			model.AzureSentinelTemplate = &automationAzureSentinelTemplateModel{}
+
+		case api_client.AutomationCoralogixID:
+			model.CoralogixTemplate = &automationCoralogixTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationEmailID:
+			var emails []string
+			if emailData, ok := action.Data["email"]; ok {
+				if emailList, ok := emailData.([]interface{}); ok {
+					for _, e := range emailList {
+						if emailStr, ok := e.(string); ok {
+							emails = append(emails, emailStr)
+						}
+					}
+				}
+			}
+			emailList, emailDiags := types.ListValueFrom(ctx, types.StringType, emails)
+			diags.Append(emailDiags...)
+			multiAlerts := false
+			if ma, ok := action.Data["multi_alerts"]; ok {
+				if maBool, ok := ma.(bool); ok {
+					multiAlerts = maBool
+				}
+			}
+			model.EmailTemplate = &automationEmailTemplateModel{
+				EmailAddresses: emailList,
+				MultiAlerts:    types.BoolValue(multiAlerts),
+			}
+
+		case api_client.AutomationGcpPubSubID:
+			model.GcpPubSubTemplate = &automationGcpPubSubTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationJiraID:
+			model.JiraCloudTemplate = &automationJiraCloudTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+			if parentID := getStringFromMap(action.Data, "parent_id"); parentID != "" {
+				model.JiraCloudTemplate.ParentIssueID = types.StringValue(parentID)
+			}
+
+		case api_client.AutomationJiraServerID:
+			model.JiraServerTemplate = &automationJiraServerTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+			if parentID := getStringFromMap(action.Data, "parent_id"); parentID != "" {
+				model.JiraServerTemplate.ParentIssueID = types.StringValue(parentID)
+			}
+
+		case api_client.AutomationOpsgenieID:
+			model.OpsgenieTemplate = &automationOpsgenieTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationPagerDutyID:
+			model.PagerDutyTemplate = &automationPagerDutyTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationSlackID:
+			model.SlackTemplate = &automationSlackTemplateModel{
+				Workspace: types.StringValue(getStringFromMap(action.Data, "workspace")),
+				Channel:   types.StringValue(getStringFromMap(action.Data, "channel")),
+			}
+
+		case api_client.AutomationSnowflakeID:
+			model.SnowflakeTemplate = &automationSnowflakeTemplateModel{}
+
+		case api_client.AutomationSplunkID:
+			model.SplunkTemplate = &automationSplunkTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationSumoLogicID:
+			model.SumoLogicTemplate = &automationSumoLogicTemplateModel{}
+
+		case api_client.AutomationTinesID:
+			model.TinesTemplate = &automationTinesTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationTorqID:
+			model.TorqTemplate = &automationTorqTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+
+		case api_client.AutomationWebhookID:
+			model.WebhookTemplate = &automationWebhookTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+		}
+	}
+
+	return diags
+}
+
+// Helper to safely get string from map[string]interface{}
+func getStringFromMap(data map[string]interface{}, key string) string {
+	if val, ok := data[key]; ok {
+		if strVal, ok := val.(string); ok {
+			return strVal
+		}
+	}
+	return ""
+}
+
 func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
 	orgID := plan.OrganizationID.ValueString()
@@ -650,7 +847,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 	addTemplateAction(&actions, plan.GcpPubSubTemplate, api_client.AutomationGcpPubSubID, orgID)
 	addTemplateWithParentAction(&actions, plan.JiraCloudTemplate, api_client.AutomationJiraID, orgID)
-	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraServerID, orgID)
 	addTemplateAction(&actions, plan.OpsgenieTemplate, api_client.AutomationOpsgenieID, orgID)
 	addTemplateAction(&actions, plan.PagerDutyTemplate, api_client.AutomationPagerDutyID, orgID)
 
@@ -859,35 +1056,11 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 
 	state.Query = &automationQueryModel{Filter: filterRules}
 
-	// update actions
-	for _, action := range instance.Actions {
-		if action.IsJiraTemplate() {
-			state.JiraCloudTemplate = &automationJiraCloudTemplateModel{
-				Name: types.StringValue(action.Data["template"].(string)),
-			}
-			if action.Data["parent_id"] != nil {
-				state.JiraCloudTemplate.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
-			}
-		}
-
-		if action.IsAzureDevopsTemplate() {
-			state.AzureDevopsTemplate = &automationAzureDevopsTemplateModel{
-				Name: types.StringValue(action.Data["template"].(string)),
-			}
-			if action.Data["parent_id"] != nil {
-				state.AzureDevopsTemplate.ParentIssueID = types.StringValue(action.Data["parent_id"].(string))
-			}
-		}
-
-		if action.IsSumoLogicTemplate() {
-			state.SumoLogicTemplate = &automationSumoLogicTemplateModel{}
-		}
-
-		if action.IsWebhookTemplate() {
-			state.WebhookTemplate = &automationWebhookTemplateModel{
-				Name: types.StringValue(action.Data["template"].(string)),
-			}
-		}
+	// Parse and populate all template/action fields from the API response
+	actionDiags := parseActionsIntoModel(ctx, instance.Actions, &state)
+	resp.Diagnostics.Append(actionDiags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -940,12 +1113,26 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	_, err = r.apiClient.GetAutomation(plan.ID.ValueString())
+	// Fetch the updated resource to get fresh metadata
+	instance, err := r.apiClient.GetAutomation(plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Automation",
 			"Could not read Automation ID: "+plan.ID.ValueString()+": "+err.Error(),
 		)
+		return
+	}
+
+	// Refresh computed metadata fields from the API response
+	plan.CreatorID = types.StringValue(instance.CreatorID)
+	plan.CreatorName = types.StringValue(instance.CreatorName)
+	plan.CreateTime = types.StringValue(instance.CreateTime)
+	plan.UpdateTime = types.StringValue(instance.UpdateTime)
+
+	// Parse and refresh all template/action fields from the API response
+	actionDiags := parseActionsIntoModel(ctx, instance.Actions, &plan)
+	resp.Diagnostics.Append(actionDiags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
