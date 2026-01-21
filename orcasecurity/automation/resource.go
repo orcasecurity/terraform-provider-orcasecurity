@@ -940,7 +940,8 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	_, err = r.apiClient.GetAutomation(plan.ID.ValueString())
+	// Fetch the updated resource to get fresh metadata
+	instance, err := r.apiClient.GetAutomation(plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Automation",
@@ -948,6 +949,12 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 		)
 		return
 	}
+
+	// Refresh computed metadata fields from the API response
+	plan.CreatorID = types.StringValue(instance.CreatorID)
+	plan.CreatorName = types.StringValue(instance.CreatorName)
+	plan.CreateTime = types.StringValue(instance.CreateTime)
+	plan.UpdateTime = types.StringValue(instance.UpdateTime)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
