@@ -566,7 +566,9 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 }
 
 // Helper function to parse actions from API response and populate the model
-func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationAction, model *automationResourceModel) {
+func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationAction, model *automationResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	// Reset all templates to nil before parsing
 	model.AlertDismissalTemplate = nil
 	model.AlertScoreDecreaseTemplate = nil
@@ -669,7 +671,8 @@ func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationA
 					}
 				}
 			}
-			emailList, _ := types.ListValueFrom(ctx, types.StringType, emails)
+			emailList, emailDiags := types.ListValueFrom(ctx, types.StringType, emails)
+			diags.Append(emailDiags...)
 			multiAlerts := false
 			if ma, ok := action.Data["multi_alerts"]; ok {
 				if maBool, ok := ma.(bool); ok {
@@ -745,6 +748,8 @@ func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationA
 			}
 		}
 	}
+
+	return diags
 }
 
 // Helper to safely get string from map[string]interface{}
@@ -1052,7 +1057,11 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Query = &automationQueryModel{Filter: filterRules}
 
 	// Parse and populate all template/action fields from the API response
-	parseActionsIntoModel(ctx, instance.Actions, &state)
+	actionDiags := parseActionsIntoModel(ctx, instance.Actions, &state)
+	resp.Diagnostics.Append(actionDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -1121,7 +1130,11 @@ func (r *automationResource) Update(ctx context.Context, req resource.UpdateRequ
 	plan.UpdateTime = types.StringValue(instance.UpdateTime)
 
 	// Parse and refresh all template/action fields from the API response
-	parseActionsIntoModel(ctx, instance.Actions, &plan)
+	actionDiags := parseActionsIntoModel(ctx, instance.Actions, &plan)
+	resp.Diagnostics.Append(actionDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
