@@ -288,7 +288,11 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 			"creator_id":      computedStringAttribute("ID of the user who created this automation."),
 			"creator_name":    computedStringAttribute("Name of the user who created this automation."),
 			"create_time":     computedStringAttribute("Timestamp when the automation was created."),
-			"update_time":     computedStringAttribute("Timestamp when the automation was last updated."),
+			"update_time": schema.StringAttribute{
+				Computed:    true,
+				Description: "Timestamp when the automation was last updated.",
+				// Note: No UseStateForUnknown() because update_time changes on every update
+			},
 			"name": schema.StringAttribute{
 				Description: "Automation name.",
 				Required:    true,
@@ -598,21 +602,21 @@ func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationA
 		switch action.Type {
 		case api_client.AutomationAlertDismissalID:
 			model.AlertDismissalTemplate = &automationAlertDismissalTemplateModel{
-				Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
-				Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+				Reason:        stringValueOrNull(getStringFromMap(action.Data, "reason")),
+				Justification: stringValueOrNull(getStringFromMap(action.Data, "justification")),
 			}
 
 		case api_client.AutomationAlertScoreChangeID:
 			// Determine which type of score change based on the payload
 			if _, hasDecrease := action.Data["decrease_orca_score"]; hasDecrease {
 				model.AlertScoreDecreaseTemplate = &automationAlertScoreDecreaseTemplateModel{
-					Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
-					Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+					Reason:        stringValueOrNull(getStringFromMap(action.Data, "reason")),
+					Justification: stringValueOrNull(getStringFromMap(action.Data, "justification")),
 				}
 			} else if _, hasIncrease := action.Data["increase_orca_score"]; hasIncrease {
 				model.AlertScoreIncreaseTemplate = &automationAlertScoreIncreaseTemplateModel{
-					Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
-					Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+					Reason:        stringValueOrNull(getStringFromMap(action.Data, "reason")),
+					Justification: stringValueOrNull(getStringFromMap(action.Data, "justification")),
 				}
 			} else if newScore, hasChange := action.Data["change_orca_score"]; hasChange {
 				scoreFloat := 0.0
@@ -624,8 +628,8 @@ func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationA
 				}
 				model.AlertScoreSpecifyTemplate = &automationAlertScoreSpecifyTemplateModel{
 					NewScore:      types.Float64Value(scoreFloat),
-					Reason:        types.StringValue(getStringFromMap(action.Data, "reason")),
-					Justification: types.StringValue(getStringFromMap(action.Data, "justification")),
+					Reason:        stringValueOrNull(getStringFromMap(action.Data, "reason")),
+					Justification: stringValueOrNull(getStringFromMap(action.Data, "justification")),
 				}
 			}
 
@@ -760,6 +764,15 @@ func getStringFromMap(data map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// Helper to return StringNull for empty strings, StringValue otherwise
+// This ensures Terraform state correctly shows null instead of "" for unset optional fields
+func stringValueOrNull(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(s)
 }
 
 func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
