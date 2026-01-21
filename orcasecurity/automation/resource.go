@@ -567,64 +567,66 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 
 func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
-
-	payload := make(map[string]interface{})
+	orgID := plan.OrganizationID.ValueString()
 
 	if plan.AlertDismissalTemplate != nil {
-
+		payload := make(map[string]interface{})
 		payload["reason"] = plan.AlertDismissalTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertDismissalTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertDismissalID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.AlertScoreDecreaseTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["decrease_orca_score"] = 1
 		payload["reason"] = plan.AlertScoreDecreaseTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertScoreDecreaseTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.AlertScoreIncreaseTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["increase_orca_score"] = 1
 		payload["reason"] = plan.AlertScoreIncreaseTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertScoreIncreaseTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.AlertScoreSpecifyTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
 		payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	// Use helper functions for simple templates
-	orgID := plan.OrganizationID.ValueString()
 	addTemplateAction(&actions, plan.AwsSecurityHubTemplate, api_client.AutomationAWSSecurityHubID, orgID)
 	addTemplateAction(&actions, plan.AwsSecurityLakeTemplate, api_client.AutomationAwsSecurityLakeID, orgID)
 	addTemplateAction(&actions, plan.AwsSqsTemplate, api_client.AutomationAwsSqsID, orgID)
 	addTemplateWithParentAction(&actions, plan.AzureDevopsTemplate, api_client.AutomationAzureDevopsID, orgID)
 
 	if plan.AzureSentinelTemplate != nil {
+		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAzureSentinelID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
@@ -632,6 +634,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 	addTemplateAction(&actions, plan.CoralogixTemplate, api_client.AutomationCoralogixID, orgID)
 
 	if plan.EmailTemplate != nil {
+		payload := make(map[string]interface{})
 		var emailAddresses []string
 		_ = plan.EmailTemplate.EmailAddresses.ElementsAs(context.Background(), &emailAddresses, false)
 
@@ -640,7 +643,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationEmailID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
@@ -652,19 +655,21 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 	addTemplateAction(&actions, plan.PagerDutyTemplate, api_client.AutomationPagerDutyID, orgID)
 
 	if plan.SlackTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["workspace"] = plan.SlackTemplate.Workspace.ValueString()
 		payload["channel"] = plan.SlackTemplate.Channel.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSlackID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.SnowflakeTemplate != nil {
+		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSnowflakeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
@@ -672,6 +677,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 	addTemplateAction(&actions, plan.SplunkTemplate, api_client.AutomationSplunkID, orgID)
 
 	if plan.SumoLogicTemplate != nil {
+		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSumoLogicID,
 			OrganizationID: orgID,
