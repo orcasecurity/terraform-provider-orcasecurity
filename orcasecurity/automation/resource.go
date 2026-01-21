@@ -55,15 +55,14 @@ type automationAlertDismissalTemplateModel struct {
 	Justification types.String `tfsdk:"justification"`
 }
 
-type automationAlertScoreDecreaseTemplateModel struct {
+// Common struct for alert score changes with reason and justification
+type automationAlertScoreChangeBaseModel struct {
 	Reason        types.String `tfsdk:"reason"`
 	Justification types.String `tfsdk:"justification"`
 }
 
-type automationAlertScoreIncreaseTemplateModel struct {
-	Reason        types.String `tfsdk:"reason"`
-	Justification types.String `tfsdk:"justification"`
-}
+type automationAlertScoreDecreaseTemplateModel = automationAlertScoreChangeBaseModel
+type automationAlertScoreIncreaseTemplateModel = automationAlertScoreChangeBaseModel
 
 type automationAlertScoreSpecifyTemplateModel struct {
 	NewScore      types.Float64 `tfsdk:"new_score"`
@@ -71,56 +70,39 @@ type automationAlertScoreSpecifyTemplateModel struct {
 	Justification types.String  `tfsdk:"justification"`
 }
 
-type automationAwsSecurityHubTemplateModel struct {
+// Common struct for templates that only have a name
+type automationTemplateBaseModel struct {
 	Name types.String `tfsdk:"template"`
 }
 
-type automationAwsSecurityLakeTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationAwsSecurityHubTemplateModel = automationTemplateBaseModel
+type automationAwsSecurityLakeTemplateModel = automationTemplateBaseModel
+type automationAwsSqsTemplateModel = automationTemplateBaseModel
 
-type automationAwsSqsTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationAzureDevopsTemplateModel struct {
+// Common struct for templates with name and parent issue
+type automationTemplateWithParentModel struct {
 	Name          types.String `tfsdk:"template"`
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
 
+type automationAzureDevopsTemplateModel = automationTemplateWithParentModel
+type automationJiraCloudTemplateModel = automationTemplateWithParentModel
+type automationJiraServerTemplateModel = automationTemplateWithParentModel
+
 type automationAzureSentinelTemplateModel struct {
 }
 
-type automationCoralogixTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationCoralogixTemplateModel = automationTemplateBaseModel
 
 type automationEmailTemplateModel struct {
 	EmailAddresses types.List `tfsdk:"email"`
 	MultiAlerts    types.Bool `tfsdk:"multi_alerts"`
 }
 
-type automationGcpPubSubTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationGcpPubSubTemplateModel = automationTemplateBaseModel
 
-type automationJiraCloudTemplateModel struct {
-	Name          types.String `tfsdk:"template"`
-	ParentIssueID types.String `tfsdk:"parent_issue"`
-}
-
-type automationJiraServerTemplateModel struct {
-	Name          types.String `tfsdk:"template"`
-	ParentIssueID types.String `tfsdk:"parent_issue"`
-}
-
-type automationOpsgenieTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationPagerDutyTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationOpsgenieTemplateModel = automationTemplateBaseModel
+type automationPagerDutyTemplateModel = automationTemplateBaseModel
 
 type automationSlackTemplateModel struct {
 	Channel   types.String `tfsdk:"channel"`
@@ -130,24 +112,14 @@ type automationSlackTemplateModel struct {
 type automationSnowflakeTemplateModel struct {
 }
 
-type automationSplunkTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationSplunkTemplateModel = automationTemplateBaseModel
 
 type automationSumoLogicTemplateModel struct {
 }
 
-type automationTinesTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationTorqTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
-
-type automationWebhookTemplateModel struct {
-	Name types.String `tfsdk:"template"`
-}
+type automationTinesTemplateModel = automationTemplateBaseModel
+type automationTorqTemplateModel = automationTemplateBaseModel
+type automationWebhookTemplateModel = automationTemplateBaseModel
 
 type automationResourceModel struct {
 	ID            types.String          `tfsdk:"id"`
@@ -182,6 +154,12 @@ type automationResourceModel struct {
 	WebhookTemplate            *automationWebhookTemplateModel            `tfsdk:"webhook_template"`
 
 	OrganizationID types.String `tfsdk:"organization_id"`
+
+	// Read-only metadata fields
+	CreatorID   types.String `tfsdk:"creator_id"`
+	CreatorName types.String `tfsdk:"creator_name"`
+	CreateTime  types.String `tfsdk:"create_time"`
+	UpdateTime  types.String `tfsdk:"update_time"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -233,23 +211,84 @@ func (r *automationResource) ImportState(ctx context.Context, req resource.Impor
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// Helper to create computed string attribute with UseStateForUnknown
+func computedStringAttribute(description string) schema.StringAttribute {
+	return schema.StringAttribute{
+		Computed:      true,
+		Description:   description,
+		PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+	}
+}
+
+// Helper to create empty nested attribute (for templates with no config)
+func emptyNestedAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes:  map[string]schema.Attribute{},
+	}
+}
+
+// Helper function to create simple template schema attributes
+func simpleTemplateSchemaAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes: map[string]schema.Attribute{
+			"template": schema.StringAttribute{
+				Required:    true,
+				Description: description + " template name.",
+			},
+		},
+	}
+}
+
+// Helper function to create template schema with parent issue support
+func templateWithParentSchemaAttribute(description, templateDesc string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes: map[string]schema.Attribute{
+			"template": schema.StringAttribute{
+				Required:    true,
+				Description: templateDesc,
+			},
+			"parent_issue": schema.StringAttribute{
+				Optional:    true,
+				Description: "Automatically nest under parent issue.",
+			},
+		},
+	}
+}
+
+// Helper function to create schema for alert score change details
+func alertScoreChangeSchemaAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes: map[string]schema.Attribute{
+			"reason": schema.StringAttribute{
+				Optional:    true,
+				Description: "The reason these alerts are having their score changed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
+			},
+			"justification": schema.StringAttribute{
+				Optional:    true,
+				Description: "More detailed reasoning as to why these alerts are having their score changed.",
+			},
+		},
+	}
+}
+
 func (r *automationResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
 		Description: "Provides an automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Automation ID.",
-			},
-			"organization_id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
+			"id":              computedStringAttribute("Automation ID."),
+			"organization_id": computedStringAttribute("Organization ID."),
+			"creator_id":      computedStringAttribute("ID of the user who created this automation."),
+			"creator_name":    computedStringAttribute("Name of the user who created this automation."),
+			"create_time":     computedStringAttribute("Timestamp when the automation was created."),
+			"update_time":     computedStringAttribute("Timestamp when the automation was last updated."),
 			"name": schema.StringAttribute{
 				Description: "Automation name.",
 				Required:    true,
@@ -354,34 +393,8 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"alert_score_decrease_details": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Details regarding the new score for the selected alerts.",
-				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
-					},
-				},
-			},
-			"alert_score_increase_details": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Details regarding the new score for the selected alerts.",
-				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
-					},
-				},
-			},
+			"alert_score_decrease_details": alertScoreChangeSchemaAttribute("Details regarding decreasing the score for the selected alerts."),
+			"alert_score_increase_details": alertScoreChangeSchemaAttribute("Details regarding increasing the score for the selected alerts."),
 			"alert_score_specify_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding the new score for the selected alerts.",
@@ -400,65 +413,15 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"aws_security_hub_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "AWS Security Hub template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "AWS Security Hub template name.",
-					},
-				},
-			},
-			"aws_security_lake_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "AWS Security Lake template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "AWS Security Lake template name.",
-					},
-				},
-			},
-			"aws_sqs_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "AWS SQS template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "AWS SQS template name.",
-					},
-				},
-			},
-			"azure_devops_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Azure DevOps template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "An ADO work item template to use.",
-					},
-					"parent_issue": schema.StringAttribute{
-						Optional:    true,
-						Description: "Automatically nest under parent issue.",
-					},
-				},
-			},
-			"azure_sentinel_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Azure Sentinel template to use for the automation.",
-				Attributes:  map[string]schema.Attribute{},
-			},
-			"coralogix_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Coralogix template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Coralogix template name.",
-					},
-				},
-			},
+			"aws_security_hub_template":  simpleTemplateSchemaAttribute("AWS Security Hub template to use for the automation."),
+			"aws_security_lake_template": simpleTemplateSchemaAttribute("AWS Security Lake template to use for the automation."),
+			"aws_sqs_template":           simpleTemplateSchemaAttribute("AWS SQS template to use for the automation."),
+			"azure_devops_template": templateWithParentSchemaAttribute(
+				"Azure DevOps template to use for the automation.",
+				"An ADO work item template to use.",
+			),
+			"azure_sentinel_template": emptyNestedAttribute("Azure Sentinel template to use for the automation."),
+			"coralogix_template":      simpleTemplateSchemaAttribute("Coralogix template to use for the automation."),
 			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Email settings.",
@@ -474,64 +437,17 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"gcp_pub_sub_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "GCP Pub/Sub template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "GCP Pub/Sub template name.",
-					},
-				},
-			},
-			"jira_cloud_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Jira Cloud integration template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Name of the Jira Cloud integration template.",
-					},
-					"parent_issue": schema.StringAttribute{
-						Optional:    true,
-						Description: "Automatically nest under this parent issue.",
-					},
-				},
-			},
-			"jira_server_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Jira Server integration template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Name of the Jira Server integration template.",
-					},
-					"parent_issue": schema.StringAttribute{
-						Optional:    true,
-						Description: "Automatically nest under this parent issue.",
-					},
-				},
-			},
-			"pager_duty_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Pager Duty template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Pager Duty template name.",
-					},
-				},
-			},
-			"opsgenie_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Opsgenie template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Opsgenie template name.",
-					},
-				},
-			},
+			"gcp_pub_sub_template": simpleTemplateSchemaAttribute("GCP Pub/Sub template to use for the automation."),
+			"jira_cloud_template": templateWithParentSchemaAttribute(
+				"Jira Cloud integration template to use for the automation.",
+				"Name of the Jira Cloud integration template.",
+			),
+			"jira_server_template": templateWithParentSchemaAttribute(
+				"Jira Server integration template to use for the automation.",
+				"Name of the Jira Server integration template.",
+			),
+			"pager_duty_template": simpleTemplateSchemaAttribute("Pager Duty template to use for the automation."),
+			"opsgenie_template":   simpleTemplateSchemaAttribute("Opsgenie template to use for the automation."),
 			"slack_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Slack template to use for the automation.",
@@ -546,57 +462,40 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"snowflake_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Snowflake template to use for the automation.",
-				Attributes:  map[string]schema.Attribute{},
-			},
-			"splunk_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Splunk template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Splunk template name.",
-					},
-				},
-			},
-			"sumo_logic_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Sumo Logic template to use for the automation.",
-				Attributes:  map[string]schema.Attribute{},
-			},
-			"tines_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Tines template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Tines template name.",
-					},
-				},
-			},
-			"torq_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Torq template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Torq template name.",
-					},
-				},
-			},
-			"webhook_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Webhook template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Webhook template name.",
-					},
-				},
-			},
+			"snowflake_template":  emptyNestedAttribute("Snowflake template to use for the automation."),
+			"splunk_template":     simpleTemplateSchemaAttribute("Splunk template to use for the automation."),
+			"sumo_logic_template": emptyNestedAttribute("Sumo Logic template to use for the automation."),
+			"tines_template":      simpleTemplateSchemaAttribute("Tines template to use for the automation."),
+			"torq_template":       simpleTemplateSchemaAttribute("Torq template to use for the automation."),
+			"webhook_template":    simpleTemplateSchemaAttribute("Webhook template to use for the automation."),
 		},
+	}
+}
+
+// Helper to add a simple template action
+func addTemplateAction(actions *[]api_client.AutomationAction, template *automationTemplateBaseModel, actionType int32, orgID string) {
+	if template != nil {
+		payload := map[string]interface{}{"template": template.Name.ValueString()}
+		*actions = append(*actions, api_client.AutomationAction{
+			Type:           actionType,
+			OrganizationID: orgID,
+			Data:           payload,
+		})
+	}
+}
+
+// Helper to add a template action with parent issue support
+func addTemplateWithParentAction(actions *[]api_client.AutomationAction, template *automationTemplateWithParentModel, actionType int32, orgID string) {
+	if template != nil && !template.Name.IsNull() {
+		payload := map[string]interface{}{"template": template.Name.ValueString()}
+		if !template.ParentIssueID.IsNull() {
+			payload["parent_id"] = template.ParentIssueID.ValueString()
+		}
+		*actions = append(*actions, api_client.AutomationAction{
+			Type:           actionType,
+			OrganizationID: orgID,
+			Data:           payload,
+		})
 	}
 }
 
@@ -668,122 +567,74 @@ func generateFilterRules(ctx context.Context, plan *automationQueryModel) (api_c
 
 func generateActions(plan *automationResourceModel) []api_client.AutomationAction {
 	var actions []api_client.AutomationAction
-
-	payload := make(map[string]interface{})
+	orgID := plan.OrganizationID.ValueString()
 
 	if plan.AlertDismissalTemplate != nil {
-
+		payload := make(map[string]interface{})
 		payload["reason"] = plan.AlertDismissalTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertDismissalTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertDismissalID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.AlertScoreDecreaseTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["decrease_orca_score"] = 1
 		payload["reason"] = plan.AlertScoreDecreaseTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertScoreDecreaseTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.AlertScoreIncreaseTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["increase_orca_score"] = 1
 		payload["reason"] = plan.AlertScoreIncreaseTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertScoreIncreaseTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.AlertScoreSpecifyTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
 		payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
 		payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
-	if plan.AlertScoreSpecifyTemplate != nil {
-		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
-		payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
-		payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AwsSecurityHubTemplate != nil {
-		payload["template"] = plan.AwsSecurityHubTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAWSSecurityHubID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AwsSecurityLakeTemplate != nil {
-		payload["template"] = plan.AwsSecurityLakeTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAwsSecurityLakeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AwsSqsTemplate != nil {
-		payload["template"] = plan.AwsSqsTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAwsSqsID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AzureDevopsTemplate != nil && !plan.AzureDevopsTemplate.Name.IsNull() {
-		payload["template"] = plan.AzureDevopsTemplate.Name.ValueString()
-		if !plan.AzureDevopsTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.AzureDevopsTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAzureDevopsID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	// Use helper functions for simple templates
+	addTemplateAction(&actions, plan.AwsSecurityHubTemplate, api_client.AutomationAWSSecurityHubID, orgID)
+	addTemplateAction(&actions, plan.AwsSecurityLakeTemplate, api_client.AutomationAwsSecurityLakeID, orgID)
+	addTemplateAction(&actions, plan.AwsSqsTemplate, api_client.AutomationAwsSqsID, orgID)
+	addTemplateWithParentAction(&actions, plan.AzureDevopsTemplate, api_client.AutomationAzureDevopsID, orgID)
 
 	if plan.AzureSentinelTemplate != nil {
+		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationAzureSentinelID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
-	if plan.CoralogixTemplate != nil {
-		payload["template"] = plan.CoralogixTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationCoralogixID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.CoralogixTemplate, api_client.AutomationCoralogixID, orgID)
 
 	if plan.EmailTemplate != nil {
+		payload := make(map[string]interface{})
 		var emailAddresses []string
 		_ = plan.EmailTemplate.EmailAddresses.ElementsAs(context.Background(), &emailAddresses, false)
 
@@ -792,125 +643,51 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationEmailID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
-	if plan.GcpPubSubTemplate != nil {
-		payload["template"] = plan.GcpPubSubTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationGcpPubSubID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.JiraCloudTemplate != nil && !plan.JiraCloudTemplate.Name.IsNull() {
-		payload["template"] = plan.JiraCloudTemplate.Name.ValueString()
-		if !plan.JiraCloudTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraCloudTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationJiraID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.JiraServerTemplate != nil && !plan.JiraServerTemplate.Name.IsNull() {
-		payload["template"] = plan.JiraServerTemplate.Name.ValueString()
-		if !plan.JiraServerTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraServerTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationJiraID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.OpsgenieTemplate != nil {
-		payload["template"] = plan.OpsgenieTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationOpsgenieID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.PagerDutyTemplate != nil {
-		payload["template"] = plan.PagerDutyTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationPagerDutyID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.GcpPubSubTemplate, api_client.AutomationGcpPubSubID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraCloudTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateAction(&actions, plan.OpsgenieTemplate, api_client.AutomationOpsgenieID, orgID)
+	addTemplateAction(&actions, plan.PagerDutyTemplate, api_client.AutomationPagerDutyID, orgID)
 
 	if plan.SlackTemplate != nil {
+		payload := make(map[string]interface{})
 		payload["workspace"] = plan.SlackTemplate.Workspace.ValueString()
 		payload["channel"] = plan.SlackTemplate.Channel.ValueString()
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSlackID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
 	if plan.SnowflakeTemplate != nil {
+		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSnowflakeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
-	if plan.SplunkTemplate != nil {
-		payload["template"] = plan.SplunkTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationSplunkID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.SplunkTemplate, api_client.AutomationSplunkID, orgID)
 
 	if plan.SumoLogicTemplate != nil {
+		payload := make(map[string]interface{})
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSumoLogicID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
-	if plan.TinesTemplate != nil {
-		payload["template"] = plan.TinesTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationTinesID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.TorqTemplate != nil {
-		payload["template"] = plan.TorqTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationTorqID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.WebhookTemplate != nil {
-		payload["template"] = plan.WebhookTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationWebhookID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.TinesTemplate, api_client.AutomationTinesID, orgID)
+	addTemplateAction(&actions, plan.TorqTemplate, api_client.AutomationTorqID, orgID)
+	addTemplateAction(&actions, plan.WebhookTemplate, api_client.AutomationWebhookID, orgID)
 
 	return actions
 }
@@ -950,6 +727,12 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
+
+	// Set read-only metadata fields from create response
+	plan.CreatorID = types.StringValue(instance.CreatorID)
+	plan.CreatorName = types.StringValue(instance.CreatorName)
+	plan.CreateTime = types.StringValue(instance.CreateTime)
+	plan.UpdateTime = types.StringValue(instance.UpdateTime)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -993,6 +776,12 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Name = types.StringValue(instance.Name)
 	state.Description = types.StringValue(instance.Description)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
+
+	// Set read-only metadata fields
+	state.CreatorID = types.StringValue(instance.CreatorID)
+	state.CreatorName = types.StringValue(instance.CreatorName)
+	state.CreateTime = types.StringValue(instance.CreateTime)
+	state.UpdateTime = types.StringValue(instance.UpdateTime)
 
 	// update query filters
 	var filterRules []automationQueryRuleModel
