@@ -211,6 +211,24 @@ func (r *automationResource) ImportState(ctx context.Context, req resource.Impor
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// Helper to create computed string attribute with UseStateForUnknown
+func computedStringAttribute(description string) schema.StringAttribute {
+	return schema.StringAttribute{
+		Computed:      true,
+		Description:   description,
+		PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+	}
+}
+
+// Helper to create empty nested attribute (for templates with no config)
+func emptyNestedAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes:  map[string]schema.Attribute{},
+	}
+}
+
 // Helper function to create simple template schema attributes
 func simpleTemplateSchemaAttribute(description string) schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
@@ -265,48 +283,12 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 	res.Schema = schema.Schema{
 		Description: "Provides an automation. You can read more about automations [here](https://docs.orcasecurity.io/docs/automations).",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Automation ID.",
-			},
-			"organization_id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Organization ID.",
-			},
-			"creator_id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "ID of the user who created this automation.",
-			},
-			"creator_name": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Name of the user who created this automation.",
-			},
-			"create_time": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Timestamp when the automation was created.",
-			},
-			"update_time": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Timestamp when the automation was last updated.",
-			},
+			"id":              computedStringAttribute("Automation ID."),
+			"organization_id": computedStringAttribute("Organization ID."),
+			"creator_id":      computedStringAttribute("ID of the user who created this automation."),
+			"creator_name":    computedStringAttribute("Name of the user who created this automation."),
+			"create_time":     computedStringAttribute("Timestamp when the automation was created."),
+			"update_time":     computedStringAttribute("Timestamp when the automation was last updated."),
 			"name": schema.StringAttribute{
 				Description: "Automation name.",
 				Required:    true,
@@ -438,12 +420,8 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				"Azure DevOps template to use for the automation.",
 				"An ADO work item template to use.",
 			),
-			"azure_sentinel_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Azure Sentinel template to use for the automation.",
-				Attributes:  map[string]schema.Attribute{},
-			},
-			"coralogix_template": simpleTemplateSchemaAttribute("Coralogix template to use for the automation."),
+			"azure_sentinel_template": emptyNestedAttribute("Azure Sentinel template to use for the automation."),
+			"coralogix_template":      simpleTemplateSchemaAttribute("Coralogix template to use for the automation."),
 			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Email settings.",
@@ -484,20 +462,12 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 					},
 				},
 			},
-			"snowflake_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Snowflake template to use for the automation.",
-				Attributes:  map[string]schema.Attribute{},
-			},
-			"splunk_template": simpleTemplateSchemaAttribute("Splunk template to use for the automation."),
-			"sumo_logic_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Sumo Logic template to use for the automation.",
-				Attributes:  map[string]schema.Attribute{},
-			},
-			"tines_template":   simpleTemplateSchemaAttribute("Tines template to use for the automation."),
-			"torq_template":    simpleTemplateSchemaAttribute("Torq template to use for the automation."),
-			"webhook_template": simpleTemplateSchemaAttribute("Webhook template to use for the automation."),
+			"snowflake_template":  emptyNestedAttribute("Snowflake template to use for the automation."),
+			"splunk_template":     simpleTemplateSchemaAttribute("Splunk template to use for the automation."),
+			"sumo_logic_template": emptyNestedAttribute("Sumo Logic template to use for the automation."),
+			"tines_template":      simpleTemplateSchemaAttribute("Tines template to use for the automation."),
+			"torq_template":       simpleTemplateSchemaAttribute("Torq template to use for the automation."),
+			"webhook_template":    simpleTemplateSchemaAttribute("Webhook template to use for the automation."),
 		},
 	}
 }
