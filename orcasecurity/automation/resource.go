@@ -79,10 +79,15 @@ type automationAwsSecurityHubTemplateModel = automationTemplateBaseModel
 type automationAwsSecurityLakeTemplateModel = automationTemplateBaseModel
 type automationAwsSqsTemplateModel = automationTemplateBaseModel
 
-type automationAzureDevopsTemplateModel struct {
+// Common struct for templates with name and parent issue
+type automationTemplateWithParentModel struct {
 	Name          types.String `tfsdk:"template"`
 	ParentIssueID types.String `tfsdk:"parent_issue"`
 }
+
+type automationAzureDevopsTemplateModel = automationTemplateWithParentModel
+type automationJiraCloudTemplateModel = automationTemplateWithParentModel
+type automationJiraServerTemplateModel = automationTemplateWithParentModel
 
 type automationAzureSentinelTemplateModel struct {
 }
@@ -95,16 +100,6 @@ type automationEmailTemplateModel struct {
 }
 
 type automationGcpPubSubTemplateModel = automationTemplateBaseModel
-
-type automationJiraCloudTemplateModel struct {
-	Name          types.String `tfsdk:"template"`
-	ParentIssueID types.String `tfsdk:"parent_issue"`
-}
-
-type automationJiraServerTemplateModel struct {
-	Name          types.String `tfsdk:"template"`
-	ParentIssueID types.String `tfsdk:"parent_issue"`
-}
 
 type automationOpsgenieTemplateModel = automationTemplateBaseModel
 type automationPagerDutyTemplateModel = automationTemplateBaseModel
@@ -225,6 +220,24 @@ func simpleTemplateSchemaAttribute(description string) schema.SingleNestedAttrib
 			"template": schema.StringAttribute{
 				Required:    true,
 				Description: description + " template name.",
+			},
+		},
+	}
+}
+
+// Helper function to create template schema with parent issue support
+func templateWithParentSchemaAttribute(description, templateDesc string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:    true,
+		Description: description,
+		Attributes: map[string]schema.Attribute{
+			"template": schema.StringAttribute{
+				Required:    true,
+				Description: templateDesc,
+			},
+			"parent_issue": schema.StringAttribute{
+				Optional:    true,
+				Description: "Automatically nest under parent issue.",
 			},
 		},
 	}
@@ -421,20 +434,10 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 			"aws_security_hub_template":  simpleTemplateSchemaAttribute("AWS Security Hub template to use for the automation."),
 			"aws_security_lake_template": simpleTemplateSchemaAttribute("AWS Security Lake template to use for the automation."),
 			"aws_sqs_template":           simpleTemplateSchemaAttribute("AWS SQS template to use for the automation."),
-			"azure_devops_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Azure DevOps template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "An ADO work item template to use.",
-					},
-					"parent_issue": schema.StringAttribute{
-						Optional:    true,
-						Description: "Automatically nest under parent issue.",
-					},
-				},
-			},
+			"azure_devops_template": templateWithParentSchemaAttribute(
+				"Azure DevOps template to use for the automation.",
+				"An ADO work item template to use.",
+			),
 			"azure_sentinel_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Azure Sentinel template to use for the automation.",
@@ -457,34 +460,14 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				},
 			},
 			"gcp_pub_sub_template": simpleTemplateSchemaAttribute("GCP Pub/Sub template to use for the automation."),
-			"jira_cloud_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Jira Cloud integration template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Name of the Jira Cloud integration template.",
-					},
-					"parent_issue": schema.StringAttribute{
-						Optional:    true,
-						Description: "Automatically nest under this parent issue.",
-					},
-				},
-			},
-			"jira_server_template": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Jira Server integration template to use for the automation.",
-				Attributes: map[string]schema.Attribute{
-					"template": schema.StringAttribute{
-						Required:    true,
-						Description: "Name of the Jira Server integration template.",
-					},
-					"parent_issue": schema.StringAttribute{
-						Optional:    true,
-						Description: "Automatically nest under this parent issue.",
-					},
-				},
-			},
+			"jira_cloud_template": templateWithParentSchemaAttribute(
+				"Jira Cloud integration template to use for the automation.",
+				"Name of the Jira Cloud integration template.",
+			),
+			"jira_server_template": templateWithParentSchemaAttribute(
+				"Jira Server integration template to use for the automation.",
+				"Name of the Jira Server integration template.",
+			),
 			"pager_duty_template": simpleTemplateSchemaAttribute("Pager Duty template to use for the automation."),
 			"opsgenie_template":   simpleTemplateSchemaAttribute("Opsgenie template to use for the automation."),
 			"slack_template": schema.SingleNestedAttribute{
@@ -516,6 +499,33 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 			"torq_template":    simpleTemplateSchemaAttribute("Torq template to use for the automation."),
 			"webhook_template": simpleTemplateSchemaAttribute("Webhook template to use for the automation."),
 		},
+	}
+}
+
+// Helper to add a simple template action
+func addTemplateAction(actions *[]api_client.AutomationAction, template *automationTemplateBaseModel, actionType int32, orgID string) {
+	if template != nil {
+		payload := map[string]interface{}{"template": template.Name.ValueString()}
+		*actions = append(*actions, api_client.AutomationAction{
+			Type:           actionType,
+			OrganizationID: orgID,
+			Data:           payload,
+		})
+	}
+}
+
+// Helper to add a template action with parent issue support
+func addTemplateWithParentAction(actions *[]api_client.AutomationAction, template *automationTemplateWithParentModel, actionType int32, orgID string) {
+	if template != nil && !template.Name.IsNull() {
+		payload := map[string]interface{}{"template": template.Name.ValueString()}
+		if !template.ParentIssueID.IsNull() {
+			payload["parent_id"] = template.ParentIssueID.ValueString()
+		}
+		*actions = append(*actions, api_client.AutomationAction{
+			Type:           actionType,
+			OrganizationID: orgID,
+			Data:           payload,
+		})
 	}
 }
 
@@ -634,56 +644,12 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 		})
 	}
 
-	if plan.AlertScoreSpecifyTemplate != nil {
-		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
-		payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
-		payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAlertScoreChangeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AwsSecurityHubTemplate != nil {
-		payload["template"] = plan.AwsSecurityHubTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAWSSecurityHubID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AwsSecurityLakeTemplate != nil {
-		payload["template"] = plan.AwsSecurityLakeTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAwsSecurityLakeID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AwsSqsTemplate != nil {
-		payload["template"] = plan.AwsSqsTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAwsSqsID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.AzureDevopsTemplate != nil && !plan.AzureDevopsTemplate.Name.IsNull() {
-		payload["template"] = plan.AzureDevopsTemplate.Name.ValueString()
-		if !plan.AzureDevopsTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.AzureDevopsTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationAzureDevopsID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	// Use helper functions for simple templates
+	orgID := plan.OrganizationID.ValueString()
+	addTemplateAction(&actions, plan.AwsSecurityHubTemplate, api_client.AutomationAWSSecurityHubID, orgID)
+	addTemplateAction(&actions, plan.AwsSecurityLakeTemplate, api_client.AutomationAwsSecurityLakeID, orgID)
+	addTemplateAction(&actions, plan.AwsSqsTemplate, api_client.AutomationAwsSqsID, orgID)
+	addTemplateWithParentAction(&actions, plan.AzureDevopsTemplate, api_client.AutomationAzureDevopsID, orgID)
 
 	if plan.AzureSentinelTemplate != nil {
 		actions = append(actions, api_client.AutomationAction{
@@ -693,14 +659,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 		})
 	}
 
-	if plan.CoralogixTemplate != nil {
-		payload["template"] = plan.CoralogixTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationCoralogixID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.CoralogixTemplate, api_client.AutomationCoralogixID, orgID)
 
 	if plan.EmailTemplate != nil {
 		var emailAddresses []string
@@ -716,58 +675,11 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 		})
 	}
 
-	if plan.GcpPubSubTemplate != nil {
-		payload["template"] = plan.GcpPubSubTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationGcpPubSubID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.JiraCloudTemplate != nil && !plan.JiraCloudTemplate.Name.IsNull() {
-		payload["template"] = plan.JiraCloudTemplate.Name.ValueString()
-		if !plan.JiraCloudTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraCloudTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationJiraID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.JiraServerTemplate != nil && !plan.JiraServerTemplate.Name.IsNull() {
-		payload["template"] = plan.JiraServerTemplate.Name.ValueString()
-		if !plan.JiraServerTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraServerTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationJiraID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.OpsgenieTemplate != nil {
-		payload["template"] = plan.OpsgenieTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationOpsgenieID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.PagerDutyTemplate != nil {
-		payload["template"] = plan.PagerDutyTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationPagerDutyID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.GcpPubSubTemplate, api_client.AutomationGcpPubSubID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraCloudTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateAction(&actions, plan.OpsgenieTemplate, api_client.AutomationOpsgenieID, orgID)
+	addTemplateAction(&actions, plan.PagerDutyTemplate, api_client.AutomationPagerDutyID, orgID)
 
 	if plan.SlackTemplate != nil {
 		payload["workspace"] = plan.SlackTemplate.Workspace.ValueString()
@@ -787,49 +699,19 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 		})
 	}
 
-	if plan.SplunkTemplate != nil {
-		payload["template"] = plan.SplunkTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationSplunkID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.SplunkTemplate, api_client.AutomationSplunkID, orgID)
 
 	if plan.SumoLogicTemplate != nil {
 		actions = append(actions, api_client.AutomationAction{
 			Type:           api_client.AutomationSumoLogicID,
-			OrganizationID: plan.OrganizationID.ValueString(),
+			OrganizationID: orgID,
 			Data:           payload,
 		})
 	}
 
-	if plan.TinesTemplate != nil {
-		payload["template"] = plan.TinesTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationTinesID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.TorqTemplate != nil {
-		payload["template"] = plan.TorqTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationTorqID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
-
-	if plan.WebhookTemplate != nil {
-		payload["template"] = plan.WebhookTemplate.Name.ValueString()
-		actions = append(actions, api_client.AutomationAction{
-			Type:           api_client.AutomationWebhookID,
-			OrganizationID: plan.OrganizationID.ValueString(),
-			Data:           payload,
-		})
-	}
+	addTemplateAction(&actions, plan.TinesTemplate, api_client.AutomationTinesID, orgID)
+	addTemplateAction(&actions, plan.TorqTemplate, api_client.AutomationTorqID, orgID)
+	addTemplateAction(&actions, plan.WebhookTemplate, api_client.AutomationWebhookID, orgID)
 
 	return actions
 }
