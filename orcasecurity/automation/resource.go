@@ -694,6 +694,14 @@ func parseActionsIntoModel(ctx context.Context, actions []api_client.AutomationA
 				model.JiraCloudTemplate.ParentIssueID = types.StringValue(parentID)
 			}
 
+		case api_client.AutomationJiraServerID:
+			model.JiraServerTemplate = &automationJiraServerTemplateModel{
+				Name: types.StringValue(getStringFromMap(action.Data, "template")),
+			}
+			if parentID := getStringFromMap(action.Data, "parent_id"); parentID != "" {
+				model.JiraServerTemplate.ParentIssueID = types.StringValue(parentID)
+			}
+
 		case api_client.AutomationOpsgenieID:
 			model.OpsgenieTemplate = &automationOpsgenieTemplateModel{
 				Name: types.StringValue(getStringFromMap(action.Data, "template")),
@@ -834,7 +842,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 	addTemplateAction(&actions, plan.GcpPubSubTemplate, api_client.AutomationGcpPubSubID, orgID)
 	addTemplateWithParentAction(&actions, plan.JiraCloudTemplate, api_client.AutomationJiraID, orgID)
-	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraServerID, orgID)
 	addTemplateAction(&actions, plan.OpsgenieTemplate, api_client.AutomationOpsgenieID, orgID)
 	addTemplateAction(&actions, plan.PagerDutyTemplate, api_client.AutomationPagerDutyID, orgID)
 
