@@ -48,38 +48,23 @@ func TestAutomations_DoesAutomationExistFalse(t *testing.T) {
 
 }
 
-// TestFlexibleString_UnmarshalNumber tests that FlexibleString can unmarshal from a JSON number
-func TestFlexibleString_UnmarshalNumber(t *testing.T) {
+// TestFlexibleString_Unmarshal tests that FlexibleString can unmarshal from both JSON numbers and strings
+func TestFlexibleString_Unmarshal(t *testing.T) {
 	tests := []struct {
 		name     string
 		json     string
 		expected string
 	}{
-		{
-			name:     "integer number",
-			json:     `{"value": 6}`,
-			expected: "6",
-		},
-		{
-			name:     "float number",
-			json:     `{"value": 6.5}`,
-			expected: "6.5",
-		},
-		{
-			name:     "zero",
-			json:     `{"value": 0}`,
-			expected: "0",
-		},
-		{
-			name:     "negative integer",
-			json:     `{"value": -10}`,
-			expected: "-10",
-		},
-		{
-			name:     "negative float",
-			json:     `{"value": -3.14}`,
-			expected: "-3.14",
-		},
+		// Number types
+		{name: "integer number", json: `{"value": 6}`, expected: "6"},
+		{name: "float number", json: `{"value": 6.5}`, expected: "6.5"},
+		{name: "zero", json: `{"value": 0}`, expected: "0"},
+		{name: "negative integer", json: `{"value": -10}`, expected: "-10"},
+		{name: "negative float", json: `{"value": -3.14}`, expected: "-3.14"},
+		// String types
+		{name: "numeric string", json: `{"value": "6"}`, expected: "6"},
+		{name: "text string", json: `{"value": "hello"}`, expected: "hello"},
+		{name: "empty string", json: `{"value": ""}`, expected: ""},
 	}
 
 	for _, tt := range tests {
@@ -87,54 +72,11 @@ func TestFlexibleString_UnmarshalNumber(t *testing.T) {
 			var result struct {
 				Value api_client.FlexibleString `json:"value"`
 			}
-			err := json.Unmarshal([]byte(tt.json), &result)
-			if err != nil {
-				t.Errorf("Unmarshal failed: %v", err)
-				return
+			if err := json.Unmarshal([]byte(tt.json), &result); err != nil {
+				t.Fatalf("Unmarshal failed: %v", err)
 			}
-			if result.Value.String() != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result.Value.String())
-			}
-		})
-	}
-}
-
-// TestFlexibleString_UnmarshalString tests that FlexibleString can unmarshal from a JSON string
-func TestFlexibleString_UnmarshalString(t *testing.T) {
-	tests := []struct {
-		name     string
-		json     string
-		expected string
-	}{
-		{
-			name:     "numeric string",
-			json:     `{"value": "6"}`,
-			expected: "6",
-		},
-		{
-			name:     "text string",
-			json:     `{"value": "hello"}`,
-			expected: "hello",
-		},
-		{
-			name:     "empty string",
-			json:     `{"value": ""}`,
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var result struct {
-				Value api_client.FlexibleString `json:"value"`
-			}
-			err := json.Unmarshal([]byte(tt.json), &result)
-			if err != nil {
-				t.Errorf("Unmarshal failed: %v", err)
-				return
-			}
-			if result.Value.String() != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result.Value.String())
+			if got := result.Value.String(); got != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, got)
 			}
 		})
 	}
@@ -147,129 +89,138 @@ func TestFlexibleString_Marshal(t *testing.T) {
 		value    api_client.FlexibleString
 		expected string
 	}{
-		{
-			name:     "numeric value",
-			value:    api_client.FlexibleString("6"),
-			expected: `{"value":"6"}`,
-		},
-		{
-			name:     "text value",
-			value:    api_client.FlexibleString("hello"),
-			expected: `{"value":"hello"}`,
-		},
+		{name: "numeric value", value: api_client.FlexibleString("6"), expected: `{"value":"6"}`},
+		{name: "text value", value: api_client.FlexibleString("hello"), expected: `{"value":"hello"}`},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := struct {
 				Value api_client.FlexibleString `json:"value"`
-			}{
-				Value: tt.value,
-			}
+			}{Value: tt.value}
+
 			result, err := json.Marshal(data)
 			if err != nil {
-				t.Errorf("Marshal failed: %v", err)
-				return
+				t.Fatalf("Marshal failed: %v", err)
 			}
-			if string(result) != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, string(result))
+			if got := string(result); got != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, got)
 			}
 		})
 	}
 }
 
-// TestAutomationRange_UnmarshalWithNumbers tests the full automation range unmarshaling with numbers
-func TestAutomationRange_UnmarshalWithNumbers(t *testing.T) {
-	jsonData := `{
-		"data": {
-			"dsl_filter": {
-				"filter": [
-					{
-						"field": "state.orca_score",
-						"range": {
-							"gt": 6,
-							"lte": 10
-						}
-					}
-				]
-			}
-		}
-	}`
+// TestAutomationRange_Unmarshal tests automation range unmarshaling with both numbers and strings
+func TestAutomationRange_Unmarshal(t *testing.T) {
+	type rangeAssertion struct {
+		field    string // gt, gte, lt, lte, eq
+		expected string
+	}
 
-	type Response struct {
+	tests := []struct {
+		name       string
+		jsonData   string
+		assertions []rangeAssertion
+	}{
+		{
+			name: "with numbers",
+			jsonData: `{
+				"data": {
+					"dsl_filter": {
+						"filter": [{
+							"field": "state.orca_score",
+							"range": {"gt": 6, "lte": 10}
+						}]
+					}
+				}
+			}`,
+			assertions: []rangeAssertion{
+				{field: "gt", expected: "6"},
+				{field: "lte", expected: "10"},
+			},
+		},
+		{
+			name: "with strings",
+			jsonData: `{
+				"data": {
+					"dsl_filter": {
+						"filter": [{
+							"field": "state.orca_score",
+							"range": {"gte": "5", "lt": "8"}
+						}]
+					}
+				}
+			}`,
+			assertions: []rangeAssertion{
+				{field: "gte", expected: "5"},
+				{field: "lt", expected: "8"},
+			},
+		},
+		{
+			name: "with mixed types",
+			jsonData: `{
+				"data": {
+					"dsl_filter": {
+						"filter": [{
+							"field": "state.orca_score",
+							"range": {"gte": 1, "lt": "100"}
+						}]
+					}
+				}
+			}`,
+			assertions: []rangeAssertion{
+				{field: "gte", expected: "1"},
+				{field: "lt", expected: "100"},
+			},
+		},
+	}
+
+	type response struct {
 		Data struct {
 			DslFilter api_client.AutomationQuery `json:"dsl_filter"`
 		} `json:"data"`
 	}
 
-	var response Response
-	err := json.Unmarshal([]byte(jsonData), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
-
-	if len(response.Data.DslFilter.Filter) != 1 {
-		t.Errorf("Expected 1 filter, got %d", len(response.Data.DslFilter.Filter))
-	}
-
-	filter := response.Data.DslFilter.Filter[0]
-	if filter.Range == nil {
-		t.Fatal("Expected range to be set")
-	}
-
-	if filter.Range.Gt == nil || filter.Range.Gt.String() != "6" {
-		t.Errorf("Expected gt to be '6', got %v", filter.Range.Gt)
-	}
-
-	if filter.Range.Lte == nil || filter.Range.Lte.String() != "10" {
-		t.Errorf("Expected lte to be '10', got %v", filter.Range.Lte)
-	}
-}
-
-// TestAutomationRange_UnmarshalWithStrings tests the full automation range unmarshaling with strings
-func TestAutomationRange_UnmarshalWithStrings(t *testing.T) {
-	jsonData := `{
-		"data": {
-			"dsl_filter": {
-				"filter": [
-					{
-						"field": "state.orca_score",
-						"range": {
-							"gte": "5",
-							"lt": "8"
-						}
-					}
-				]
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var resp response
+			if err := json.Unmarshal([]byte(tt.jsonData), &resp); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
 			}
-		}
-	}`
 
-	type Response struct {
-		Data struct {
-			DslFilter api_client.AutomationQuery `json:"dsl_filter"`
-		} `json:"data"`
-	}
+			if len(resp.Data.DslFilter.Filter) != 1 {
+				t.Fatalf("Expected 1 filter, got %d", len(resp.Data.DslFilter.Filter))
+			}
 
-	var response Response
-	err := json.Unmarshal([]byte(jsonData), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+			filter := resp.Data.DslFilter.Filter[0]
+			if filter.Range == nil {
+				t.Fatal("Expected range to be set")
+			}
 
-	if len(response.Data.DslFilter.Filter) != 1 {
-		t.Errorf("Expected 1 filter, got %d", len(response.Data.DslFilter.Filter))
-	}
+			// Assert each specified range field
+			for _, assertion := range tt.assertions {
+				var actual *api_client.FlexibleString
+				switch assertion.field {
+				case "gt":
+					actual = filter.Range.Gt
+				case "gte":
+					actual = filter.Range.Gte
+				case "lt":
+					actual = filter.Range.Lt
+				case "lte":
+					actual = filter.Range.Lte
+				case "eq":
+					actual = filter.Range.Eq
+				default:
+					t.Fatalf("Unknown field: %s", assertion.field)
+				}
 
-	filter := response.Data.DslFilter.Filter[0]
-	if filter.Range == nil {
-		t.Fatal("Expected range to be set")
-	}
-
-	if filter.Range.Gte == nil || filter.Range.Gte.String() != "5" {
-		t.Errorf("Expected gte to be '5', got %v", filter.Range.Gte)
-	}
-
-	if filter.Range.Lt == nil || filter.Range.Lt.String() != "8" {
-		t.Errorf("Expected lt to be '8', got %v", filter.Range.Lt)
+				if actual == nil {
+					t.Errorf("Expected %s to be set, but it was nil", assertion.field)
+				} else if actual.String() != assertion.expected {
+					t.Errorf("Expected %s to be %q, got %q", assertion.field, assertion.expected, actual.String())
+				}
+			}
+		})
 	}
 }
