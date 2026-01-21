@@ -282,8 +282,8 @@ resource "orcasecurity_automation" "exclude_prefix_example" {
 ### Optional
 
 - `alert_dismissal_details` (Attributes) Details regarding dismissed alerts. (see [below for nested schema](#nestedatt--alert_dismissal_details))
-- `alert_score_decrease_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
-- `alert_score_increase_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
+- `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
+- `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding the new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
 - `aws_security_hub_template` (Attributes) AWS Security Hub template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_hub_template))
 - `aws_security_lake_template` (Attributes) AWS Security Lake template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_lake_template))
@@ -309,8 +309,12 @@ resource "orcasecurity_automation" "exclude_prefix_example" {
 
 ### Read-Only
 
+- `create_time` (String) Timestamp when the automation was created.
+- `creator_id` (String) ID of the user who created this automation.
+- `creator_name` (String) Name of the user who created this automation.
 - `id` (String) Automation ID.
-- `organization_id` (String)
+- `organization_id` (String) Organization ID.
+- `update_time` (String) Timestamp when the automation was last updated.
 
 <a id="nestedatt--query"></a>
 ### Nested Schema for `query`
@@ -363,7 +367,7 @@ Optional:
 Optional:
 
 - `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
-- `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
+- `reason` (String) The reason these alerts are having their score changed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
 
 
 <a id="nestedatt--alert_score_increase_details"></a>
@@ -372,7 +376,7 @@ Optional:
 Optional:
 
 - `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
-- `reason` (String) The reason these alerts are being dismissed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
+- `reason` (String) The reason these alerts are having their score changed. Valid values are `Acceptable risk`, `Non-Actionable`, `Non-Production`, `Organization preferences`, and `Other`.
 
 
 <a id="nestedatt--alert_score_specify_details"></a>
@@ -393,7 +397,7 @@ Optional:
 
 Required:
 
-- `template` (String) AWS Security Hub template name.
+- `template` (String) AWS Security Hub template to use for the automation. template name.
 
 
 <a id="nestedatt--aws_security_lake_template"></a>
@@ -401,7 +405,7 @@ Required:
 
 Required:
 
-- `template` (String) AWS Security Lake template name.
+- `template` (String) AWS Security Lake template to use for the automation. template name.
 
 
 <a id="nestedatt--aws_sqs_template"></a>
@@ -409,7 +413,7 @@ Required:
 
 Required:
 
-- `template` (String) AWS SQS template name.
+- `template` (String) AWS SQS template to use for the automation. template name.
 
 
 <a id="nestedatt--azure_devops_template"></a>
@@ -433,7 +437,7 @@ Optional:
 
 Required:
 
-- `template` (String) Coralogix template name.
+- `template` (String) Coralogix template to use for the automation. template name.
 
 
 <a id="nestedatt--email_template"></a>
@@ -450,7 +454,7 @@ Required:
 
 Required:
 
-- `template` (String) GCP Pub/Sub template name.
+- `template` (String) GCP Pub/Sub template to use for the automation. template name.
 
 
 <a id="nestedatt--jira_cloud_template"></a>
@@ -482,7 +486,7 @@ Optional:
 
 Required:
 
-- `template` (String) Opsgenie template name.
+- `template` (String) Opsgenie template to use for the automation. template name.
 
 
 <a id="nestedatt--pager_duty_template"></a>
@@ -490,7 +494,7 @@ Required:
 
 Required:
 
-- `template` (String) Pager Duty template name.
+- `template` (String) Pager Duty template to use for the automation. template name.
 
 
 <a id="nestedatt--slack_template"></a>
@@ -511,7 +515,7 @@ Required:
 
 Required:
 
-- `template` (String) Splunk template name.
+- `template` (String) Splunk template to use for the automation. template name.
 
 
 <a id="nestedatt--sumo_logic_template"></a>
@@ -523,7 +527,7 @@ Required:
 
 Required:
 
-- `template` (String) Tines template name.
+- `template` (String) Tines template to use for the automation. template name.
 
 
 <a id="nestedatt--torq_template"></a>
@@ -531,7 +535,7 @@ Required:
 
 Required:
 
-- `template` (String) Torq template name.
+- `template` (String) Torq template to use for the automation. template name.
 
 
 <a id="nestedatt--webhook_template"></a>
@@ -539,7 +543,7 @@ Required:
 
 Required:
 
-- `template` (String) Webhook template name.
+- `template` (String) Webhook template to use for the automation. template name.
 
 ## Import
 
