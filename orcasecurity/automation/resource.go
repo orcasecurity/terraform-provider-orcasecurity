@@ -182,6 +182,12 @@ type automationResourceModel struct {
 	WebhookTemplate            *automationWebhookTemplateModel            `tfsdk:"webhook_template"`
 
 	OrganizationID types.String `tfsdk:"organization_id"`
+
+	// Read-only metadata fields
+	CreatorID   types.String `tfsdk:"creator_id"`
+	CreatorName types.String `tfsdk:"creator_name"`
+	CreateTime  types.String `tfsdk:"create_time"`
+	UpdateTime  types.String `tfsdk:"update_time"`
 }
 
 func NewAutomationResource() resource.Resource {
@@ -249,6 +255,35 @@ func (r *automationResource) Schema(_ context.Context, req resource.SchemaReques
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Description: "Organization ID.",
+			},
+			"creator_id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "ID of the user who created this automation.",
+			},
+			"creator_name": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "Name of the user who created this automation.",
+			},
+			"create_time": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "Timestamp when the automation was created.",
+			},
+			"update_time": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "Timestamp when the automation was last updated.",
 			},
 			"name": schema.StringAttribute{
 				Description: "Automation name.",
@@ -993,6 +1028,12 @@ func (r *automationResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Name = types.StringValue(instance.Name)
 	state.Description = types.StringValue(instance.Description)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
+
+	// Set read-only metadata fields
+	state.CreatorID = types.StringValue(instance.CreatorID)
+	state.CreatorName = types.StringValue(instance.CreatorName)
+	state.CreateTime = types.StringValue(instance.CreateTime)
+	state.UpdateTime = types.StringValue(instance.UpdateTime)
 
 	// update query filters
 	var filterRules []automationQueryRuleModel

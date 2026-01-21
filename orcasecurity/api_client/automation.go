@@ -168,6 +168,12 @@ type Automation struct {
 	OrganizationID string             `json:"organization,omitempty"`
 	Query          AutomationQuery    `json:"dsl_filter"`
 	Actions        []AutomationAction `json:"actions"`
+
+	// Read-only metadata fields returned by the API
+	CreatorID   string `json:"created_by,omitempty"`
+	CreatorName string `json:"creator_name,omitempty"`
+	CreateTime  string `json:"create_time,omitempty"`
+	UpdateTime  string `json:"update_time,omitempty"`
 }
 
 type automationAPIResponseType struct {
