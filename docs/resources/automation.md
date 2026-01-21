@@ -466,7 +466,7 @@ Required:
 
 Optional:
 
-- `parent_issue` (String) Automatically nest under this parent issue.
+- `parent_issue` (String) Automatically nest under parent issue.
 
 
 <a id="nestedatt--jira_server_template"></a>
@@ -478,7 +478,7 @@ Required:
 
 Optional:
 
-- `parent_issue` (String) Automatically nest under this parent issue.
+- `parent_issue` (String) Automatically nest under parent issue.
 
 
 <a id="nestedatt--opsgenie_template"></a>
