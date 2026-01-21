@@ -3,10 +3,44 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
-// Alert State Change Actions
-const AutomationChangeSeverityID = 0
+type FlexibleString string
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+func (fs *FlexibleString) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as a string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*fs = FlexibleString(str)
+		return nil
+	}
+
+	// If that fails, try to unmarshal as a number (float64 to handle both int and float)
+	var num float64
+	if err := json.Unmarshal(data, &num); err == nil {
+		if num == float64(int64(num)) {
+			*fs = FlexibleString(strconv.FormatInt(int64(num), 10))
+		} else {
+			*fs = FlexibleString(strconv.FormatFloat(num, 'f', -1, 64))
+		}
+		return nil
+	}
+
+	return fmt.Errorf("FlexibleString: cannot unmarshal %s into string or number", string(data))
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (fs FlexibleString) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(fs))
+}
+
+// String returns the string value
+func (fs FlexibleString) String() string {
+	return string(fs)
+}
+
 const AutomationAlertDismissalID = 1
 const AutomationAlertScoreChangeID = 28
 const AutomationSnoozeID = 31
@@ -65,11 +99,11 @@ const AutomationOpusID = 35
 const AutomationGoogleSecurityOperationsSIEMID = 27 // Same as ChronicleID
 
 type AutomationRange struct {
-	Gte *string `json:"gte,omitempty"`
-	Lte *string `json:"lte,omitempty"`
-	Gt  *string `json:"gt,omitempty"`
-	Lt  *string `json:"lt,omitempty"`
-	Eq  *string `json:"eq,omitempty"`
+	Gte *FlexibleString `json:"gte,omitempty"`
+	Lte *FlexibleString `json:"lte,omitempty"`
+	Gt  *FlexibleString `json:"gt,omitempty"`
+	Lt  *FlexibleString `json:"lt,omitempty"`
+	Eq  *FlexibleString `json:"eq,omitempty"`
 }
 
 type AutomationFilter struct {
