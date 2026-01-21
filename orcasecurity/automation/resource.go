@@ -842,7 +842,7 @@ func generateActions(plan *automationResourceModel) []api_client.AutomationActio
 
 	addTemplateAction(&actions, plan.GcpPubSubTemplate, api_client.AutomationGcpPubSubID, orgID)
 	addTemplateWithParentAction(&actions, plan.JiraCloudTemplate, api_client.AutomationJiraID, orgID)
-	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraID, orgID)
+	addTemplateWithParentAction(&actions, plan.JiraServerTemplate, api_client.AutomationJiraServerID, orgID)
 	addTemplateAction(&actions, plan.OpsgenieTemplate, api_client.AutomationOpsgenieID, orgID)
 	addTemplateAction(&actions, plan.PagerDutyTemplate, api_client.AutomationPagerDutyID, orgID)
 
