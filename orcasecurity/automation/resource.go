@@ -722,6 +722,12 @@ func (r *automationResource) Create(ctx context.Context, req resource.CreateRequ
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
 
+	// Set read-only metadata fields from create response
+	plan.CreatorID = types.StringValue(instance.CreatorID)
+	plan.CreatorName = types.StringValue(instance.CreatorName)
+	plan.CreateTime = types.StringValue(instance.CreateTime)
+	plan.UpdateTime = types.StringValue(instance.UpdateTime)
+
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
