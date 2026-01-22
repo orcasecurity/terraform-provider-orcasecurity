@@ -60,7 +60,6 @@ func (r *trustedDynamicIpRangeResource) ImportState(ctx context.Context, req res
 }
 
 func (r *trustedDynamicIpRangeResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	//tflog.Error(ctx, "Setting up Schema")
 	resp.Schema = schema.Schema{
 		Description: "Provides a trusted dynamic ip range.",
 		Attributes: map[string]schema.Attribute{
@@ -83,13 +82,19 @@ func (r *trustedDynamicIpRangeResource) Schema(ctx context.Context, req resource
 	}
 }
 
+// setEnabledState sets or unsets the dynamic trusted IP range based on the enabled value
+func (r *trustedDynamicIpRangeResource) setEnabledState(orgID string, enabled bool) error {
+	if enabled {
+		_, err := r.apiClient.SetTrustedDynamicIpRange(orgID)
+		return err
+	}
+	return r.apiClient.UnsetTrustedDynamicIpRange(orgID)
+}
+
 // Create creates the resource and sets the initial Terraform state
 func (r *trustedDynamicIpRangeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if r.apiClient == nil {
-		resp.Diagnostics.AddError(
-			"Error creating resource",
-			"API client not configured. Please configure the provider first.",
-		)
+		resp.Diagnostics.AddError("Error creating resource", "API client not configured. Please configure the provider first.")
 		return
 	}
 
@@ -100,33 +105,13 @@ func (r *trustedDynamicIpRangeResource) Create(ctx context.Context, req resource
 		return
 	}
 
-	// Set or unset based on the enabled value
-	if plan.Enabled.ValueBool() {
-		_, err := r.apiClient.SetTrustedDynamicIpRange(plan.OrgID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error enabling dynamic trusted IP range",
-				fmt.Sprintf("Could not enable setting: %s", err),
-			)
-			return
-		}
-	} else {
-		err := r.apiClient.UnsetTrustedDynamicIpRange(plan.OrgID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error disabling dynamic trusted IP range",
-				fmt.Sprintf("Could not disable setting: %s", err),
-			)
-			return
-		}
+	if err := r.setEnabledState(plan.OrgID.ValueString(), plan.Enabled.ValueBool()); err != nil {
+		resp.Diagnostics.AddError("Error setting dynamic trusted IP range", fmt.Sprintf("Could not set enabled state: %s", err))
+		return
 	}
 
-	// Set the ID, but keep the original OrgID
 	plan.ID = types.StringValue(fmt.Sprintf("toggle_setting_%s", plan.OrgID.ValueString()))
-
-	// Set state to fully populated data
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *trustedDynamicIpRangeResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -163,38 +148,17 @@ func (r *trustedDynamicIpRangeResource) Update(ctx context.Context, req resource
 		return
 	}
 
-	// Update toggle in backend based on enabled value
-	if plan.Enabled.ValueBool() {
-		_, err := r.apiClient.SetTrustedDynamicIpRange(plan.OrgID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error enabling dynamic trusted IP range",
-				fmt.Sprintf("Could not enable setting: %s", err),
-			)
-			return
-		}
-	} else {
-		err := r.apiClient.UnsetTrustedDynamicIpRange(plan.OrgID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error disabling dynamic trusted IP range",
-				fmt.Sprintf("Could not disable setting: %s", err),
-			)
-			return
-		}
+	if err := r.setEnabledState(plan.OrgID.ValueString(), plan.Enabled.ValueBool()); err != nil {
+		resp.Diagnostics.AddError("Error updating dynamic trusted IP range", fmt.Sprintf("Could not update enabled state: %s", err))
+		return
 	}
 
-	// Update state
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *trustedDynamicIpRangeResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	if r.apiClient == nil {
-		resp.Diagnostics.AddError(
-			"Error deleting resource",
-			"API client not configured",
-		)
+		resp.Diagnostics.AddError("Error deleting resource", "API client not configured")
 		return
 	}
 
@@ -205,15 +169,7 @@ func (r *trustedDynamicIpRangeResource) Delete(ctx context.Context, req resource
 		return
 	}
 
-	// Log the state for debugging
-	fmt.Printf("Delete state OrgID: %s\n", state.OrgID.ValueString())
-
-	err := r.apiClient.UnsetTrustedDynamicIpRange(state.OrgID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting toggle setting",
-			fmt.Sprintf("Could not delete toggle setting: %v", err),
-		)
-		return
+	if err := r.apiClient.UnsetTrustedDynamicIpRange(state.OrgID.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Error deleting dynamic trusted IP range", fmt.Sprintf("Could not delete: %v", err))
 	}
 }
