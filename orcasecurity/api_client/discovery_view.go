@@ -5,7 +5,7 @@ import (
 )
 
 type DiscoveryQuery struct {
-	Data map[string]interface{} `json:"query"`
+	Data map[string]interface{} `json:"query2"`
 }
 
 type DiscoveryView struct {
