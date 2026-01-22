@@ -8,6 +8,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
+	"terraform-provider-orcasecurity/orcasecurity/azure_devops_template"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
@@ -22,6 +23,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
+	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -194,8 +196,10 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 // DataSources defines the data sources implemented in the provider.
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		azure_devops_template.NewAzureDevopsTemplateDataSource,
 		jira_template.NewJiraTemplateDataSource,
-		webhook.NewWebhookDataSource, organizations.NewOrganizationDataSource,
+		webhook.NewWebhookDataSource,
+		organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
 	}
 }
@@ -216,5 +220,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		shift_left_project.NewShiftLeftProjectResource,
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
 		trusted_cloud_account.NewTrustedCloudAccountResource,
+		trusted_dynamic_ip_range.NewTrustedDynamicIpRangeResource,
 	}
 }
