@@ -66,17 +66,17 @@ func (r *trustedDynamicIpRangeResource) Schema(ctx context.Context, req resource
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Business Unit ID.",
+				Description: "Resource identifier.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"org_id": schema.StringAttribute{
 				Required:    true,
-				Description: "Orca Identifier for the org.",
+				Description: "Orca Identifier for the organization.",
 			},
 			"enabled": schema.BoolAttribute{
-				Description: "Human-friendly name for the trusted trusted dynamic ip range.",
+				Description: "Whether the dynamic trusted IP range is enabled.",
 				Required:    true,
 			},
 		},

@@ -17,9 +17,9 @@ Provides a trusted dynamic ip range.
 
 ### Required
 
-- `enabled` (Boolean) Human-friendly name for the trusted trusted dynamic ip range.
-- `org_id` (String) Orca Identifier for the org.
+- `enabled` (Boolean) Whether the dynamic trusted IP range is enabled.
+- `org_id` (String) Orca Identifier for the organization.
 
 ### Read-Only
 
-- `id` (String) Business Unit ID.
+- `id` (String) Resource identifier.
