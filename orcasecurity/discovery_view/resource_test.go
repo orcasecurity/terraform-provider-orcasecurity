@@ -185,3 +185,74 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 		},
 	})
 }
+
+func TestAccDiscoveryViewResource_RiskFindings(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create with RiskFindings filter
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_discovery_view" "tf-disco-risk-findings" {
+    name = "test-risk-findings-view"
+    organization_level = false
+    view_type = "discovery"
+    extra_params = {}
+    filter_data = {
+        query = jsonencode({
+            "type": "object_set",
+            "models": ["Alert"],
+            "with": {
+                "type": "operation",
+                "operator": "and",
+                "values": [{
+                    "key": "RiskFindings",
+                    "type": "str",
+                    "at_key": "code_owners.0",
+                    "values": ["test-team"],
+                    "operator": "containing"
+                }]
+            }
+        })
+    }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-risk-findings", "name", "test-risk-findings-view"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-risk-findings", "view_type", "discovery"),
+				),
+			},
+			// update with RiskFindings filter
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_discovery_view" "tf-disco-risk-findings" {
+    name = "test-risk-findings-view-updated"
+    organization_level = false
+    view_type = "discovery"
+    extra_params = {}
+    filter_data = {
+        query = jsonencode({
+            "type": "object_set",
+            "models": ["Alert"],
+            "with": {
+                "type": "operation",
+                "operator": "and",
+                "values": [{
+                    "key": "RiskFindings",
+                    "type": "str",
+                    "at_key": "code_owners.0",
+                    "values": ["updated-team"],
+                    "operator": "containing"
+                }]
+            }
+        })
+    }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-risk-findings", "name", "test-risk-findings-view-updated"),
+				),
+			},
+		},
+	})
+}
