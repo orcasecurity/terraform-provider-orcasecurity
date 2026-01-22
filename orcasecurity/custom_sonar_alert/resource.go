@@ -316,6 +316,13 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
+	var state stateModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if plan.ID.ValueString() == "" {
 		resp.Diagnostics.AddError(
 			"ID is null",
@@ -329,6 +336,12 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
+	// If enabled is not specified in the plan, preserve the existing state value
+	enabled := state.Enabled.ValueBool()
+	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
+		enabled = plan.Enabled.ValueBool()
+	}
+
 	updateReq := api_client.CustomAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
@@ -336,7 +349,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		RuleType:             plan.RuleType.ValueString(),
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),
-		Enabled:              plan.Enabled.ValueBool(),
+		Enabled:              enabled,
 		Category:             plan.Category.ValueString(),
 		OrganizationID:       plan.OrganizationID.ValueString(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
@@ -359,9 +372,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	// if instance.RemediationText == nil || instance.RemediationText.Text == "" {
-	// 	plan.RemediationText = nil
-	// }
+	plan.Enabled = types.BoolValue(enabled)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
