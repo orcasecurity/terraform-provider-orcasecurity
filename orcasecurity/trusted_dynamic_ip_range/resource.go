@@ -100,14 +100,25 @@ func (r *trustedDynamicIpRangeResource) Create(ctx context.Context, req resource
 		return
 	}
 
-	// Set the toggle in your backend
-	_, err := r.apiClient.SetTrustedDynamicIpRange(plan.OrgID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating toggle setting",
-			fmt.Sprintf("Could not create toggle setting: %s", err),
-		)
-		return
+	// Set or unset based on the enabled value
+	if plan.Enabled.ValueBool() {
+		_, err := r.apiClient.SetTrustedDynamicIpRange(plan.OrgID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error enabling dynamic trusted IP range",
+				fmt.Sprintf("Could not enable setting: %s", err),
+			)
+			return
+		}
+	} else {
+		err := r.apiClient.UnsetTrustedDynamicIpRange(plan.OrgID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error disabling dynamic trusted IP range",
+				fmt.Sprintf("Could not disable setting: %s", err),
+			)
+			return
+		}
 	}
 
 	// Set the ID, but keep the original OrgID
@@ -152,14 +163,25 @@ func (r *trustedDynamicIpRangeResource) Update(ctx context.Context, req resource
 		return
 	}
 
-	// Update toggle in backend
-	_, err := r.apiClient.SetTrustedDynamicIpRange(plan.OrgID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating toggle setting",
-			fmt.Sprintf("Could not update toggle setting: %s", err),
-		)
-		return
+	// Update toggle in backend based on enabled value
+	if plan.Enabled.ValueBool() {
+		_, err := r.apiClient.SetTrustedDynamicIpRange(plan.OrgID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error enabling dynamic trusted IP range",
+				fmt.Sprintf("Could not enable setting: %s", err),
+			)
+			return
+		}
+	} else {
+		err := r.apiClient.UnsetTrustedDynamicIpRange(plan.OrgID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error disabling dynamic trusted IP range",
+				fmt.Sprintf("Could not disable setting: %s", err),
+			)
+			return
+		}
 	}
 
 	// Update state

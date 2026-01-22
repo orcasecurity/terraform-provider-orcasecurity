@@ -23,17 +23,20 @@ type discoveryViewAPIResponseType struct {
 }
 
 func (client *APIClient) DoesDiscoveryViewExist(id string) (bool, error) {
-	resp, _ := client.Head(fmt.Sprintf("/api/user_preferences/%s", id))
+	resp, err := client.Head(fmt.Sprintf("/api/user_preferences/%s", id))
+	if err != nil || resp == nil {
+		return false, err
+	}
 	return resp.StatusCode() == 200, nil
 }
 
 func (client *APIClient) GetDiscoveryView(id string) (*DiscoveryView, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/user_preferences/%s", id))
-	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
+		return nil, nil
 	}
 
 	response := discoveryViewAPIResponseType{}
