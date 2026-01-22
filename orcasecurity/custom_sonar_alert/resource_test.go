@@ -368,3 +368,100 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 		},
 	})
 }
+
+func TestAccCustomSonarAlertResource_EnabledToggle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create with enabled = true (default)
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_sonar_alert" "test" {
+  name          = "test enabled toggle"
+  description   = "test description"
+  rule          = "ActivityLogDetection"
+  orca_score    = 5.5
+  category      = "Best practices"
+  context_score = false
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "name", "test enabled toggle"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "enabled", "true"),
+				),
+			},
+			// update to disable
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_sonar_alert" "test" {
+  name          = "test enabled toggle"
+  description   = "test description"
+  rule          = "ActivityLogDetection"
+  orca_score    = 5.5
+  category      = "Best practices"
+  context_score = false
+  enabled       = false
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "enabled", "false"),
+				),
+			},
+			// import
+			{
+				ResourceName:      "orcasecurity_custom_sonar_alert.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// update to re-enable
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_sonar_alert" "test" {
+  name          = "test enabled toggle"
+  description   = "test description"
+  rule          = "ActivityLogDetection"
+  orca_score    = 5.5
+  category      = "Best practices"
+  context_score = false
+  enabled       = true
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "enabled", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCustomSonarAlertResource_CreateDisabled(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create with enabled = false
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_sonar_alert" "test" {
+  name          = "test create disabled"
+  description   = "test description"
+  rule          = "ActivityLogDetection"
+  orca_score    = 5.5
+  category      = "Best practices"
+  context_score = false
+  enabled       = false
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "name", "test create disabled"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "enabled", "false"),
+				),
+			},
+			// import
+			{
+				ResourceName:      "orcasecurity_custom_sonar_alert.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}

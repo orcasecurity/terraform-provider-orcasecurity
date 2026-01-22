@@ -50,6 +50,7 @@ type stateModel struct {
 	Category        types.String               `tfsdk:"category"`
 	OrcaScore       types.Float64              `tfsdk:"orca_score"`
 	ContextScore    types.Bool                 `tfsdk:"context_score"`
+	Enabled         types.Bool                 `tfsdk:"enabled"`
 	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
@@ -129,6 +130,11 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				Description: "Allow Orca to adjust the score using asset context.",
 				Required:    true,
 			},
+			"enabled": schema.BoolAttribute{
+				Description: "Whether the alert is enabled. Defaults to true.",
+				Optional:    true,
+				Computed:    true,
+			},
 			"remediation_text": schema.SingleNestedAttribute{
 				Description: "A container for the remediation instructions that will appear on the 'Remediation' tab for the alert.",
 				Optional:    true,
@@ -180,6 +186,12 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	// Default enabled to true if not specified
+	enabled := true
+	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
+		enabled = plan.Enabled.ValueBool()
+	}
+
 	createReq := api_client.CustomAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
@@ -188,6 +200,7 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		Category:             plan.Category.ValueString(),
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),
+		Enabled:              enabled,
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
 	}
 	if plan.RemediationText != nil {
@@ -219,6 +232,7 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 	plan.ID = types.StringValue(instance.ID)
 	plan.RuleType = types.StringValue(instance.RuleType)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
+	plan.Enabled = types.BoolValue(instance.Enabled)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -268,6 +282,7 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 	state.Category = types.StringValue(instance.Category)
 	state.ContextScore = types.BoolValue(instance.ContextScore)
 	state.OrcaScore = types.Float64Value(instance.OrcaScore)
+	state.Enabled = types.BoolValue(instance.Enabled)
 
 	if instance.RemediationText.Text != "" {
 		state.RemediationText = &remediationTextStateModel{
@@ -321,6 +336,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		RuleType:             plan.RuleType.ValueString(),
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),
+		Enabled:              plan.Enabled.ValueBool(),
 		Category:             plan.Category.ValueString(),
 		OrganizationID:       plan.OrganizationID.ValueString(),
 		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),

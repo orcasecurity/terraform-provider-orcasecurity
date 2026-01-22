@@ -8,8 +8,19 @@ resource "orcasecurity_custom_sonar_alert" "example" {
   context_score = false
 }
 
+# sonar-based custom alert that is disabled
+resource "orcasecurity_custom_sonar_alert" "disabled_example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule          = "AzureVNet with NetworkInterfaces"
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
+  enabled       = false
+}
+
 # sonar-based custom alert with remediation steps
-resource "orcasecurity_custom_sonar_alert" "example" {
+resource "orcasecurity_custom_sonar_alert" "remediation_example" {
   name          = "Azure VNets that aren't in use"
   description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
   rule          = "AzureVNet with NetworkInterfaces"
