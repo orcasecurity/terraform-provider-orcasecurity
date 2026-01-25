@@ -29,6 +29,7 @@ type CustomAlert struct {
 	Description          string                                `json:"details"`
 	Rule                 string                                `json:"rule"`
 	RuleType             string                                `json:"rule_type,omitempty"` // also "alert_type"
+	Enabled              bool                                  `json:"enabled"`
 	ComplianceFrameworks []CustomSonarAlertComplianceFramework `json:"compliance_frameworks,omitempty"`
 	RemediationText      *CustomSonarAlertRemediationText      // managed in a separate API call
 }

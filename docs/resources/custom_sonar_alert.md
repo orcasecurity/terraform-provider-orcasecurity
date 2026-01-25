@@ -23,8 +23,19 @@ resource "orcasecurity_custom_sonar_alert" "example" {
   context_score = false
 }
 
+# sonar-based custom alert that is disabled
+resource "orcasecurity_custom_sonar_alert" "disabled_example" {
+  name          = "Azure VNets that aren't in use"
+  description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
+  rule          = "AzureVNet with NetworkInterfaces"
+  orca_score    = 6.2
+  category      = "Network misconfigurations"
+  context_score = false
+  enabled       = false
+}
+
 # sonar-based custom alert with remediation steps
-resource "orcasecurity_custom_sonar_alert" "example" {
+resource "orcasecurity_custom_sonar_alert" "remediation_example" {
   name          = "Azure VNets that aren't in use"
   description   = "Azure VNets that don't have any compute or data resources attached to them via NICs."
   rule          = "AzureVNet with NetworkInterfaces"
@@ -67,6 +78,7 @@ resource "orcasecurity_custom_sonar_alert" "example" {
 
 - `compliance_frameworks` (Attributes List) The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. (see [below for nested schema](#nestedatt--compliance_frameworks))
 - `description` (String) Custom alert description.
+- `enabled` (Boolean) Whether the alert is enabled. Defaults to true.
 - `remediation_text` (Attributes) A container for the remediation instructions that will appear on the 'Remediation' tab for the alert. (see [below for nested schema](#nestedatt--remediation_text))
 
 ### Read-Only
