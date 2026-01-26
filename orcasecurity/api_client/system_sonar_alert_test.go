@@ -1,11 +1,23 @@
 package api_client
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
 )
+
+const (
+	testAPIEndpoint = "http://localhost"
+	testAPIToken    = "secret"
+	testRuleID      = "r8ae477067a"
+	testRuleType    = "apigateway_routes_without_authorization_type"
+)
+
+func newTestAPIClient(httpClient *http.Client) APIClient {
+	return APIClient{APIEndpoint: testAPIEndpoint, APIToken: testAPIToken, HTTPClient: httpClient}
+}
 
 func TestGetSystemSonarAlert(t *testing.T) {
 	mockResponse := `{
@@ -35,13 +47,13 @@ func TestGetSystemSonarAlert(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	alert, err := apiClient.GetSystemSonarAlert("r8ae477067a")
+	apiClient := newTestAPIClient(httpClient)
+	alert, err := apiClient.GetSystemSonarAlert(testRuleID)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if alert.RuleID != "r8ae477067a" {
+	if alert.RuleID != testRuleID {
 		t.Errorf("expected rule_id r8ae477067a, got %s", alert.RuleID)
 	}
 	if alert.Name != "API Gateway Route is not configured with an authorization type" {
@@ -66,7 +78,7 @@ func TestGetSystemSonarAlert_NotFound(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	apiClient := newTestAPIClient(httpClient)
 	_, err := apiClient.GetSystemSonarAlert("invalid-id")
 
 	if err == nil {
@@ -97,13 +109,13 @@ func TestUpdateSystemSonarAlertStatus(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	resp, err := apiClient.UpdateSystemSonarAlertStatus("r8ae477067a", "apigateway_routes_without_authorization_type", false)
+	apiClient := newTestAPIClient(httpClient)
+	resp, err := apiClient.UpdateSystemSonarAlertStatus(testRuleID, testRuleType, false)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.RuleID != "r8ae477067a" {
+	if resp.RuleID != testRuleID {
 		t.Errorf("expected rule_id r8ae477067a, got %s", resp.RuleID)
 	}
 	if resp.Enabled != false {
@@ -130,8 +142,8 @@ func TestUpdateSystemSonarAlertStatus_Enable(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	resp, err := apiClient.UpdateSystemSonarAlertStatus("r8ae477067a", "apigateway_routes_without_authorization_type", true)
+	apiClient := newTestAPIClient(httpClient)
+	resp, err := apiClient.UpdateSystemSonarAlertStatus(testRuleID, testRuleType, true)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -154,8 +166,8 @@ func TestDoesSystemSonarAlertExist_Found(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.DoesSystemSonarAlertExist("r8ae477067a")
+	apiClient := newTestAPIClient(httpClient)
+	exists, err := apiClient.DoesSystemSonarAlertExist(testRuleID)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -174,7 +186,7 @@ func TestDoesSystemSonarAlertExist_NotFound(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	apiClient := newTestAPIClient(httpClient)
 	exists, err := apiClient.DoesSystemSonarAlertExist("invalid-id")
 
 	if err != nil {
@@ -194,13 +206,33 @@ func TestDoesSystemSonarAlertExist_ServerError(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := apiClient.DoesSystemSonarAlertExist("r8ae477067a")
+	apiClient := newTestAPIClient(httpClient)
+	exists, err := apiClient.DoesSystemSonarAlertExist(testRuleID)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exists {
 		t.Error("expected alert to not exist on server error")
+	}
+}
+
+type errorRoundTripper struct{}
+
+func (e errorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("network error: connection refused")
+}
+
+func TestDoesSystemSonarAlertExist_NetworkError(t *testing.T) {
+	httpClient := &http.Client{Transport: errorRoundTripper{}}
+
+	apiClient := newTestAPIClient(httpClient)
+	exists, err := apiClient.DoesSystemSonarAlertExist(testRuleID)
+
+	if err == nil {
+		t.Error("expected error for network failure")
+	}
+	if exists {
+		t.Error("expected alert to not exist on network error")
 	}
 }

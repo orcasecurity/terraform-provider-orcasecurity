@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	ResourceType = "orcasecurity_system_sonar_alert"
-	Resource     = "test"
-	TestAlertID  = "r8ae477067a"
+	ResourceType    = "orcasecurity_system_sonar_alert"
+	ResourceName    = "test"
+	TestAlertID     = "r8ae477067a"
+	ResourceAddress = ResourceType + "." + ResourceName
 )
 
 func TestAccSystemSonarAlertResource_Basic(t *testing.T) {
@@ -25,17 +26,17 @@ resource "orcasecurity_system_sonar_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "rule_id", "r8ae477067a"),
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "enabled", "false"),
-					resource.TestCheckResourceAttrSet("orcasecurity_system_sonar_alert.test", "name"),
-					resource.TestCheckResourceAttrSet("orcasecurity_system_sonar_alert.test", "category"),
-					resource.TestCheckResourceAttrSet("orcasecurity_system_sonar_alert.test", "score"),
-					resource.TestCheckResourceAttrSet("orcasecurity_system_sonar_alert.test", "rule_type"),
+					resource.TestCheckResourceAttr(ResourceAddress, "rule_id", "r8ae477067a"),
+					resource.TestCheckResourceAttr(ResourceAddress, "enabled", "false"),
+					resource.TestCheckResourceAttrSet(ResourceAddress, "name"),
+					resource.TestCheckResourceAttrSet(ResourceAddress, "category"),
+					resource.TestCheckResourceAttrSet(ResourceAddress, "score"),
+					resource.TestCheckResourceAttrSet(ResourceAddress, "rule_type"),
 				),
 			},
 			// Import
 			{
-				ResourceName:                         "orcasecurity_system_sonar_alert.test",
+				ResourceName:                         ResourceAddress,
 				ImportState:                          true,
 				ImportStateId:                        "r8ae477067a",
 				ImportStateVerify:                    true,
@@ -50,8 +51,8 @@ resource "orcasecurity_system_sonar_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "rule_id", "r8ae477067a"),
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "enabled", "true"),
+					resource.TestCheckResourceAttr(ResourceAddress, "rule_id", "r8ae477067a"),
+					resource.TestCheckResourceAttr(ResourceAddress, "enabled", "true"),
 				),
 			},
 		},
@@ -70,7 +71,7 @@ resource "orcasecurity_system_sonar_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "enabled", "true"),
+					resource.TestCheckResourceAttr(ResourceAddress, "enabled", "true"),
 				),
 			},
 			// Toggle to disabled
@@ -82,7 +83,7 @@ resource "orcasecurity_system_sonar_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "enabled", "false"),
+					resource.TestCheckResourceAttr(ResourceAddress, "enabled", "false"),
 				),
 			},
 			// Toggle back to enabled
@@ -94,7 +95,7 @@ resource "orcasecurity_system_sonar_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_system_sonar_alert.test", "enabled", "true"),
+					resource.TestCheckResourceAttr(ResourceAddress, "enabled", "true"),
 				),
 			},
 		},

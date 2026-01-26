@@ -56,13 +56,21 @@ func (client *APIClient) GetSystemSonarAlert(id string) (*SystemSonarAlert, erro
 
 func (client *APIClient) DoesSystemSonarAlertExist(id string) (bool, error) {
 	resp, err := client.Head(fmt.Sprintf("/api/sonar/rules/%s", id))
+	// Check for network error (nil response)
+	if resp == nil {
+		return false, err
+	}
+
+	// Check for "not found" or server error status codes
 	if resp.StatusCode() == 404 || resp.StatusCode() == 500 {
 		return false, nil
 	}
 
+	// Return any other errors
 	if err != nil {
 		return false, err
 	}
+
 	return true, nil
 }
 
@@ -71,7 +79,7 @@ func (client *APIClient) UpdateSystemSonarAlertStatus(id string, ruleType string
 		RuleID:   id,
 		RuleType: ruleType,
 		Enabled:  enabled,
-		Custom:   false, // System alerts are not custom
+		Custom:   false,
 	}
 
 	resp, err := client.Put(fmt.Sprintf("/api/sonar/rules/status/%s", id), request)
