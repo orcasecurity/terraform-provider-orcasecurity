@@ -198,10 +198,8 @@ func (r *systemSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	// Get the rule_type from state (it's computed and won't be in plan)
 	ruleType := state.RuleType.ValueString()
 
-	// Update the alert status
 	_, err := r.apiClient.UpdateSystemSonarAlertStatus(
 		plan.RuleID.ValueString(),
 		ruleType,
@@ -215,7 +213,6 @@ func (r *systemSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	// Preserve computed values from state
 	plan.Name = state.Name
 	plan.Category = state.Category
 	plan.Score = state.Score
@@ -233,20 +230,5 @@ func (r *systemSonarAlertResource) Delete(ctx context.Context, req resource.Dele
 		return
 	}
 
-	// For system alerts, "delete" means re-enabling the alert (restoring default state)
-	// System alerts cannot actually be deleted, they are built-in
-	_, err := r.apiClient.UpdateSystemSonarAlertStatus(
-		state.RuleID.ValueString(),
-		state.RuleType.ValueString(),
-		true, // Re-enable on delete
-	)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error restoring system alert status",
-			fmt.Sprintf("Could not restore system alert ID %s to enabled state: %s", state.RuleID.ValueString(), err.Error()),
-		)
-		return
-	}
-
-	tflog.Info(ctx, fmt.Sprintf("System alert %s has been re-enabled (restored to default state)", state.RuleID.ValueString()))
+	tflog.Info(ctx, fmt.Sprintf("Removing system alert %s from Terraform state (alert state in Orca unchanged)", state.RuleID.ValueString()))
 }
