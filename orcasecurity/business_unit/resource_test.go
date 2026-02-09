@@ -10,11 +10,13 @@ import (
 )
 
 const (
-	ResourceType = "orcasecurity_business_unit"
-	Resource     = "terraformTestResource"
-	OrcaObject1  = "terraformTestResourceInOrcaAws"
-	OrcaObject2  = "terraformTestResourceInOrcaAzure"
-	OrcaObject3  = "terraformTestResourceInOrcaShiftLeftProjects"
+	ResourceType              = "orcasecurity_business_unit"
+	Resource                  = "terraformTestResource"
+	OrcaObject1               = "terraformTestResourceInOrcaAws"
+	OrcaObject2               = "terraformTestResourceInOrcaAzure"
+	OrcaObject3               = "terraformTestResourceInOrcaShiftLeftProjects"
+	shiftLeftProjectIDsAttr0  = "shiftleft_filter_data.shiftleft_project_ids.0"
+	shiftLeftProjectIDsAttr1  = "shiftleft_filter_data.shiftleft_project_ids.1"
 )
 
 func TestAccBusinessUnitResource_InvalidShiftLeftProjectIDs(t *testing.T) {
@@ -97,7 +99,7 @@ resource "%s" "%s" {
     }
 }`, ResourceType, Resource, OrcaObject3),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), "shiftleft_filter_data.shiftleft_project_ids.0"),
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), shiftLeftProjectIDsAttr0),
 					resource.TestCheckNoResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data"),
 				),
 			},
@@ -132,8 +134,8 @@ resource "%s" "%s" {
     }
 }`, ResourceType, Resource, OrcaObject3),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), "shiftleft_filter_data.shiftleft_project_ids.0"),
-					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), "shiftleft_filter_data.shiftleft_project_ids.1"),
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), shiftLeftProjectIDsAttr0),
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), shiftLeftProjectIDsAttr1),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", OrcaObject3),
 				),
 			},
@@ -166,7 +168,7 @@ resource "%s" "%s" {
     }
 }`, ResourceType, Resource, OrcaObject3, cloudVendorID),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), "shiftleft_filter_data.shiftleft_project_ids.0"),
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), shiftLeftProjectIDsAttr0),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_vendor_id.0", cloudVendorID),
 				),
 			},

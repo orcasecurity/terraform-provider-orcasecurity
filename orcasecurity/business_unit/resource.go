@@ -118,67 +118,8 @@ func (r *businessUnitResource) ImportState(ctx context.Context, req resource.Imp
 		Name: types.StringValue(businessUnit.Name),
 	}
 
-	// Only set ShiftLeftFilter if it exists in the API response
-	if businessUnit.ShiftLeftFilter != nil && len(businessUnit.ShiftLeftFilter.ShiftLeftProjects) > 0 {
-		shiftLeftProjects := make([]types.String, len(businessUnit.ShiftLeftFilter.ShiftLeftProjects))
-		for i, project := range businessUnit.ShiftLeftFilter.ShiftLeftProjects {
-			shiftLeftProjects[i] = types.StringValue(project)
-		}
-
-		state.ShiftLeftFilter = &businessUnitShiftLeftFilterModel{
-			ShiftLeftProjects: shiftLeftProjects,
-		}
-	}
-
-	if businessUnit.Filter != nil {
-
-		filter := &businessUnitFilterModel{}
-		hasFilterData := false
-
-		if len(businessUnit.Filter.CloudProviders) > 0 {
-			filter.CloudProviders = make([]types.String, len(businessUnit.Filter.CloudProviders))
-			for i, provider := range businessUnit.Filter.CloudProviders {
-				filter.CloudProviders[i] = types.StringValue(provider)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.CloudAccounts) > 0 {
-			filter.CloudAccounts = make([]types.String, len(businessUnit.Filter.CloudAccounts))
-			for i, account := range businessUnit.Filter.CloudAccounts {
-				filter.CloudAccounts[i] = types.StringValue(account)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.AccountTags) > 0 {
-			filter.AccountTags = make([]types.String, len(businessUnit.Filter.AccountTags))
-			for i, accountTags := range businessUnit.Filter.AccountTags {
-				filter.AccountTags[i] = types.StringValue(accountTags)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.CloudTags) > 0 {
-			filter.CloudTags = make([]types.String, len(businessUnit.Filter.CloudTags))
-			for i, cloudTags := range businessUnit.Filter.CloudTags {
-				filter.CloudTags[i] = types.StringValue(cloudTags)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.CustomTags) > 0 {
-			filter.CustomTags = make([]types.String, len(businessUnit.Filter.CustomTags))
-			for i, customTags := range businessUnit.Filter.CustomTags {
-				filter.CustomTags[i] = types.StringValue(customTags)
-			}
-			hasFilterData = true
-		}
-
-		if hasFilterData {
-			state.Filter = filter
-		}
-	}
+	state.ShiftLeftFilter = apiShiftLeftFilterToModel(businessUnit.ShiftLeftFilter)
+	state.Filter = apiFilterToModel(businessUnit.Filter)
 
 	// Set the entire state at once
 	diags := resp.State.Set(ctx, &state)
@@ -338,6 +279,57 @@ func generateShiftLeftProjectFilter(plan *businessUnitShiftLeftFilterModel) (api
 	return api_client.BusinessUnitShiftLeftFilter{ShiftLeftProjects: slFilter}, finalDiags
 }
 
+func apiShiftLeftFilterToModel(sl *api_client.BusinessUnitShiftLeftFilter) *businessUnitShiftLeftFilterModel {
+	if sl == nil || len(sl.ShiftLeftProjects) == 0 {
+		return nil
+	}
+	projects := make([]types.String, len(sl.ShiftLeftProjects))
+	for i, p := range sl.ShiftLeftProjects {
+		projects[i] = types.StringValue(p)
+	}
+	return &businessUnitShiftLeftFilterModel{ShiftLeftProjects: projects}
+}
+
+func apiFilterToModel(f *api_client.BusinessUnitFilter) *businessUnitFilterModel {
+	if f == nil {
+		return nil
+	}
+	filter := &businessUnitFilterModel{}
+	hasData := false
+	if len(f.CloudProviders) > 0 {
+		filter.CloudProviders = stringSliceToTypes(f.CloudProviders)
+		hasData = true
+	}
+	if len(f.CloudAccounts) > 0 {
+		filter.CloudAccounts = stringSliceToTypes(f.CloudAccounts)
+		hasData = true
+	}
+	if len(f.AccountTags) > 0 {
+		filter.AccountTags = stringSliceToTypes(f.AccountTags)
+		hasData = true
+	}
+	if len(f.CloudTags) > 0 {
+		filter.CloudTags = stringSliceToTypes(f.CloudTags)
+		hasData = true
+	}
+	if len(f.CustomTags) > 0 {
+		filter.CustomTags = stringSliceToTypes(f.CustomTags)
+		hasData = true
+	}
+	if !hasData {
+		return nil
+	}
+	return filter
+}
+
+func stringSliceToTypes(s []string) []types.String {
+	out := make([]types.String, len(s))
+	for i, v := range s {
+		out[i] = types.StringValue(v)
+	}
+	return out
+}
+
 func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan businessUnitResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -445,62 +437,8 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 	}
 	state.ID = types.StringValue(idValue)
 	state.Name = types.StringValue(instance.Name)
-
-	state.ShiftLeftFilter = nil
-	if instance.ShiftLeftFilter != nil && len(instance.ShiftLeftFilter.ShiftLeftProjects) > 0 {
-		shiftLeftProjects := make([]types.String, len(instance.ShiftLeftFilter.ShiftLeftProjects))
-		for i, project := range instance.ShiftLeftFilter.ShiftLeftProjects {
-			shiftLeftProjects[i] = types.StringValue(project)
-		}
-		state.ShiftLeftFilter = &businessUnitShiftLeftFilterModel{
-			ShiftLeftProjects: shiftLeftProjects,
-		}
-	}
-
-	state.Filter = nil
-	if instance.Filter != nil {
-		filter := &businessUnitFilterModel{}
-		hasFilterData := false
-
-		if len(instance.Filter.CloudProviders) > 0 {
-			filter.CloudProviders = make([]types.String, len(instance.Filter.CloudProviders))
-			for i, provider := range instance.Filter.CloudProviders {
-				filter.CloudProviders[i] = types.StringValue(provider)
-			}
-			hasFilterData = true
-		}
-		if len(instance.Filter.CloudAccounts) > 0 {
-			filter.CloudAccounts = make([]types.String, len(instance.Filter.CloudAccounts))
-			for i, account := range instance.Filter.CloudAccounts {
-				filter.CloudAccounts[i] = types.StringValue(account)
-			}
-			hasFilterData = true
-		}
-		if len(instance.Filter.AccountTags) > 0 {
-			filter.AccountTags = make([]types.String, len(instance.Filter.AccountTags))
-			for i, accountTags := range instance.Filter.AccountTags {
-				filter.AccountTags[i] = types.StringValue(accountTags)
-			}
-			hasFilterData = true
-		}
-		if len(instance.Filter.CloudTags) > 0 {
-			filter.CloudTags = make([]types.String, len(instance.Filter.CloudTags))
-			for i, cloudTags := range instance.Filter.CloudTags {
-				filter.CloudTags[i] = types.StringValue(cloudTags)
-			}
-			hasFilterData = true
-		}
-		if len(instance.Filter.CustomTags) > 0 {
-			filter.CustomTags = make([]types.String, len(instance.Filter.CustomTags))
-			for i, customTags := range instance.Filter.CustomTags {
-				filter.CustomTags[i] = types.StringValue(customTags)
-			}
-			hasFilterData = true
-		}
-		if hasFilterData {
-			state.Filter = filter
-		}
-	}
+	state.ShiftLeftFilter = apiShiftLeftFilterToModel(instance.ShiftLeftFilter)
+	state.Filter = apiFilterToModel(instance.Filter)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
