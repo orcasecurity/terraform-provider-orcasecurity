@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -29,11 +31,12 @@ type businessUnitResource struct {
 }
 
 type businessUnitFilterModel struct {
-	CloudProviders []types.String `tfsdk:"cloud_providers"`
-	CustomTags     []types.String `tfsdk:"custom_tags"`
-	CloudTags      []types.String `tfsdk:"cloud_tags"`
-	AccountTags    []types.String `tfsdk:"cloud_account_tags"`
-	CloudAccounts  []types.String `tfsdk:"cloud_account_ids"`
+	CloudProviders   []types.String `tfsdk:"cloud_providers"`
+	CustomTags       []types.String `tfsdk:"custom_tags"`
+	CloudTags        []types.String `tfsdk:"cloud_tags"`
+	AccountTags      []types.String `tfsdk:"cloud_account_tags"`
+	CloudAccounts    []types.String `tfsdk:"cloud_vendor_id"`
+	CloudAccountIds  []types.String `tfsdk:"cloud_account_ids"` // Deprecated: use cloud_vendor_id instead
 }
 
 type businessUnitShiftLeftFilterModel struct {
@@ -46,6 +49,30 @@ type businessUnitResourceModel struct {
 	Filter          *businessUnitFilterModel          `tfsdk:"filter_data"`
 	ShiftLeftFilter *businessUnitShiftLeftFilterModel `tfsdk:"shiftleft_filter_data"`
 	GlobalFilter    types.Bool                        `tfsdk:"global_filter"`
+}
+
+// uuidValidator validates that a string is a valid UUID.
+type uuidValidator struct{}
+
+func (v uuidValidator) Description(_ context.Context) string {
+	return "value must be a valid UUID"
+}
+
+func (v uuidValidator) MarkdownDescription(_ context.Context) string {
+	return "value must be a valid UUID (e.g. `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)"
+}
+
+func (v uuidValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if _, err := uuid.Parse(req.ConfigValue.ValueString()); err != nil {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid UUID",
+			"shiftleft_project_id must be a valid UUID: "+err.Error(),
+		)
+	}
 }
 
 func NewBusinessUnitResource() resource.Resource {
@@ -185,9 +212,12 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"shiftleft_project_ids": schema.ListAttribute{
-						Description: "A list of 1 or more Shift Left project IDs.",
+						Description: "A list of 1 or more Shift Left project IDs (must be valid UUIDs).",
 						ElementType: types.StringType,
 						Optional:    true,
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(uuidValidator{}),
+						},
 					},
 				},
 			},
@@ -200,10 +230,16 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 						ElementType: types.StringType,
 						Optional:    true,
 					},
-					"cloud_account_ids": schema.ListAttribute{
-						Description: "A list of 1 or more cloud account IDs.",
+					"cloud_vendor_id": schema.ListAttribute{
+						Description: "A list of 1 or more cloud vendor IDs.",
 						ElementType: types.StringType,
 						Optional:    true,
+					},
+					"cloud_account_ids": schema.ListAttribute{
+						Description:        "A list of 1 or more cloud vendor IDs. Use cloud_vendor_id instead.",
+						DeprecationMessage: "Use cloud_vendor_id instead. This attribute will be removed in a future version.",
+						ElementType:        types.StringType,
+						Optional:           true,
 					},
 					"cloud_account_tags": schema.ListAttribute{
 						Description: "A list of 1 or more cloud account tags. The key and value should be separated by a vertical line (|), rather than a colon(:).",
@@ -270,12 +306,22 @@ func generateAccountTagsFilter(plan *businessUnitFilterModel) (api_client.Busine
 	return api_client.BusinessUnitFilter{AccountTags: atFilter}, finalDiags
 }
 
+func getCloudVendorIds(plan *businessUnitFilterModel) []types.String {
+	if plan == nil {
+		return nil
+	}
+	if len(plan.CloudAccounts) > 0 {
+		return plan.CloudAccounts
+	}
+	return plan.CloudAccountIds
+}
+
 func generateCloudAccountsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var aiFilter = filter.CloudAccounts
 	var finalDiags diag.Diagnostics
 
-	for _, item := range plan.CloudAccounts {
+	for _, item := range getCloudVendorIds(plan) {
 		aiFilter = append(aiFilter, item.ValueString())
 	}
 	return api_client.BusinessUnitFilter{CloudAccounts: aiFilter}, finalDiags
@@ -310,7 +356,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 			diags.Append(filterDiags...)
 			businessUnitFilter = &filter
-		} else if len(plan.Filter.CloudAccounts) > 0 {
+		} else if len(getCloudVendorIds(plan.Filter)) > 0 {
 			filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 			diags.Append(filterDiags...)
 			businessUnitFilter = &filter
@@ -393,8 +439,70 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	tflog.Error(ctx, instance.ID)
+	// Ensure ID is never empty - Orca API returns empty filter_id for Shift Left BUs
+	idValue := instance.ID
+	if idValue == "" {
+		idValue = state.ID.ValueString()
+	}
+	state.ID = types.StringValue(idValue)
 	state.Name = types.StringValue(instance.Name)
+
+	// Populate full state from API response (same logic as ImportState)
+	state.ShiftLeftFilter = nil
+	if instance.ShiftLeftFilter != nil && len(instance.ShiftLeftFilter.ShiftLeftProjects) > 0 {
+		shiftLeftProjects := make([]types.String, len(instance.ShiftLeftFilter.ShiftLeftProjects))
+		for i, project := range instance.ShiftLeftFilter.ShiftLeftProjects {
+			shiftLeftProjects[i] = types.StringValue(project)
+		}
+		state.ShiftLeftFilter = &businessUnitShiftLeftFilterModel{
+			ShiftLeftProjects: shiftLeftProjects,
+		}
+	}
+
+	state.Filter = nil
+	if instance.Filter != nil {
+		filter := &businessUnitFilterModel{}
+		hasFilterData := false
+
+		if len(instance.Filter.CloudProviders) > 0 {
+			filter.CloudProviders = make([]types.String, len(instance.Filter.CloudProviders))
+			for i, provider := range instance.Filter.CloudProviders {
+				filter.CloudProviders[i] = types.StringValue(provider)
+			}
+			hasFilterData = true
+		}
+		if len(instance.Filter.CloudAccounts) > 0 {
+			filter.CloudAccounts = make([]types.String, len(instance.Filter.CloudAccounts))
+			for i, account := range instance.Filter.CloudAccounts {
+				filter.CloudAccounts[i] = types.StringValue(account)
+			}
+			hasFilterData = true
+		}
+		if len(instance.Filter.AccountTags) > 0 {
+			filter.AccountTags = make([]types.String, len(instance.Filter.AccountTags))
+			for i, accountTags := range instance.Filter.AccountTags {
+				filter.AccountTags[i] = types.StringValue(accountTags)
+			}
+			hasFilterData = true
+		}
+		if len(instance.Filter.CloudTags) > 0 {
+			filter.CloudTags = make([]types.String, len(instance.Filter.CloudTags))
+			for i, cloudTags := range instance.Filter.CloudTags {
+				filter.CloudTags[i] = types.StringValue(cloudTags)
+			}
+			hasFilterData = true
+		}
+		if len(instance.Filter.CustomTags) > 0 {
+			filter.CustomTags = make([]types.String, len(instance.Filter.CustomTags))
+			for i, customTags := range instance.Filter.CustomTags {
+				filter.CustomTags[i] = types.StringValue(customTags)
+			}
+			hasFilterData = true
+		}
+		if hasFilterData {
+			state.Filter = filter
+		}
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -454,7 +562,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 	} else if plan.ShiftLeftFilter != nil &&
 		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
-		(plan.Filter == nil || len(plan.Filter.CloudAccounts) == 0) {
+		(plan.Filter == nil || len(getCloudVendorIds(plan.Filter)) == 0) {
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
 		updateReq := api_client.BusinessUnit{
 			ID:              plan.ID.ValueString(),
@@ -471,7 +579,9 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			)
 			return
 		}
-		plan.ID = types.StringValue(instance.ID)
+		if instance.ID != "" {
+			plan.ID = types.StringValue(instance.ID)
+		}
 
 		diags = resp.State.Set(ctx, plan)
 		resp.Diagnostics.Append(diags...)
@@ -481,7 +591,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 	} else if plan.ShiftLeftFilter != nil &&
 		plan.Filter != nil &&
 		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
-		len(plan.Filter.CloudAccounts) > 0 {
+		len(getCloudVendorIds(plan.Filter)) > 0 {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
@@ -502,7 +612,9 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			)
 			return
 		}
-		plan.ID = types.StringValue(instance.ID)
+		if instance.ID != "" {
+			plan.ID = types.StringValue(instance.ID)
+		}
 
 		diags = resp.State.Set(ctx, plan)
 		resp.Diagnostics.Append(diags...)
@@ -605,7 +717,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if plan.Filter != nil && len(plan.Filter.CloudAccounts) > 0 {
+	} else if plan.Filter != nil && len(getCloudVendorIds(plan.Filter)) > 0 {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
