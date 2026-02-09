@@ -407,6 +407,8 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Preserve whether previous state used deprecated cloud_account_ids (for backward compat)
+	hadDeprecatedCloudAccountIds := state.Filter != nil && len(state.Filter.CloudAccountIds) > 0
 
 	exists, err := r.apiClient.DoesBusinessUnitExist(state.ID.ValueString())
 	if err != nil {
@@ -439,6 +441,12 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 	state.Name = types.StringValue(instance.Name)
 	state.ShiftLeftFilter = apiShiftLeftFilterToModel(instance.ShiftLeftFilter)
 	state.Filter = apiFilterToModel(instance.Filter)
+	// When user used deprecated cloud_account_ids: populate only CloudAccountIds and leave
+	// CloudAccounts empty so state matches config (avoids planned update to remove cloud_vendor_id).
+	if hadDeprecatedCloudAccountIds && state.Filter != nil && len(state.Filter.CloudAccounts) > 0 {
+		state.Filter.CloudAccountIds = state.Filter.CloudAccounts
+		state.Filter.CloudAccounts = nil
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 const (
@@ -15,6 +16,7 @@ const (
 	OrcaObject1               = "terraformTestResourceInOrcaAws"
 	OrcaObject2               = "terraformTestResourceInOrcaAzure"
 	OrcaObject3               = "terraformTestResourceInOrcaShiftLeftProjects"
+	OrcaObject4               = "terraformTestResourceDeprecatedCloudAccountIds"
 	shiftLeftProjectIDsAttr0  = "shiftleft_filter_data.shiftleft_project_ids.0"
 	shiftLeftProjectIDsAttr1  = "shiftleft_filter_data.shiftleft_project_ids.1"
 )
@@ -171,11 +173,43 @@ resource "%s" "%s" {
 					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), shiftLeftProjectIDsAttr0),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_vendor_id.0", cloudVendorID),
 				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 			},
 			{
 				ResourceName:      fmt.Sprintf("%s.%s", ResourceType, Resource),
 				ImportState:       true,
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccBusinessUnitResource_CloudAccountIdsDeprecatedNoDrift(t *testing.T) {
+	// Verifies deprecated cloud_account_ids doesn't cause perpetual drift
+	cloudVendorID := "550e8400-e29b-41d4-a716-446655440000"
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+    name = "%s"
+    filter_data = {
+        cloud_account_ids = ["%s"]
+    }
+}`, ResourceType, Resource, OrcaObject4, cloudVendorID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_account_ids.0", cloudVendorID),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 			},
 		},
 	})
