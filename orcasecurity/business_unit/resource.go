@@ -31,12 +31,12 @@ type businessUnitResource struct {
 }
 
 type businessUnitFilterModel struct {
-	CloudProviders   []types.String `tfsdk:"cloud_providers"`
-	CustomTags       []types.String `tfsdk:"custom_tags"`
-	CloudTags        []types.String `tfsdk:"cloud_tags"`
-	AccountTags      []types.String `tfsdk:"cloud_account_tags"`
-	CloudAccounts    []types.String `tfsdk:"cloud_vendor_id"`
-	CloudAccountIds  []types.String `tfsdk:"cloud_account_ids"` // Deprecated: use cloud_vendor_id instead
+	CloudProviders  []types.String `tfsdk:"cloud_providers"`
+	CustomTags      []types.String `tfsdk:"custom_tags"`
+	CloudTags       []types.String `tfsdk:"cloud_tags"`
+	AccountTags     []types.String `tfsdk:"cloud_account_tags"`
+	CloudAccounts   []types.String `tfsdk:"cloud_vendor_id"`
+	CloudAccountIds []types.String `tfsdk:"cloud_account_ids"` // Deprecated: use cloud_vendor_id instead
 }
 
 type businessUnitShiftLeftFilterModel struct {
@@ -439,7 +439,6 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	// Ensure ID is never empty - Orca API returns empty filter_id for Shift Left BUs
 	idValue := instance.ID
 	if idValue == "" {
 		idValue = state.ID.ValueString()
@@ -447,7 +446,6 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 	state.ID = types.StringValue(idValue)
 	state.Name = types.StringValue(instance.Name)
 
-	// Populate full state from API response (same logic as ImportState)
 	state.ShiftLeftFilter = nil
 	if instance.ShiftLeftFilter != nil && len(instance.ShiftLeftFilter.ShiftLeftProjects) > 0 {
 		shiftLeftProjects := make([]types.String, len(instance.ShiftLeftFilter.ShiftLeftProjects))
