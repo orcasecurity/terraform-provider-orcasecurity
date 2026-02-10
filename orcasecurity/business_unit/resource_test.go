@@ -11,17 +11,17 @@ import (
 )
 
 const (
-	ResourceType              = "orcasecurity_business_unit"
-	Resource                  = "terraformTestResource"
-	OrcaObject1               = "terraformTestResourceInOrcaAws"
-	OrcaObject2               = "terraformTestResourceInOrcaAzure"
-	OrcaObject3               = "terraformTestResourceInOrcaShiftLeftProjects"
-	OrcaObject4               = "terraformTestResourceDeprecatedCloudAccountIds"
-	shiftLeftProjectIDsAttr0  = "shiftleft_filter_data.shiftleft_project_ids.0"
-	shiftLeftProjectIDsAttr1  = "shiftleft_filter_data.shiftleft_project_ids.1"
+	ResourceType             = "orcasecurity_business_unit"
+	Resource                 = "terraformTestResource"
+	OrcaObject1              = "terraformTestResourceInOrcaAws"
+	OrcaObject2              = "terraformTestResourceInOrcaAzure"
+	OrcaObject3              = "terraformTestResourceInOrcaShiftLeftProjects"
+	OrcaObject4              = "terraformTestResourceDeprecatedCloudAccountIds"
+	shiftLeftProjectIDsAttr0 = "shiftleft_filter_data.shiftleft_project_ids.0"
+	shiftLeftProjectIDsAttr1 = "shiftleft_filter_data.shiftleft_project_ids.1"
 )
 
-func TestAccBusinessUnitResource_InvalidShiftLeftProjectIDs(t *testing.T) {
+func TestAccBusinessUnitResourceInvalidShiftLeftProjectIDs(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -188,7 +188,7 @@ resource "%s" "%s" {
 	})
 }
 
-func TestAccBusinessUnitResource_CloudAccountIdsDeprecatedNoDrift(t *testing.T) {
+func TestAccBusinessUnitResourceCloudAccountIdsDeprecatedNoDrift(t *testing.T) {
 	// Verifies deprecated cloud_account_ids doesn't cause perpetual drift
 	cloudVendorID := "550e8400-e29b-41d4-a716-446655440000"
 	resource.Test(t, resource.TestCase{
