@@ -3,7 +3,7 @@
 page_title: "orcasecurity_custom_widget Resource - orcasecurity"
 subcategory: ""
 description: |-
-    Fetches custom widget IDs from Orca via GET /api/user_preferences?view_type=customs_widgets. Returns both organization-level and user-level custom widgets. Use to discover widget IDs for import or for referencing in dashboards.
+  Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.
 ---
 
 # orcasecurity_custom_widget (Resource)
