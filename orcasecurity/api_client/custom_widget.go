@@ -145,3 +145,46 @@ func (client *APIClient) DeleteCustomWidget(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/user_preferences/%s", id))
 	return err
 }
+
+// CustomWidgetSummary is a lightweight widget representation for listing (id, name only).
+type CustomWidgetSummary struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type userPreferencesResponse struct {
+	Data struct {
+		OrganizationPreferences []CustomWidgetSummary `json:"organization_preferences"`
+		UserPreferences         []CustomWidgetSummary `json:"user_preferences"`
+	} `json:"data"`
+}
+
+// ListCustomWidgets fetches custom widget IDs and names via GET /api/user_preferences?view_type=customs_widgets.
+// Returns both organization-level and user-level custom widgets.
+func (client *APIClient) ListCustomWidgets() ([]CustomWidgetSummary, error) {
+	resp, err := client.Get("/api/user_preferences?view_type=customs_widgets")
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed userPreferencesResponse
+	if err := resp.ReadJSON(&parsed); err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	var out []CustomWidgetSummary
+	for _, w := range parsed.Data.OrganizationPreferences {
+		if w.ID != "" && !seen[w.ID] {
+			seen[w.ID] = true
+			out = append(out, w)
+		}
+	}
+	for _, w := range parsed.Data.UserPreferences {
+		if w.ID != "" && !seen[w.ID] {
+			seen[w.ID] = true
+			out = append(out, w)
+		}
+	}
+	return out, nil
+}
