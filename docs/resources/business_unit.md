@@ -70,10 +70,11 @@ resource "orcasecurity_business_unit" "BU-OrcaTags" {
 
 Optional:
 
-- `cloud_account_ids` (List of String) A list of 1 or more cloud account IDs.
+- `cloud_account_ids` (List of String, Deprecated) A list of 1 or more cloud vendor IDs. Use cloud_vendor_id instead.
 - `cloud_account_tags` (List of String) A list of 1 or more cloud account tags. The key and value should be separated by a vertical line (|), rather than a colon(:).
 - `cloud_providers` (List of String) A list of 1 or more cloud providers. Valid values are `alicloud`, `aws`, `azure`, `gcp`, `oci`, and `shiftleft`.
 - `cloud_tags` (List of String) A list of 1 or more cloud tags (for AWS and Azure) or labels (for GCP). The key and value should be separated by a vertical line (|), rather than a colon(:).
+- `cloud_vendor_id` (List of String) A list of 1 or more cloud vendor IDs.
 - `custom_tags` (List of String) A list of 1 or more custom tags. The key and value should be separated by a vertical line (|), rather than a colon(:).
 
 
@@ -82,4 +83,4 @@ Optional:
 
 Optional:
 
-- `shiftleft_project_ids` (List of String) A list of 1 or more Shift Left project IDs.
+- `shiftleft_project_ids` (List of String) A list of 1 or more Shift Left project IDs (must be valid UUIDs).

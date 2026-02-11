@@ -22,7 +22,7 @@ type BusinessUnitShiftLeftFilter struct {
 }
 
 type BusinessUnit struct {
-	ID              string                       `json:"filter_id"`
+	ID              string                       `json:"filter_id,omitempty"`
 	Name            string                       `json:"name"`
 	Filter          *BusinessUnitFilter          `json:"filter_data,omitempty"`
 	ShiftLeftFilter *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`

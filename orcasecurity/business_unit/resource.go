@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -29,11 +31,12 @@ type businessUnitResource struct {
 }
 
 type businessUnitFilterModel struct {
-	CloudProviders []types.String `tfsdk:"cloud_providers"`
-	CustomTags     []types.String `tfsdk:"custom_tags"`
-	CloudTags      []types.String `tfsdk:"cloud_tags"`
-	AccountTags    []types.String `tfsdk:"cloud_account_tags"`
-	CloudAccounts  []types.String `tfsdk:"cloud_account_ids"`
+	CloudProviders  []types.String `tfsdk:"cloud_providers"`
+	CustomTags      []types.String `tfsdk:"custom_tags"`
+	CloudTags       []types.String `tfsdk:"cloud_tags"`
+	AccountTags     []types.String `tfsdk:"cloud_account_tags"`
+	CloudAccounts   []types.String `tfsdk:"cloud_vendor_id"`
+	CloudAccountIds []types.String `tfsdk:"cloud_account_ids"` // Deprecated: use cloud_vendor_id instead
 }
 
 type businessUnitShiftLeftFilterModel struct {
@@ -46,6 +49,30 @@ type businessUnitResourceModel struct {
 	Filter          *businessUnitFilterModel          `tfsdk:"filter_data"`
 	ShiftLeftFilter *businessUnitShiftLeftFilterModel `tfsdk:"shiftleft_filter_data"`
 	GlobalFilter    types.Bool                        `tfsdk:"global_filter"`
+}
+
+// uuidValidator validates that a string is a valid UUID.
+type uuidValidator struct{}
+
+func (v uuidValidator) Description(_ context.Context) string {
+	return "value must be a valid UUID"
+}
+
+func (v uuidValidator) MarkdownDescription(_ context.Context) string {
+	return "value must be a valid UUID (e.g. `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)"
+}
+
+func (v uuidValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if _, err := uuid.Parse(req.ConfigValue.ValueString()); err != nil {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid UUID",
+			"shiftleft_project_id must be a valid UUID: "+err.Error(),
+		)
+	}
 }
 
 func NewBusinessUnitResource() resource.Resource {
@@ -91,67 +118,8 @@ func (r *businessUnitResource) ImportState(ctx context.Context, req resource.Imp
 		Name: types.StringValue(businessUnit.Name),
 	}
 
-	// Only set ShiftLeftFilter if it exists in the API response
-	if businessUnit.ShiftLeftFilter != nil && len(businessUnit.ShiftLeftFilter.ShiftLeftProjects) > 0 {
-		shiftLeftProjects := make([]types.String, len(businessUnit.ShiftLeftFilter.ShiftLeftProjects))
-		for i, project := range businessUnit.ShiftLeftFilter.ShiftLeftProjects {
-			shiftLeftProjects[i] = types.StringValue(project)
-		}
-
-		state.ShiftLeftFilter = &businessUnitShiftLeftFilterModel{
-			ShiftLeftProjects: shiftLeftProjects,
-		}
-	}
-
-	if businessUnit.Filter != nil {
-
-		filter := &businessUnitFilterModel{}
-		hasFilterData := false
-
-		if len(businessUnit.Filter.CloudProviders) > 0 {
-			filter.CloudProviders = make([]types.String, len(businessUnit.Filter.CloudProviders))
-			for i, provider := range businessUnit.Filter.CloudProviders {
-				filter.CloudProviders[i] = types.StringValue(provider)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.CloudAccounts) > 0 {
-			filter.CloudAccounts = make([]types.String, len(businessUnit.Filter.CloudAccounts))
-			for i, account := range businessUnit.Filter.CloudAccounts {
-				filter.CloudAccounts[i] = types.StringValue(account)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.AccountTags) > 0 {
-			filter.AccountTags = make([]types.String, len(businessUnit.Filter.AccountTags))
-			for i, accountTags := range businessUnit.Filter.AccountTags {
-				filter.AccountTags[i] = types.StringValue(accountTags)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.CloudTags) > 0 {
-			filter.CloudTags = make([]types.String, len(businessUnit.Filter.CloudTags))
-			for i, cloudTags := range businessUnit.Filter.CloudTags {
-				filter.CloudTags[i] = types.StringValue(cloudTags)
-			}
-			hasFilterData = true
-		}
-
-		if len(businessUnit.Filter.CustomTags) > 0 {
-			filter.CustomTags = make([]types.String, len(businessUnit.Filter.CustomTags))
-			for i, customTags := range businessUnit.Filter.CustomTags {
-				filter.CustomTags[i] = types.StringValue(customTags)
-			}
-			hasFilterData = true
-		}
-
-		if hasFilterData {
-			state.Filter = filter
-		}
-	}
+	state.ShiftLeftFilter = apiShiftLeftFilterToModel(businessUnit.ShiftLeftFilter)
+	state.Filter = apiFilterToModel(businessUnit.Filter)
 
 	// Set the entire state at once
 	diags := resp.State.Set(ctx, &state)
@@ -185,9 +153,12 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"shiftleft_project_ids": schema.ListAttribute{
-						Description: "A list of 1 or more Shift Left project IDs.",
+						Description: "A list of 1 or more Shift Left project IDs (must be valid UUIDs).",
 						ElementType: types.StringType,
 						Optional:    true,
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(uuidValidator{}),
+						},
 					},
 				},
 			},
@@ -200,10 +171,16 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 						ElementType: types.StringType,
 						Optional:    true,
 					},
-					"cloud_account_ids": schema.ListAttribute{
-						Description: "A list of 1 or more cloud account IDs.",
+					"cloud_vendor_id": schema.ListAttribute{
+						Description: "A list of 1 or more cloud vendor IDs.",
 						ElementType: types.StringType,
 						Optional:    true,
+					},
+					"cloud_account_ids": schema.ListAttribute{
+						Description:        "A list of 1 or more cloud vendor IDs. Use cloud_vendor_id instead.",
+						DeprecationMessage: "Use cloud_vendor_id instead. This attribute will be removed in a future version.",
+						ElementType:        types.StringType,
+						Optional:           true,
 					},
 					"cloud_account_tags": schema.ListAttribute{
 						Description: "A list of 1 or more cloud account tags. The key and value should be separated by a vertical line (|), rather than a colon(:).",
@@ -270,12 +247,22 @@ func generateAccountTagsFilter(plan *businessUnitFilterModel) (api_client.Busine
 	return api_client.BusinessUnitFilter{AccountTags: atFilter}, finalDiags
 }
 
+func getCloudVendorIds(plan *businessUnitFilterModel) []types.String {
+	if plan == nil {
+		return nil
+	}
+	if len(plan.CloudAccounts) > 0 {
+		return plan.CloudAccounts
+	}
+	return plan.CloudAccountIds
+}
+
 func generateCloudAccountsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
 	var filter api_client.BusinessUnitFilter
 	var aiFilter = filter.CloudAccounts
 	var finalDiags diag.Diagnostics
 
-	for _, item := range plan.CloudAccounts {
+	for _, item := range getCloudVendorIds(plan) {
 		aiFilter = append(aiFilter, item.ValueString())
 	}
 	return api_client.BusinessUnitFilter{CloudAccounts: aiFilter}, finalDiags
@@ -290,6 +277,57 @@ func generateShiftLeftProjectFilter(plan *businessUnitShiftLeftFilterModel) (api
 		slFilter = append(slFilter, item.ValueString())
 	}
 	return api_client.BusinessUnitShiftLeftFilter{ShiftLeftProjects: slFilter}, finalDiags
+}
+
+func apiShiftLeftFilterToModel(sl *api_client.BusinessUnitShiftLeftFilter) *businessUnitShiftLeftFilterModel {
+	if sl == nil || len(sl.ShiftLeftProjects) == 0 {
+		return nil
+	}
+	projects := make([]types.String, len(sl.ShiftLeftProjects))
+	for i, p := range sl.ShiftLeftProjects {
+		projects[i] = types.StringValue(p)
+	}
+	return &businessUnitShiftLeftFilterModel{ShiftLeftProjects: projects}
+}
+
+func apiFilterToModel(f *api_client.BusinessUnitFilter) *businessUnitFilterModel {
+	if f == nil {
+		return nil
+	}
+	filter := &businessUnitFilterModel{}
+	hasData := false
+	if len(f.CloudProviders) > 0 {
+		filter.CloudProviders = stringSliceToTypes(f.CloudProviders)
+		hasData = true
+	}
+	if len(f.CloudAccounts) > 0 {
+		filter.CloudAccounts = stringSliceToTypes(f.CloudAccounts)
+		hasData = true
+	}
+	if len(f.AccountTags) > 0 {
+		filter.AccountTags = stringSliceToTypes(f.AccountTags)
+		hasData = true
+	}
+	if len(f.CloudTags) > 0 {
+		filter.CloudTags = stringSliceToTypes(f.CloudTags)
+		hasData = true
+	}
+	if len(f.CustomTags) > 0 {
+		filter.CustomTags = stringSliceToTypes(f.CustomTags)
+		hasData = true
+	}
+	if !hasData {
+		return nil
+	}
+	return filter
+}
+
+func stringSliceToTypes(s []string) []types.String {
+	out := make([]types.String, len(s))
+	for i, v := range s {
+		out[i] = types.StringValue(v)
+	}
+	return out
 }
 
 func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -310,7 +348,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 			filter, filterDiags := generateCloudProviderFilter(plan.Filter)
 			diags.Append(filterDiags...)
 			businessUnitFilter = &filter
-		} else if len(plan.Filter.CloudAccounts) > 0 {
+		} else if len(getCloudVendorIds(plan.Filter)) > 0 {
 			filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 			diags.Append(filterDiags...)
 			businessUnitFilter = &filter
@@ -369,6 +407,8 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Preserve whether previous state used deprecated cloud_account_ids (for backward compat)
+	hadDeprecatedCloudAccountIds := state.Filter != nil && len(state.Filter.CloudAccountIds) > 0
 
 	exists, err := r.apiClient.DoesBusinessUnitExist(state.ID.ValueString())
 	if err != nil {
@@ -393,8 +433,20 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	tflog.Error(ctx, instance.ID)
+	idValue := instance.ID
+	if idValue == "" {
+		idValue = state.ID.ValueString()
+	}
+	state.ID = types.StringValue(idValue)
 	state.Name = types.StringValue(instance.Name)
+	state.ShiftLeftFilter = apiShiftLeftFilterToModel(instance.ShiftLeftFilter)
+	state.Filter = apiFilterToModel(instance.Filter)
+	// When user used deprecated cloud_account_ids: populate only CloudAccountIds and leave
+	// CloudAccounts empty so state matches config (avoids planned update to remove cloud_vendor_id).
+	if hadDeprecatedCloudAccountIds && state.Filter != nil && len(state.Filter.CloudAccounts) > 0 {
+		state.Filter.CloudAccountIds = state.Filter.CloudAccounts
+		state.Filter.CloudAccounts = nil
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -454,7 +506,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 	} else if plan.ShiftLeftFilter != nil &&
 		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
-		(plan.Filter == nil || len(plan.Filter.CloudAccounts) == 0) {
+		(plan.Filter == nil || len(getCloudVendorIds(plan.Filter)) == 0) {
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
 		updateReq := api_client.BusinessUnit{
 			ID:              plan.ID.ValueString(),
@@ -471,7 +523,9 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			)
 			return
 		}
-		plan.ID = types.StringValue(instance.ID)
+		if instance.ID != "" {
+			plan.ID = types.StringValue(instance.ID)
+		}
 
 		diags = resp.State.Set(ctx, plan)
 		resp.Diagnostics.Append(diags...)
@@ -481,7 +535,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 	} else if plan.ShiftLeftFilter != nil &&
 		plan.Filter != nil &&
 		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
-		len(plan.Filter.CloudAccounts) > 0 {
+		len(getCloudVendorIds(plan.Filter)) > 0 {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
@@ -502,7 +556,9 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			)
 			return
 		}
-		plan.ID = types.StringValue(instance.ID)
+		if instance.ID != "" {
+			plan.ID = types.StringValue(instance.ID)
+		}
 
 		diags = resp.State.Set(ctx, plan)
 		resp.Diagnostics.Append(diags...)
@@ -605,7 +661,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if plan.Filter != nil && len(plan.Filter.CloudAccounts) > 0 {
+	} else if plan.Filter != nil && len(getCloudVendorIds(plan.Filter)) > 0 {
 		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
 		diags.Append(filterDiags...)
 
