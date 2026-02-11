@@ -37,7 +37,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 
 ## Built-in Widget IDs
 
-Use these IDs in `widgets_config` when adding Orca built-in widgets to a dashboard. Widget IDs are slugified versions of the names from [Orca Dashboard Widgets (Legacy)](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets). For custom widgets, use the `id` attribute of an `orcasecurity_custom_widget` resource.
+Use these IDs in `widgets_config` when adding Orca built-in widgets to a dashboard. Widget IDs are slugified versions of the names from [Orca Dashboard Widgets](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets). For custom widgets, use the `id` attribute of an `orcasecurity_custom_widget` resource.
 
 | Widget Name (Orca docs) | Widget ID |
 |-------------------------|-----------|
