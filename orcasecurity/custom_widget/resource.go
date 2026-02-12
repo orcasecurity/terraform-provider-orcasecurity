@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -248,8 +248,8 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		}
 	}
 
-	// Orca API expects these additional models for discovery queries 
-	additional_models_list_string := []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
+	// Orca API expects these additional models for discovery queries
+	additionalModels := []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
 
 	var elements []string
 
@@ -261,7 +261,7 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		Query:            query,
 		GroupBy:          group_by_string,
 		GroupByList:      group_by_list_string,
-		AdditionalModels: additional_models_list_string,
+		AdditionalModels: additionalModels,
 		Limit:            plan.Limit.ValueInt64(),
 		OrderBy:          elements,
 		StartAtIndex:     plan.StartAtIndex.ValueInt64(),
