@@ -6,7 +6,10 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
 
-const testDonutWidgetName = "My Donut"
+const (
+	testDonutWidgetName   = "My Donut"
+	errInstanceToStateFmt = "instanceToState: %v"
+)
 
 func TestApiWidgetTypeToTerraform(t *testing.T) {
 	tests := []struct {
@@ -66,7 +69,7 @@ func TestInstanceToStateDonutWidget(t *testing.T) {
 
 	state, err := instanceToState(instance)
 	if err != nil {
-		t.Fatalf("instanceToState: %v", err)
+		t.Fatalf(errInstanceToStateFmt, err)
 	}
 
 	if state.ID.ValueString() != "widget-123" {
@@ -113,7 +116,7 @@ func TestInstanceToStateEmptySettings(t *testing.T) {
 
 	state, err := instanceToState(instance)
 	if err != nil {
-		t.Fatalf("instanceToState: %v", err)
+		t.Fatalf(errInstanceToStateFmt, err)
 	}
 
 	if state.ExtraParameters.Type.ValueString() != "asset-table" {
@@ -143,7 +146,7 @@ func TestInstanceToStateAlertTable(t *testing.T) {
 
 	state, err := instanceToState(instance)
 	if err != nil {
-		t.Fatalf("instanceToState: %v", err)
+		t.Fatalf(errInstanceToStateFmt, err)
 	}
 
 	if state.ExtraParameters.Type.ValueString() != "alert-table" {

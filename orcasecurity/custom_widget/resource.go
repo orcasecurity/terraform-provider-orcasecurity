@@ -23,6 +23,8 @@ var (
 	_ resource.ResourceWithImportState = &customWidgetResource{}
 )
 
+const errReadingCustomWidget = "Error reading custom widget"
+
 type customWidgetResource struct {
 	apiClient *api_client.APIClient
 }
@@ -486,7 +488,7 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 	exists, err := r.apiClient.DoesCustomWidgetExist(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom widget",
+			errReadingCustomWidget,
 			fmt.Sprintf("Could not read custom widget ID %s: %s", id, err.Error()),
 		)
 		return
@@ -501,7 +503,7 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 	instance, err := r.apiClient.GetCustomWidget(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom widget",
+			errReadingCustomWidget,
 			fmt.Sprintf("Could not read custom widget ID %s: %s", id, err.Error()),
 		)
 		return
@@ -510,7 +512,7 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 	state, err = instanceToState(instance)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom widget",
+			errReadingCustomWidget,
 			fmt.Sprintf("Could not convert widget state for ID %s: %s", id, err.Error()),
 		)
 		return
