@@ -333,87 +333,97 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 	return extra_params
 }
 
+// apiWidgetTypeToTerraform maps API widget type strings to Terraform schema values.
+func apiWidgetTypeToTerraform(apiType string) string {
+	switch apiType {
+	case "PIE_CHART_SINGLE":
+		return "donut"
+	case "ASSETS_TABLE":
+		return "asset-table"
+	case "ALERTS_TABLE":
+		return "alert-table"
+	default:
+		return apiType
+	}
+}
+
+// apiSettingsToStateSettings converts API settings to Terraform state model.
+func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings) customWidgetExtraParametersSettingsModel {
+	queryJSON, _ := json.Marshal(s.RequestParameters.Query)
+	groupBy := stringSliceToTypesStrings(s.RequestParameters.GroupBy)
+	groupByList := stringSliceToTypesStrings(s.RequestParameters.GroupByList)
+	columns := columnsFromAPI(s.Columns)
+	orderBy := orderByFromAPI(s.RequestParameters.OrderBy)
+	settings := customWidgetExtraParametersSettingsModel{
+		Columns: columns,
+		RequestParameters: requestParamsModel{
+			Query:            types.StringValue(string(queryJSON)),
+			GroupBy:          groupBy,
+			GroupByList:      groupByList,
+			Limit:            types.Int64Value(s.RequestParameters.Limit),
+			StartAtIndex:     types.Int64Value(s.RequestParameters.StartAtIndex),
+			EnablePagination: types.BoolValue(s.RequestParameters.EnablePagination),
+			OrderBy:          orderBy,
+		},
+	}
+	if s.Field.Name != "" || s.Field.Type != "" {
+		settings.Field = &customWidgetExtraParmetersSettingsFieldModel{
+			Name: types.StringValue(s.Field.Name),
+			Type: types.StringValue(s.Field.Type),
+		}
+	}
+	return settings
+}
+
+func stringSliceToTypesStrings(ss []string) []types.String {
+	out := make([]types.String, len(ss))
+	for i, s := range ss {
+		out[i] = types.StringValue(s)
+	}
+	return out
+}
+
+func columnsFromAPI(columns []string) types.List {
+	if len(columns) == 0 {
+		return types.ListNull(types.StringType)
+	}
+	out, _ := types.ListValueFrom(context.Background(), types.StringType, columns)
+	return out
+}
+
+func orderByFromAPI(orderBy []string) types.List {
+	if len(orderBy) == 0 {
+		return types.ListNull(types.StringType)
+	}
+	out, _ := types.ListValueFrom(context.Background(), types.StringType, stringSliceToTypesStrings(orderBy))
+	return out
+}
+
 // instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
 func instanceToState(instance *api_client.CustomWidget) customWidgetResourceModel {
-	state := customWidgetResourceModel{
+	ep := instance.ExtraParameters
+	settings := customWidgetExtraParametersSettingsModel{}
+	if len(ep.Settings) > 0 {
+		settings = apiSettingsToStateSettings(ep.Settings[0])
+	}
+
+	return customWidgetResourceModel{
 		ID:                types.StringValue(instance.ID),
 		Name:              types.StringValue(instance.Name),
 		OrganizationLevel: types.BoolValue(instance.OrganizationLevel),
 		ViewType:          types.StringValue(instance.ViewType),
+		ExtraParameters: &customWidgetExtraParametersModel{
+			Type:              types.StringValue(apiWidgetTypeToTerraform(ep.Type)),
+			Category:          types.StringValue(ep.Category),
+			EmptyStateMessage: types.StringValue(ep.EmptyStateMessage),
+			Size:              types.StringValue(ep.Size),
+			IsNew:             types.BoolValue(ep.IsNew),
+			Title:             types.StringValue(ep.Title),
+			Subtitle:          types.StringValue(ep.Subtitle),
+			Description:       types.StringValue(ep.Description),
+			Settings:          settings,
+		},
 	}
-
-	ep := instance.ExtraParameters
-
-	// Map API type back to Terraform type
-	widgetType := ep.Type
-	if widgetType == "PIE_CHART_SINGLE" {
-		widgetType = "donut"
-	} else if widgetType == "ASSETS_TABLE" {
-		widgetType = "asset-table"
-	} else if widgetType == "ALERTS_TABLE" {
-		widgetType = "alert-table"
-	}
-
-	settings := customWidgetExtraParametersSettingsModel{}
-	if len(ep.Settings) > 0 {
-		s := ep.Settings[0]
-		queryJSON, _ := json.Marshal(s.RequestParameters.Query)
-		groupBy := make([]types.String, len(s.RequestParameters.GroupBy))
-		for i, g := range s.RequestParameters.GroupBy {
-			groupBy[i] = types.StringValue(g)
-		}
-		groupByList := make([]types.String, len(s.RequestParameters.GroupByList))
-		for i, g := range s.RequestParameters.GroupByList {
-			groupByList[i] = types.StringValue(g)
-		}
-		var columns types.List
-		if len(s.Columns) > 0 {
-			columns, _ = types.ListValueFrom(context.Background(), types.StringType, s.Columns)
-		} else {
-			columns = types.ListNull(types.StringType)
-		}
-		var orderBy types.List
-		if len(s.RequestParameters.OrderBy) > 0 {
-			orderByVals := make([]types.String, len(s.RequestParameters.OrderBy))
-			for i, o := range s.RequestParameters.OrderBy {
-				orderByVals[i] = types.StringValue(o)
-			}
-			orderBy, _ = types.ListValueFrom(context.Background(), types.StringType, orderByVals)
-		} else {
-			orderBy = types.ListNull(types.StringType)
-		}
-		settings = customWidgetExtraParametersSettingsModel{
-			Columns: columns,
-			RequestParameters: requestParamsModel{
-				Query:            types.StringValue(string(queryJSON)),
-				GroupBy:          groupBy,
-				GroupByList:      groupByList,
-				Limit:            types.Int64Value(s.RequestParameters.Limit),
-				StartAtIndex:     types.Int64Value(s.RequestParameters.StartAtIndex),
-				EnablePagination: types.BoolValue(s.RequestParameters.EnablePagination),
-				OrderBy:          orderBy,
-			},
-		}
-		if s.Field.Name != "" || s.Field.Type != "" {
-			settings.Field = &customWidgetExtraParmetersSettingsFieldModel{
-				Name: types.StringValue(s.Field.Name),
-				Type: types.StringValue(s.Field.Type),
-			}
-		}
-	}
-
-	state.ExtraParameters = &customWidgetExtraParametersModel{
-		Type:              types.StringValue(widgetType),
-		Category:          types.StringValue(ep.Category),
-		EmptyStateMessage: types.StringValue(ep.EmptyStateMessage),
-		Size:              types.StringValue(ep.Size),
-		IsNew:             types.BoolValue(ep.IsNew),
-		Title:             types.StringValue(ep.Title),
-		Subtitle:          types.StringValue(ep.Subtitle),
-		Description:       types.StringValue(ep.Description),
-		Settings:          settings,
-	}
-	return state
 }
 
 func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

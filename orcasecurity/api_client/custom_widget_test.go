@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const errMsgExpectedNoError = "expected no error, got %v"
+
 func TestAPIClient_ListCustomWidgets(t *testing.T) {
 	userPrefsResp := `{
 		"data": {
@@ -30,10 +32,10 @@ func TestAPIClient_ListCustomWidgets(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	apiClient := APIClient{APIEndpoint: testAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
 	widgets, err := apiClient.ListCustomWidgets()
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf(errMsgExpectedNoError, err)
 	}
 
 	if len(widgets) != 3 {
@@ -74,10 +76,10 @@ func TestAPIClient_ListCustomWidgets_Deduplicates(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	apiClient := APIClient{APIEndpoint: testAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
 	widgets, err := apiClient.ListCustomWidgets()
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf(errMsgExpectedNoError, err)
 	}
 
 	if len(widgets) != 1 {
@@ -107,10 +109,10 @@ func TestAPIClient_ListCustomWidgets_Empty(t *testing.T) {
 		}
 	})}
 
-	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	apiClient := APIClient{APIEndpoint: testAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
 	widgets, err := apiClient.ListCustomWidgets()
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf(errMsgExpectedNoError, err)
 	}
 	if len(widgets) != 0 {
 		t.Errorf("expected 0 widgets, got %d", len(widgets))
