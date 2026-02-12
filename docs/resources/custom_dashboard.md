@@ -37,29 +37,9 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 
 ## Built-in Widget IDs
 
-Use these IDs in `widgets_config` when adding Orca built-in widgets to a dashboard. Widget IDs are slugified versions of the names from [Orca Dashboard Widgets](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets). For custom widgets, use the `id` attribute of an `orcasecurity_custom_widget` resource.
+Use these IDs in `widgets_config` when adding Orca built-in widgets to a dashboard. Widget IDs are slugified versions of the names from [Orca Dashboard Widgets (V1)](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) and [V2](https://docs.orcasecurity.io/docs/orca-dashboard-widgets-new). For custom widgets, use the `id` attribute of an `orcasecurity_custom_widget` resource.
 
-| Widget Name (Orca docs)          | Widget ID                               |
-|----------------------------------|-----------------------------------------|
-| Accounts (Inventory)             | `cloud-accounts-inventory`              |
-| Security Score Benchmark         | `security-score-benchmark`              |
-| Security Score Breakdown         | `security-score-breakdown`              |
-| Alerts on Exposed Assets         | `alerts-on-exposed-assets`              |
-| Top Attack Path Entry Points     | `top-attack-path-entry-points`          |
-| Top Attack Path Target Assets    | `top-attack-path-target-assets`         |
-| Alerts Pending Action            | `alerts-pending-action`                 |
-| Alerts by Risk Level             | `alerts-by-severity`                    |
-| Risk Categories Alerts Over Time | `risk-categories-alerts-over-time`      |
-| Created & Resolved Alerts        | `created-and-resolved-alerts-over-time` |
-| Fixable Vulnerabilities          | `fixable-vulnerabilities`               |
-| Vulnerable Assets (by max CVSS)  | `assets-max-cvss`                       |
-| Compliance Overview              | `compliance-overview`                   |
-| Top Alerts                       | `top-alerts`                            |
-| Major Insights                   | `major-insights`                        |
-| Alert Inventory                  | `alert-inventory`                       |
-| Asset Inventory                  | `asset-inventory`                       |
-
-For other widgets, derive the ID by converting the name to lowercase and replacing spaces with hyphens (e.g., "Top Sensitive Data Findings" → `top-sensitive-data-findings`).
+For widgets, derive the ID by converting the name to lowercase and replacing spaces with hyphens (e.g., "Top Sensitive Data Findings" → `top-sensitive-data-findings`).
 
 ## Using Custom Widgets
 

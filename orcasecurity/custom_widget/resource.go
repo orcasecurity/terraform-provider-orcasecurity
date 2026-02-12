@@ -93,7 +93,7 @@ func (r *customWidgetResource) ImportState(ctx context.Context, req resource.Imp
 func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	//tflog.Error(ctx, "Setting up Schema")
 	resp.Schema = schema.Schema{
-		Description: "Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets (https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.",
+		Description: "Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets ([V1](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) and [V2](https://docs.orcasecurity.io/docs/orca-dashboard-widgets-new)) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
