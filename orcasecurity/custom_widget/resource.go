@@ -417,7 +417,7 @@ func orderByFromAPI(ctx context.Context, orderBy []string) (types.List, error) {
 	if len(orderBy) == 0 {
 		return types.ListNull(types.StringType), nil
 	}
-	out, diags := types.ListValueFrom(ctx, types.StringType, stringSliceToTypesStrings(orderBy))
+	out, diags := types.ListValueFrom(ctx, types.StringType, orderBy)
 	if diags.HasError() {
 		return types.ListNull(types.StringType), diagError(diags)
 	}
