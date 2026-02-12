@@ -21,7 +21,7 @@ resource "orcasecurity_custom_dashboard" "widget_test" {
   filter_data        = {}
   view_type          = "dashboard"
   extra_params = {
-    description   = "Dashboard with built-in widget IDs"
+    description    = "Dashboard with built-in widget IDs"
     widgets_config = module.widget_builtins.widgets_config
   }
 }
