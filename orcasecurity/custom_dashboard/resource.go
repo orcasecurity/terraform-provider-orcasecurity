@@ -110,7 +110,7 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 									Required:    true,
 								},
 								"size": schema.StringAttribute{
-									Description: "Size of the identified widget. Possible values are sm (small), md (medium), or lg (large).",
+									Description: "Size of the identified widget. Values: sm (1/3 width), md (2/3 width), lg (3/4 width in V2, full in V1), xl (full width, V2 only). See Widget Sizes in docs.",
 									Required:    true,
 								},
 							},

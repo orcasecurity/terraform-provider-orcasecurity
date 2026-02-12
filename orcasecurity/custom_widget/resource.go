@@ -133,7 +133,7 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						Required:    true,
 					},
 					"default_size": schema.StringAttribute{
-						Description: "Default size of the widget. Possible values are sm (small), md (medium), or lg (large).",
+						Description: "Default size of the widget. Values: sm (1/3 width), md (2/3 width), lg (3/4 width in V2, full in V1), xl (full width, V2 only). See custom_dashboard docs for Widget Sizes.",
 						Required:    true,
 					},
 					"is_new": schema.BoolAttribute{

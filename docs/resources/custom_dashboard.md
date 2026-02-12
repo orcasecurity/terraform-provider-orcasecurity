@@ -42,13 +42,26 @@ Use these IDs in `widgets_config` when adding Orca built-in widgets to a dashboa
 
 For widgets, derive the ID by converting the name to lowercase and replacing spaces with hyphens (e.g., "Top Sensitive Data Findings" → `top-sensitive-data-findings`).
 
+## Widget Sizes
+
+Each widget has a `size` in `widgets_config`. Values correspond to dashboard width:
+
+| Value | Label        | Width (Legacy/V1) | Width (V2)     |
+|-------|--------------|-------------------|----------------|
+| `sm` | Small (S)     | One-third         | One-third      |
+| `md` | Medium (M)    | Two-thirds        | Two-thirds     |
+| `lg` | Large (L)     | Entire width      | Three-quarters |
+| `xl` | Ex-Large (XL) | N/A               | Entire width   |
+
+Legacy Dashboard Builder (V1) supports `sm`, `md`, `lg`. The new Dashboard Builder (V2) adds `xl`.
+
 ## Using Custom Widgets
 
 Custom widgets are created with the `orcasecurity_custom_widget` resource. The widget receives an `id` from Orca after creation (computed attribute). You can mix built-in and custom widgets in the same dashboard:
 
-| Type    | How to reference in `widgets_config`                          |
-|---------|---------------------------------------------------------------|
-| Built-in | String ID from Orca UI, e.g. `"cloud-accounts-inventory"`   |
+| Type     | How to reference in `widgets_config`                          |
+|----------|---------------------------------------------------------------|
+| Built-in | String ID from Orca UI, e.g. `"cloud-accounts-inventory"`     |
 | Custom   | `orcasecurity_custom_widget.<resource_name>.id`               |
 
 **1. Create the custom widget:**
