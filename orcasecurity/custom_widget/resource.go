@@ -248,12 +248,8 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		}
 	}
 
-	for k := 1; k <= 3; k++ {
-		additional_models_list_string = append(additional_models_list_string, "CloudAccount")
-		additional_models_list_string = append(additional_models_list_string, "CodeOrigins")
-		additional_models_list_string = append(additional_models_list_string, "CustomTags")
-		fmt.Println(k)
-	}
+	// Orca API expects these additional models for discovery queries (matches UI behavior)
+	additional_models_list_string = []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
 
 	var elements []string
 
@@ -297,9 +293,6 @@ func generateSettings(plan *customWidgetExtraParametersModel) []api_client.Custo
 		})
 	}
 
-	// Debug print final settings
-	fmt.Printf("Final settings: %+v\n", settings)
-
 	return settings
 }
 
@@ -312,13 +305,15 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 
 	if plan.ExtraParameters.Type.ValueString() == "donut" {
 		widgetType = "PIE_CHART_SINGLE"
-	} else if plan.ExtraParameters.Type.ValueString() == "asset-table" {
+	} else if plan.ExtraParameters.Type.ValueString() == "asset-table" || plan.ExtraParameters.Type.ValueString() == "table" {
 		widgetType = "ASSETS_TABLE"
 	} else if plan.ExtraParameters.Type.ValueString() == "alert-table" {
 		widgetType = "ALERTS_TABLE"
 	} else {
 		widgetType = plan.ExtraParameters.Type.ValueString()
 	}
+
+	requestParams := generateRequestParameters(&plan.ExtraParameters.Settings.RequestParameters)
 
 	extra_params := api_client.CustomWidgetExtraParameters{
 		Type:              widgetType,
@@ -329,6 +324,7 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 		Title:             plan.Name.ValueString(),
 		Subtitle:          plan.ExtraParameters.Subtitle.ValueString(),
 		Description:       plan.ExtraParameters.Description.ValueString(),
+		RequestParams:     &requestParams,
 		Settings:          settings,
 	}
 
@@ -349,25 +345,35 @@ func apiWidgetTypeToTerraform(apiType string) string {
 	}
 }
 
+// getRequestParams returns the effective request params. V2 API uses requestParams2;
+// V1 uses requestParams. Prefer requestParams2 when present (V2-created widgets).
+func getRequestParams(s api_client.CustomWidgetExtraParametersSettings) api_client.RequestParams {
+	if s.RequestParams2 != nil {
+		return *s.RequestParams2
+	}
+	return s.RequestParameters
+}
+
 // apiSettingsToStateSettings converts API settings to Terraform state model.
 func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings) (customWidgetExtraParametersSettingsModel, error) {
-	queryJSON, err := json.Marshal(s.RequestParameters.Query)
+	params := getRequestParams(s)
+	queryJSON, err := json.Marshal(params.Query)
 	if err != nil {
 		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("marshaling request query: %w", err)
 	}
-	groupBy := stringSliceToTypesStrings(s.RequestParameters.GroupBy)
-	groupByList := stringSliceToTypesStrings(s.RequestParameters.GroupByList)
+	groupBy := stringSliceToTypesStrings(params.GroupBy)
+	groupByList := stringSliceToTypesStrings(params.GroupByList)
 	columns := columnsFromAPI(s.Columns)
-	orderBy := orderByFromAPI(s.RequestParameters.OrderBy)
+	orderBy := orderByFromAPI(params.OrderBy)
 	settings := customWidgetExtraParametersSettingsModel{
 		Columns: columns,
 		RequestParameters: requestParamsModel{
 			Query:            types.StringValue(string(queryJSON)),
 			GroupBy:          groupBy,
 			GroupByList:      groupByList,
-			Limit:            types.Int64Value(s.RequestParameters.Limit),
-			StartAtIndex:     types.Int64Value(s.RequestParameters.StartAtIndex),
-			EnablePagination: types.BoolValue(s.RequestParameters.EnablePagination),
+			Limit:            types.Int64Value(params.Limit),
+			StartAtIndex:     types.Int64Value(params.StartAtIndex),
+			EnablePagination: types.BoolValue(params.EnablePagination),
 			OrderBy:          orderBy,
 		},
 	}

@@ -32,12 +32,10 @@ resource "orcasecurity_custom_widget" "example_1" {
       ]
       request_params = {
         query = jsonencode({
-          "models" : [
-            "GcpApiKey"
-          ],
-          "type" : "object_set"
+          models = ["GcpApiKey"]
+          type   = "object_set"
         })
-        group_by : [
+        group_by = [
           "Type"
         ]
         start_at_index    = 0
@@ -68,12 +66,10 @@ resource "orcasecurity_custom_widget" "example_2" {
       ]
       request_params = {
         query = jsonencode({
-          "models" : [
-            "GcpApiKey"
-          ],
-          "type" : "object_set"
+          models = ["GcpApiKey"]
+          type   = "object_set"
         })
-        group_by : [
+        group_by = [
           "Type"
         ]
         start_at_index    = 0
@@ -105,32 +101,56 @@ resource "orcasecurity_custom_widget" "example_3" {
       ]
       request_params = {
         query = jsonencode({
-          "models" : [
-            "Alert"
-          ],
-          "type" : "object_set",
-          "with" : {
-            "operator" : "and",
-            "type" : "operation",
-            "values" : [
+          models = ["Alert"]
+          type   = "object_set"
+          with = {
+            operator = "and"
+            type     = "operation"
+            values = [
               {
-                "key" : "Status",
-                "values" : [
-                  "open",
-                  "in_progress"
-                ],
-                "type" : "str",
-                "operator" : "in"
+                key      = "Status"
+                values   = ["open", "in_progress"]
+                type     = "str"
+                operator = "in"
               }
             ]
-        } })
-        group_by : [
+          }
+        })
+        group_by = [
           "Name"
         ]
         start_at_index    = 0
         order_by          = ["Score"]
         limit             = 10
         enable_pagination = true
+      }
+    }
+  }
+}
+
+# donut-type widget with Inventory models (import: terraform import orcasecurity_custom_widget.test_widget <widget_id>)
+resource "orcasecurity_custom_widget" "test_widget" {
+  name               = "Test Custom Widget"
+  organization_level = true
+  extra_params = {
+    type                = "donut"
+    empty_state_message = "No data found"
+    default_size        = "sm"
+    is_new              = true
+    subtitle            = ""
+    description         = ""
+    settings = {
+      request_params = {
+        query = jsonencode({
+          models = ["Inventory"]
+          type   = "object_set"
+        })
+        group_by      = ["Type"]
+        group_by_list = ["CloudAccount.Name"]
+      }
+      field = {
+        name = "Type"
+        type = "str"
       }
     }
   }
@@ -150,14 +170,10 @@ resource "orcasecurity_custom_widget" "example_4" {
     settings = {
       request_params = {
         query = jsonencode({
-          "models" : [
-            "GcpApiKey"
-          ],
-          "type" : "object_set"
+          models = ["GcpApiKey"]
+          type   = "object_set"
         })
-        group_by : [
-          "Type"
-        ],
+        group_by = ["Type"]
         group_by_list = [
           "CloudAccount.Name"
         ]
@@ -173,7 +189,9 @@ resource "orcasecurity_custom_widget" "example_4" {
 
 ## Importing
 
-Existing custom widgets created in the Orca UI can be imported. Use the `orcasecurity_user_preferences` data source to discover widget IDs:
+Existing custom widgets created in the Orca UI (V1 or V2 API) can be imported. The provider supports both API versions: widgets created via the V2 API use `requestParams2` in settings; the provider parses both formats when reading state.
+
+Use the `orcasecurity_user_preferences` data source to discover widget IDs:
 
 ```terraform
 data "orcasecurity_user_preferences" "widgets" {}
@@ -195,6 +213,8 @@ custom_widgets = tolist([
 ```
 
 Add a placeholder resource block to your configuration first, then run the import. After import, run `terraform plan` to align your configuration with the imported state.
+
+**V1 vs V2 API:** Widgets created in the Orca UI may use the V1 API (settings with `requestParams`) or V2 API (settings with `requestParams2`). The provider handles both on import and read—no configuration changes are needed.
 
 Import command:
 

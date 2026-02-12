@@ -20,11 +20,14 @@ type RequestParams struct {
 	EnablePagination bool                   `json:"enable_pagination"`
 }
 
+// CustomWidgetExtraParametersSettings holds widget settings. V1 API uses requestParams;
+// V2 API uses requestParams2 in the response. Both are supported for Read/Import.
 type CustomWidgetExtraParametersSettings struct {
-	Size              string                                   `json:"size"`
-	Columns           []string                                 `json:"columns"`
-	Field             CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
-	RequestParameters RequestParams                            `json:"requestParams"`
+	Size               string                                   `json:"size"`
+	Columns            []string                                 `json:"columns"`
+	Field              CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
+	RequestParameters  RequestParams                            `json:"requestParams"`
+	RequestParams2    *RequestParams                            `json:"requestParams2,omitempty"` // V2 API
 }
 
 type CustomWidgetExtraParameters struct {
@@ -36,6 +39,7 @@ type CustomWidgetExtraParameters struct {
 	Title             string                                `json:"title"`
 	Subtitle          string                                `json:"subtitle"`
 	Description       string                                `json:"description"`
+	RequestParams     *RequestParams                        `json:"requestParams,omitempty"`
 	Settings          []CustomWidgetExtraParametersSettings `json:"settings"`
 }
 

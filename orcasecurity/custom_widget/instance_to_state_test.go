@@ -172,6 +172,46 @@ func TestApiSettingsToStateSettingsEmptyField(t *testing.T) {
 	}
 }
 
+func TestInstanceToStateV2RequestParams2(t *testing.T) {
+	// V2 API returns requestParams2 in settings; provider should parse it
+	instance := &api_client.CustomWidget{
+		ID:   "v2-widget",
+		Name: "All Cloud Assets",
+		ExtraParameters: api_client.CustomWidgetExtraParameters{
+			Type: "PIE_CHART_SINGLE",
+			Settings: []api_client.CustomWidgetExtraParametersSettings{
+				{
+					Size:    "sm",
+					Field:   api_client.CustomWidgetExtraParametersSettingsField{Name: "Type", Type: "str"},
+					RequestParams2: &api_client.RequestParams{
+						Query:       map[string]interface{}{"models": []interface{}{"Inventory"}, "type": "object_set"},
+						GroupBy:     []string{"Type"},
+						GroupByList: []string{"Type"},
+					},
+				},
+			},
+		},
+	}
+
+	state, err := instanceToState(instance)
+	if err != nil {
+		t.Fatalf(errInstanceToStateFmt, err)
+	}
+
+	if state.ID.ValueString() != "v2-widget" {
+		t.Errorf("ID = %q, want v2-widget", state.ID.ValueString())
+	}
+	if state.ExtraParameters.Type.ValueString() != "donut" {
+		t.Errorf("Type = %q, want donut (PIE_CHART_SINGLE)", state.ExtraParameters.Type.ValueString())
+	}
+	if state.ExtraParameters.Settings.RequestParameters.Query.ValueString() == "" {
+		t.Error("Query should be populated from requestParams2")
+	}
+	if len(state.ExtraParameters.Settings.RequestParameters.GroupBy) != 1 || state.ExtraParameters.Settings.RequestParameters.GroupBy[0].ValueString() != "Type" {
+		t.Errorf("GroupBy = %v, want [Type]", state.ExtraParameters.Settings.RequestParameters.GroupBy)
+	}
+}
+
 func TestStringSliceToTypesStrings(t *testing.T) {
 	got := stringSliceToTypesStrings([]string{"a", "b", "c"})
 	if len(got) != 3 {
