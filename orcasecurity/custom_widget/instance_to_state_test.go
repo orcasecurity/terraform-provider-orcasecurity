@@ -1,6 +1,7 @@
 package custom_widget
 
 import (
+	"context"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -67,7 +68,7 @@ func TestInstanceToStateDonutWidget(t *testing.T) {
 		},
 	}
 
-	state, err := instanceToState(instance)
+	state, err := instanceToState(context.Background(), instance)
 	if err != nil {
 		t.Fatalf(errInstanceToStateFmt, err)
 	}
@@ -114,7 +115,7 @@ func TestInstanceToStateEmptySettings(t *testing.T) {
 		},
 	}
 
-	state, err := instanceToState(instance)
+	state, err := instanceToState(context.Background(), instance)
 	if err != nil {
 		t.Fatalf(errInstanceToStateFmt, err)
 	}
@@ -144,7 +145,7 @@ func TestInstanceToStateAlertTable(t *testing.T) {
 		},
 	}
 
-	state, err := instanceToState(instance)
+	state, err := instanceToState(context.Background(), instance)
 	if err != nil {
 		t.Fatalf(errInstanceToStateFmt, err)
 	}
@@ -162,7 +163,7 @@ func TestApiSettingsToStateSettingsEmptyField(t *testing.T) {
 		},
 	}
 
-	settings, err := apiSettingsToStateSettings(s)
+	settings, err := apiSettingsToStateSettings(context.Background(), s)
 	if err != nil {
 		t.Fatalf("apiSettingsToStateSettings: %v", err)
 	}
@@ -193,7 +194,7 @@ func TestInstanceToStateV2RequestParams2(t *testing.T) {
 		},
 	}
 
-	state, err := instanceToState(instance)
+	state, err := instanceToState(context.Background(), instance)
 	if err != nil {
 		t.Fatalf(errInstanceToStateFmt, err)
 	}
@@ -223,14 +224,21 @@ func TestStringSliceToTypesStrings(t *testing.T) {
 }
 
 func TestColumnsFromAPI(t *testing.T) {
+	ctx := context.Background()
 	t.Run("empty", func(t *testing.T) {
-		got := columnsFromAPI(nil)
+		got, err := columnsFromAPI(ctx, nil)
+		if err != nil {
+			t.Fatalf("columnsFromAPI: %v", err)
+		}
 		if !got.IsNull() {
 			t.Error("expected null for nil columns")
 		}
 	})
 	t.Run("with values", func(t *testing.T) {
-		got := columnsFromAPI([]string{"col1", "col2"})
+		got, err := columnsFromAPI(ctx, []string{"col1", "col2"})
+		if err != nil {
+			t.Fatalf("columnsFromAPI: %v", err)
+		}
 		if got.IsNull() {
 			t.Error("expected non-null for non-empty columns")
 		}
@@ -238,14 +246,21 @@ func TestColumnsFromAPI(t *testing.T) {
 }
 
 func TestOrderByFromAPI(t *testing.T) {
+	ctx := context.Background()
 	t.Run("empty", func(t *testing.T) {
-		got := orderByFromAPI([]string{})
+		got, err := orderByFromAPI(ctx, []string{})
+		if err != nil {
+			t.Fatalf("orderByFromAPI: %v", err)
+		}
 		if !got.IsNull() {
 			t.Error("expected null for empty orderBy")
 		}
 	})
 	t.Run("with values", func(t *testing.T) {
-		got := orderByFromAPI([]string{"-Score"})
+		got, err := orderByFromAPI(ctx, []string{"-Score"})
+		if err != nil {
+			t.Fatalf("orderByFromAPI: %v", err)
+		}
 		if got.IsNull() {
 			t.Error("expected non-null for non-empty orderBy")
 		}

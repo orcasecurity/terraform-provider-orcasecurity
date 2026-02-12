@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -237,7 +238,6 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 
 	group_by_string := make([]string, 0)
 	group_by_list_string := make([]string, 0)
-	additional_models_list_string := make([]string, 0)
 
 	for i := range plan.GroupBy {
 		group_by_string = append(group_by_string, plan.GroupBy[i].ValueString())
@@ -248,8 +248,8 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		}
 	}
 
-	// Orca API expects these additional models for discovery queries (matches UI behavior)
-	additional_models_list_string = []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
+	// Orca API expects these additional models for discovery queries 
+	additional_models_list_string := []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
 
 	var elements []string
 
@@ -355,7 +355,7 @@ func getRequestParams(s api_client.CustomWidgetExtraParametersSettings) api_clie
 }
 
 // apiSettingsToStateSettings converts API settings to Terraform state model.
-func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings) (customWidgetExtraParametersSettingsModel, error) {
+func apiSettingsToStateSettings(ctx context.Context, s api_client.CustomWidgetExtraParametersSettings) (customWidgetExtraParametersSettingsModel, error) {
 	params := getRequestParams(s)
 	queryJSON, err := json.Marshal(params.Query)
 	if err != nil {
@@ -363,8 +363,14 @@ func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings
 	}
 	groupBy := stringSliceToTypesStrings(params.GroupBy)
 	groupByList := stringSliceToTypesStrings(params.GroupByList)
-	columns := columnsFromAPI(s.Columns)
-	orderBy := orderByFromAPI(params.OrderBy)
+	columns, err := columnsFromAPI(ctx, s.Columns)
+	if err != nil {
+		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("columns: %w", err)
+	}
+	orderBy, err := orderByFromAPI(ctx, params.OrderBy)
+	if err != nil {
+		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("order_by: %w", err)
+	}
 	settings := customWidgetExtraParametersSettingsModel{
 		Columns: columns,
 		RequestParameters: requestParamsModel{
@@ -394,29 +400,44 @@ func stringSliceToTypesStrings(ss []string) []types.String {
 	return out
 }
 
-func columnsFromAPI(columns []string) types.List {
+func columnsFromAPI(ctx context.Context, columns []string) (types.List, error) {
 	if len(columns) == 0 {
-		return types.ListNull(types.StringType)
+		return types.ListNull(types.StringType), nil
 	}
-	out, _ := types.ListValueFrom(context.Background(), types.StringType, columns)
-	return out
+	out, diags := types.ListValueFrom(ctx, types.StringType, columns)
+	if diags.HasError() {
+		return types.ListNull(types.StringType), diagError(diags)
+	}
+	return out, nil
 }
 
-func orderByFromAPI(orderBy []string) types.List {
+func orderByFromAPI(ctx context.Context, orderBy []string) (types.List, error) {
 	if len(orderBy) == 0 {
-		return types.ListNull(types.StringType)
+		return types.ListNull(types.StringType), nil
 	}
-	out, _ := types.ListValueFrom(context.Background(), types.StringType, stringSliceToTypesStrings(orderBy))
-	return out
+	out, diags := types.ListValueFrom(ctx, types.StringType, stringSliceToTypesStrings(orderBy))
+	if diags.HasError() {
+		return types.ListNull(types.StringType), diagError(diags)
+	}
+	return out, nil
+}
+
+// diagError returns a single error from the first diagnostic (for propagation to Read diagnostics).
+func diagError(diags diag.Diagnostics) error {
+	if !diags.HasError() {
+		return nil
+	}
+	e := diags.Errors()[0]
+	return fmt.Errorf("%s: %s", e.Summary(), e.Detail())
 }
 
 // instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
-func instanceToState(instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
+func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
 	ep := instance.ExtraParameters
 	settings := customWidgetExtraParametersSettingsModel{}
 	if len(ep.Settings) > 0 {
 		var err error
-		settings, err = apiSettingsToStateSettings(ep.Settings[0])
+		settings, err = apiSettingsToStateSettings(ctx, ep.Settings[0])
 		if err != nil {
 			return customWidgetResourceModel{}, err
 		}
@@ -515,7 +536,7 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	state, err = instanceToState(instance)
+	state, err = instanceToState(ctx, instance)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			errReadingCustomWidget,
