@@ -6,10 +6,12 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
 
+const testDonutWidgetName = "My Donut"
+
 func TestApiWidgetTypeToTerraform(t *testing.T) {
 	tests := []struct {
 		apiType string
-		want   string
+		want    string
 	}{
 		{"PIE_CHART_SINGLE", "donut"},
 		{"ASSETS_TABLE", "asset-table"},
@@ -25,10 +27,10 @@ func TestApiWidgetTypeToTerraform(t *testing.T) {
 	}
 }
 
-func TestInstanceToState_DonutWidget(t *testing.T) {
+func TestInstanceToStateDonutWidget(t *testing.T) {
 	instance := &api_client.CustomWidget{
 		ID:                "widget-123",
-		Name:              "My Donut",
+		Name:              testDonutWidgetName,
 		OrganizationLevel: true,
 		ViewType:          "customs_widgets",
 		ExtraParameters: api_client.CustomWidgetExtraParameters{
@@ -37,12 +39,12 @@ func TestInstanceToState_DonutWidget(t *testing.T) {
 			EmptyStateMessage: "No data",
 			Size:              "sm",
 			IsNew:             true,
-			Title:             "My Donut",
+			Title:             testDonutWidgetName,
 			Subtitle:          "Sub",
 			Description:       "Desc",
 			Settings: []api_client.CustomWidgetExtraParametersSettings{
 				{
-					Size: "sm",
+					Size:    "sm",
 					Columns: []string{"col1"},
 					Field: api_client.CustomWidgetExtraParametersSettingsField{
 						Name: "Region",
@@ -67,8 +69,8 @@ func TestInstanceToState_DonutWidget(t *testing.T) {
 	if state.ID.ValueString() != "widget-123" {
 		t.Errorf("ID = %q, want widget-123", state.ID.ValueString())
 	}
-	if state.Name.ValueString() != "My Donut" {
-		t.Errorf("Name = %q, want My Donut", state.Name.ValueString())
+	if state.Name.ValueString() != testDonutWidgetName {
+		t.Errorf("Name = %q, want %q", state.Name.ValueString(), testDonutWidgetName)
 	}
 	if !state.OrganizationLevel.ValueBool() {
 		t.Error("OrganizationLevel = false, want true")
@@ -87,7 +89,7 @@ func TestInstanceToState_DonutWidget(t *testing.T) {
 	}
 }
 
-func TestInstanceToState_EmptySettings(t *testing.T) {
+func TestInstanceToStateEmptySettings(t *testing.T) {
 	instance := &api_client.CustomWidget{
 		ID:                "widget-empty",
 		Name:              "Empty Widget",
@@ -116,7 +118,7 @@ func TestInstanceToState_EmptySettings(t *testing.T) {
 	}
 }
 
-func TestInstanceToState_AlertTable(t *testing.T) {
+func TestInstanceToStateAlertTable(t *testing.T) {
 	instance := &api_client.CustomWidget{
 		ID:   "alert-widget",
 		Name: "Alerts",
@@ -140,7 +142,7 @@ func TestInstanceToState_AlertTable(t *testing.T) {
 	}
 }
 
-func TestApiSettingsToStateSettings_EmptyField(t *testing.T) {
+func TestApiSettingsToStateSettingsEmptyField(t *testing.T) {
 	s := api_client.CustomWidgetExtraParametersSettings{
 		Field: api_client.CustomWidgetExtraParametersSettingsField{},
 		RequestParameters: api_client.RequestParams{

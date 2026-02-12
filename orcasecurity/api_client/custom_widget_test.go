@@ -9,7 +9,7 @@ import (
 
 const errMsgExpectedNoError = "expected no error, got %v"
 
-func TestAPIClient_ListCustomWidgets(t *testing.T) {
+func TestAPIClientListCustomWidgets(t *testing.T) {
 	userPrefsResp := `{
 		"data": {
 			"organization_preferences": [
@@ -57,7 +57,7 @@ func TestAPIClient_ListCustomWidgets(t *testing.T) {
 	}
 }
 
-func TestAPIClient_ListCustomWidgets_Deduplicates(t *testing.T) {
+func TestAPIClientListCustomWidgetsDeduplicates(t *testing.T) {
 	userPrefsResp := `{
 		"data": {
 			"organization_preferences": [
@@ -94,7 +94,7 @@ func TestAPIClient_ListCustomWidgets_Deduplicates(t *testing.T) {
 	}
 }
 
-func TestAPIClient_ListCustomWidgets_Empty(t *testing.T) {
+func TestAPIClientListCustomWidgetsEmpty(t *testing.T) {
 	userPrefsResp := `{
 		"data": {
 			"organization_preferences": [],
