@@ -181,8 +181,8 @@ func TestInstanceToStateV2RequestParams2(t *testing.T) {
 			Type: "PIE_CHART_SINGLE",
 			Settings: []api_client.CustomWidgetExtraParametersSettings{
 				{
-					Size:    "sm",
-					Field:   api_client.CustomWidgetExtraParametersSettingsField{Name: "Type", Type: "str"},
+					Size:  "sm",
+					Field: api_client.CustomWidgetExtraParametersSettingsField{Name: "Type", Type: "str"},
 					RequestParams2: &api_client.RequestParams{
 						Query:       map[string]interface{}{"models": []interface{}{"Inventory"}, "type": "object_set"},
 						GroupBy:     []string{"Type"},

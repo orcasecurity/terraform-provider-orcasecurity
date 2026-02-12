@@ -23,11 +23,11 @@ type RequestParams struct {
 // CustomWidgetExtraParametersSettings holds widget settings. V1 API uses requestParams;
 // V2 API uses requestParams2 in the response. Both are supported for Read/Import.
 type CustomWidgetExtraParametersSettings struct {
-	Size               string                                   `json:"size"`
-	Columns            []string                                 `json:"columns"`
-	Field              CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
-	RequestParameters  RequestParams                            `json:"requestParams"`
-	RequestParams2    *RequestParams                            `json:"requestParams2,omitempty"` // V2 API
+	Size              string                                   `json:"size"`
+	Columns           []string                                 `json:"columns"`
+	Field             CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
+	RequestParameters RequestParams                            `json:"requestParams"`
+	RequestParams2    *RequestParams                           `json:"requestParams2,omitempty"` // V2 API
 }
 
 type CustomWidgetExtraParameters struct {
