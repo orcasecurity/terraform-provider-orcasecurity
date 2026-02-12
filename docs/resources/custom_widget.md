@@ -112,7 +112,7 @@ resource "orcasecurity_custom_widget" "example_donut" {
 
 ## Importing
 
-Existing custom widgets created in the Orca UI (V1 or V2 API) can be imported. The provider supports both API versions: widgets created via the V2 API use `requestParams2` in settings; the provider parses both formats when reading state.
+Existing custom widgets created in the Orca UI (V1 or V2 API) can be imported. The provider supports both API versions, the provider parses both formats when reading state.
 
 Use the `orcasecurity_user_preferences` data source to discover widget IDs:
 
@@ -137,7 +137,7 @@ custom_widgets = tolist([
 
 Add a placeholder resource block to your configuration first, then run the import. After import, run `terraform plan` to align your configuration with the imported state.
 
-**V1 vs V2 API:** Widgets created in the Orca UI may use the V1 API (settings with `requestParams`) or V2 API (settings with `requestParams2`). The provider handles both on import and read—no configuration changes are needed.
+**V1 vs V2 API:** Widgets created in the Orca UI may use the V1 API or V2 API. The provider handles both on import and read—no configuration changes are needed.
 
 Import command:
 
