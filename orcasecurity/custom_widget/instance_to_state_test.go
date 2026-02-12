@@ -18,7 +18,7 @@ func TestApiWidgetTypeToTerraform(t *testing.T) {
 		want    string
 	}{
 		{"PIE_CHART_SINGLE", "donut"},
-		{"ASSETS_TABLE", "asset-table"},
+		{"ASSETS_TABLE", "table"},
 		{"ALERTS_TABLE", "alert-table"},
 		{"donut", "donut"},
 		{"unknown", "unknown"},
@@ -120,8 +120,8 @@ func TestInstanceToStateEmptySettings(t *testing.T) {
 		t.Fatalf(errInstanceToStateFmt, err)
 	}
 
-	if state.ExtraParameters.Type.ValueString() != "asset-table" {
-		t.Errorf("Type = %q, want asset-table", state.ExtraParameters.Type.ValueString())
+	if state.ExtraParameters.Type.ValueString() != "table" {
+		t.Errorf("Type = %q, want table", state.ExtraParameters.Type.ValueString())
 	}
 	if state.ExtraParameters.Settings.Field != nil {
 		t.Error("Settings.Field should be nil for empty settings")

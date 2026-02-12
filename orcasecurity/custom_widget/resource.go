@@ -121,7 +121,7 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 				Required: true,
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
-						Description: "Type of custom widget to create. Valid values are `donut` and `table`.",
+						Description: "Type of custom widget to create. Valid values are `donut` and `table`. Legacy aliases `asset-table` and `alert-table` are also accepted; state will normalize to `table` for asset tables.",
 						Required:    true,
 					},
 					"category": schema.StringAttribute{
@@ -337,7 +337,9 @@ func apiWidgetTypeToTerraform(apiType string) string {
 	case "PIE_CHART_SINGLE":
 		return "donut"
 	case "ASSETS_TABLE":
-		return "asset-table"
+		// Canonical Terraform value is "table" (see schema docs).
+		// "asset-table" is kept as a legacy alias on input only.
+		return "table"
 	case "ALERTS_TABLE":
 		return "alert-table"
 	default:

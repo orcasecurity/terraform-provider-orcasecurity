@@ -1,5 +1,5 @@
-# table-type asset widget (Serving Layer (SVL) Orca backend)
-resource "orcasecurity_custom_widget" "example_1" {
+# table-type asset widget
+resource "orcasecurity_custom_widget" "example_table" {
   name               = "Virtual Instances"
   organization_level = true
   extra_params = {
@@ -17,18 +17,9 @@ resource "orcasecurity_custom_widget" "example_1" {
             "AliCloudEcsInstance",
             "AwsEc2Instance",
             "AzureComputeVm",
-            "AzureComputeVmAvailabilitySet",
-            "AzureComputeVmScaleSets",
-            "GcpComputeInstanceGroup",
-            "GcpComputeTargetPool",
             "GcpVmInstance",
-            "OciComputeVmInstance",
-            "OnPremVm",
             "Vm",
             "VmwareVmInstance",
-            "TencentCloudCvmInstance",
-            "ByocVm",
-            "LinodeInstance"
           ]
           type = "object_set"
         })
@@ -42,8 +33,8 @@ resource "orcasecurity_custom_widget" "example_1" {
   }
 }
 
-# donut-type widget - import: terraform import orcasecurity_custom_widget.test_widget <widget_id>
-resource "orcasecurity_custom_widget" "test_widget" {
+# donut-type widget (import: terraform import orcasecurity_custom_widget.example_donut <widget_id>)
+resource "orcasecurity_custom_widget" "example_donut" {
   name               = "Test Custom Widget"
   organization_level = true
   extra_params = {
