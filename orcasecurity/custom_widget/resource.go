@@ -348,8 +348,11 @@ func apiWidgetTypeToTerraform(apiType string) string {
 }
 
 // apiSettingsToStateSettings converts API settings to Terraform state model.
-func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings) customWidgetExtraParametersSettingsModel {
-	queryJSON, _ := json.Marshal(s.RequestParameters.Query)
+func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings) (customWidgetExtraParametersSettingsModel, error) {
+	queryJSON, err := json.Marshal(s.RequestParameters.Query)
+	if err != nil {
+		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("marshaling request query: %w", err)
+	}
 	groupBy := stringSliceToTypesStrings(s.RequestParameters.GroupBy)
 	groupByList := stringSliceToTypesStrings(s.RequestParameters.GroupByList)
 	columns := columnsFromAPI(s.Columns)
@@ -372,7 +375,7 @@ func apiSettingsToStateSettings(s api_client.CustomWidgetExtraParametersSettings
 			Type: types.StringValue(s.Field.Type),
 		}
 	}
-	return settings
+	return settings, nil
 }
 
 func stringSliceToTypesStrings(ss []string) []types.String {
@@ -400,11 +403,15 @@ func orderByFromAPI(orderBy []string) types.List {
 }
 
 // instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
-func instanceToState(instance *api_client.CustomWidget) customWidgetResourceModel {
+func instanceToState(instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
 	ep := instance.ExtraParameters
 	settings := customWidgetExtraParametersSettingsModel{}
 	if len(ep.Settings) > 0 {
-		settings = apiSettingsToStateSettings(ep.Settings[0])
+		var err error
+		settings, err = apiSettingsToStateSettings(ep.Settings[0])
+		if err != nil {
+			return customWidgetResourceModel{}, err
+		}
 	}
 
 	return customWidgetResourceModel{
@@ -423,7 +430,7 @@ func instanceToState(instance *api_client.CustomWidget) customWidgetResourceMode
 			Description:       types.StringValue(ep.Description),
 			Settings:          settings,
 		},
-	}
+	}, nil
 }
 
 func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -500,7 +507,14 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	state = instanceToState(instance)
+	state, err = instanceToState(instance)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading custom widget",
+			fmt.Sprintf("Could not convert widget state for ID %s: %s", id, err.Error()),
+		)
+		return
+	}
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }

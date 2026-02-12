@@ -64,7 +64,10 @@ func TestInstanceToStateDonutWidget(t *testing.T) {
 		},
 	}
 
-	state := instanceToState(instance)
+	state, err := instanceToState(instance)
+	if err != nil {
+		t.Fatalf("instanceToState: %v", err)
+	}
 
 	if state.ID.ValueString() != "widget-123" {
 		t.Errorf("ID = %q, want widget-123", state.ID.ValueString())
@@ -108,7 +111,10 @@ func TestInstanceToStateEmptySettings(t *testing.T) {
 		},
 	}
 
-	state := instanceToState(instance)
+	state, err := instanceToState(instance)
+	if err != nil {
+		t.Fatalf("instanceToState: %v", err)
+	}
 
 	if state.ExtraParameters.Type.ValueString() != "asset-table" {
 		t.Errorf("Type = %q, want asset-table", state.ExtraParameters.Type.ValueString())
@@ -135,7 +141,10 @@ func TestInstanceToStateAlertTable(t *testing.T) {
 		},
 	}
 
-	state := instanceToState(instance)
+	state, err := instanceToState(instance)
+	if err != nil {
+		t.Fatalf("instanceToState: %v", err)
+	}
 
 	if state.ExtraParameters.Type.ValueString() != "alert-table" {
 		t.Errorf("Type = %q, want alert-table", state.ExtraParameters.Type.ValueString())
@@ -150,7 +159,10 @@ func TestApiSettingsToStateSettingsEmptyField(t *testing.T) {
 		},
 	}
 
-	settings := apiSettingsToStateSettings(s)
+	settings, err := apiSettingsToStateSettings(s)
+	if err != nil {
+		t.Fatalf("apiSettingsToStateSettings: %v", err)
+	}
 
 	if settings.Field != nil {
 		t.Error("Field should be nil when Name and Type are empty")
