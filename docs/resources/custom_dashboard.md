@@ -13,7 +13,8 @@ Provides a custom dashboard resource.
 ## Example Usage
 
 ```terraform
-//2-widget custom dashboard
+# Dashboard with built-in widgets only.
+# Built-in IDs are strings from Orca docs (e.g. "cloud-accounts-inventory").
 resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
   name               = "Orca Custom Dashboard 1"
   filter_data        = {}
@@ -43,7 +44,12 @@ For widgets, derive the ID by converting the name to lowercase and replacing spa
 
 ## Using Custom Widgets
 
-Custom widgets are created with the `orcasecurity_custom_widget` resource. The widget receives an `id` from Orca after creation (computed attribute). Reference that `id` in `widgets_config` to add the custom widget to a dashboard. You can mix built-in and custom widgets in the same dashboard.
+Custom widgets are created with the `orcasecurity_custom_widget` resource. The widget receives an `id` from Orca after creation (computed attribute). You can mix built-in and custom widgets in the same dashboard:
+
+| Type    | How to reference in `widgets_config`                          |
+|---------|---------------------------------------------------------------|
+| Built-in | String ID from Orca UI, e.g. `"cloud-accounts-inventory"`   |
+| Custom   | `orcasecurity_custom_widget.<resource_name>.id`               |
 
 **1. Create the custom widget:**
 
@@ -78,16 +84,22 @@ resource "orcasecurity_custom_widget" "my_widget" {
 **2. Add it to a dashboard using its `id`:**
 
 ```terraform
+# Mix built-in widgets (string IDs) and custom widgets (resource IDs).
+# Built-in: use string ID from Orca docs. Custom: use orcasecurity_custom_widget.<name>.id
 resource "orcasecurity_custom_dashboard" "my_dashboard" {
-  name               = "Dashboard with Custom Widget"
+  name               = "Dashboard with Built-in and Custom Widgets"
   organization_level = true
   filter_data        = {}
   view_type          = "dashboard"
   extra_params = {
-    description = ""
+    description = "Built-in and custom widgets together"
     widgets_config = [
-      { id = orcasecurity_custom_widget.my_widget.id, size = "sm" },
-      { id = "cloud-accounts-inventory", size = "sm" }
+      # Built-in widgets — string IDs from Orca docs
+      { id = "cloud-accounts-inventory", size = "sm" },
+      { id = "security-score-benchmark", size = "md" },
+      { id = "alerts-by-severity", size = "sm" },
+      # Custom widget — reference the resource
+      { id = orcasecurity_custom_widget.my_widget.id, size = "sm" }
     ]
   }
 }

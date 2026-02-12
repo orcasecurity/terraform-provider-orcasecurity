@@ -26,7 +26,12 @@ For widgets, derive the ID by converting the name to lowercase and replacing spa
 
 ## Using Custom Widgets
 
-Custom widgets are created with the `orcasecurity_custom_widget` resource. The widget receives an `id` from Orca after creation (computed attribute). Reference that `id` in `widgets_config` to add the custom widget to a dashboard. You can mix built-in and custom widgets in the same dashboard.
+Custom widgets are created with the `orcasecurity_custom_widget` resource. The widget receives an `id` from Orca after creation (computed attribute). You can mix built-in and custom widgets in the same dashboard:
+
+| Type    | How to reference in `widgets_config`                          |
+|---------|---------------------------------------------------------------|
+| Built-in | String ID from Orca UI, e.g. `"cloud-accounts-inventory"`   |
+| Custom   | `orcasecurity_custom_widget.<resource_name>.id`               |
 
 **1. Create the custom widget:**
 

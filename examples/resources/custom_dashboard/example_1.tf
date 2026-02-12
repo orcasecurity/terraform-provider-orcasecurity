@@ -1,4 +1,5 @@
-//2-widget custom dashboard
+# Dashboard with built-in widgets only.
+# Built-in IDs are strings from Orca docs (e.g. "cloud-accounts-inventory").
 resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
   name               = "Orca Custom Dashboard 1"
   filter_data        = {}
