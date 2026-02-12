@@ -333,6 +333,89 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 	return extra_params
 }
 
+// instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
+func instanceToState(instance *api_client.CustomWidget) customWidgetResourceModel {
+	state := customWidgetResourceModel{
+		ID:                types.StringValue(instance.ID),
+		Name:              types.StringValue(instance.Name),
+		OrganizationLevel: types.BoolValue(instance.OrganizationLevel),
+		ViewType:          types.StringValue(instance.ViewType),
+	}
+
+	ep := instance.ExtraParameters
+
+	// Map API type back to Terraform type
+	widgetType := ep.Type
+	if widgetType == "PIE_CHART_SINGLE" {
+		widgetType = "donut"
+	} else if widgetType == "ASSETS_TABLE" {
+		widgetType = "asset-table"
+	} else if widgetType == "ALERTS_TABLE" {
+		widgetType = "alert-table"
+	}
+
+	settings := customWidgetExtraParametersSettingsModel{}
+	if len(ep.Settings) > 0 {
+		s := ep.Settings[0]
+		queryJSON, _ := json.Marshal(s.RequestParameters.Query)
+		groupBy := make([]types.String, len(s.RequestParameters.GroupBy))
+		for i, g := range s.RequestParameters.GroupBy {
+			groupBy[i] = types.StringValue(g)
+		}
+		groupByList := make([]types.String, len(s.RequestParameters.GroupByList))
+		for i, g := range s.RequestParameters.GroupByList {
+			groupByList[i] = types.StringValue(g)
+		}
+		var columns types.List
+		if len(s.Columns) > 0 {
+			columns, _ = types.ListValueFrom(context.Background(), types.StringType, s.Columns)
+		} else {
+			columns = types.ListNull(types.StringType)
+		}
+		var orderBy types.List
+		if len(s.RequestParameters.OrderBy) > 0 {
+			orderByVals := make([]types.String, len(s.RequestParameters.OrderBy))
+			for i, o := range s.RequestParameters.OrderBy {
+				orderByVals[i] = types.StringValue(o)
+			}
+			orderBy, _ = types.ListValueFrom(context.Background(), types.StringType, orderByVals)
+		} else {
+			orderBy = types.ListNull(types.StringType)
+		}
+		settings = customWidgetExtraParametersSettingsModel{
+			Columns: columns,
+			RequestParameters: requestParamsModel{
+				Query:            types.StringValue(string(queryJSON)),
+				GroupBy:          groupBy,
+				GroupByList:      groupByList,
+				Limit:            types.Int64Value(s.RequestParameters.Limit),
+				StartAtIndex:     types.Int64Value(s.RequestParameters.StartAtIndex),
+				EnablePagination: types.BoolValue(s.RequestParameters.EnablePagination),
+				OrderBy:          orderBy,
+			},
+		}
+		if s.Field.Name != "" || s.Field.Type != "" {
+			settings.Field = &customWidgetExtraParmetersSettingsFieldModel{
+				Name: types.StringValue(s.Field.Name),
+				Type: types.StringValue(s.Field.Type),
+			}
+		}
+	}
+
+	state.ExtraParameters = &customWidgetExtraParametersModel{
+		Type:              types.StringValue(widgetType),
+		Category:          types.StringValue(ep.Category),
+		EmptyStateMessage: types.StringValue(ep.EmptyStateMessage),
+		Size:              types.StringValue(ep.Size),
+		IsNew:             types.BoolValue(ep.IsNew),
+		Title:             types.StringValue(ep.Title),
+		Subtitle:          types.StringValue(ep.Subtitle),
+		Description:       types.StringValue(ep.Description),
+		Settings:          settings,
+	}
+	return state
+}
+
 func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan customWidgetResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -377,51 +460,39 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 
 	var state customWidgetResourceModel
 	diags := req.State.Get(ctx, &state)
-	tflog.Info(ctx, fmt.Sprintf("Current state ID: %s", state.ID.ValueString()))
-
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	exists, err := r.apiClient.DoesCustomWidgetExist(state.ID.ValueString())
+	id := state.ID.ValueString()
+	exists, err := r.apiClient.DoesCustomWidgetExist(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading custom widget",
-			fmt.Sprintf("Could not read custom widget ID %s: %s", state.ID.ValueString(), err.Error()),
+			fmt.Sprintf("Could not read custom widget ID %s: %s", id, err.Error()),
 		)
 		return
 	}
 
 	if !exists {
-		tflog.Warn(ctx, fmt.Sprintf("Custom widget %s is missing on the remote side.", state.ID.ValueString()))
+		tflog.Warn(ctx, fmt.Sprintf("Custom widget %s is missing on the remote side.", id))
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	instance, err := r.apiClient.GetCustomWidget(state.ID.ValueString())
+	instance, err := r.apiClient.GetCustomWidget(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading custom widget",
-			fmt.Sprintf("Could not read custom widget ID %s: %s", state.ID.ValueString(), err.Error()),
+			fmt.Sprintf("Could not read custom widget ID %s: %s", id, err.Error()),
 		)
 		return
 	}
 
-	tflog.Info(ctx, fmt.Sprintf("Retrieved instance ID: %s", instance.ID))
-
-	state.ID = types.StringValue(instance.ID)
-	tflog.Info(ctx, fmt.Sprintf("Final state ID being set: %s", state.ID.ValueString()))
-
-	state.ViewType = types.StringValue(instance.ViewType)
-	state.ExtraParameters.Category = types.StringValue("Custom")
-	state.ExtraParameters.Title = types.StringValue(instance.ExtraParameters.Title)
-
+	state = instanceToState(instance)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (r *customWidgetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
