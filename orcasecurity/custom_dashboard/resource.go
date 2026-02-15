@@ -136,6 +136,38 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 	}
 }
 
+// sizeToAPI converts Terraform size (sm, md, lg, xl) to Orca API size (s, m, l, xl).
+func sizeToAPI(size string) string {
+	switch size {
+	case "sm":
+		return "s"
+	case "md":
+		return "m"
+	case "lg":
+		return "l"
+	case "xl":
+		return "xl"
+	default:
+		return size
+	}
+}
+
+// sizeFromAPI converts Orca API size (s, m, l, xl) to Terraform size (sm, md, lg, xl).
+func sizeFromAPI(size string) string {
+	switch size {
+	case "s":
+		return "sm"
+	case "m":
+		return "md"
+	case "l":
+		return "lg"
+	case "xl":
+		return "xl"
+	default:
+		return size
+	}
+}
+
 // Widgets Config
 func generateWidgetsConfig(plan *customDashboardExtraParametersModel) []api_client.WidgetConfig {
 	var widgetsConfig []api_client.WidgetConfig
@@ -143,7 +175,7 @@ func generateWidgetsConfig(plan *customDashboardExtraParametersModel) []api_clie
 	for _, item := range plan.WidgetsConfig {
 		widgetsConfig = append(widgetsConfig, api_client.WidgetConfig{
 			ID:    item.ID.ValueString(),
-			Size:  item.Size.ValueString(),
+			Size:  sizeToAPI(item.Size.ValueString()),
 			Slots: map[string]interface{}{},
 		})
 	}
@@ -169,7 +201,7 @@ func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, i
 		}
 		out = append(out, api_client.WidgetConfig{
 			ID:    id,
-			Size:  item.Size.ValueString(),
+			Size:  sizeToAPI(item.Size.ValueString()),
 			Slots: slots,
 		})
 	}
@@ -308,7 +340,7 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	for _, item := range instance.ExtraParameters.WidgetsConfig {
 		widgetSettings = append(widgetSettings, customDashboardWidgetConfigModel{
 			ID:   types.StringValue(item.ID),
-			Size: types.StringValue(item.Size),
+			Size: types.StringValue(sizeFromAPI(item.Size)),
 		})
 	}
 
@@ -403,7 +435,7 @@ func (r *customDashboardResource) Update(ctx context.Context, req resource.Updat
 	for _, item := range instance.ExtraParameters.WidgetsConfig {
 		updateWidgets = append(updateWidgets, customDashboardWidgetConfigModel{
 			ID:   types.StringValue(item.ID),
-			Size: types.StringValue(item.Size),
+			Size: types.StringValue(sizeFromAPI(item.Size)),
 		})
 	}
 	plan.ExtraParameters = &customDashboardExtraParametersModel{
