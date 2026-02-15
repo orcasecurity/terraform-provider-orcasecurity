@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	ResourceType = "orcasecurity_custom_dashboard"
-	Resource     = "terraformTestResource"
-	OrcaObject   = "terraformTestResourceInOrca"
+	ResourceType              = "orcasecurity_custom_dashboard"
+	Resource                  = "terraformTestResource"
+	OrcaObject                = "terraformTestResourceInOrca"
+	attrExtraParamsVer        = "extra_params.version"
+	resourceAddrTfCustomDash1 = ResourceType + ".tf-custom-dash-1"
 )
 
 func TestAccCustomDashboardResource_Basic(t *testing.T) {
@@ -45,7 +47,7 @@ resource "%s" "%s" {
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", OrcaObject),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "organization_level", "true"),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "view_type", "dashboard"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "extra_params.version", "2"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), attrExtraParamsVer, "2"),
 				),
 			},
 			// import
@@ -79,10 +81,10 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "name", "Orca Custom Dashboard 2"),
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "organization_level", "false"),
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "view_type", "dashboard"),
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.version", "2"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "name", "Orca Custom Dashboard 2"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "organization_level", "false"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "view_type", "dashboard"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrExtraParamsVer, "2"),
 				),
 			},
 		},
@@ -118,8 +120,8 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.widgets_config[0].id", "cloud-accounts-inventory"),
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.version", "2"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].id", "cloud-accounts-inventory"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrExtraParamsVer, "2"),
 				),
 			},
 			// update
@@ -147,8 +149,8 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 }
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.widgets_config[0].id", "attack-paths"),
-					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.version", "2"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].id", "attack-paths"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrExtraParamsVer, "2"),
 				),
 			},
 		},

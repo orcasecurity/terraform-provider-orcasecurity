@@ -24,6 +24,11 @@ var (
 	_ resource.ResourceWithImportState = &customDashboardResource{}
 )
 
+const (
+	errReadingCustomDashboard    = "Error reading custom dashboard"
+	errReadingCustomDashboardFmt = "Could not read custom dashboard ID %s: %s"
+)
+
 type customDashboardResource struct {
 	apiClient *api_client.APIClient
 }
@@ -269,8 +274,8 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	exists, err := r.apiClient.DoesCustomDashboardExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom dashboard",
-			fmt.Sprintf("Could not read custom dashboard ID %s: %s", state.ID.ValueString(), err.Error()),
+			errReadingCustomDashboard,
+			fmt.Sprintf(errReadingCustomDashboardFmt, state.ID.ValueString(), err.Error()),
 		)
 		return
 	}
@@ -284,8 +289,8 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	instance, err := r.apiClient.GetCustomDashboard(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom dashboard",
-			fmt.Sprintf("Could not read custom dashboard ID %s: %s", state.ID.ValueString(), err.Error()),
+			errReadingCustomDashboard,
+			fmt.Sprintf(errReadingCustomDashboardFmt, state.ID.ValueString(), err.Error()),
 		)
 		return
 	}
@@ -342,8 +347,8 @@ func (r *customDashboardResource) Update(ctx context.Context, req resource.Updat
 	currentInstance, err := r.apiClient.GetCustomDashboard(plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom dashboard",
-			fmt.Sprintf("Could not read custom dashboard ID %s: %s", plan.ID.ValueString(), err.Error()),
+			errReadingCustomDashboard,
+			fmt.Sprintf(errReadingCustomDashboardFmt, plan.ID.ValueString(), err.Error()),
 		)
 		return
 	}
