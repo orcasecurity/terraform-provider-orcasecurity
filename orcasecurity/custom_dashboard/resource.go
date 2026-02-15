@@ -151,24 +151,28 @@ func generateWidgetsConfig(plan *customDashboardExtraParametersModel) []api_clie
 	return widgetsConfig
 }
 
-// generateWidgetsConfigForUpdate merges plan (id, size) with instance (slots) so UI-added
-// slot data is preserved and not stripped on terraform apply.
 func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, instance *api_client.CustomDashboard) []api_client.WidgetConfig {
-	var out []api_client.WidgetConfig
 	instanceWidgets := instance.ExtraParameters.WidgetsConfig
+	slotsByID := make(map[string]map[string]interface{}, len(instanceWidgets))
+	for _, w := range instanceWidgets {
+		if w.Slots != nil {
+			slotsByID[w.ID] = w.Slots
+		}
+	}
 
-	for i, item := range plan.WidgetsConfig {
+	var out []api_client.WidgetConfig
+	for _, item := range plan.WidgetsConfig {
+		id := item.ID.ValueString()
 		slots := map[string]interface{}{}
-		if i < len(instanceWidgets) && instanceWidgets[i].Slots != nil {
-			slots = instanceWidgets[i].Slots
+		if s, ok := slotsByID[id]; ok {
+			slots = s
 		}
 		out = append(out, api_client.WidgetConfig{
-			ID:    item.ID.ValueString(),
+			ID:    id,
 			Size:  item.Size.ValueString(),
 			Slots: slots,
 		})
 	}
-
 	return out
 }
 
