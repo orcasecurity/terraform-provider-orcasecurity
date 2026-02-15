@@ -272,25 +272,21 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 }
 
 func generateSettings(plan *customWidgetExtraParametersModel) []api_client.CustomWidgetExtraParametersSettings {
-	var settings []api_client.CustomWidgetExtraParametersSettings
-	var columns []string
-	sizelist := [3]string{"sm", "md", "lg"}
-
 	item := plan.Settings
 
-	// Print each element as we process it
+	var columns []string
 	for _, v := range plan.Settings.Columns.Elements() {
 		columns = append(columns, (v.String())[1:len(v.String())-1])
 	}
 
-	for i := 0; i <= 2; i++ {
-		field := generateField(&item)
-		settings = append(settings, api_client.CustomWidgetExtraParametersSettings{
-			Size:              sizelist[i],
+	field := generateField(&item)
+	settings := []api_client.CustomWidgetExtraParametersSettings{
+		{
+			Size:              plan.Size.ValueString(),
 			Columns:           columns,
 			Field:             field,
 			RequestParameters: generateRequestParameters(&item.RequestParameters),
-		})
+		},
 	}
 
 	return settings

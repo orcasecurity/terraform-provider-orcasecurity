@@ -107,7 +107,7 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 					"version": schema.Int64Attribute{
 						Description: "Dashboard builder version. Set to 2 for the new Dashboard Builder (V2) so the dashboard can be edited and saved in the Orca V2 UI. Set to 1 for legacy (V1). If a dashboard still cannot be edited in the V2 UI (e.g. \"already exist\" on save), run terraform apply so the provider sends a full V2 payload (version + slots) to the backend.",
 						Optional:    true,
-						Computed:     true,
+						Computed:    true,
 						Default:     int64default.StaticInt64(2),
 					},
 					"widgets_config": schema.ListNestedAttribute{
