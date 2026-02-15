@@ -8,6 +8,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+const (
+	testAccAutomationName        = "test name"
+	testAccAutomationNameUpdated = "test name updated"
+	testAccAutomationDesc        = "test description"
+	testAccAutomationDescUpdated = "test description updated"
+)
+
 func TestAccAutomationResource_RequireAtLeastOneIntegration(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -15,8 +22,8 @@ func TestAccAutomationResource_RequireAtLeastOneIntegration(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name"
-  description = "test description"
+  name        = "` + testAccAutomationName + `"
+  description = "` + testAccAutomationDesc + `"
   enabled     = true
   query = {
     filter = [
@@ -41,8 +48,8 @@ func TestAccAutomationResource_JiraIssue(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name"
-  description = "test description"
+  name        = "` + testAccAutomationName + `"
+  description = "` + testAccAutomationDesc + `"
   enabled     = true
   query = {
     filter = [
@@ -57,8 +64,8 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", "test description"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationName),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", testAccAutomationDesc),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.template", "tf: example"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.parent_issue", "FOO-1"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.field", "state.status"),
@@ -77,8 +84,8 @@ resource "orcasecurity_automation" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name updated"
-  description = "test description updated"
+  name        = "` + testAccAutomationNameUpdated + `"
+  description = "` + testAccAutomationDescUpdated + `"
   enabled     = true
   query = {
     filter = [
@@ -94,8 +101,8 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name updated"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", "test description updated"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationNameUpdated),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", testAccAutomationDescUpdated),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.template", "tf: example updated"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.parent_issue", "FOO-2"),
 					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.field", "state.status"),
@@ -120,8 +127,8 @@ func TestAccAutomationResource_SumoLogic(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name"
-  description = "test description"
+  name        = "` + testAccAutomationName + `"
+  description = "` + testAccAutomationDesc + `"
   enabled     = true
   query = {
     filter = [
@@ -143,8 +150,8 @@ resource "orcasecurity_automation" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name updated"
-  description = "test description updated"
+  name        = "` + testAccAutomationNameUpdated + `"
+  description = "` + testAccAutomationDescUpdated + `"
   enabled     = true
   query = {
     filter = [
@@ -158,7 +165,7 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name updated"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationNameUpdated),
 				),
 			},
 		},
@@ -173,8 +180,8 @@ func TestAccAutomationResource_Webhook(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name"
-  description = "test description"
+  name        = "` + testAccAutomationName + `"
+  description = "` + testAccAutomationDesc + `"
   enabled     = true
   query = {
     filter = [
@@ -198,8 +205,8 @@ resource "orcasecurity_automation" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation" "test" {
-  name        = "test name updated"
-  description = "test description updated"
+  name        = "` + testAccAutomationNameUpdated + `"
+  description = "` + testAccAutomationDescUpdated + `"
   enabled     = true
   query = {
     filter = [
@@ -210,7 +217,7 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", "test name updated"),
+					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationNameUpdated),
 				),
 			},
 		},
