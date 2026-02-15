@@ -138,17 +138,17 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 
 // Widgets Config
 func generateWidgetsConfig(plan *customDashboardExtraParametersModel) []api_client.WidgetConfig {
-	var widgets_config []api_client.WidgetConfig
+	var widgetsConfig []api_client.WidgetConfig
 
 	for _, item := range plan.WidgetsConfig {
-		widgets_config = append(widgets_config, api_client.WidgetConfig{
+		widgetsConfig = append(widgetsConfig, api_client.WidgetConfig{
 			ID:    item.ID.ValueString(),
 			Size:  item.Size.ValueString(),
 			Slots: map[string]interface{}{},
 		})
 	}
 
-	return widgets_config
+	return widgetsConfig
 }
 
 // generateWidgetsConfigForUpdate merges plan (id, size) with instance (slots) so UI-added
@@ -174,7 +174,7 @@ func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, i
 
 // Extra Parameters
 func generateExtraParameters(plan *customDashboardResourceModel) api_client.CustomDashboardExtraParameters {
-	widgets_config := generateWidgetsConfig(plan.ExtraParameters)
+	widgetsConfig := generateWidgetsConfig(plan.ExtraParameters)
 
 	version := 2 // default to V2 so dashboards can be edited in the Orca V2 UI
 	if !plan.ExtraParameters.Version.IsNull() && !plan.ExtraParameters.Version.IsUnknown() {
@@ -184,19 +184,19 @@ func generateExtraParameters(plan *customDashboardResourceModel) api_client.Cust
 		}
 	}
 
-	extra_params := api_client.CustomDashboardExtraParameters{
+	extraParams := api_client.CustomDashboardExtraParameters{
 		Description:   plan.ExtraParameters.Description.ValueString(),
 		Version:       version,
-		WidgetsConfig: widgets_config,
+		WidgetsConfig: widgetsConfig,
 	}
 
-	return extra_params
+	return extraParams
 }
 
 // generateExtraParametersForUpdate merges plan with current instance so widget slots
 // (and other V2 fields) from the API are preserved when applying Terraform changes.
 func generateExtraParametersForUpdate(plan *customDashboardResourceModel, instance *api_client.CustomDashboard) api_client.CustomDashboardExtraParameters {
-	widgets_config := generateWidgetsConfigForUpdate(plan.ExtraParameters, instance)
+	widgetsConfig := generateWidgetsConfigForUpdate(plan.ExtraParameters, instance)
 
 	version := 2
 	if !plan.ExtraParameters.Version.IsNull() && !plan.ExtraParameters.Version.IsUnknown() {
@@ -209,7 +209,7 @@ func generateExtraParametersForUpdate(plan *customDashboardResourceModel, instan
 	return api_client.CustomDashboardExtraParameters{
 		Description:   plan.ExtraParameters.Description.ValueString(),
 		Version:       version,
-		WidgetsConfig: widgets_config,
+		WidgetsConfig: widgetsConfig,
 	}
 }
 
@@ -301,10 +301,10 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	state.ViewType = types.StringValue(instance.ViewType)
 	state.FilterData = make(map[string]interface{})
 
-	var widget_settings []customDashboardWidgetConfigModel
+	var widgetSettings []customDashboardWidgetConfigModel
 
 	for _, item := range instance.ExtraParameters.WidgetsConfig {
-		widget_settings = append(widget_settings, customDashboardWidgetConfigModel{
+		widgetSettings = append(widgetSettings, customDashboardWidgetConfigModel{
 			ID:   types.StringValue(item.ID),
 			Size: types.StringValue(item.Size),
 		})
@@ -317,7 +317,7 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	state.ExtraParameters = &customDashboardExtraParametersModel{
 		Description:   types.StringValue(instance.ExtraParameters.Description),
 		Version:       types.Int64Value(int64(version)),
-		WidgetsConfig: widget_settings,
+		WidgetsConfig: widgetSettings,
 	}
 
 	diags = resp.State.Set(ctx, &state)
