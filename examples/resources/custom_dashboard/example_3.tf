@@ -7,6 +7,7 @@ resource "orcasecurity_custom_dashboard" "my_dashboard" {
   view_type          = "dashboard"
   extra_params = {
     description = "Built-in and custom widgets together"
+    version     = 2
     widgets_config = [
       # Built-in widgets — string IDs from Orca docs
       { id = "cloud-accounts-inventory", size = "sm" },

@@ -24,6 +24,7 @@ resource "orcasecurity_custom_dashboard" "widget_test" {
   view_type          = "dashboard"
   extra_params = {
     description    = "Dashboard with built-in widget IDs"
+    version        = 2
     widgets_config = module.widget_builtins.widgets_config
   }
 }
@@ -58,6 +59,7 @@ resource "orcasecurity_custom_dashboard" "mixed" {
   view_type          = "dashboard"
   extra_params = {
     description = "Built-in + custom widgets"
+    version     = 2
     widgets_config = concat(
       module.widget_builtins.widgets_config,
       [{ id = orcasecurity_custom_widget.example.id, size = "sm" }]

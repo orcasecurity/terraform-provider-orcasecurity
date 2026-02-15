@@ -5,12 +5,16 @@ import (
 )
 
 type WidgetConfig struct {
-	ID   string `json:"id"`
-	Size string `json:"size"`
+	ID    string                 `json:"id"`
+	Size  string                 `json:"size"`
+	Slots map[string]interface{} `json:"slots"`
 }
 
 type CustomDashboardExtraParameters struct {
 	Description   string         `json:"description"`
+	Version       int            `json:"version"`
+	CreatedAt     int64          `json:"created_at,omitempty"`
+	UpdatedAt     int64          `json:"updated_at,omitempty"`
 	WidgetsConfig []WidgetConfig `json:"widgets_config"`
 }
 

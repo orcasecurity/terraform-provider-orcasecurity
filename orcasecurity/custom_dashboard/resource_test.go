@@ -28,6 +28,7 @@ resource "%s" "%s" {
     view_type = "dashboard"
     extra_params = {
         description = "my 1st simple dashboard"
+        version      = 2
         widgets_config = [
             {
                 id = "cloud-accounts-inventory"
@@ -42,8 +43,9 @@ resource "%s" "%s" {
             }`, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", OrcaObject),
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "organizational_level", "true"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "organization_level", "true"),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "view_type", "dashboard"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "extra_params.version", "2"),
 				),
 			},
 			// import
@@ -62,6 +64,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
     view_type = "dashboard"
     extra_params = {
         description = "my 2nd simple dashboard"
+        version      = 2
         widgets_config = [
             {
                 id = "attack-paths"
@@ -76,9 +79,10 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", "Orca Custom Dashboard 2"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "organizational_level", "false"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "view_type", "dashboard"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "name", "Orca Custom Dashboard 2"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "organization_level", "false"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "view_type", "dashboard"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.version", "2"),
 				),
 			},
 		},
@@ -99,6 +103,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
     view_type = "dashboard"
     extra_params = {
         description = "my 1st simple dashboard"
+        version      = 2
         widgets_config = [
             {
                 id = "cloud-accounts-inventory"
@@ -113,7 +118,8 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "extra_params.widgets_config[0].id", "cloud-accounts-inventory"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.widgets_config[0].id", "cloud-accounts-inventory"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.version", "2"),
 				),
 			},
 			// update
@@ -126,6 +132,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
     view_type = "dashboard"
     extra_params = {
         description = "my 1st simple dashboard"
+        version      = 2
         widgets_config = [
             {
                 id = "attack-paths"
@@ -140,7 +147,8 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 }
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "extra_params.widgets_config[0].id", "attack-paths"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.widgets_config[0].id", "attack-paths"),
+					resource.TestCheckResourceAttr(ResourceType+".tf-custom-dash-1", "extra_params.version", "2"),
 				),
 			},
 		},

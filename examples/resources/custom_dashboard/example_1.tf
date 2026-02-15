@@ -7,6 +7,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
   view_type          = "dashboard"
   extra_params = {
     description = "my 1st simple dashboard"
+    version     = 2
     widgets_config = [
       {
         id   = "cloud-accounts-inventory"
