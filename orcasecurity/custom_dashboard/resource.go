@@ -176,7 +176,7 @@ func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, i
 func generateExtraParameters(plan *customDashboardResourceModel) api_client.CustomDashboardExtraParameters {
 	widgetsConfig := generateWidgetsConfig(plan.ExtraParameters)
 
-	version := 2 // default to V2 so dashboards can be edited in the Orca V2 UI
+	version := 2
 	if !plan.ExtraParameters.Version.IsNull() && !plan.ExtraParameters.Version.IsUnknown() {
 		version = int(plan.ExtraParameters.Version.ValueInt64())
 		if version < 1 {
@@ -193,8 +193,6 @@ func generateExtraParameters(plan *customDashboardResourceModel) api_client.Cust
 	return extraParams
 }
 
-// generateExtraParametersForUpdate merges plan with current instance so widget slots
-// (and other V2 fields) from the API are preserved when applying Terraform changes.
 func generateExtraParametersForUpdate(plan *customDashboardResourceModel, instance *api_client.CustomDashboard) api_client.CustomDashboardExtraParameters {
 	widgetsConfig := generateWidgetsConfigForUpdate(plan.ExtraParameters, instance)
 
