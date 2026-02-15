@@ -13,6 +13,8 @@ const (
 	Resource                  = "terraformTestResource"
 	OrcaObject                = "terraformTestResourceInOrca"
 	attrExtraParamsVer        = "extra_params.version"
+	attrWidgetSize0           = "extra_params.widgets_config[0].size"
+	attrWidgetSize1           = "extra_params.widgets_config[1].size"
 	resourceAddrTfCustomDash1 = ResourceType + ".tf-custom-dash-1"
 )
 
@@ -48,8 +50,8 @@ resource "%s" "%s" {
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "organization_level", "true"),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "view_type", "dashboard"),
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), attrExtraParamsVer, "2"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "extra_params.widgets_config[0].size", "sm"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "extra_params.widgets_config[1].size", "md"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), attrWidgetSize0, "sm"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), attrWidgetSize1, "md"),
 				),
 			},
 			// import
@@ -87,8 +89,8 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "organization_level", "false"),
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "view_type", "dashboard"),
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrExtraParamsVer, "2"),
-					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].size", "sm"),
-					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[1].size", "md"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrWidgetSize0, "sm"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrWidgetSize1, "md"),
 				),
 			},
 		},
@@ -125,7 +127,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].id", "cloud-accounts-inventory"),
-					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].size", "sm"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrWidgetSize0, "sm"),
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrExtraParamsVer, "2"),
 				),
 			},
@@ -155,7 +157,7 @@ resource "orcasecurity_custom_dashboard" "tf-custom-dash-1" {
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].id", "attack-paths"),
-					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, "extra_params.widgets_config[0].size", "sm"),
+					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrWidgetSize0, "sm"),
 					resource.TestCheckResourceAttr(resourceAddrTfCustomDash1, attrExtraParamsVer, "2"),
 				),
 			},
