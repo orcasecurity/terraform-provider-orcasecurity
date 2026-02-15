@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	testAccAutomationName        = "test name"
-	testAccAutomationNameUpdated = "test name updated"
-	testAccAutomationDesc        = "test description"
-	testAccAutomationDescUpdated = "test description updated"
+	testAccAutomationResourceName = "orcasecurity_automation.test"
+	testAccAutomationName         = "test name"
+	testAccAutomationNameUpdated  = "test name updated"
+	testAccAutomationDesc         = "test description"
+	testAccAutomationDescUpdated  = "test description updated"
 )
 
 func TestAccAutomationResource_RequireAtLeastOneIntegration(t *testing.T) {
@@ -64,20 +65,20 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationName),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", testAccAutomationDesc),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.template", "tf: example"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.parent_issue", "FOO-1"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.field", "state.status"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.includes.0", "open"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.field", "state.risk_level"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.excludes.0", "high"),
-					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "id"),
-					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "organization_id"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "name", testAccAutomationName),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "description", testAccAutomationDesc),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "jira_cloud_template.template", "tf: example"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "jira_cloud_template.parent_issue", "FOO-1"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.0.field", "state.status"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.0.includes.0", "open"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.1.field", "state.risk_level"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.1.excludes.0", "high"),
+					resource.TestCheckResourceAttrSet(testAccAutomationResourceName, "id"),
+					resource.TestCheckResourceAttrSet(testAccAutomationResourceName, "organization_id"),
 				),
 			},
 			{
-				ResourceName:      "orcasecurity_automation.test",
+				ResourceName:      testAccAutomationResourceName,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -101,18 +102,18 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationNameUpdated),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "description", testAccAutomationDescUpdated),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.template", "tf: example updated"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "jira_cloud_template.parent_issue", "FOO-2"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.field", "state.status"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.0.includes.0", "closed"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.field", "state.risk_level"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.1.excludes.0", "low"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.2.field", "asset_regions"),
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "query.filter.2.excludes.0", "centralus"),
-					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "id"),
-					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "organization_id"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "name", testAccAutomationNameUpdated),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "description", testAccAutomationDescUpdated),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "jira_cloud_template.template", "tf: example updated"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "jira_cloud_template.parent_issue", "FOO-2"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.0.field", "state.status"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.0.includes.0", "closed"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.1.field", "state.risk_level"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.1.excludes.0", "low"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.2.field", "asset_regions"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "query.filter.2.excludes.0", "centralus"),
+					resource.TestCheckResourceAttrSet(testAccAutomationResourceName, "id"),
+					resource.TestCheckResourceAttrSet(testAccAutomationResourceName, "organization_id"),
 				),
 			},
 		},
@@ -139,11 +140,11 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("orcasecurity_automation.test", "id"),
+					resource.TestCheckResourceAttrSet(testAccAutomationResourceName, "id"),
 				),
 			},
 			{
-				ResourceName:      "orcasecurity_automation.test",
+				ResourceName:      testAccAutomationResourceName,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -165,7 +166,7 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationNameUpdated),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "name", testAccAutomationNameUpdated),
 				),
 			},
 		},
@@ -194,11 +195,11 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "webhook_template.template", "tf_test"),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "webhook_template.template", "tf_test"),
 				),
 			},
 			{
-				ResourceName:      "orcasecurity_automation.test",
+				ResourceName:      testAccAutomationResourceName,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -217,7 +218,7 @@ resource "orcasecurity_automation" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_automation.test", "name", testAccAutomationNameUpdated),
+					resource.TestCheckResourceAttr(testAccAutomationResourceName, "name", testAccAutomationNameUpdated),
 				),
 			},
 		},
