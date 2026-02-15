@@ -11,8 +11,8 @@ type CustomWidgetExtraParametersSettingsField struct {
 
 type RequestParams struct {
 	Query            map[string]interface{} `json:"query"`
-	GroupBy          []string               `json:"group_by"`
-	GroupByList      []string               `json:"group_by[],omitempty"`
+	GroupBy          []string               `json:"group_by[]"`
+	GroupByList      []string               `json:"group_by_list[],omitempty"`
 	AdditionalModels []string               `json:"additional_models[]"`
 	Limit            int64                  `json:"limit,omitempty"`
 	OrderBy          []string               `json:"order_by[],omitempty"`

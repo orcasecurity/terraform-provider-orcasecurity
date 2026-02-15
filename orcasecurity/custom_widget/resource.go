@@ -280,12 +280,14 @@ func generateSettings(plan *customWidgetExtraParametersModel) []api_client.Custo
 	}
 
 	field := generateField(&item)
+	reqParams := generateRequestParameters(&item.RequestParameters)
 	settings := []api_client.CustomWidgetExtraParametersSettings{
 		{
 			Size:              plan.Size.ValueString(),
 			Columns:           columns,
 			Field:             field,
-			RequestParameters: generateRequestParameters(&item.RequestParameters),
+			RequestParameters: reqParams,
+			RequestParams2:    &reqParams,
 		},
 	}
 

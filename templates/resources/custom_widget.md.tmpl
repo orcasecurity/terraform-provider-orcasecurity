@@ -16,7 +16,15 @@ Provides a custom widget resource. According to Oxford Languages, a widget is an
 
 ## Example Usage
 
+The following shows table, alert-table, and a basic donut widget:
+
 {{tffile "examples/resources/custom_widget/example_1.tf"}}
+
+### Donut widget (grouped by type)
+
+Standalone donut example with multiple asset models and full `request_params` (group_by, order_by, limit). The provider sends `group_by` to the API as `group_by[]` for correct aggregation.
+
+{{tffile "examples/resources/custom_widget/example_3_donut.tf"}}
 
 ## Importing
 
