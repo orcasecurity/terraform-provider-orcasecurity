@@ -3,43 +3,37 @@
 page_title: "orcasecurity_custom_widget Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets (https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.
+  Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.
 ---
 
 # orcasecurity_custom_widget (Resource)
 
-Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets (https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.
+Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets ([V1](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) and [V2](https://docs.orcasecurity.io/docs/orca-dashboard-widgets-new)) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.
 
 ## Example Usage
 
+The following shows table, alert-table, and a basic donut widget:
+
 ```terraform
-# table-type asset widget (Serving Layer (SVL) Orca backend)
-resource "orcasecurity_custom_widget" "example_1" {
+# table-type asset widget
+resource "orcasecurity_custom_widget" "example_table" {
   name               = "GCP API Keys Table Widget"
   organization_level = true
   extra_params = {
-    type                = "table",
-    empty_state_message = "Widget query returned no data",
-    default_size        = "sm",
-    is_new              = true,
-    subtitle            = "API Keys Provisioned by GCP users",
-    description         = "API Keys Provisioned by GCP users",
+    type                = "table"
+    empty_state_message = "Widget query returned no data"
+    default_size        = "sm"
+    is_new              = true
+    subtitle            = "API Keys Provisioned by GCP users"
+    description         = "API Keys Provisioned by GCP users"
     settings = {
-      columns = [
-        "asset",
-        "alertsOnAsset",
-        "cloudAccount"
-      ]
+      columns = ["asset", "alertsOnAsset", "cloudAccount"]
       request_params = {
         query = jsonencode({
-          "models" : [
-            "GcpApiKey"
-          ],
-          "type" : "object_set"
+          models = ["GcpApiKey"]
+          type   = "object_set"
         })
-        group_by : [
-          "Type"
-        ]
+        group_by          = ["Type"]
         start_at_index    = 0
         order_by          = ["-Inventory.OrcaScore"]
         limit             = 10
@@ -49,84 +43,37 @@ resource "orcasecurity_custom_widget" "example_1" {
   }
 }
 
-# table-type asset widget (legacy Orca backend)
-resource "orcasecurity_custom_widget" "example_2" {
-  name               = "GCP API Keys Table Widget 2"
-  organization_level = true
-  extra_params = {
-    type                = "asset-table",
-    empty_state_message = "Widget query returned no data",
-    default_size        = "sm",
-    is_new              = true,
-    subtitle            = "API Keys Provisioned by GCP users",
-    description         = "API Keys Provisioned by GCP users",
-    settings = {
-      columns = [
-        "asset",
-        "alertsOnAsset",
-        "cloudAccount"
-      ]
-      request_params = {
-        query = jsonencode({
-          "models" : [
-            "GcpApiKey"
-          ],
-          "type" : "object_set"
-        })
-        group_by : [
-          "Type"
-        ]
-        start_at_index    = 0
-        order_by          = ["-Inventory.OrcaScore"]
-        limit             = 10
-        enable_pagination = true
-      }
-    }
-  }
-}
-
-
-# table-type alert widget (legacy Orca backend)
-resource "orcasecurity_custom_widget" "example_3" {
+# table-type alert widget
+resource "orcasecurity_custom_widget" "example_alerts" {
   name               = "Alerts"
   organization_level = true
   extra_params = {
-    type                = "alert-table",
-    empty_state_message = "Widget query returned no data",
-    default_size        = "sm",
-    is_new              = true,
-    subtitle            = "Alerts",
-    description         = "Alerts",
+    type                = "alert-table"
+    empty_state_message = "Widget query returned no data"
+    default_size        = "sm"
+    is_new              = true
+    subtitle            = "Alerts"
+    description         = "Alerts"
     settings = {
-      columns = [
-        "alert",
-        "status",
-        "priority"
-      ]
+      columns = ["alert", "status", "priority"]
       request_params = {
         query = jsonencode({
-          "models" : [
-            "Alert"
-          ],
-          "type" : "object_set",
-          "with" : {
-            "operator" : "and",
-            "type" : "operation",
-            "values" : [
+          models = ["Alert"]
+          type   = "object_set"
+          with = {
+            operator = "and"
+            type     = "operation"
+            values = [
               {
-                "key" : "Status",
-                "values" : [
-                  "open",
-                  "in_progress"
-                ],
-                "type" : "str",
-                "operator" : "in"
+                key      = "Status"
+                values   = ["open", "in_progress"]
+                type     = "str"
+                operator = "in"
               }
             ]
-        } })
-        group_by : [
-          "Name"
-        ]
+          }
+        })
+        group_by          = ["Name"]
         start_at_index    = 0
         order_by          = ["Score"]
         limit             = 10
@@ -136,34 +83,28 @@ resource "orcasecurity_custom_widget" "example_3" {
   }
 }
 
-# donut-type widget
-resource "orcasecurity_custom_widget" "example_4" {
-  name               = "GCP API Keys Donut Widget"
+# donut-type widget (import: terraform import orcasecurity_custom_widget.example_donut <widget_id>)
+resource "orcasecurity_custom_widget" "example_donut" {
+  name               = "Inventory by Type"
   organization_level = true
   extra_params = {
-    type                = "donut",
-    empty_state_message = "Widget query returned no data",
-    default_size        = "sm",
-    is_new              = true,
-    subtitle            = "API Keys Provisioned by GCP users",
-    description         = "API Keys Provisioned by GCP users",
+    type                = "donut"
+    empty_state_message = "No data found"
+    default_size        = "sm"
+    is_new              = true
+    subtitle            = ""
+    description         = ""
     settings = {
       request_params = {
         query = jsonencode({
-          "models" : [
-            "GcpApiKey"
-          ],
-          "type" : "object_set"
+          models = ["Inventory"]
+          type   = "object_set"
         })
-        group_by : [
-          "Type"
-        ],
-        group_by_list = [
-          "CloudAccount.Name"
-        ]
+        group_by      = ["Type"]
+        group_by_list = ["CloudAccount.Name"]
       }
       field = {
-        name = "CloudAccount.Name",
+        name = "Type"
         type = "str"
       }
     }
@@ -171,7 +112,99 @@ resource "orcasecurity_custom_widget" "example_4" {
 }
 ```
 
+### Donut widget (grouped by type)
+
+Standalone donut example with multiple asset models and full `request_params` (group_by, order_by, limit). The provider sends `group_by` to the API as `group_by[]` for correct aggregation.
+
+```terraform
+# Donut-type widget: cloud KMS keys grouped by type.
+# Uses group_by so the API receives group_by[] for correct aggregation.
+resource "orcasecurity_custom_widget" "kms_by_type" {
+  name               = "KMS Keys by Type"
+  organization_level = true
+  extra_params = {
+    type                = "donut"
+    empty_state_message = "Widget query returned no data"
+    default_size        = "sm"
+    is_new              = true
+    subtitle            = "Cloud KMS keys by type"
+    description         = "Distribution of KMS keys across cloud providers"
+    settings = {
+      request_params = {
+        query = jsonencode({
+          type = "object_set"
+          models = [
+            "AliCloudKmsKey",
+            "AwsCloudHsmV2Cluster",
+            "AwsCloudHsmV2Hsm",
+            "AwsKmsKey",
+            "AzureKeyVault",
+            "AzureKeyVaultKey",
+            "GcpKmsKey",
+            "OciKmsKey",
+            "OciVault",
+            "TencentCloudKmsKey"
+          ]
+        })
+        group_by          = ["Type"]
+        group_by_list     = ["CloudAccount.Name"]
+        start_at_index    = 0
+        order_by          = ["-COUNT"]
+        limit             = 1000
+        enable_pagination = false
+      }
+      field = {
+        name = "Type"
+        type = "str"
+      }
+    }
+  }
+}
+```
+
+## Importing
+
+Existing custom widgets created in the Orca UI (V1 or V2 API) can be imported. The provider supports both API versions, the provider parses both formats when reading state.
+
+Use the `orcasecurity_user_preferences` data source to discover widget IDs:
+
+```terraform
+data "orcasecurity_user_preferences" "widgets" {}
+
+output "custom_widgets" {
+  value = data.orcasecurity_user_preferences.widgets.custom_widgets
+}
+```
+
+Example output:
+
+```
+custom_widgets = tolist([
+  {
+    "id"   = "7a3df944-1d23-4415-95d1-ba650ab50446"
+    "name" = "All Cloud Assets"
+  },
+])
+```
+
+Add a placeholder resource block to your configuration first, then run the import. After import, run `terraform plan` to align your configuration with the imported state.
+
+**V1 vs V2 API:** Widgets created in the Orca UI may use the V1 API or V2 API. The provider handles both on import and read—no configuration changes are needed.
+
+Import command:
+
+```bash
+terraform import orcasecurity_custom_widget.<resource_name> <widget_id>
+```
+
+Example:
+
+```bash
+terraform import orcasecurity_custom_widget.all_cloud_assets 7a3df944-1d23-4415-95d1-ba650ab50446
+```
+
 <!-- schema generated by tfplugindocs -->
+
 ## Schema
 
 ### Required
@@ -186,6 +219,7 @@ resource "orcasecurity_custom_widget" "example_4" {
 - `view_type` (String) This variable is `customs_widgets` for custom widgets.
 
 <a id="nestedatt--extra_params"></a>
+
 ### Nested Schema for `extra_params`
 
 Required:
@@ -204,6 +238,7 @@ Read-Only:
 - `title` (String) Custom widget title that will be presented in the UI.
 
 <a id="nestedatt--extra_params--settings"></a>
+
 ### Nested Schema for `extra_params.settings`
 
 Required:
@@ -216,6 +251,7 @@ Optional:
 - `field` (Attributes) The name and type are also required here for grouping. This field is only required for donut-type widgets. (see [below for nested schema](#nestedatt--extra_params--settings--field))
 
 <a id="nestedatt--extra_params--settings--request_params"></a>
+
 ### Nested Schema for `extra_params.settings.request_params`
 
 Required:
@@ -231,8 +267,8 @@ Optional:
 - `order_by` (List of String) How the returned items are ordered.
 - `start_at_index` (Number)
 
-
 <a id="nestedatt--extra_params--settings--field"></a>
+
 ### Nested Schema for `extra_params.settings.field`
 
 Required:

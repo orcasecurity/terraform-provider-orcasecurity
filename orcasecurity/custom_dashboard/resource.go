@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -22,6 +24,11 @@ var (
 	_ resource.ResourceWithImportState = &customDashboardResource{}
 )
 
+const (
+	errReadingCustomDashboard    = "Error reading custom dashboard"
+	errReadingCustomDashboardFmt = "Could not read custom dashboard ID %s: %s"
+)
+
 type customDashboardResource struct {
 	apiClient *api_client.APIClient
 }
@@ -33,6 +40,7 @@ type customDashboardWidgetConfigModel struct {
 
 type customDashboardExtraParametersModel struct {
 	Description   types.String                       `tfsdk:"description"`
+	Version       types.Int64                        `tfsdk:"version"`
 	WidgetsConfig []customDashboardWidgetConfigModel `tfsdk:"widgets_config"`
 }
 
@@ -101,6 +109,12 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 					"description": schema.StringAttribute{
 						Required: true,
 					},
+					"version": schema.Int64Attribute{
+						Description: "Dashboard builder version. Set to 2 for the new Dashboard Builder (V2) so the dashboard can be edited and saved in the Orca V2 UI. Set to 1 for legacy (V1). If a dashboard still cannot be edited in the V2 UI (e.g. \"already exist\" on save), run terraform apply so the provider sends a full V2 payload (version + slots) to the backend.",
+						Optional:    true,
+						Computed:    true,
+						Default:     int64default.StaticInt64(2),
+					},
 					"widgets_config": schema.ListNestedAttribute{
 						Required: true,
 						NestedObject: schema.NestedAttributeObject{
@@ -110,7 +124,7 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 									Required:    true,
 								},
 								"size": schema.StringAttribute{
-									Description: "Size of the identified widget. Possible values are sm (small), md (medium), or lg (large).",
+									Description: "Size of the identified widget. Values: sm (1/3 width), md (2/3 width), lg (3/4 width in V2, full in V1), xl (full width, V2 only). See Widget Sizes in docs.",
 									Required:    true,
 								},
 							},
@@ -122,30 +136,115 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 	}
 }
 
+// sizeToAPI converts Terraform size (sm, md, lg, xl) to Orca API size (s, m, l, xl).
+func sizeToAPI(size string) string {
+	switch size {
+	case "sm":
+		return "s"
+	case "md":
+		return "m"
+	case "lg":
+		return "l"
+	case "xl":
+		return "xl"
+	default:
+		return size
+	}
+}
+
+// sizeFromAPI converts Orca API size (s, m, l, xl) to Terraform size (sm, md, lg, xl).
+func sizeFromAPI(size string) string {
+	switch size {
+	case "s":
+		return "sm"
+	case "m":
+		return "md"
+	case "l":
+		return "lg"
+	case "xl":
+		return "xl"
+	default:
+		return size
+	}
+}
+
 // Widgets Config
 func generateWidgetsConfig(plan *customDashboardExtraParametersModel) []api_client.WidgetConfig {
-	var widgets_config []api_client.WidgetConfig
+	var widgetsConfig []api_client.WidgetConfig
 
 	for _, item := range plan.WidgetsConfig {
-		widgets_config = append(widgets_config, api_client.WidgetConfig{
-			ID:   item.ID.ValueString(),
-			Size: item.Size.ValueString(),
+		widgetsConfig = append(widgetsConfig, api_client.WidgetConfig{
+			ID:    item.ID.ValueString(),
+			Size:  sizeToAPI(item.Size.ValueString()),
+			Slots: map[string]interface{}{},
 		})
 	}
 
-	return widgets_config
+	return widgetsConfig
+}
+
+func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, instance *api_client.CustomDashboard) []api_client.WidgetConfig {
+	instanceWidgets := instance.ExtraParameters.WidgetsConfig
+	slotsByID := make(map[string]map[string]interface{}, len(instanceWidgets))
+	for _, w := range instanceWidgets {
+		if w.Slots != nil {
+			slotsByID[w.ID] = w.Slots
+		}
+	}
+
+	var out []api_client.WidgetConfig
+	for _, item := range plan.WidgetsConfig {
+		id := item.ID.ValueString()
+		slots := map[string]interface{}{}
+		if s, ok := slotsByID[id]; ok {
+			slots = s
+		}
+		out = append(out, api_client.WidgetConfig{
+			ID:    id,
+			Size:  sizeToAPI(item.Size.ValueString()),
+			Slots: slots,
+		})
+	}
+	return out
 }
 
 // Extra Parameters
 func generateExtraParameters(plan *customDashboardResourceModel) api_client.CustomDashboardExtraParameters {
-	widgets_config := generateWidgetsConfig(plan.ExtraParameters)
+	widgetsConfig := generateWidgetsConfig(plan.ExtraParameters)
 
-	extra_params := api_client.CustomDashboardExtraParameters{
-		Description:   plan.ExtraParameters.Description.ValueString(),
-		WidgetsConfig: widgets_config,
+	version := 2
+	if !plan.ExtraParameters.Version.IsNull() && !plan.ExtraParameters.Version.IsUnknown() {
+		version = int(plan.ExtraParameters.Version.ValueInt64())
+		if version < 1 {
+			version = 2
+		}
 	}
 
-	return extra_params
+	extraParams := api_client.CustomDashboardExtraParameters{
+		Description:   plan.ExtraParameters.Description.ValueString(),
+		Version:       version,
+		WidgetsConfig: widgetsConfig,
+	}
+
+	return extraParams
+}
+
+func generateExtraParametersForUpdate(plan *customDashboardResourceModel, instance *api_client.CustomDashboard) api_client.CustomDashboardExtraParameters {
+	widgetsConfig := generateWidgetsConfigForUpdate(plan.ExtraParameters, instance)
+
+	version := 2
+	if !plan.ExtraParameters.Version.IsNull() && !plan.ExtraParameters.Version.IsUnknown() {
+		version = int(plan.ExtraParameters.Version.ValueInt64())
+		if version < 1 {
+			version = 2
+		}
+	}
+
+	return api_client.CustomDashboardExtraParameters{
+		Description:   plan.ExtraParameters.Description.ValueString(),
+		Version:       version,
+		WidgetsConfig: widgetsConfig,
+	}
 }
 
 func (r *customDashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -158,10 +257,15 @@ func (r *customDashboardResource) Create(ctx context.Context, req resource.Creat
 
 	filterData := make(map[string]interface{})
 
+	extra := generateExtraParameters(&plan)
+	now := time.Now().UnixMilli()
+	extra.CreatedAt = now
+	extra.UpdatedAt = now
+
 	createReq := api_client.CustomDashboard{
 		Name:              plan.Name.ValueString(),
 		FilterData:        filterData,
-		ExtraParameters:   generateExtraParameters(&plan),
+		ExtraParameters:   extra,
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.ValueString(),
 	}
@@ -204,8 +308,8 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	exists, err := r.apiClient.DoesCustomDashboardExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom dashboard",
-			fmt.Sprintf("Could not read custom dashboard ID %s: %s", state.ID.ValueString(), err.Error()),
+			errReadingCustomDashboard,
+			fmt.Sprintf(errReadingCustomDashboardFmt, state.ID.ValueString(), err.Error()),
 		)
 		return
 	}
@@ -219,8 +323,8 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	instance, err := r.apiClient.GetCustomDashboard(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom dashboard",
-			fmt.Sprintf("Could not read custom dashboard ID %s: %s", state.ID.ValueString(), err.Error()),
+			errReadingCustomDashboard,
+			fmt.Sprintf(errReadingCustomDashboardFmt, state.ID.ValueString(), err.Error()),
 		)
 		return
 	}
@@ -231,18 +335,23 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 	state.ViewType = types.StringValue(instance.ViewType)
 	state.FilterData = make(map[string]interface{})
 
-	var widget_settings []customDashboardWidgetConfigModel
+	var widgetSettings []customDashboardWidgetConfigModel
 
 	for _, item := range instance.ExtraParameters.WidgetsConfig {
-		widget_settings = append(widget_settings, customDashboardWidgetConfigModel{
+		widgetSettings = append(widgetSettings, customDashboardWidgetConfigModel{
 			ID:   types.StringValue(item.ID),
-			Size: types.StringValue(item.Size),
+			Size: types.StringValue(sizeFromAPI(item.Size)),
 		})
 	}
 
+	version := instance.ExtraParameters.Version
+	if version < 1 {
+		version = 2
+	}
 	state.ExtraParameters = &customDashboardExtraParametersModel{
 		Description:   types.StringValue(instance.ExtraParameters.Description),
-		WidgetsConfig: widget_settings,
+		Version:       types.Int64Value(int64(version)),
+		WidgetsConfig: widgetSettings,
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -268,18 +377,35 @@ func (r *customDashboardResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
+	// Get current instance so we can preserve widget slots (V2) when building the update payload
+	currentInstance, err := r.apiClient.GetCustomDashboard(plan.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			errReadingCustomDashboard,
+			fmt.Sprintf(errReadingCustomDashboardFmt, plan.ID.ValueString(), err.Error()),
+		)
+		return
+	}
+
 	filterData := make(map[string]interface{})
+
+	extraUpdate := generateExtraParametersForUpdate(&plan, currentInstance)
+	extraUpdate.UpdatedAt = time.Now().UnixMilli()
+	extraUpdate.CreatedAt = currentInstance.ExtraParameters.CreatedAt
+	if extraUpdate.CreatedAt == 0 {
+		extraUpdate.CreatedAt = extraUpdate.UpdatedAt
+	}
 
 	updateReq := api_client.CustomDashboard{
 		ID:                plan.ID.ValueString(),
 		Name:              plan.Name.ValueString(),
 		FilterData:        filterData,
-		ExtraParameters:   generateExtraParameters(&plan),
+		ExtraParameters:   extraUpdate,
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.ValueString(),
 	}
 
-	_, err := r.apiClient.UpdateCustomDashboard(updateReq)
+	_, err = r.apiClient.UpdateCustomDashboard(updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating custom dashboard",
@@ -299,8 +425,24 @@ func (r *customDashboardResource) Update(ctx context.Context, req resource.Updat
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationLevel = types.BoolValue(instance.OrganizationLevel)
 	plan.Name = types.StringValue(instance.Name)
-	//plan.ExtraParameters = instance.ExtraParameters
 	plan.ViewType = types.StringValue(instance.ViewType)
+
+	version := instance.ExtraParameters.Version
+	if version < 1 {
+		version = 2
+	}
+	var updateWidgets []customDashboardWidgetConfigModel
+	for _, item := range instance.ExtraParameters.WidgetsConfig {
+		updateWidgets = append(updateWidgets, customDashboardWidgetConfigModel{
+			ID:   types.StringValue(item.ID),
+			Size: types.StringValue(sizeFromAPI(item.Size)),
+		})
+	}
+	plan.ExtraParameters = &customDashboardExtraParametersModel{
+		Description:   types.StringValue(instance.ExtraParameters.Description),
+		Version:       types.Int64Value(int64(version)),
+		WidgetsConfig: updateWidgets,
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
