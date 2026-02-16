@@ -11,7 +11,25 @@ provider "orcasecurity" {
   api_token    = var.api_token
 }
 
-# Custom widgets to include on the dashboard
+# Module outputs widgets_config — a list of { id, size } for built-in widgets only.
+module "widget_builtins" {
+  source = "./modules"
+}
+
+# Dashboard with built-in widgets only (from module)
+resource "orcasecurity_custom_dashboard" "widget_test" {
+  name               = "Widget ID Dashboard"
+  organization_level = true
+  filter_data        = {}
+  view_type          = "dashboard"
+  extra_params = {
+    description    = "Dashboard with built-in widget IDs"
+    version        = 2
+    widgets_config = module.widget_builtins.widgets_config
+  }
+}
+
+# Custom widgets to add to a dashboard
 resource "orcasecurity_custom_widget" "example_1" {
   name               = "Example Custom Widget 1"
   organization_level = true
@@ -54,8 +72,8 @@ resource "orcasecurity_custom_widget" "example_2" {
   }
 }
 
-# Dashboard with inline widgets_config: built-in widget IDs (strings) and custom widget IDs (resource reference)
-resource "orcasecurity_custom_dashboard" "widget_test" {
+# Dashboard with both built-in (from module) and custom widget IDs
+resource "orcasecurity_custom_dashboard" "mixed" {
   name               = "Widget ID Test Dashboard"
   organization_level = true
   filter_data        = {}
@@ -63,16 +81,20 @@ resource "orcasecurity_custom_dashboard" "widget_test" {
   extra_params = {
     description = "Test built-in and custom widget IDs"
     version     = 2
-    widgets_config = [
-      { id = "cloud-accounts-inventory", size = "sm" },
-      { id = "security-score-benchmark", size = "md" },
-      { id = "alerts-by-severity", size = "sm" },
-      { id = orcasecurity_custom_widget.example_1.id, size = "sm" },
-      { id = orcasecurity_custom_widget.example_2.id, size = "sm" }
-    ]
+    widgets_config = concat(
+      module.widget_builtins.widgets_config,
+      [
+        { id = orcasecurity_custom_widget.example_1.id, size = "sm" },
+        { id = orcasecurity_custom_widget.example_2.id, size = "sm" }
+      ]
+    )
   }
 }
 
 output "dashboard_id" {
   value = orcasecurity_custom_dashboard.widget_test.id
+}
+
+output "dashboard_mixed_id" {
+  value = orcasecurity_custom_dashboard.mixed.id
 }
