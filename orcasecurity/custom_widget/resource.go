@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -22,6 +23,8 @@ var (
 	_ resource.ResourceWithConfigure   = &customWidgetResource{}
 	_ resource.ResourceWithImportState = &customWidgetResource{}
 )
+
+const errReadingCustomWidget = "Error reading custom widget"
 
 type customWidgetResource struct {
 	apiClient *api_client.APIClient
@@ -90,7 +93,7 @@ func (r *customWidgetResource) ImportState(ctx context.Context, req resource.Imp
 func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	//tflog.Error(ctx, "Setting up Schema")
 	resp.Schema = schema.Schema{
-		Description: "Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets (https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.",
+		Description: "Provides a custom widget resource. According to Oxford Languages, a widget is an application, or a component of an interface, that enables a user to perform a function or access a service. Orca provides 50+ built-in widgets ([V1](https://docs.orcasecurity.io/v1/docs/available-dashboard-widgets) and [V2](https://docs.orcasecurity.io/docs/orca-dashboard-widgets-new)) that allow customers to more easily digest their cloud inventory and risks with certain filters. Customers can build custom widgets in cases where their use cases are more advanced than those covered by Orca's built-in widgets.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -118,7 +121,7 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 				Required: true,
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
-						Description: "Type of custom widget to create. Valid values are `donut` and `table`.",
+						Description: "Type of custom widget to create. Valid values are `donut` and `table`. Legacy aliases `asset-table` and `alert-table` are also accepted; state will normalize to `table` for asset tables.",
 						Required:    true,
 					},
 					"category": schema.StringAttribute{
@@ -130,7 +133,7 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						Required:    true,
 					},
 					"default_size": schema.StringAttribute{
-						Description: "Default size of the widget. Possible values are sm (small), md (medium), or lg (large).",
+						Description: "Default size of the widget. Values: sm (1/3 width), md (2/3 width), lg (3/4 width in V2, full in V1), xl (full width, V2 only). See custom_dashboard docs for Widget Sizes.",
 						Required:    true,
 					},
 					"is_new": schema.BoolAttribute{
@@ -235,7 +238,6 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 
 	group_by_string := make([]string, 0)
 	group_by_list_string := make([]string, 0)
-	additional_models_list_string := make([]string, 0)
 
 	for i := range plan.GroupBy {
 		group_by_string = append(group_by_string, plan.GroupBy[i].ValueString())
@@ -246,12 +248,8 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		}
 	}
 
-	for k := 1; k <= 3; k++ {
-		additional_models_list_string = append(additional_models_list_string, "CloudAccount")
-		additional_models_list_string = append(additional_models_list_string, "CodeOrigins")
-		additional_models_list_string = append(additional_models_list_string, "CustomTags")
-		fmt.Println(k)
-	}
+	// Orca API expects these additional models for discovery queries
+	additionalModels := []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
 
 	var elements []string
 
@@ -263,7 +261,7 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		Query:            query,
 		GroupBy:          group_by_string,
 		GroupByList:      group_by_list_string,
-		AdditionalModels: additional_models_list_string,
+		AdditionalModels: additionalModels,
 		Limit:            plan.Limit.ValueInt64(),
 		OrderBy:          elements,
 		StartAtIndex:     plan.StartAtIndex.ValueInt64(),
@@ -274,29 +272,24 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 }
 
 func generateSettings(plan *customWidgetExtraParametersModel) []api_client.CustomWidgetExtraParametersSettings {
-	var settings []api_client.CustomWidgetExtraParametersSettings
-	var columns []string
-	sizelist := [3]string{"sm", "md", "lg"}
-
 	item := plan.Settings
 
-	// Print each element as we process it
+	var columns []string
 	for _, v := range plan.Settings.Columns.Elements() {
 		columns = append(columns, (v.String())[1:len(v.String())-1])
 	}
 
-	for i := 0; i <= 2; i++ {
-		field := generateField(&item)
-		settings = append(settings, api_client.CustomWidgetExtraParametersSettings{
-			Size:              sizelist[i],
+	field := generateField(&item)
+	reqParams := generateRequestParameters(&item.RequestParameters)
+	settings := []api_client.CustomWidgetExtraParametersSettings{
+		{
+			Size:              plan.Size.ValueString(),
 			Columns:           columns,
 			Field:             field,
-			RequestParameters: generateRequestParameters(&item.RequestParameters),
-		})
+			RequestParameters: reqParams,
+			RequestParams2:    &reqParams,
+		},
 	}
-
-	// Debug print final settings
-	fmt.Printf("Final settings: %+v\n", settings)
 
 	return settings
 }
@@ -310,13 +303,15 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 
 	if plan.ExtraParameters.Type.ValueString() == "donut" {
 		widgetType = "PIE_CHART_SINGLE"
-	} else if plan.ExtraParameters.Type.ValueString() == "asset-table" {
+	} else if plan.ExtraParameters.Type.ValueString() == "asset-table" || plan.ExtraParameters.Type.ValueString() == "table" {
 		widgetType = "ASSETS_TABLE"
 	} else if plan.ExtraParameters.Type.ValueString() == "alert-table" {
 		widgetType = "ALERTS_TABLE"
 	} else {
 		widgetType = plan.ExtraParameters.Type.ValueString()
 	}
+
+	requestParams := generateRequestParameters(&plan.ExtraParameters.Settings.RequestParameters)
 
 	extra_params := api_client.CustomWidgetExtraParameters{
 		Type:              widgetType,
@@ -327,10 +322,144 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 		Title:             plan.Name.ValueString(),
 		Subtitle:          plan.ExtraParameters.Subtitle.ValueString(),
 		Description:       plan.ExtraParameters.Description.ValueString(),
+		RequestParams:     &requestParams,
 		Settings:          settings,
 	}
 
 	return extra_params
+}
+
+// apiWidgetTypeToTerraform maps API widget type strings to Terraform schema values.
+func apiWidgetTypeToTerraform(apiType string) string {
+	switch apiType {
+	case "PIE_CHART_SINGLE":
+		return "donut"
+	case "ASSETS_TABLE":
+		// Canonical Terraform value is "table" (see schema docs).
+		// "asset-table" is kept as a legacy alias on input only.
+		return "table"
+	case "ALERTS_TABLE":
+		return "alert-table"
+	default:
+		return apiType
+	}
+}
+
+// getRequestParams returns the effective request params. V2 API uses requestParams2;
+// V1 uses requestParams. Prefer requestParams2 when present (V2-created widgets).
+func getRequestParams(s api_client.CustomWidgetExtraParametersSettings) api_client.RequestParams {
+	if s.RequestParams2 != nil {
+		return *s.RequestParams2
+	}
+	return s.RequestParameters
+}
+
+// apiSettingsToStateSettings converts API settings to Terraform state model.
+func apiSettingsToStateSettings(ctx context.Context, s api_client.CustomWidgetExtraParametersSettings) (customWidgetExtraParametersSettingsModel, error) {
+	params := getRequestParams(s)
+	queryJSON, err := json.Marshal(params.Query)
+	if err != nil {
+		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("marshaling request query: %w", err)
+	}
+	groupBy := stringSliceToTypesStrings(params.GroupBy)
+	groupByList := stringSliceToTypesStrings(params.GroupByList)
+	columns, err := columnsFromAPI(ctx, s.Columns)
+	if err != nil {
+		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("columns: %w", err)
+	}
+	orderBy, err := orderByFromAPI(ctx, params.OrderBy)
+	if err != nil {
+		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("order_by: %w", err)
+	}
+	settings := customWidgetExtraParametersSettingsModel{
+		Columns: columns,
+		RequestParameters: requestParamsModel{
+			Query:            types.StringValue(string(queryJSON)),
+			GroupBy:          groupBy,
+			GroupByList:      groupByList,
+			Limit:            types.Int64Value(params.Limit),
+			StartAtIndex:     types.Int64Value(params.StartAtIndex),
+			EnablePagination: types.BoolValue(params.EnablePagination),
+			OrderBy:          orderBy,
+		},
+	}
+	if s.Field.Name != "" || s.Field.Type != "" {
+		settings.Field = &customWidgetExtraParmetersSettingsFieldModel{
+			Name: types.StringValue(s.Field.Name),
+			Type: types.StringValue(s.Field.Type),
+		}
+	}
+	return settings, nil
+}
+
+func stringSliceToTypesStrings(ss []string) []types.String {
+	out := make([]types.String, len(ss))
+	for i, s := range ss {
+		out[i] = types.StringValue(s)
+	}
+	return out
+}
+
+func columnsFromAPI(ctx context.Context, columns []string) (types.List, error) {
+	if len(columns) == 0 {
+		return types.ListNull(types.StringType), nil
+	}
+	out, diags := types.ListValueFrom(ctx, types.StringType, columns)
+	if diags.HasError() {
+		return types.ListNull(types.StringType), diagError(diags)
+	}
+	return out, nil
+}
+
+func orderByFromAPI(ctx context.Context, orderBy []string) (types.List, error) {
+	if len(orderBy) == 0 {
+		return types.ListNull(types.StringType), nil
+	}
+	out, diags := types.ListValueFrom(ctx, types.StringType, orderBy)
+	if diags.HasError() {
+		return types.ListNull(types.StringType), diagError(diags)
+	}
+	return out, nil
+}
+
+// diagError returns a single error from the first diagnostic (for propagation to Read diagnostics).
+func diagError(diags diag.Diagnostics) error {
+	if !diags.HasError() {
+		return nil
+	}
+	e := diags.Errors()[0]
+	return fmt.Errorf("%s: %s", e.Summary(), e.Detail())
+}
+
+// instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
+func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
+	ep := instance.ExtraParameters
+	settings := customWidgetExtraParametersSettingsModel{}
+	if len(ep.Settings) > 0 {
+		var err error
+		settings, err = apiSettingsToStateSettings(ctx, ep.Settings[0])
+		if err != nil {
+			return customWidgetResourceModel{}, err
+		}
+	}
+
+	return customWidgetResourceModel{
+		ID:                types.StringValue(instance.ID),
+		Name:              types.StringValue(instance.Name),
+		OrganizationLevel: types.BoolValue(instance.OrganizationLevel),
+		ViewType:          types.StringValue(instance.ViewType),
+		ExtraParameters: &customWidgetExtraParametersModel{
+			Type:              types.StringValue(apiWidgetTypeToTerraform(ep.Type)),
+			Category:          types.StringValue(ep.Category),
+			EmptyStateMessage: types.StringValue(ep.EmptyStateMessage),
+			Size:              types.StringValue(ep.Size),
+			IsNew:             types.BoolValue(ep.IsNew),
+			Title:             types.StringValue(ep.Title),
+			Subtitle:          types.StringValue(ep.Subtitle),
+			Description:       types.StringValue(ep.Description),
+			Settings:          settings,
+		},
+	}, nil
 }
 
 func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -377,51 +506,46 @@ func (r *customWidgetResource) Read(ctx context.Context, req resource.ReadReques
 
 	var state customWidgetResourceModel
 	diags := req.State.Get(ctx, &state)
-	tflog.Info(ctx, fmt.Sprintf("Current state ID: %s", state.ID.ValueString()))
-
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	exists, err := r.apiClient.DoesCustomWidgetExist(state.ID.ValueString())
+	id := state.ID.ValueString()
+	exists, err := r.apiClient.DoesCustomWidgetExist(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom widget",
-			fmt.Sprintf("Could not read custom widget ID %s: %s", state.ID.ValueString(), err.Error()),
+			errReadingCustomWidget,
+			fmt.Sprintf("Could not read custom widget ID %s: %s", id, err.Error()),
 		)
 		return
 	}
 
 	if !exists {
-		tflog.Warn(ctx, fmt.Sprintf("Custom widget %s is missing on the remote side.", state.ID.ValueString()))
+		tflog.Warn(ctx, fmt.Sprintf("Custom widget %s is missing on the remote side.", id))
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	instance, err := r.apiClient.GetCustomWidget(state.ID.ValueString())
+	instance, err := r.apiClient.GetCustomWidget(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom widget",
-			fmt.Sprintf("Could not read custom widget ID %s: %s", state.ID.ValueString(), err.Error()),
+			errReadingCustomWidget,
+			fmt.Sprintf("Could not read custom widget ID %s: %s", id, err.Error()),
 		)
 		return
 	}
 
-	tflog.Info(ctx, fmt.Sprintf("Retrieved instance ID: %s", instance.ID))
-
-	state.ID = types.StringValue(instance.ID)
-	tflog.Info(ctx, fmt.Sprintf("Final state ID being set: %s", state.ID.ValueString()))
-
-	state.ViewType = types.StringValue(instance.ViewType)
-	state.ExtraParameters.Category = types.StringValue("Custom")
-	state.ExtraParameters.Title = types.StringValue(instance.ExtraParameters.Title)
-
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	state, err = instanceToState(ctx, instance)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			errReadingCustomWidget,
+			fmt.Sprintf("Could not convert widget state for ID %s: %s", id, err.Error()),
+		)
 		return
 	}
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *customWidgetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

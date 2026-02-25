@@ -25,6 +25,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
+	"terraform-provider-orcasecurity/orcasecurity/user_preferences"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -202,6 +203,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		webhook.NewWebhookDataSource,
 		organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
+		user_preferences.NewUserPreferencesDataSource,
 	}
 }
 
