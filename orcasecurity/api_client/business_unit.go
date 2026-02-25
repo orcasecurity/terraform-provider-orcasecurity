@@ -13,7 +13,7 @@ type BusinessUnitFilter struct {
 	CloudProviders []string `json:"cloud_provider,omitempty"`
 	CustomTags     []string `json:"custom_tags,omitempty"`
 	CloudTags      []string `json:"inventory_tags,omitempty"`
-	AccountTags    []string `json:"accounts_tags_info_list,omitempty"`
+	AccountTags    []string `json:"account_tags_info_list,omitempty"`
 	CloudAccounts  []string `json:"cloud_vendor_id,omitempty"`
 }
 
