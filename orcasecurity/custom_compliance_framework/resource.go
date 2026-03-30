@@ -16,6 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
+const errReadingFramework = "Error reading custom compliance framework"
+
 var (
 	_ resource.Resource                = &customComplianceFrameworkResource{}
 	_ resource.ResourceWithConfigure   = &customComplianceFrameworkResource{}
@@ -149,7 +151,7 @@ func (r *customComplianceFrameworkResource) Create(ctx context.Context, req reso
 	readInstance, err := r.apiClient.GetCustomComplianceFramework(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom compliance framework",
+			errReadingFramework,
 			"Could not read custom compliance framework after creation, unexpected error: "+err.Error(),
 		)
 		return
@@ -177,7 +179,7 @@ func (r *customComplianceFrameworkResource) Read(ctx context.Context, req resour
 	instance, err := r.apiClient.GetCustomComplianceFramework(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom compliance framework",
+			errReadingFramework,
 			fmt.Sprintf("Could not read custom compliance framework ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -224,7 +226,7 @@ func (r *customComplianceFrameworkResource) Update(ctx context.Context, req reso
 	readInstance, err := r.apiClient.GetCustomComplianceFramework(plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading custom compliance framework",
+			errReadingFramework,
 			"Could not read custom compliance framework after update, unexpected error: "+err.Error(),
 		)
 		return

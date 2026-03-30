@@ -7,6 +7,27 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+const (
+	resourceAddr = "orcasecurity_custom_compliance_framework.test"
+
+	attrID                       = "id"
+	attrName                     = "name"
+	attrDescription              = "description"
+	attrSectionsCount            = "sections.#"
+	attrSection0Name             = "sections.0.name"
+	attrSection0TestsCount       = "sections.0.tests.#"
+	attrSection0Test0RuleID      = "sections.0.tests.0.rule_id"
+	attrSection0Test0FrameworkID = "sections.0.tests.0.rule_id_in_framework"
+	attrSection0Test1RuleID      = "sections.0.tests.1.rule_id"
+	attrSection0Test1FrameworkID = "sections.0.tests.1.rule_id_in_framework"
+	attrSection1Name             = "sections.1.name"
+	attrSection1TestsCount       = "sections.1.tests.#"
+	attrSection1Test0RuleID      = "sections.1.tests.0.rule_id"
+	attrSection1Test0FrameworkID = "sections.1.tests.0.rule_id_in_framework"
+
+	testRuleID = "rc7bcf3b77f"
+)
+
 func TestAccCustomComplianceFrameworkResource(t *testing.T) {
 	tests := map[string]struct {
 		steps []resource.TestStep
@@ -32,18 +53,18 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Create Import Test"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Test create and import"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "Section 1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.#", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id_in_framework", "1"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Create Import Test"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Test create and import"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Section 1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1"),
 					),
 				},
 				{
-					ResourceName:            "orcasecurity_custom_compliance_framework.test",
+					ResourceName:            resourceAddr,
 					ImportState:             true,
 					ImportStateVerify:       true,
 					ImportStateVerifyIgnore: []string{"sections"},
@@ -71,9 +92,9 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Update Name Before"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Description stays the same"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Update Name Before"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Description stays the same"),
 					),
 				},
 				{
@@ -95,11 +116,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Update Name After"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Description stays the same"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "Section 1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id", "rc7bcf3b77f"),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Update Name After"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Description stays the same"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Section 1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
 					),
 				},
 			},
@@ -125,8 +146,8 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Original description"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Original description"),
 					),
 				},
 				{
@@ -148,9 +169,9 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Update Desc Test"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Updated description"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Update Desc Test"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Updated description"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "1"),
 					),
 				},
 			},
@@ -176,7 +197,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
 					),
 				},
 				{
@@ -199,8 +220,8 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
 						// ID should still be set (not empty) and Terraform should not have recreated the resource
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Preserve ID After"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Preserve ID After"),
 					),
 				},
 			},
@@ -239,23 +260,23 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Multi-Section Deep"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Deep field verification"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Multi-Section Deep"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Deep field verification"),
 						// Section counts
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "2"),
 						// Section 0
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "Access Control"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.#", "2"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id_in_framework", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.1.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.1.rule_id_in_framework", "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Access Control"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "2"),
 						// Section 1
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.name", "Data Protection"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.#", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.0.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.0.rule_id_in_framework", "3"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Name, "Data Protection"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1TestsCount, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "3"),
 					),
 				},
 			},
@@ -281,7 +302,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "1"),
 					),
 				},
 				{
@@ -312,11 +333,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "2"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "Section 1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.name", "Section 2"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.0.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.0.rule_id_in_framework", "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Section 1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Name, "Section 2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "2"),
 					),
 				},
 			},
@@ -351,7 +372,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "2"),
 					),
 				},
 				{
@@ -373,8 +394,8 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "Section A"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Section A"),
 					),
 				},
 			},
@@ -400,7 +421,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.#", "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "1"),
 					),
 				},
 				{
@@ -426,11 +447,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.#", "2"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id_in_framework", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.1.rule_id", "rc7bcf3b77f"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.1.rule_id_in_framework", "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1RuleID, testRuleID),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "2"),
 					),
 				},
 			},
@@ -456,10 +477,10 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Full Update Before"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "Before full update"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "Old Section"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Full Update Before"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "Before full update"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Old Section"),
 					),
 				},
 				{
@@ -494,17 +515,17 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 }
 `,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttrSet("orcasecurity_custom_compliance_framework.test", "id"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "name", "TF Full Update After"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "description", "After full update"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.#", "2"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.name", "New Section"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.#", "2"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.0.rule_id_in_framework", "10"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.0.tests.1.rule_id_in_framework", "20"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.name", "Another New Section"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.#", "1"),
-						resource.TestCheckResourceAttr("orcasecurity_custom_compliance_framework.test", "sections.1.tests.0.rule_id_in_framework", "30"),
+						resource.TestCheckResourceAttrSet(resourceAddr, attrID),
+						resource.TestCheckResourceAttr(resourceAddr, attrName, "TF Full Update After"),
+						resource.TestCheckResourceAttr(resourceAddr, attrDescription, "After full update"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "New Section"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "10"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "20"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Name, "Another New Section"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1TestsCount, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "30"),
 					),
 				},
 			},

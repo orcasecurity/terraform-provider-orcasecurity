@@ -54,8 +54,10 @@ type customComplianceFrameworkReadAPIResponse struct {
 	Data CustomComplianceFrameworkReadResponse `json:"data"`
 }
 
+const customComplianceFrameworkBasePath = "/api/compliance/frameworks"
+
 func (client *APIClient) GetCustomComplianceFramework(id string) (*CustomComplianceFrameworkReadResponse, error) {
-	resp, err := client.Get(fmt.Sprintf("/api/compliance/frameworks/%s", id))
+	resp, err := client.Get(fmt.Sprintf(customComplianceFrameworkBasePath+"/%s", id))
 	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
 		return nil, nil
 	}
@@ -72,7 +74,7 @@ func (client *APIClient) GetCustomComplianceFramework(id string) (*CustomComplia
 }
 
 func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFrameworkCreateRequest) (*CustomComplianceFrameworkWriteResponse, error) {
-	resp, err := client.Post("/api/compliance/frameworks", data)
+	resp, err := client.Post(customComplianceFrameworkBasePath, data)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +88,7 @@ func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFr
 }
 
 func (client *APIClient) UpdateCustomComplianceFramework(id string, data CustomComplianceFrameworkUpdateRequest) (*CustomComplianceFrameworkWriteResponse, error) {
-	resp, err := client.Put(fmt.Sprintf("/api/compliance/frameworks/%s", id), data)
+	resp, err := client.Put(fmt.Sprintf(customComplianceFrameworkBasePath+"/%s", id), data)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +102,6 @@ func (client *APIClient) UpdateCustomComplianceFramework(id string, data CustomC
 }
 
 func (client *APIClient) DeleteCustomComplianceFramework(id string) error {
-	_, err := client.Delete(fmt.Sprintf("/api/compliance/frameworks/%s", id))
+	_, err := client.Delete(fmt.Sprintf(customComplianceFrameworkBasePath+"/%s", id))
 	return err
 }
