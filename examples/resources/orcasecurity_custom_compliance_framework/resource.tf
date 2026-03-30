@@ -1,5 +1,5 @@
 resource "orcasecurity_custom_compliance_framework" "example" {
-  name        = "My Custom Framework"
+  name        = "My Custom Framework - Igor tests"
   description = "Custom compliance framework managed by Terraform"
 
   sections = [
@@ -7,21 +7,12 @@ resource "orcasecurity_custom_compliance_framework" "example" {
       name = "Access Control"
       tests = [
         {
-          rule_id              = "rc7bcf3b77f"
-          rule_id_in_framework = "1"
+          rule_id              = "r8ae477067a"
+          rule_id_in_framework = "1.1"
         },
         {
-          rule_id              = "rc7bcf3b77f"
-          rule_id_in_framework = "2"
-        }
-      ]
-    },
-    {
-      name = "Data Protection"
-      tests = [
-        {
-          rule_id              = "rc7bcf3b77f"
-          rule_id_in_framework = "3"
+          rule_id              = "r8ae477067a"
+          rule_id_in_framework = "1.2"
         }
       ]
     }

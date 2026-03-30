@@ -134,6 +134,7 @@ func (r *customComplianceFrameworkResource) Create(ctx context.Context, req reso
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
 		Sections:    sectionsToAPI(plan.Sections),
+		CheckedKeys: []string{},
 	}
 
 	instance, err := r.apiClient.CreateCustomComplianceFramework(createReq)
@@ -272,8 +273,9 @@ func sectionsToAPI(sections []sectionModel) []api_client.CustomComplianceFramewo
 			})
 		}
 		result = append(result, api_client.CustomComplianceFrameworkSection{
-			Name:  s.Name.ValueString(),
-			Tests: tests,
+			Name:     s.Name.ValueString(),
+			Tests:    tests,
+			Sections: []api_client.CustomComplianceFrameworkSection{},
 		})
 	}
 	return result

@@ -13,14 +13,16 @@ type CustomComplianceFrameworkTest struct {
 }
 
 type CustomComplianceFrameworkSection struct {
-	Name  string                          `json:"name"`
-	Tests []CustomComplianceFrameworkTest `json:"tests"`
+	Name     string                             `json:"name"`
+	Tests    []CustomComplianceFrameworkTest    `json:"tests"`
+	Sections []CustomComplianceFrameworkSection `json:"sections"`
 }
 
 type CustomComplianceFrameworkCreateRequest struct {
 	Name        string                             `json:"name"`
 	Description string                             `json:"description"`
 	Sections    []CustomComplianceFrameworkSection `json:"sections"`
+	CheckedKeys []string                           `json:"checkedKeys"`
 }
 
 type CustomComplianceFrameworkUpdateRequest struct {
