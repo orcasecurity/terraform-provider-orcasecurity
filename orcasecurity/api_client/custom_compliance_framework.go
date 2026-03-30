@@ -60,11 +60,11 @@ const customComplianceFrameworkBasePath = "/api/compliance/frameworks"
 
 func (client *APIClient) GetCustomComplianceFramework(id string) (*CustomComplianceFrameworkReadResponse, error) {
 	resp, err := client.Get(fmt.Sprintf(customComplianceFrameworkBasePath+"/%s", id))
-	if err != nil {
-		return nil, err
-	}
 	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	response := customComplianceFrameworkReadAPIResponse{}
