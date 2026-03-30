@@ -10,6 +10,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
 	"terraform-provider-orcasecurity/orcasecurity/azure_devops_template"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
+	"terraform-provider-orcasecurity/orcasecurity/custom_compliance_framework"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_role"
@@ -212,6 +213,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 	return []func() resource.Resource{
 		automation.NewAutomationResource,
 		automation_v2.NewAutomationV2Resource,
+		custom_compliance_framework.NewCustomComplianceFrameworkResource,
 		custom_discovery_alert.NewCustomDiscoveryAlertResource,
 		custom_sonar_alert.NewCustomSonarAlertResource,
 		custom_role.NewCustomRoleResource,
