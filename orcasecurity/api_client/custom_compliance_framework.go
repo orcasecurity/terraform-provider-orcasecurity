@@ -20,13 +20,13 @@ type CustomComplianceFrameworkSection struct {
 type CustomComplianceFrameworkCreateRequest struct {
 	Name        string                             `json:"name"`
 	Description string                             `json:"description"`
-	Sections    []CustomComplianceFrameworkSection  `json:"sections"`
+	Sections    []CustomComplianceFrameworkSection `json:"sections"`
 }
 
 type CustomComplianceFrameworkUpdateRequest struct {
 	Name        string                             `json:"name"`
 	Description string                             `json:"description"`
-	Sections    []CustomComplianceFrameworkSection  `json:"sections"`
+	Sections    []CustomComplianceFrameworkSection `json:"sections"`
 }
 
 // Response types
