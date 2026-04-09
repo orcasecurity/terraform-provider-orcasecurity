@@ -25,13 +25,13 @@ type groupAccessResource struct {
 }
 
 type groupAccessResourceModel struct {
-	ID                 types.String `tfsdk:"id"`
-	GroupID            types.String `tfsdk:"group_id"`
-	RoleID             types.String `tfsdk:"role_id"`
-	AllCloudAccounts   types.Bool   `tfsdk:"all_cloud_accounts"`
-	CloudAccounts      types.List   `tfsdk:"cloud_accounts"`
-	ShiftleftProjects  types.List   `tfsdk:"shiftleft_projects"`
-	UserFilters        types.List   `tfsdk:"user_filters"`
+	ID                types.String `tfsdk:"id"`
+	GroupID           types.String `tfsdk:"group_id"`
+	RoleID            types.String `tfsdk:"role_id"`
+	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	CloudAccounts     types.List   `tfsdk:"cloud_accounts"`
+	ShiftleftProjects types.List   `tfsdk:"shiftleft_projects"`
+	UserFilters       types.List   `tfsdk:"user_filters"`
 }
 
 func NewGroupAccessResource() resource.Resource {
@@ -135,13 +135,13 @@ func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessRe
 		return api_client.GroupAccess{}, diags
 	}
 	return api_client.GroupAccess{
-		ID:                 assignmentID,
-		AllCloudAccounts:   plan.AllCloudAccounts.ValueBool(),
-		RoleID:             plan.RoleID.ValueString(),
-		GroupID:            plan.GroupID.ValueString(),
-		CloudAccounts:      cloudAccounts,
-		ShiftleftProjects:  shiftleft,
-		UserFilters:        userFilters,
+		ID:                assignmentID,
+		AllCloudAccounts:  plan.AllCloudAccounts.ValueBool(),
+		RoleID:            plan.RoleID.ValueString(),
+		GroupID:           plan.GroupID.ValueString(),
+		CloudAccounts:     cloudAccounts,
+		ShiftleftProjects: shiftleft,
+		UserFilters:       userFilters,
 	}, diags
 }
 
@@ -158,13 +158,13 @@ func (r *groupAccessResource) apiToModel(ctx context.Context, ga *api_client.Gro
 		return groupAccessResourceModel{}, diags
 	}
 	return groupAccessResourceModel{
-		ID:                 types.StringValue(ga.ID),
-		GroupID:            types.StringValue(ga.GroupID),
-		RoleID:             types.StringValue(ga.RoleID),
-		AllCloudAccounts:   types.BoolValue(ga.AllCloudAccounts),
-		CloudAccounts:      cloudList,
-		ShiftleftProjects:  shiftList,
-		UserFilters:        filterList,
+		ID:                types.StringValue(ga.ID),
+		GroupID:           types.StringValue(ga.GroupID),
+		RoleID:            types.StringValue(ga.RoleID),
+		AllCloudAccounts:  types.BoolValue(ga.AllCloudAccounts),
+		CloudAccounts:     cloudList,
+		ShiftleftProjects: shiftList,
+		UserFilters:       filterList,
 	}, diags
 }
 

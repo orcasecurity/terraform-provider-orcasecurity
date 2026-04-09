@@ -8,13 +8,13 @@ import (
 
 // GroupAccess maps to POST/PUT /api/rbac/access/group payloads.
 type GroupAccess struct {
-	ID                 string   `json:"id,omitempty"`
-	AllCloudAccounts   bool     `json:"all_cloud_accounts"`
-	RoleID             string   `json:"role_id"`
-	GroupID            string   `json:"group_id"`
-	CloudAccounts      []string `json:"cloud_accounts"`
-	ShiftleftProjects  []string `json:"shiftleft_projects"`
-	UserFilters        []string `json:"user_filters"`
+	ID                string   `json:"id,omitempty"`
+	AllCloudAccounts  bool     `json:"all_cloud_accounts"`
+	RoleID            string   `json:"role_id"`
+	GroupID           string   `json:"group_id"`
+	CloudAccounts     []string `json:"cloud_accounts"`
+	ShiftleftProjects []string `json:"shiftleft_projects"`
+	UserFilters       []string `json:"user_filters"`
 }
 
 type groupAccessAPIResponseType struct {
