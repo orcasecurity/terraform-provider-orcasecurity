@@ -212,9 +212,15 @@ func (r *groupAccessResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	refreshed, err := r.apiClient.GetGroupAccess(created.ID)
-	if err != nil {
-		resp.Diagnostics.AddWarning("Could not read group access after create", err.Error())
+	matchWant, d := r.modelToAPI(ctx, plan, created.ID)
+	resp.Diagnostics.Append(d...)
+	var refreshed *api_client.GroupAccess
+	if !resp.Diagnostics.HasError() {
+		var err error
+		refreshed, err = r.apiClient.FindGroupAccess(created.ID, matchWant)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Could not read group access after create", err.Error())
+		}
 	}
 	final := mergeGroupAccessAfterCreate(refreshed, created, plan, payload)
 
@@ -233,7 +239,13 @@ func (r *groupAccessResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	ga, err := r.apiClient.GetGroupAccess(prior.ID.ValueString())
+	want, diags := r.modelToAPI(ctx, prior, prior.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ga, err := r.apiClient.FindGroupAccess(prior.ID.ValueString(), want)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading group access", fmt.Sprintf("Could not read id %s: %s", prior.ID.ValueString(), err.Error()))
 		return

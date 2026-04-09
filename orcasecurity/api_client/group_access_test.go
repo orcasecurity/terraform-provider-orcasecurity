@@ -9,6 +9,103 @@ import (
 	"testing"
 )
 
+func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != apiRBACGroupAccessPath {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if r.URL.Query().Get("group_id") != "g-target" {
+			t.Fatalf("query group_id = %q", r.URL.Query().Get("group_id"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []map[string]interface{}{
+				{
+					"id": "asg-other", "all_cloud_accounts": true,
+					"group": map[string]string{"id": "g-other"},
+					"role":  map[string]string{"id": "r1"},
+				},
+				{
+					"id": "asg-want", "all_cloud_accounts": false,
+					"group": map[string]string{"id": "g-target"},
+					"role":  map[string]string{"id": "r2"},
+					"cloud_accounts": []map[string]string{
+						{"id": "ca1"},
+					},
+					"user_filters":       []string{"f1"},
+					"shiftleft_projects": []string{},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := &APIClient{
+		APIEndpoint: srv.URL,
+		APIToken:    "tok",
+		HTTPClient:  srv.Client(),
+	}
+	got, err := c.ListGroupAccessForGroup("g-target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "asg-want" || got[0].GroupID != "g-target" || got[0].RoleID != "r2" {
+		t.Fatalf("got %+v", got)
+	}
+	if len(got[0].CloudAccounts) != 1 || got[0].CloudAccounts[0] != "ca1" {
+		t.Fatalf("cloud accounts %+v", got[0].CloudAccounts)
+	}
+}
+
+func TestFindGroupAccess_FallsBackToListOn404(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rbac/access/group/stale-id":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"message":"not found"}`)
+		case r.Method == http.MethodGet && r.URL.Path == apiRBACGroupAccessPath:
+			if r.URL.Query().Get("group_id") != "g1" {
+				t.Fatalf("group_id %q", r.URL.Query().Get("group_id"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"id": "asg-live", "all_cloud_accounts": false,
+						"group":              map[string]string{"id": "g1"},
+						"role":               map[string]string{"id": "r1"},
+						"cloud_accounts":     []interface{}{},
+						"user_filters":       []string{"bu1"},
+						"shiftleft_projects": []string{},
+					},
+				},
+			})
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := &APIClient{
+		APIEndpoint: srv.URL,
+		APIToken:    "tok",
+		HTTPClient:  srv.Client(),
+	}
+	want := GroupAccess{
+		GroupID:           "g1",
+		RoleID:            "r1",
+		AllCloudAccounts:  false,
+		UserFilters:       []string{"bu1"},
+		CloudAccounts:     []string{},
+		ShiftleftProjects: []string{},
+	}
+	got, err := c.FindGroupAccess("stale-id", want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.ID != "asg-live" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
 func TestCreateGroupAccess_ParsesWrappedDataID(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != apiRBACGroupAccessPath {
