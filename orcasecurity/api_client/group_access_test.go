@@ -9,12 +9,19 @@ import (
 	"testing"
 )
 
+const (
+	errFmtTestGotValue       = "got %+v"
+	errFmtTestExpectedNilGot = "expected nil, " + errFmtTestGotValue
+)
+
 func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
+	const targetGroupID = "g-target"
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != apiRBACGroupAccessPath {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		if r.URL.Query().Get("group_id") != "g-target" {
+		if r.URL.Query().Get("group_id") != targetGroupID {
 			t.Fatalf("query group_id = %q", r.URL.Query().Get("group_id"))
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -26,7 +33,7 @@ func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
 				},
 				{
 					"id": "asg-want", "all_cloud_accounts": false,
-					"group": map[string]string{"id": "g-target"},
+					"group": map[string]string{"id": targetGroupID},
 					"role":  map[string]string{"id": "r2"},
 					"cloud_accounts": []map[string]string{
 						{"id": "ca1"},
@@ -44,12 +51,12 @@ func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
 		APIToken:    "tok",
 		HTTPClient:  srv.Client(),
 	}
-	got, err := c.ListGroupAccessForGroup("g-target")
+	got, err := c.ListGroupAccessForGroup(targetGroupID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].ID != "asg-want" || got[0].GroupID != "g-target" || got[0].RoleID != "r2" {
-		t.Fatalf("got %+v", got)
+	if len(got) != 1 || got[0].ID != "asg-want" || got[0].GroupID != targetGroupID || got[0].RoleID != "r2" {
+		t.Fatalf(errFmtTestGotValue, got)
 	}
 	if len(got[0].CloudAccounts) != 1 || got[0].CloudAccounts[0] != "ca1" {
 		t.Fatalf("cloud accounts %+v", got[0].CloudAccounts)
@@ -102,7 +109,7 @@ func TestFindGroupAccess_FallsBackToListOn404(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got == nil || got.ID != "asg-live" {
-		t.Fatalf("got %+v", got)
+		t.Fatalf(errFmtTestGotValue, got)
 	}
 }
 
@@ -142,7 +149,7 @@ func TestCreateGroupAccess_ParsesWrappedDataID(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.ID != "asg-1" || got.GroupID != "g1" || got.RoleID != "r1" {
-		t.Fatalf("got %+v", got)
+		t.Fatalf(errFmtTestGotValue, got)
 	}
 }
 
@@ -163,7 +170,7 @@ func TestGetGroupAccess_404ReturnsNil(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != nil {
-		t.Fatalf("expected nil, got %+v", got)
+		t.Fatalf(errFmtTestExpectedNilGot, got)
 	}
 }
 
@@ -196,7 +203,7 @@ func TestGetGroupAccess_OK(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got == nil || got.ID != "asg-1" {
-		t.Fatalf("got %+v", got)
+		t.Fatalf(errFmtTestGotValue, got)
 	}
 }
 
