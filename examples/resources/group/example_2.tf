@@ -1,4 +1,4 @@
-// Group with no members: users is optional; use []
+// Group with no members: omit users or set users = [].
 resource "orcasecurity_group" "tf-group-empty-members" {
   name        = "Orca Terraform Group (no members)"
   sso_group   = false

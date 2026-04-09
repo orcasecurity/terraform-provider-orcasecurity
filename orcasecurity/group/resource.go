@@ -82,7 +82,7 @@ func (r *groupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Required:    true,
 			},
 			"users": schema.SetAttribute{
-				Description: "Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit or use an empty set if the API allows a group with no members.",
+				Description: "Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
@@ -126,7 +126,7 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	plan.ID = types.StringValue(instance.ID)
-	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance)...)
+	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance, plan.Users)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -149,15 +149,26 @@ func userIDsFromSet(s types.Set) []string {
 	return users
 }
 
-func setGroupStateFromAPI(ctx context.Context, m *groupResourceModel, instance *api_client.Group) diag.Diagnostics {
+// optionalUsersSetMatchPlan maps API user ids to Terraform optional set: omitted config (null) stays null when API returns empty; explicit users = [] stays an empty set.
+func optionalUsersSetMatchPlan(ctx context.Context, planOrPrior types.Set, api []string) (types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if len(api) > 0 {
+		return types.SetValueFrom(ctx, types.StringType, api)
+	}
+	if planOrPrior.IsNull() || planOrPrior.IsUnknown() {
+		return types.SetNull(types.StringType), diags
+	}
+	return types.SetValueFrom(ctx, types.StringType, []string{})
+}
+
+func setGroupStateFromAPI(ctx context.Context, m *groupResourceModel, instance *api_client.Group, usersRef types.Set) diag.Diagnostics {
 	var diags diag.Diagnostics
 	m.SSOGroup = types.BoolValue(instance.SSOGroup)
-	users := instance.Users
-	if users == nil {
-		users = []string{}
+	apiUsers := instance.Users
+	if apiUsers == nil {
+		apiUsers = []string{}
 	}
-	// Empty or omitted JSON must become an empty set, not null, to match config like users = [].
-	usersSet, d := types.SetValueFrom(ctx, types.StringType, users)
+	usersSet, d := optionalUsersSetMatchPlan(ctx, usersRef, apiUsers)
 	diags.Append(d...)
 	if !diags.HasError() {
 		m.Users = usersSet
@@ -200,7 +211,7 @@ func (r *groupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.ID = types.StringValue(instance.ID)
 	state.Description = types.StringValue(instance.Description)
 	state.Name = types.StringValue(instance.Name)
-	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &state, instance)...)
+	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &state, instance, state.Users)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -251,7 +262,7 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	plan.ID = types.StringValue(instance.ID)
 	plan.Description = types.StringValue(instance.Description)
 	plan.Name = types.StringValue(instance.Name)
-	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance)...)
+	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance, plan.Users)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

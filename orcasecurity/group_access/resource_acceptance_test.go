@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+const testAccGroupAccessResourceName = "orcasecurity_group_access.acc"
+
 func TestAccGroupAccess_envIDs(t *testing.T) {
 	gid := os.Getenv("ORCASECURITY_ACC_GROUP_ACCESS_GROUP_ID")
 	rid := os.Getenv("ORCASECURITY_ACC_GROUP_ACCESS_ROLE_ID")
@@ -35,11 +37,11 @@ resource "orcasecurity_group_access" "acc" {
 			{
 				Config: cfg,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_group_access.acc", "group_id", gid),
-					resource.TestCheckResourceAttr("orcasecurity_group_access.acc", "role_id", rid),
-					resource.TestCheckResourceAttr("orcasecurity_group_access.acc", "user_filters.#", "1"),
-					resource.TestCheckResourceAttr("orcasecurity_group_access.acc", "user_filters.0", fid),
-					resource.TestCheckResourceAttrSet("orcasecurity_group_access.acc", "id"),
+					resource.TestCheckResourceAttr(testAccGroupAccessResourceName, "group_id", gid),
+					resource.TestCheckResourceAttr(testAccGroupAccessResourceName, "role_id", rid),
+					resource.TestCheckResourceAttr(testAccGroupAccessResourceName, "user_filters.#", "1"),
+					resource.TestCheckResourceAttr(testAccGroupAccessResourceName, "user_filters.0", fid),
+					resource.TestCheckResourceAttrSet(testAccGroupAccessResourceName, "id"),
 				),
 			},
 		},

@@ -28,7 +28,7 @@ resource "orcasecurity_group" "tf-group-1" {
 ### Optional empty members
 
 ```terraform
-// Group with no members: users is optional; use [] if the API allows empty groups.
+// Group with no members: omit users or set users = [].
 resource "orcasecurity_group" "tf-group-empty-members" {
   name        = "Orca Terraform Group (no members)"
   sso_group   = false
@@ -49,7 +49,7 @@ resource "orcasecurity_group" "tf-group-empty-members" {
 
 ### Optional
 
-- `users` (Set of String) Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit or use an empty set if the API allows a group with no members.
+- `users` (Set of String) Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members.
 
 ### Read-Only
 

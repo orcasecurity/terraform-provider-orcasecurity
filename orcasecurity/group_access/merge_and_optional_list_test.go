@@ -9,6 +9,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+const (
+	testMergeGroupAccessGroupID = "group-from-plan"
+	testMergeGroupAccessRoleID  = "role-x"
+
+	testOptionalListExpectedNullFmt = "expected null list, got %#v"
+)
+
 func TestMergeGroupAccessAfterCreate_PrefersRefreshed(t *testing.T) {
 	refreshed := &api_client.GroupAccess{ID: "r1", GroupID: "g-remote", RoleID: "role1"}
 	created := &api_client.GroupAccess{ID: "r1", GroupID: "g-created", RoleID: "role1"}
@@ -24,14 +31,14 @@ func TestMergeGroupAccessAfterCreate_PrefersRefreshed(t *testing.T) {
 func TestMergeGroupAccessAfterCreate_FillsFromPlanAndPayload(t *testing.T) {
 	created := &api_client.GroupAccess{
 		ID:     "assign-1",
-		RoleID: "role-x",
+		RoleID: testMergeGroupAccessRoleID,
 		// GroupID empty; nil slices
 	}
 	plan := groupAccessResourceModel{}
-	plan.GroupID = types.StringValue("group-from-plan")
-	plan.RoleID = types.StringValue("role-x")
+	plan.GroupID = types.StringValue(testMergeGroupAccessGroupID)
+	plan.RoleID = types.StringValue(testMergeGroupAccessRoleID)
 	payload := api_client.GroupAccess{
-		GroupID:           "group-from-plan",
+		GroupID:           testMergeGroupAccessGroupID,
 		CloudAccounts:     []string{"ca1"},
 		ShiftleftProjects: []string{"sl1"},
 		UserFilters:       []string{"uf1"},
@@ -39,10 +46,10 @@ func TestMergeGroupAccessAfterCreate_FillsFromPlanAndPayload(t *testing.T) {
 	}
 
 	out := mergeGroupAccessAfterCreate(nil, created, plan, payload)
-	if out.GroupID != "group-from-plan" {
+	if out.GroupID != testMergeGroupAccessGroupID {
 		t.Fatalf("GroupID: got %q", out.GroupID)
 	}
-	if out.RoleID != "role-x" {
+	if out.RoleID != testMergeGroupAccessRoleID {
 		t.Fatalf("RoleID: got %q", out.RoleID)
 	}
 	if len(out.CloudAccounts) != 1 || out.CloudAccounts[0] != "ca1" {
@@ -67,7 +74,7 @@ func TestOptionalListMatchPlan_NullPlanEmptyAPI(t *testing.T) {
 		t.Fatal(diags)
 	}
 	if !got.IsNull() {
-		t.Fatalf("expected null list, got %#v", got)
+		t.Fatalf(testOptionalListExpectedNullFmt, got)
 	}
 }
 
@@ -79,7 +86,7 @@ func TestOptionalListMatchPlan_NullPlanEmptySliceAPI(t *testing.T) {
 		t.Fatal(diags)
 	}
 	if !got.IsNull() {
-		t.Fatalf("expected null list, got %#v", got)
+		t.Fatalf(testOptionalListExpectedNullFmt, got)
 	}
 }
 
@@ -91,7 +98,7 @@ func TestOptionalListMatchPlan_UnknownPlanEmptyAPI(t *testing.T) {
 		t.Fatal(diags)
 	}
 	if !got.IsNull() {
-		t.Fatalf("expected null list, got %#v", got)
+		t.Fatalf(testOptionalListExpectedNullFmt, got)
 	}
 }
 

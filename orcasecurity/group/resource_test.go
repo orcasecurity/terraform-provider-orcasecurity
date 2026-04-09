@@ -103,11 +103,11 @@ resource "orcasecurity_group" "tf-group-1" {
 	})
 }
 
-// TestAccGroupResource_OptionalEmptyUsers validates optional users = [] when the Orca API allows empty groups.
+// TestAccGroupResource_OptionalEmptyUsers validates optional users = [] for a group with no members.
 // Enable with: TF_ACC=1 ORCASECURITY_ACC_GROUP_EMPTY_USERS=1 plus ORCASECURITY_API_* credentials.
 func TestAccGroupResource_OptionalEmptyUsers(t *testing.T) {
 	if os.Getenv("ORCASECURITY_ACC_GROUP_EMPTY_USERS") == "" {
-		t.Skip("Skipping: set ORCASECURITY_ACC_GROUP_EMPTY_USERS=1 to run (requires API that allows groups with no members)")
+		t.Skip("Skipping: set ORCASECURITY_ACC_GROUP_EMPTY_USERS=1 to run this acceptance test")
 	}
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },

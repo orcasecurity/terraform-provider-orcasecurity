@@ -16,34 +16,44 @@ const testAccDataSourceRbacRoles = orcasecurity.TestProviderConfig + `
 data "orcasecurity_rbac_roles" "all" {}
 `
 
+func rbacRolesNestedIDCount(attr map[string]string) int {
+	n := 0
+	for k := range attr {
+		if strings.HasPrefix(k, "roles.") && strings.HasSuffix(k, ".id") {
+			n++
+		}
+	}
+	return n
+}
+
+func errIfInvalidRbacRolesHash(n string) error {
+	c, err := strconv.Atoi(n)
+	if err != nil {
+		return fmt.Errorf("roles.#: %w", err)
+	}
+	if c < 1 {
+		return fmt.Errorf("expected at least one role, got roles.#=%d", c)
+	}
+	return nil
+}
+
+func errIfRbacRolesAttrsEmpty(attr map[string]string) error {
+	if n, ok := attr["roles.#"]; ok {
+		return errIfInvalidRbacRolesHash(n)
+	}
+	if rbacRolesNestedIDCount(attr) < 1 {
+		return fmt.Errorf("expected roles in state; attributes: %#v", attr)
+	}
+	return nil
+}
+
 func testAccCheckRbacRolesListNonEmpty(name string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[name]
 		if !ok {
 			return fmt.Errorf("resource %q not found in state", name)
 		}
-		attr := rs.Primary.Attributes
-		if n, ok := attr["roles.#"]; ok {
-			c, err := strconv.Atoi(n)
-			if err != nil {
-				return fmt.Errorf("roles.#: %w", err)
-			}
-			if c < 1 {
-				return fmt.Errorf("expected at least one role, got roles.#=%d", c)
-			}
-			return nil
-		}
-		// Fallback: count nested role ids if flattening differs
-		count := 0
-		for k := range attr {
-			if strings.HasPrefix(k, "roles.") && strings.HasSuffix(k, ".id") {
-				count++
-			}
-		}
-		if count < 1 {
-			return fmt.Errorf("expected roles in state; attributes: %#v", attr)
-		}
-		return nil
+		return errIfRbacRolesAttrsEmpty(rs.Primary.Attributes)
 	}
 }
 
