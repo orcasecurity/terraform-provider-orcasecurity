@@ -1,8 +1,10 @@
 package group_test
 
 import (
-	"terraform-provider-orcasecurity/orcasecurity"
+	"os"
 	"testing"
+
+	"terraform-provider-orcasecurity/orcasecurity"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -95,6 +97,34 @@ resource "orcasecurity_group" "tf-group-1" {
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_group.tf-group-1", "users[0]", "abc6d072-c4eb-47d3-b0c5-7c5a7ea99g"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccGroupResource_OptionalEmptyUsers validates optional users = [] when the Orca API allows empty groups.
+// Enable with: TF_ACC=1 ORCASECURITY_ACC_GROUP_EMPTY_USERS=1 plus ORCASECURITY_API_* credentials.
+func TestAccGroupResource_OptionalEmptyUsers(t *testing.T) {
+	if os.Getenv("ORCASECURITY_ACC_GROUP_EMPTY_USERS") == "" {
+		t.Skip("Skipping: set ORCASECURITY_ACC_GROUP_EMPTY_USERS=1 to run (requires API that allows groups with no members)")
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_group" "empty_users" {
+  name        = "TF acc optional empty users"
+  description = "Acceptance test for optional users"
+  sso_group   = false
+  users       = []
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_group.empty_users", "name", "TF acc optional empty users"),
+					resource.TestCheckResourceAttr("orcasecurity_group.empty_users", "users.#", "0"),
 				),
 			},
 		},
