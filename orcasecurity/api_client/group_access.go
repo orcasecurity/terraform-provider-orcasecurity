@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+const (
+	apiRBACGroupAccessPath    = "/api/rbac/access/group"
+	apiRBACGroupAccessByIDFmt = "/api/rbac/access/group/%s"
+)
+
 // GroupAccess maps to POST/PUT /api/rbac/access/group payloads.
 type GroupAccess struct {
 	ID                string   `json:"id,omitempty"`
@@ -23,7 +28,7 @@ type groupAccessAPIResponseType struct {
 
 // CreateGroupAccess assigns a role to a group with optional cloud account, Shift Left, or user filter (e.g. business unit) scope.
 func (client *APIClient) CreateGroupAccess(data GroupAccess) (*GroupAccess, error) {
-	resp, err := client.Post("/api/rbac/access/group", data)
+	resp, err := client.Post(apiRBACGroupAccessPath, data)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +59,7 @@ func (client *APIClient) CreateGroupAccess(data GroupAccess) (*GroupAccess, erro
 
 // GetGroupAccess fetches a group–role assignment by its Orca assignment id.
 func (client *APIClient) GetGroupAccess(id string) (*GroupAccess, error) {
-	resp, err := client.Get(fmt.Sprintf("/api/rbac/access/group/%s", id))
+	resp, err := client.Get(fmt.Sprintf(apiRBACGroupAccessByIDFmt, id))
 	if err != nil {
 		if strings.Contains(err.Error(), "status: 404") {
 			return nil, nil
@@ -79,7 +84,7 @@ func (client *APIClient) UpdateGroupAccess(data GroupAccess) (*GroupAccess, erro
 	if data.ID == "" {
 		return nil, fmt.Errorf("update group access: id is required")
 	}
-	resp, err := client.Put(fmt.Sprintf("/api/rbac/access/group/%s", data.ID), data)
+	resp, err := client.Put(fmt.Sprintf(apiRBACGroupAccessByIDFmt, data.ID), data)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +103,7 @@ func (client *APIClient) UpdateGroupAccess(data GroupAccess) (*GroupAccess, erro
 
 // DeleteGroupAccess removes a group–role assignment.
 func (client *APIClient) DeleteGroupAccess(id string) error {
-	_, err := client.Delete(fmt.Sprintf("/api/rbac/access/group/%s", id))
+	_, err := client.Delete(fmt.Sprintf(apiRBACGroupAccessByIDFmt, id))
 	if err != nil && strings.Contains(err.Error(), "status: 404") {
 		return nil
 	}

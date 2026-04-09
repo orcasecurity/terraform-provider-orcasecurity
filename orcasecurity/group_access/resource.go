@@ -168,6 +168,31 @@ func (r *groupAccessResource) apiToModel(ctx context.Context, ga *api_client.Gro
 	}, diags
 }
 
+// mergeGroupAccessAfterCreate prefers GET-after-POST body; if missing, fills gaps from create response + plan + request payload.
+func mergeGroupAccessAfterCreate(refreshed *api_client.GroupAccess, created *api_client.GroupAccess, plan groupAccessResourceModel, payload api_client.GroupAccess) *api_client.GroupAccess {
+	if refreshed != nil {
+		return refreshed
+	}
+	out := *created
+	if out.GroupID == "" {
+		out.GroupID = plan.GroupID.ValueString()
+	}
+	if out.RoleID == "" {
+		out.RoleID = plan.RoleID.ValueString()
+	}
+	if out.CloudAccounts == nil {
+		out.CloudAccounts = payload.CloudAccounts
+	}
+	if out.ShiftleftProjects == nil {
+		out.ShiftleftProjects = payload.ShiftleftProjects
+	}
+	if out.UserFilters == nil {
+		out.UserFilters = payload.UserFilters
+	}
+	out.AllCloudAccounts = payload.AllCloudAccounts
+	return &out
+}
+
 func (r *groupAccessResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan groupAccessResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -191,27 +216,9 @@ func (r *groupAccessResource) Create(ctx context.Context, req resource.CreateReq
 	if err != nil {
 		resp.Diagnostics.AddWarning("Could not read group access after create", err.Error())
 	}
-	if refreshed == nil {
-		refreshed = created
-		if refreshed.GroupID == "" {
-			refreshed.GroupID = plan.GroupID.ValueString()
-		}
-		if refreshed.RoleID == "" {
-			refreshed.RoleID = plan.RoleID.ValueString()
-		}
-		if refreshed.CloudAccounts == nil {
-			refreshed.CloudAccounts = payload.CloudAccounts
-		}
-		if refreshed.ShiftleftProjects == nil {
-			refreshed.ShiftleftProjects = payload.ShiftleftProjects
-		}
-		if refreshed.UserFilters == nil {
-			refreshed.UserFilters = payload.UserFilters
-		}
-		refreshed.AllCloudAccounts = payload.AllCloudAccounts
-	}
+	final := mergeGroupAccessAfterCreate(refreshed, created, plan, payload)
 
-	state, diags := r.apiToModel(ctx, refreshed, &plan)
+	state, diags := r.apiToModel(ctx, final, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
