@@ -19,6 +19,67 @@ const (
 	retryAfterCap        = 2 * time.Minute
 )
 
+func slurpRequestBody(req *http.Request) ([]byte, error) {
+	if req.Body == nil {
+		return nil, nil
+	}
+	reqBody, err := io.ReadAll(req.Body)
+	req.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("read request body: %w", err)
+	}
+	return reqBody, nil
+}
+
+func cloneRequestWithBody(ctx context.Context, proto *http.Request, reqBody []byte) http.Request {
+	r := proto.Clone(ctx)
+	if reqBody == nil {
+		return *r
+	}
+	b := reqBody
+	r.Body = io.NopCloser(bytes.NewReader(b))
+	r.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(b)), nil
+	}
+	r.ContentLength = int64(len(b))
+	return *r
+}
+
+func readResponseBody(res *http.Response) ([]byte, error) {
+	defer res.Body.Close()
+	return io.ReadAll(res.Body)
+}
+
+// sleepIfRetriableTransportError backs off when err is retriable and attempts remain.
+// Returns retry=true to run another attempt; retry=false with nil err to surface errOut;
+// or retry=false with non-nil err on context cancellation during sleep.
+func sleepIfRetriableTransportError(ctx context.Context, attempt int, errOut error) (retry bool, err error) {
+	if attempt >= maxHTTPRetryAttempts-1 || !isRetriableRoundTripError(errOut) {
+		return false, nil
+	}
+	if err := sleepCtx(ctx, retryDelay(attempt, nil)); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// httpResponseFinalOrBackoff returns the API response when the caller should stop (success,
+// non-retriable HTTP status, or last attempt). If retry is true, backoff was applied and
+// another attempt should run.
+func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, res *http.Response) (apiResp *APIResponse, retry bool, err error) {
+	apiResp = &APIResponse{_body: body, response: res}
+	if apiResp.IsOk() {
+		return apiResp, false, nil
+	}
+	if !isRetriableHTTPStatus(res.StatusCode) || attempt == maxHTTPRetryAttempts-1 {
+		return apiResp, false, nil
+	}
+	if err := sleepCtx(ctx, retryDelay(attempt, res)); err != nil {
+		return nil, false, err
+	}
+	return nil, true, nil
+}
+
 func isRetriableHTTPStatus(status int) bool {
 	switch status {
 	case http.StatusRequestTimeout, http.StatusTooManyRequests,
@@ -92,65 +153,45 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 // cancellation during backoff.
 func (c *APIClient) roundTripWithRetry(req http.Request) (*APIResponse, error) {
 	ctx := req.Context()
-
-	var reqBody []byte
-	if req.Body != nil {
-		var err error
-		reqBody, err = io.ReadAll(req.Body)
-		req.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read request body: %w", err)
-		}
+	reqBody, err := slurpRequestBody(&req)
+	if err != nil {
+		return nil, err
 	}
 
 	for attempt := 0; attempt < maxHTTPRetryAttempts; attempt++ {
-		r := req.Clone(ctx)
-		if reqBody != nil {
-			b := reqBody
-			r.Body = io.NopCloser(bytes.NewReader(b))
-			r.GetBody = func() (io.ReadCloser, error) {
-				return io.NopCloser(bytes.NewReader(b)), nil
-			}
-			r.ContentLength = int64(len(b))
-		}
-
-		res, execErr := c.Execute(*r)
+		r := cloneRequestWithBody(ctx, &req, reqBody)
+		res, execErr := c.Execute(r)
 		if execErr != nil {
-			if attempt < maxHTTPRetryAttempts-1 && isRetriableRoundTripError(execErr) {
-				if err := sleepCtx(ctx, retryDelay(attempt, nil)); err != nil {
-					return nil, err
-				}
+			retry, sleepErr := sleepIfRetriableTransportError(ctx, attempt, execErr)
+			if sleepErr != nil {
+				return nil, sleepErr
+			}
+			if retry {
 				continue
 			}
 			return nil, execErr
 		}
 
-		body, readErr := io.ReadAll(res.Body)
-		res.Body.Close()
+		body, readErr := readResponseBody(res)
 		if readErr != nil {
-			if attempt < maxHTTPRetryAttempts-1 && isRetriableRoundTripError(readErr) {
-				if err := sleepCtx(ctx, retryDelay(attempt, nil)); err != nil {
-					return nil, err
-				}
+			retry, sleepErr := sleepIfRetriableTransportError(ctx, attempt, readErr)
+			if sleepErr != nil {
+				return nil, sleepErr
+			}
+			if retry {
 				continue
 			}
 			return nil, readErr
 		}
 
-		apiResp := &APIResponse{_body: body, response: res}
-
-		if apiResp.IsOk() {
-			return apiResp, nil
+		apiResp, retry, sleepErr := httpResponseFinalOrBackoff(ctx, attempt, body, res)
+		if sleepErr != nil {
+			return nil, sleepErr
 		}
-		if !isRetriableHTTPStatus(res.StatusCode) {
-			return apiResp, nil
+		if retry {
+			continue
 		}
-		if attempt == maxHTTPRetryAttempts-1 {
-			return apiResp, nil
-		}
-		if err := sleepCtx(ctx, retryDelay(attempt, res)); err != nil {
-			return nil, err
-		}
+		return apiResp, nil
 	}
 
 	return nil, errors.New("orca api client: retry loop exhausted")

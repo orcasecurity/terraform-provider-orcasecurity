@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+const (
+	retryTestAPIEndpoint = "http://localhost"
+	errFmtRetryTestStatus = "status = %d"
+)
+
 func TestIsRetriableHTTPStatus(t *testing.T) {
 	tests := []struct {
 		code int
@@ -49,11 +54,11 @@ func TestRoundTripWithRetry_502Then200(t *testing.T) {
 	})}
 
 	c := &APIClient{
-		APIEndpoint: "http://localhost",
+		APIEndpoint: retryTestAPIEndpoint,
 		APIToken:    "secret",
 		HTTPClient:  httpClient,
 	}
-	req, err := http.NewRequest(http.MethodGet, "http://localhost/api/x", nil)
+	req, err := http.NewRequest(http.MethodGet, retryTestAPIEndpoint+"/api/x", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +70,7 @@ func TestRoundTripWithRetry_502Then200(t *testing.T) {
 		t.Fatalf("expected 3 HTTP attempts, got %d", n)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode())
+		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())
 	}
 }
 
@@ -81,8 +86,8 @@ func TestRoundTripWithRetry_NoRetryOn400(t *testing.T) {
 		}
 	})}
 
-	c := &APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	req, _ := http.NewRequest(http.MethodGet, "http://localhost/", nil)
+	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	req, _ := http.NewRequest(http.MethodGet, retryTestAPIEndpoint+"/", nil)
 	resp, err := c.roundTripWithRetry(*req)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +96,7 @@ func TestRoundTripWithRetry_NoRetryOn400(t *testing.T) {
 		t.Fatalf("expected 1 attempt, got %d", n)
 	}
 	if resp.StatusCode() != http.StatusBadRequest {
-		t.Fatalf("status = %d", resp.StatusCode())
+		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())
 	}
 }
 
@@ -121,8 +126,8 @@ func TestRoundTripWithRetry_POSTBodyPreservedAcrossRetries(t *testing.T) {
 		}
 	})}
 
-	c := &APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	req, _ := http.NewRequest(http.MethodPost, "http://localhost/r", strings.NewReader(wantBody))
+	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	req, _ := http.NewRequest(http.MethodPost, retryTestAPIEndpoint+"/r", strings.NewReader(wantBody))
 	resp, err := c.roundTripWithRetry(*req)
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +136,6 @@ func TestRoundTripWithRetry_POSTBodyPreservedAcrossRetries(t *testing.T) {
 		t.Fatalf("attempts = %d", n)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode())
+		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())
 	}
 }
