@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -94,33 +93,22 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 	// Log request details
 	fmt.Printf("Making request to: %s %s\n", req.Method, req.URL)
 
-	res, err := c.Execute(req)
+	resp, err := c.roundTripWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("request execution failed: %v", err)
 	}
-	defer res.Body.Close()
-
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
 
 	// Log response details
-	fmt.Printf("Response Status: %d\n", res.StatusCode)
-	fmt.Printf("Response Body: %s\n", string(body))
+	fmt.Printf("Response Status: %d\n", resp.StatusCode())
+	fmt.Printf("Response Body: %s\n", string(resp.Body()))
 
-	response := APIResponse{
-		_body:    body,
-		response: res,
+	if !resp.IsOk() {
+		apiErr := resp.Error()
+		return resp, fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
+			resp.StatusCode(), string(resp.Body()), apiErr)
 	}
 
-	if !response.IsOk() {
-		err := response.Error()
-		return &response, fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
-			res.StatusCode, string(body), err)
-	}
-
-	return &response, nil
+	return resp, nil
 }
 
 // Execute GET HTTP request.
