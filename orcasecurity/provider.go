@@ -17,8 +17,10 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
+	"terraform-provider-orcasecurity/orcasecurity/group_access"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
+	"terraform-provider-orcasecurity/orcasecurity/rbac_role"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/sonar"
@@ -204,6 +206,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		organizations.NewOrganizationDataSource,
 		sonar.NewSonarQueryDataSource,
 		user_preferences.NewUserPreferencesDataSource,
+		rbac_role.NewRbacRolesDataSource,
 	}
 }
 
@@ -216,6 +219,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		custom_sonar_alert.NewCustomSonarAlertResource,
 		custom_role.NewCustomRoleResource,
 		group.NewGroupResource,
+		group_access.NewGroupAccessResource,
 		business_unit.NewBusinessUnitResource,
 		custom_widget.NewCustomWidgetResource,
 		custom_dashboard.NewCustomDashboardResource,

@@ -6,6 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -81,9 +82,9 @@ func (r *groupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Required:    true,
 			},
 			"users": schema.SetAttribute{
-				Description: "Users within the group, identified by their IDs. IDs can be determined from the /api/users endpoint.",
+				Description: "Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members.",
 				ElementType: types.StringType,
-				Required:    true,
+				Optional:    true,
 			},
 		},
 	}
@@ -97,11 +98,7 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	var users []string
-
-	for _, item := range plan.Users.Elements() {
-		users = append(users, item.String()[1:len(item.String())-1])
-	}
+	users := userIDsFromSet(plan.Users)
 
 	createReq := api_client.Group{
 		Name:        plan.Name.ValueString(),
@@ -129,12 +126,54 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	plan.ID = types.StringValue(instance.ID)
+	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance, plan.Users)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+func userIDsFromSet(s types.Set) []string {
+	if s.IsNull() || s.IsUnknown() {
+		return []string{}
+	}
+	var users []string
+	for _, item := range s.Elements() {
+		users = append(users, item.String()[1:len(item.String())-1])
+	}
+	return users
+}
+
+// optionalUsersSetMatchPlan maps API user ids to Terraform optional set: omitted config (null) stays null when API returns empty; explicit users = [] stays an empty set.
+func optionalUsersSetMatchPlan(ctx context.Context, planOrPrior types.Set, api []string) (types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if len(api) > 0 {
+		return types.SetValueFrom(ctx, types.StringType, api)
+	}
+	if planOrPrior.IsNull() || planOrPrior.IsUnknown() {
+		return types.SetNull(types.StringType), diags
+	}
+	return types.SetValueFrom(ctx, types.StringType, []string{})
+}
+
+func setGroupStateFromAPI(ctx context.Context, m *groupResourceModel, instance *api_client.Group, usersRef types.Set) diag.Diagnostics {
+	var diags diag.Diagnostics
+	m.SSOGroup = types.BoolValue(instance.SSOGroup)
+	apiUsers := instance.Users
+	if apiUsers == nil {
+		apiUsers = []string{}
+	}
+	usersSet, d := optionalUsersSetMatchPlan(ctx, usersRef, apiUsers)
+	diags.Append(d...)
+	if !diags.HasError() {
+		m.Users = usersSet
+	}
+	return diags
 }
 
 func (r *groupResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -172,6 +211,10 @@ func (r *groupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.ID = types.StringValue(instance.ID)
 	state.Description = types.StringValue(instance.Description)
 	state.Name = types.StringValue(instance.Name)
+	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &state, instance, state.Users)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -188,11 +231,7 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	users := []string{}
-
-	for _, item := range plan.Users.Elements() {
-		users = append(users, item.String()[1:len(item.String())-1])
-	}
+	users := userIDsFromSet(plan.Users)
 
 	updateReq := api_client.Group{
 		ID:          plan.ID.ValueString(),
@@ -223,6 +262,10 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	plan.ID = types.StringValue(instance.ID)
 	plan.Description = types.StringValue(instance.Description)
 	plan.Name = types.StringValue(instance.Name)
+	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance, plan.Users)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
