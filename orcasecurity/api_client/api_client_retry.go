@@ -15,7 +15,7 @@ import (
 const (
 	maxHTTPRetryAttempts = 5
 	retryBaseDelay       = 250 * time.Millisecond
-	retryMaxDelay       = 16 * time.Second
+	retryMaxDelay        = 16 * time.Second
 	retryAfterCap        = 2 * time.Minute
 )
 
@@ -78,6 +78,31 @@ func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, r
 		return nil, false, err
 	}
 	return nil, true, nil
+}
+
+// transportPhaseOutcome maps Execute / body-read errors to either another attempt
+// (continueLoop) or a terminal error for the caller to return.
+func transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error) (continueLoop bool, err error) {
+	retry, sleepErr := sleepIfRetriableTransportError(ctx, attempt, phaseErr)
+	if sleepErr != nil {
+		return false, sleepErr
+	}
+	if retry {
+		return true, nil
+	}
+	return false, phaseErr
+}
+
+// httpResponsePhaseOutcome maps HTTP status handling to continue, terminal error, or success.
+func httpResponsePhaseOutcome(ctx context.Context, attempt int, body []byte, res *http.Response) (apiResp *APIResponse, continueLoop bool, err error) {
+	apiResp, retry, sleepErr := httpResponseFinalOrBackoff(ctx, attempt, body, res)
+	if sleepErr != nil {
+		return nil, false, sleepErr
+	}
+	if retry {
+		return nil, true, nil
+	}
+	return apiResp, false, nil
 }
 
 func isRetriableHTTPStatus(status int) bool {
@@ -162,33 +187,27 @@ func (c *APIClient) roundTripWithRetry(req http.Request) (*APIResponse, error) {
 		r := cloneRequestWithBody(ctx, &req, reqBody)
 		res, execErr := c.Execute(r)
 		if execErr != nil {
-			retry, sleepErr := sleepIfRetriableTransportError(ctx, attempt, execErr)
-			if sleepErr != nil {
-				return nil, sleepErr
-			}
-			if retry {
+			cont, out := transportPhaseOutcome(ctx, attempt, execErr)
+			if cont {
 				continue
 			}
-			return nil, execErr
+			return nil, out
 		}
 
 		body, readErr := readResponseBody(res)
 		if readErr != nil {
-			retry, sleepErr := sleepIfRetriableTransportError(ctx, attempt, readErr)
-			if sleepErr != nil {
-				return nil, sleepErr
-			}
-			if retry {
+			cont, out := transportPhaseOutcome(ctx, attempt, readErr)
+			if cont {
 				continue
 			}
-			return nil, readErr
+			return nil, out
 		}
 
-		apiResp, retry, sleepErr := httpResponseFinalOrBackoff(ctx, attempt, body, res)
-		if sleepErr != nil {
-			return nil, sleepErr
+		apiResp, cont, out := httpResponsePhaseOutcome(ctx, attempt, body, res)
+		if out != nil {
+			return nil, out
 		}
-		if retry {
+		if cont {
 			continue
 		}
 		return apiResp, nil

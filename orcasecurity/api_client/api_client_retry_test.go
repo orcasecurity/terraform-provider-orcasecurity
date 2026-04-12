@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	retryTestAPIEndpoint = "http://localhost"
+	retryTestAPIEndpoint  = "http://localhost"
 	errFmtRetryTestStatus = "status = %d"
 )
 
