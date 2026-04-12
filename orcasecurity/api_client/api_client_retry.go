@@ -171,6 +171,39 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// roundTripIteration runs a single HTTP attempt (execute, read body, apply HTTP retry policy).
+// If tryAgain is true, the caller should run another attempt. If tryAgain is false and err is nil,
+// resp is the final APIResponse. If err is non-nil, the caller must return that error.
+func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *http.Request, reqBody []byte) (resp *APIResponse, tryAgain bool, err error) {
+	r := cloneRequestWithBody(ctx, proto, reqBody)
+	res, execErr := c.Execute(r)
+	if execErr != nil {
+		cont, out := transportPhaseOutcome(ctx, attempt, execErr)
+		if cont {
+			return nil, true, nil
+		}
+		return nil, false, out
+	}
+
+	body, readErr := readResponseBody(res)
+	if readErr != nil {
+		cont, out := transportPhaseOutcome(ctx, attempt, readErr)
+		if cont {
+			return nil, true, nil
+		}
+		return nil, false, out
+	}
+
+	apiResp, cont, out := httpResponsePhaseOutcome(ctx, attempt, body, res)
+	if out != nil {
+		return nil, false, out
+	}
+	if cont {
+		return nil, true, nil
+	}
+	return apiResp, false, nil
+}
+
 // roundTripWithRetry performs the HTTP round trip with retries for transient
 // transport failures and selected HTTP status codes (408, 429, 502, 503, 504).
 // On success (any HTTP status), returns a fully read APIResponse; err is only
@@ -184,33 +217,14 @@ func (c *APIClient) roundTripWithRetry(req http.Request) (*APIResponse, error) {
 	}
 
 	for attempt := 0; attempt < maxHTTPRetryAttempts; attempt++ {
-		r := cloneRequestWithBody(ctx, &req, reqBody)
-		res, execErr := c.Execute(r)
-		if execErr != nil {
-			cont, out := transportPhaseOutcome(ctx, attempt, execErr)
-			if cont {
-				continue
-			}
-			return nil, out
+		resp, tryAgain, iterErr := c.roundTripIteration(ctx, attempt, &req, reqBody)
+		if iterErr != nil {
+			return nil, iterErr
 		}
-
-		body, readErr := readResponseBody(res)
-		if readErr != nil {
-			cont, out := transportPhaseOutcome(ctx, attempt, readErr)
-			if cont {
-				continue
-			}
-			return nil, out
-		}
-
-		apiResp, cont, out := httpResponsePhaseOutcome(ctx, attempt, body, res)
-		if out != nil {
-			return nil, out
-		}
-		if cont {
+		if tryAgain {
 			continue
 		}
-		return apiResp, nil
+		return resp, nil
 	}
 
 	return nil, errors.New("orca api client: retry loop exhausted")
