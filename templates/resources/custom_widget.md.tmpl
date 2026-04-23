@@ -37,12 +37,12 @@ Use the `orcasecurity_user_preferences` data source to discover widget IDs:
 Example output:
 
 ```
-custom_widgets = tolist([
+custom_widgets = [
   {
     "id"   = "7a3df944-1d23-4415-95d1-ba650ab50446"
     "name" = "All Cloud Assets"
   },
-])
+]
 ```
 
 Add a placeholder resource block to your configuration first, then run the import. After import, run `terraform plan` to align your configuration with the imported state.
