@@ -24,7 +24,7 @@ func slurpRequestBody(req *http.Request) ([]byte, error) {
 		return nil, nil
 	}
 	reqBody, err := io.ReadAll(req.Body)
-	req.Body.Close()
+	_ = req.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("read request body: %w", err)
 	}
@@ -46,7 +46,7 @@ func cloneRequestWithBody(ctx context.Context, proto *http.Request, reqBody []by
 }
 
 func readResponseBody(res *http.Response) ([]byte, error) {
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	return io.ReadAll(res.Body)
 }
 
