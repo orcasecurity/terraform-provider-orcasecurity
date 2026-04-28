@@ -47,9 +47,10 @@ jobs:
             - run: go mod download
 
             - name: Run linters
-              uses: golangci/golangci-lint-action@v6
+              uses: golangci/golangci-lint-action@v9
               with:
-                  version: latest
+                  # Must be built with Go >= module version (go 1.25+). See https://github.com/golangci/golangci-lint/releases
+                  version: v2.11.4
 
     generate:
         name: Generate artifacts

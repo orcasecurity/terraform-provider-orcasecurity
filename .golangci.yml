@@ -1,35 +1,38 @@
+# golangci-lint v2 schema (requires golangci-lint >= v2.4, built with Go >= 1.25 for go 1.25 modules)
+version: "2"
+
 run:
     timeout: 60m
 
 issues:
     max-issues-per-linter: 0
     max-same-issues: 0
-    exclude-rules:
-        #TODO: Enable failing gosimple checks
-        - linters:
-              - gosimple
-          text: "S(1007|1034|1039)"
-        # TODO: Enable failing staticchecks
-        - linters:
-              - staticcheck
-          text: "SA(1006|1019|4006|6005):"
 
-linters:
-    disable-all: true
+formatters:
     enable:
         - gofmt
         - goimports
+
+linters:
+    default: none
+    enable:
         - govet
-        - typecheck
         - unconvert
         - staticcheck
-        - gosimple
         - errcheck
         - ineffassign
         - unused
-
-linters-settings:
-    errcheck:
-        exclude-functions: ["github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema:ForceNew|Set,fmt:.*,io:Close"]
-    nakedret:
-        max-func-lines: 40
+    exclusions:
+        rules:
+            # TODO: Enable failing gosimple checks (now part of staticcheck)
+            - linters:
+                  - staticcheck
+              text: "S(1007|1034|1039)"
+            # TODO: Enable failing staticchecks
+            - linters:
+                  - staticcheck
+              text: "SA(1006|1019|4006|6005):"
+    settings:
+        errcheck:
+            exclude-functions:
+                - "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema:ForceNew|Set,fmt:.*,io:Close"
