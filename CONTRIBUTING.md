@@ -12,7 +12,7 @@ $ $GOPATH/bin/terraform-provider-orcasecurity
 ...
 ```
 
-In order to test the provider, you can simply run `make test`.
+In order to test the provider, you can simply run `make test-unit`.
 
 ```sh
 $ make test-unit
