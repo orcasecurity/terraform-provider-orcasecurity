@@ -177,16 +177,16 @@ func (client *APIClient) DeleteCustomRemediationText(data CustomDiscoveryAlertRe
 		return err
 	}
 
-	resp, err := client.Execute(*req)
+	resp, err := client.roundTripWithRetry(*req)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode == 404 {
+	if resp.StatusCode() == 404 {
 		return nil
 	}
 
-	if resp.StatusCode != 200 {
+	if !resp.IsOk() {
 		return fmt.Errorf("operation failed")
 	}
 
