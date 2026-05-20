@@ -13,6 +13,33 @@ Provides an automation. You can read more about automations [here](https://docs.
 ## Example Usage
 
 ```terraform
+# Apply automation retroactively to existing alerts
+resource "orcasecurity_automation_v2" "reduce_risk_score" {
+  name              = "Reduce Risk Score"
+  description       = "Reduce risk score for open and in-progress alerts"
+  status            = "enabled"
+  apply_on_existing = true
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+      with = {
+        type     = "operation"
+        operator = "and"
+        values = [
+          { key = "Status", type = "str", operator = "in", values = ["open", "in_progress"] },
+        ]
+      }
+    })
+  }
+
+  alert_score_specify_details = {
+    new_score = 1
+    reason    = "Lower risk score"
+  }
+}
+
 # Basic automation v2 with Jira Cloud using external configuration
 resource "orcasecurity_automation_v2" "jira_cloud_basic" {
   name        = "Critical Alerts to Jira Cloud"
@@ -486,6 +513,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 ### Optional
 
 - `alert_dismissal_details` (Attributes) Details regarding dismissed alerts. (see [below for nested schema](#nestedatt--alert_dismissal_details))
+- `apply_on_existing` (Boolean) When true, retroactively applies the automation's actions to existing alerts matching the filter at creation time. Only honored on POST; changing this value forces resource replacement.
 - `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
 - `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding specifying a new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))

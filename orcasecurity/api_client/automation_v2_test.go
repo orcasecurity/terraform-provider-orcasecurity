@@ -211,7 +211,7 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	automation, err := apiClient.CreateAutomationV2(expectedRequest)
+	automation, err := apiClient.CreateAutomationV2(expectedRequest, false)
 	if err != nil {
 		t.Fatalf("CreateAutomationV2 failed: %v", err)
 	}
@@ -225,6 +225,61 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 	}
 	if automation.Name != "New Automation" {
 		t.Errorf("Expected name 'New Automation', got '%s'", automation.Name)
+	}
+}
+
+func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
+	mockResponse := `{
+		"status": "success",
+		"data": {
+			"id": "created-id-789",
+			"name": "Existing Alerts Automation",
+			"status": "enabled",
+			"filter": {"sonar_query": {"models": ["Alert"], "type": "object_set"}},
+			"actions": []
+		}
+	}`
+
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", req.Method)
+		}
+		if req.URL.Path != "/api/automations" {
+			t.Errorf("Expected URL path /api/automations, got %s", req.URL.Path)
+		}
+		if req.URL.RawQuery != "apply_on_existing=true" {
+			t.Errorf("Expected query string 'apply_on_existing=true', got '%s'", req.URL.RawQuery)
+		}
+
+		return &http.Response{
+			StatusCode: 201,
+			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Request:    req,
+		}
+	})}
+
+	automation := api_client.AutomationV2{
+		Name:   "Existing Alerts Automation",
+		Status: "enabled",
+		Filter: api_client.AutomationV2Filter{
+			SonarQuery: api_client.AutomationV2SonarQuery{
+				Models: []string{"Alert"},
+				Type:   "object_set",
+			},
+		},
+		Actions: []api_client.AutomationV2Action{},
+	}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	result, err := apiClient.CreateAutomationV2(automation, true)
+	if err != nil {
+		t.Fatalf("CreateAutomationV2 with applyOnExisting=true failed: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Expected automation to be returned, got nil")
+	}
+	if result.ID != "created-id-789" {
+		t.Errorf("Expected ID 'created-id-789', got '%s'", result.ID)
 	}
 }
 

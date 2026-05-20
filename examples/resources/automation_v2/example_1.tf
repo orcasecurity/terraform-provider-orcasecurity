@@ -1,3 +1,30 @@
+# Apply automation retroactively to existing alerts
+resource "orcasecurity_automation_v2" "reduce_risk_score" {
+  name              = "Reduce Risk Score"
+  description       = "Reduce risk score for open and in-progress alerts"
+  status            = "enabled"
+  apply_on_existing = true
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+      with = {
+        type     = "operation"
+        operator = "and"
+        values = [
+          { key = "Status", type = "str", operator = "in", values = ["open", "in_progress"] },
+        ]
+      }
+    })
+  }
+
+  alert_score_specify_details = {
+    new_score = 1
+    reason    = "Lower risk score"
+  }
+}
+
 # Basic automation v2 with Jira Cloud using external configuration
 resource "orcasecurity_automation_v2" "jira_cloud_basic" {
   name        = "Critical Alerts to Jira Cloud"
