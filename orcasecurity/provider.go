@@ -24,7 +24,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/rbac_role"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
-	"terraform-provider-orcasecurity/orcasecurity/sonar"
 	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
@@ -205,7 +204,6 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		jira_template.NewJiraTemplateDataSource,
 		webhook.NewWebhookDataSource,
 		organizations.NewOrganizationDataSource,
-		sonar.NewSonarQueryDataSource,
 		user_preferences.NewUserPreferencesDataSource,
 		rbac_role.NewRbacRolesDataSource,
 	}
