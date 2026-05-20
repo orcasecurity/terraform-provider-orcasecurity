@@ -30,6 +30,7 @@ Provides an automation. You can read more about automations [here](https://docs.
 ### Optional
 
 - `alert_dismissal_details` (Attributes) Details regarding dismissed alerts. (see [below for nested schema](#nestedatt--alert_dismissal_details))
+- `apply_on_existing` (Boolean) When true, retroactively applies the automation's actions to existing alerts matching the filter at creation time. Only honored on POST; changing this value forces resource replacement.
 - `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
 - `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding specifying a new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))

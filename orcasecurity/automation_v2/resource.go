@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -131,7 +132,8 @@ type automationV2ResourceModel struct {
 	OpusTemplate                  *automationV2ExternalConfigTemplateModel `tfsdk:"opus_template"`
 	PantherTemplate               *automationV2ExternalConfigTemplateModel `tfsdk:"panther_template"`
 
-	OrganizationID types.String `tfsdk:"organization_id"`
+	OrganizationID   types.String `tfsdk:"organization_id"`
+	ApplyOnExisting  types.Bool   `tfsdk:"apply_on_existing"`
 }
 
 func NewAutomationV2Resource() resource.Resource {
@@ -261,6 +263,15 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"apply_on_existing": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "When true, retroactively applies the automation's actions to existing alerts matching the filter at creation time. Only honored on POST; changing this value forces resource replacement.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"name": schema.StringAttribute{
@@ -877,7 +888,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		createReq.EndTime = plan.EndTime.ValueString()
 	}
 
-	instance, err := r.apiClient.CreateAutomationV2(createReq)
+	instance, err := r.apiClient.CreateAutomationV2(createReq, plan.ApplyOnExisting.ValueBool())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Automation V2",
