@@ -132,8 +132,8 @@ type automationV2ResourceModel struct {
 	OpusTemplate                  *automationV2ExternalConfigTemplateModel `tfsdk:"opus_template"`
 	PantherTemplate               *automationV2ExternalConfigTemplateModel `tfsdk:"panther_template"`
 
-	OrganizationID   types.String `tfsdk:"organization_id"`
-	ApplyOnExisting  types.Bool   `tfsdk:"apply_on_existing"`
+	OrganizationID  types.String `tfsdk:"organization_id"`
+	ApplyOnExisting types.Bool   `tfsdk:"apply_on_existing"`
 }
 
 func NewAutomationV2Resource() resource.Resource {
