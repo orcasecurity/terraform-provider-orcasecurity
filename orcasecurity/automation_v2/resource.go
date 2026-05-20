@@ -888,10 +888,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		createReq.EndTime = plan.EndTime.ValueString()
 	}
 
-	applyOnExisting := false
-	if !plan.ApplyOnExisting.IsNull() && !plan.ApplyOnExisting.IsUnknown() {
-		applyOnExisting = plan.ApplyOnExisting.ValueBool()
-	}
+	applyOnExisting := plan.ApplyOnExisting.ValueBool()
 	plan.ApplyOnExisting = types.BoolValue(applyOnExisting)
 
 	instance, err := r.apiClient.CreateAutomationV2(createReq, applyOnExisting)
