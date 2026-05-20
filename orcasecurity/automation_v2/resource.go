@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -82,13 +83,14 @@ type automationV2SnoozeTemplateModel struct {
 }
 
 type automationV2ResourceModel struct {
-	ID            types.String             `tfsdk:"id"`
-	Name          types.String             `tfsdk:"name"`
-	BusinessUnits types.List               `tfsdk:"business_units"`
-	Description   types.String             `tfsdk:"description"`
-	Status        types.String             `tfsdk:"status"`
-	Filter        *automationV2FilterModel `tfsdk:"filter"`
-	EndTime       types.String             `tfsdk:"end_time"`
+	ID              types.String             `tfsdk:"id"`
+	Name            types.String             `tfsdk:"name"`
+	BusinessUnits   types.List               `tfsdk:"business_units"`
+	Description     types.String             `tfsdk:"description"`
+	Status          types.String             `tfsdk:"status"`
+	Filter          *automationV2FilterModel `tfsdk:"filter"`
+	EndTime         types.String             `tfsdk:"end_time"`
+	ApplyOnExisting types.Bool               `tfsdk:"apply_on_existing"`
 
 	AlertDismissalTemplate     *automationV2AlertDismissalTemplateModel     `tfsdk:"alert_dismissal_details"`
 	AlertScoreIncreaseTemplate *automationV2AlertScoreIncreaseTemplateModel `tfsdk:"alert_score_increase_details"`
@@ -290,6 +292,15 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 			"end_time": schema.StringAttribute{
 				Description: "End time for the automation (ISO 8601 format). If specified, the automation will automatically disable after this time.",
 				Optional:    true,
+			},
+			"apply_on_existing": schema.BoolAttribute{
+				Description: "If true, the automation is applied retroactively to historical alerts at creation time via the `apply_on_existing=true` query parameter on POST. The flag is honored only at creation; changing the value forces resource replacement.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
+				},
 			},
 			"filter": schema.SingleNestedAttribute{
 				Description: "The filter that selects the alerts this automation applies to using sonar_query.",
@@ -877,7 +888,13 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		createReq.EndTime = plan.EndTime.ValueString()
 	}
 
-	instance, err := r.apiClient.CreateAutomationV2(createReq)
+	applyOnExisting := false
+	if !plan.ApplyOnExisting.IsNull() && !plan.ApplyOnExisting.IsUnknown() {
+		applyOnExisting = plan.ApplyOnExisting.ValueBool()
+	}
+	plan.ApplyOnExisting = types.BoolValue(applyOnExisting)
+
+	instance, err := r.apiClient.CreateAutomationV2(createReq, applyOnExisting)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Automation V2",

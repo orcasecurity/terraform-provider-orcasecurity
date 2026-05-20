@@ -63,8 +63,12 @@ func (client *APIClient) DoesAutomationV2Exist(id string) (bool, error) {
 	return resp.StatusCode() == 200, nil
 }
 
-func (client *APIClient) CreateAutomationV2(automation AutomationV2) (*AutomationV2, error) {
-	resp, err := client.Post("/api/automations", automation)
+func (client *APIClient) CreateAutomationV2(automation AutomationV2, applyOnExisting bool) (*AutomationV2, error) {
+	path := "/api/automations"
+	if applyOnExisting {
+		path += "?apply_on_existing=true"
+	}
+	resp, err := client.Post(path, automation)
 	if err != nil {
 		return nil, err
 	}

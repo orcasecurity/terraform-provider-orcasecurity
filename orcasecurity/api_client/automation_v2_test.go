@@ -211,7 +211,7 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	automation, err := apiClient.CreateAutomationV2(expectedRequest)
+	automation, err := apiClient.CreateAutomationV2(expectedRequest, false)
 	if err != nil {
 		t.Fatalf("CreateAutomationV2 failed: %v", err)
 	}
@@ -225,6 +225,51 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 	}
 	if automation.Name != "New Automation" {
 		t.Errorf("Expected name 'New Automation', got '%s'", automation.Name)
+	}
+}
+
+func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
+	expectedRequest := api_client.AutomationV2{
+		Name:   "Retro Automation",
+		Status: "enabled",
+		Filter: api_client.AutomationV2Filter{
+			SonarQuery: api_client.AutomationV2SonarQuery{
+				Models: []string{"Alert"},
+				Type:   "object_set",
+			},
+		},
+	}
+
+	mockResponse := `{
+		"status": "success",
+		"data": {
+			"id": "created-id-789",
+			"name": "Retro Automation",
+			"status": "enabled",
+			"filter": {"sonar_query": {"models": ["Alert"], "type": "object_set"}},
+			"actions": []
+		}
+	}`
+
+	var capturedQuery string
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.URL.Path != "/api/automations" {
+			t.Errorf("Expected URL path /api/automations, got %s", req.URL.Path)
+		}
+		capturedQuery = req.URL.RawQuery
+		return &http.Response{
+			StatusCode: 201,
+			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	if _, err := apiClient.CreateAutomationV2(expectedRequest, true); err != nil {
+		t.Fatalf("CreateAutomationV2 failed: %v", err)
+	}
+	if capturedQuery != "apply_on_existing=true" {
+		t.Errorf("Expected query 'apply_on_existing=true', got %q", capturedQuery)
 	}
 }
 

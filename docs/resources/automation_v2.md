@@ -486,6 +486,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 ### Optional
 
 - `alert_dismissal_details` (Attributes) Details regarding dismissed alerts. (see [below for nested schema](#nestedatt--alert_dismissal_details))
+- `apply_on_existing` (Boolean) If true, the automation is applied retroactively to historical alerts at creation time via the `apply_on_existing=true` query parameter on POST. The flag is honored only at creation; changing the value forces resource replacement.
 - `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
 - `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding specifying a new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
