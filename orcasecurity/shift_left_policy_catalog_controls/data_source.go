@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	_ datasource.DataSource            = &catalogControlsDataSource{}
+	_ datasource.DataSource              = &catalogControlsDataSource{}
 	_ datasource.DataSourceWithConfigure = &catalogControlsDataSource{}
 )
 

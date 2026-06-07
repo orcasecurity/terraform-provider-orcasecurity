@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
 
 func stringSliceFromTypes(values []types.String) []string {
@@ -232,6 +233,143 @@ func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) d
 	return diags
 }
 
+func iacControlsToMaps(block *iacBlockModel) []map[string]interface{} {
+	controls := make([]map[string]interface{}, 0, len(block.Controls))
+	for _, c := range block.Controls {
+		controls = append(controls, iacControlToMap(c))
+	}
+	return controls
+}
+
+func sastControlsToMaps(block *sastBlockModel) []map[string]interface{} {
+	controls := make([]map[string]interface{}, 0, len(block.Controls))
+	for _, c := range block.Controls {
+		controls = append(controls, sastControlToMap(c))
+	}
+	return controls
+}
+
+func licenseControlsToMaps(items []licenseControlModel) []map[string]interface{} {
+	controls := make([]map[string]interface{}, 0, len(items))
+	for _, c := range items {
+		controls = append(controls, licenseControlToMap(c))
+	}
+	return controls
+}
+
+func scmControlsToMaps(items []scmControlModel) []map[string]interface{} {
+	controls := make([]map[string]interface{}, 0, len(items))
+	for _, c := range items {
+		controls = append(controls, scmControlToMap(c))
+	}
+	return controls
+}
+
+// buildContainerImageData populates the container_image policy_data scopes and
+// returns the flat list of all controls across every feature scope.
+func buildContainerImageData(block *containerImageBlockModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) []map[string]interface{} {
+	policy.FeatureScope = stringSliceFromTypes(block.FeatureScope)
+	policyData["feature_scope"] = policy.FeatureScope
+
+	scopes := []struct {
+		key      string
+		controls []map[string]interface{}
+	}{
+		{"vulnerabilities", containerScopeToMaps(block.Vulnerabilities)},
+		{"secret_detection", containerScopeToMaps(block.SecretDetection)},
+		{"container_image_best_practices", containerScopeToMaps(block.ContainerImageBestPractices)},
+		{"custom", containerScopeToMaps(block.Custom)},
+	}
+
+	var controls []map[string]interface{}
+	for _, s := range scopes {
+		if len(s.controls) > 0 || containsString(policy.FeatureScope, s.key) {
+			policyData[s.key] = scopeControlsWrapper(s.controls)
+		}
+		controls = append(controls, s.controls...)
+	}
+	return controls
+}
+
+// buildScmScope encodes the scm_posture scope and returns the encoded scope plus its controls.
+func buildScmScope(block *scmPostureBlockModel) (json.RawMessage, []map[string]interface{}, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	scope := map[string][]string{}
+	for _, entry := range block.Scope {
+		key := entry.Key.ValueString()
+		ids := stringSliceFromTypes(entry.Ids)
+		if key != "" && len(ids) > 0 {
+			scope[key] = ids
+		}
+	}
+	if len(scope) == 0 {
+		diags.AddError(
+			"Missing SCM scope",
+			"scm_posture policies require at least one scope block with a key and ids.",
+		)
+		return nil, nil, diags
+	}
+	scopeRaw, err := json.Marshal(scope)
+	if err != nil {
+		diags.AddError("Failed to encode SCM scope", err.Error())
+		return nil, nil, diags
+	}
+	return scopeRaw, scmControlsToMaps(block.Controls), diags
+}
+
+// buildControlsAndData dispatches per policy type, returning the controls slice and policy_data map.
+func buildControlsAndData(model *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy) ([]map[string]interface{}, map[string]interface{}, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	policyData := map[string]interface{}{}
+	var controls []map[string]interface{}
+
+	switch model.Type.ValueString() {
+	case "iac":
+		controls = iacControlsToMaps(model.Iac)
+		policyData["controls"] = controls
+	case "sast":
+		controls = sastControlsToMaps(model.Sast)
+		policyData["controls"] = controls
+	case "file_system":
+		controls = controlsBlockToMaps(model.FileSystem)
+		policyData["controls"] = controls
+	case "file_system_vulnerabilities":
+		controls = controlsBlockToMaps(model.FileSystemVulnerabilities)
+		policyData["controls"] = controls
+	case "file_system_secret_detection":
+		controls = controlsBlockToMaps(model.FileSystemSecretDetection)
+		policyData["controls"] = controls
+	case "container_image":
+		controls = buildContainerImageData(model.ContainerImage, policy, policyData)
+	case "scm_posture":
+		scopeRaw, scmControls, d := buildScmScope(model.ScmPosture)
+		diags.Append(d...)
+		if diags.HasError() {
+			return nil, nil, diags
+		}
+		policy.Scope = scopeRaw
+		controls = scmControls
+		policyData["controls"] = controls
+	case "licenses":
+		controls = licenseControlsToMaps(model.Licenses.Controls)
+		policyData["controls"] = controls
+	case "sca":
+		controls = licenseControlsToMaps(model.Sca.Controls)
+		policyData["controls"] = controls
+	}
+
+	return controls, policyData, diags
+}
+
+func encodeJSONField(value interface{}, label string, diags *diag.Diagnostics) json.RawMessage {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		diags.AddError("Failed to encode "+label, err.Error())
+		return nil
+	}
+	return raw
+}
+
 func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	policyType := model.Type.ValueString()
@@ -250,114 +388,43 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 		ProjectsIds:              stringSliceFromTypes(model.ProjectsIds),
 	}
 
-	var controls []map[string]interface{}
-	policyData := map[string]interface{}{}
-
-	switch policyType {
-	case "iac":
-		for _, c := range model.Iac.Controls {
-			controls = append(controls, iacControlToMap(c))
-		}
-		policyData["controls"] = controls
-	case "sast":
-		for _, c := range model.Sast.Controls {
-			controls = append(controls, sastControlToMap(c))
-		}
-		policyData["controls"] = controls
-	case "file_system":
-		controls = controlsBlockToMaps(model.FileSystem)
-		policyData["controls"] = controls
-	case "file_system_vulnerabilities":
-		controls = controlsBlockToMaps(model.FileSystemVulnerabilities)
-		policyData["controls"] = controls
-	case "file_system_secret_detection":
-		controls = controlsBlockToMaps(model.FileSystemSecretDetection)
-		policyData["controls"] = controls
-	case "container_image":
-		block := model.ContainerImage
-		policy.FeatureScope = stringSliceFromTypes(block.FeatureScope)
-		policyData["feature_scope"] = policy.FeatureScope
-
-		vulnControls := containerScopeToMaps(block.Vulnerabilities)
-		secretControls := containerScopeToMaps(block.SecretDetection)
-		bestControls := containerScopeToMaps(block.ContainerImageBestPractices)
-		customControls := containerScopeToMaps(block.Custom)
-
-		if len(vulnControls) > 0 || containsString(policy.FeatureScope, "vulnerabilities") {
-			policyData["vulnerabilities"] = scopeControlsWrapper(vulnControls)
-		}
-		if len(secretControls) > 0 || containsString(policy.FeatureScope, "secret_detection") {
-			policyData["secret_detection"] = scopeControlsWrapper(secretControls)
-		}
-		if len(bestControls) > 0 || containsString(policy.FeatureScope, "container_image_best_practices") {
-			policyData["container_image_best_practices"] = scopeControlsWrapper(bestControls)
-		}
-		if len(customControls) > 0 || containsString(policy.FeatureScope, "custom") {
-			policyData["custom"] = scopeControlsWrapper(customControls)
-		}
-
-		controls = append(controls, vulnControls...)
-		controls = append(controls, secretControls...)
-		controls = append(controls, bestControls...)
-		controls = append(controls, customControls...)
-	case "scm_posture":
-		scope := map[string][]string{}
-		for _, entry := range model.ScmPosture.Scope {
-			key := entry.Key.ValueString()
-			ids := stringSliceFromTypes(entry.Ids)
-			if key != "" && len(ids) > 0 {
-				scope[key] = ids
-			}
-		}
-		if len(scope) == 0 {
-			diags.AddError(
-				"Missing SCM scope",
-				"scm_posture policies require at least one scope block with a key and ids.",
-			)
-			return api_client.ShiftLeftPolicy{}, diags
-		}
-		scopeRaw, err := json.Marshal(scope)
-		if err != nil {
-			diags.AddError("Failed to encode SCM scope", err.Error())
-			return api_client.ShiftLeftPolicy{}, diags
-		}
-		policy.Scope = scopeRaw
-
-		for _, c := range model.ScmPosture.Controls {
-			controls = append(controls, scmControlToMap(c))
-		}
-		policyData["controls"] = controls
-	case "licenses":
-		for _, c := range model.Licenses.Controls {
-			controls = append(controls, licenseControlToMap(c))
-		}
-		policyData["controls"] = controls
-	case "sca":
-		for _, c := range model.Sca.Controls {
-			controls = append(controls, licenseControlToMap(c))
-		}
-		policyData["controls"] = controls
+	controls, policyData, d := buildControlsAndData(model, &policy)
+	diags.Append(d...)
+	if diags.HasError() {
+		return api_client.ShiftLeftPolicy{}, diags
 	}
 
 	if len(controls) > 0 {
-		controlsRaw, err := json.Marshal(controls)
-		if err != nil {
-			diags.AddError("Failed to encode controls", err.Error())
+		if policy.Controls = encodeJSONField(controls, "controls", &diags); diags.HasError() {
 			return api_client.ShiftLeftPolicy{}, diags
 		}
-		policy.Controls = controlsRaw
 	}
-
 	if len(policyData) > 0 {
-		policyDataRaw, err := json.Marshal(policyData)
-		if err != nil {
-			diags.AddError("Failed to encode policy_data", err.Error())
+		if policy.PolicyData = encodeJSONField(policyData, "policy_data", &diags); diags.HasError() {
 			return api_client.ShiftLeftPolicy{}, diags
 		}
-		policy.PolicyData = policyDataRaw
 	}
 
 	return policy, diags
+}
+
+func mapSeveritiesToConditions(m map[string]interface{}, c *conditionsModel) {
+	sev, ok := m["severities"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	if op, ok := sev["operator"].(string); ok {
+		c.SeveritiesOperator = types.StringValue(op)
+	}
+	vals, ok := sev["values"].([]interface{})
+	if !ok {
+		return
+	}
+	for _, val := range vals {
+		if str, ok := val.(string); ok {
+			c.SeveritiesValues = append(c.SeveritiesValues, types.StringValue(str))
+		}
+	}
 }
 
 func mapToConditions(m map[string]interface{}) *conditionsModel {
@@ -380,18 +447,7 @@ func mapToConditions(m map[string]interface{}) *conditionsModel {
 	if v, ok := m["has_exploit"].(bool); ok {
 		c.HasExploit = types.BoolValue(v)
 	}
-	if sev, ok := m["severities"].(map[string]interface{}); ok {
-		if op, ok := sev["operator"].(string); ok {
-			c.SeveritiesOperator = types.StringValue(op)
-		}
-		if vals, ok := sev["values"].([]interface{}); ok {
-			for _, val := range vals {
-				if str, ok := val.(string); ok {
-					c.SeveritiesValues = append(c.SeveritiesValues, types.StringValue(str))
-				}
-			}
-		}
-	}
+	mapSeveritiesToConditions(m, c)
 	return c
 }
 
@@ -534,25 +590,48 @@ func mergeContainerImageFromPlan(dst, src *containerImageBlockModel) {
 	mergeContainerScopeFromPlan(dst.Custom, src.Custom)
 }
 
-func mergeStateFromPlan(state, plan *shiftLeftPolicyResourceModel) {
+func mergeSastBlockFromPlan(dst, src *sastBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	for i := range dst.Controls {
+		if i >= len(src.Controls) {
+			continue
+		}
+		mergeBaseControlFromPlan(&dst.Controls[i].baseControlModel, src.Controls[i].baseControlModel)
+		mergeSastExtrasFromPlan(&dst.Controls[i], src.Controls[i])
+	}
+}
+
+func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	for i := range dst.Controls {
+		if i >= len(src.Controls) {
+			continue
+		}
+		mergeBaseControlFromPlan(&dst.Controls[i].baseControlModel, src.Controls[i].baseControlModel)
+		mergeLicenseExtrasFromPlan(&dst.Controls[i], src.Controls[i])
+	}
+}
+
+func mergeProjectsIdsFromPlan(state, plan *shiftLeftPolicyResourceModel) {
 	if len(plan.ProjectsIds) == 0 {
 		state.ProjectsIds = nil
 	} else if len(state.ProjectsIds) == 0 {
 		state.ProjectsIds = plan.ProjectsIds
 	}
+}
+
+func mergeStateFromPlan(state, plan *shiftLeftPolicyResourceModel) {
+	mergeProjectsIdsFromPlan(state, plan)
 
 	switch plan.Type.ValueString() {
 	case "iac":
 		mergeIacBlockFromPlan(state.Iac, plan.Iac)
 	case "sast":
-		if state.Sast != nil && plan.Sast != nil {
-			for i := range state.Sast.Controls {
-				if i < len(plan.Sast.Controls) {
-					mergeBaseControlFromPlan(&state.Sast.Controls[i].baseControlModel, plan.Sast.Controls[i].baseControlModel)
-					mergeSastExtrasFromPlan(&state.Sast.Controls[i], plan.Sast.Controls[i])
-				}
-			}
-		}
+		mergeSastBlockFromPlan(state.Sast, plan.Sast)
 	case "file_system":
 		mergeControlsBlockFromPlan(state.FileSystem, plan.FileSystem)
 	case "file_system_vulnerabilities":
@@ -562,23 +641,9 @@ func mergeStateFromPlan(state, plan *shiftLeftPolicyResourceModel) {
 	case "container_image":
 		mergeContainerImageFromPlan(state.ContainerImage, plan.ContainerImage)
 	case "licenses":
-		if state.Licenses != nil && plan.Licenses != nil {
-			for i := range state.Licenses.Controls {
-				if i < len(plan.Licenses.Controls) {
-					mergeBaseControlFromPlan(&state.Licenses.Controls[i].baseControlModel, plan.Licenses.Controls[i].baseControlModel)
-					mergeLicenseExtrasFromPlan(&state.Licenses.Controls[i], plan.Licenses.Controls[i])
-				}
-			}
-		}
+		mergeLicensesBlockFromPlan(state.Licenses, plan.Licenses)
 	case "sca":
-		if state.Sca != nil && plan.Sca != nil {
-			for i := range state.Sca.Controls {
-				if i < len(plan.Sca.Controls) {
-					mergeBaseControlFromPlan(&state.Sca.Controls[i].baseControlModel, plan.Sca.Controls[i].baseControlModel)
-					mergeLicenseExtrasFromPlan(&state.Sca.Controls[i], plan.Sca.Controls[i])
-				}
-			}
-		}
+		mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
 	}
 }
 
@@ -639,6 +704,165 @@ func scopeControlsFromPolicyData(data map[string]interface{}, key string, topLev
 	return block
 }
 
+func stringListFromMap(m map[string]interface{}, key string) []types.String {
+	vals, ok := m[key].([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]types.String, 0, len(vals))
+	for _, v := range vals {
+		if s, ok := v.(string); ok {
+			result = append(result, types.StringValue(s))
+		}
+	}
+	return result
+}
+
+func mapToIacControl(m map[string]interface{}) iacControlModel {
+	ctrl := iacControlModel{baseControlModel: mapToBaseControl(m)}
+	ctrl.Frameworks = stringListFromMap(m, "frameworks")
+	if v, ok := m["orca_alert_rule_type"].(string); ok {
+		ctrl.OrcaAlertRuleType = types.StringValue(v)
+	}
+	return ctrl
+}
+
+func buildIacBlock(controls []map[string]interface{}) *iacBlockModel {
+	block := &iacBlockModel{}
+	for _, m := range controls {
+		block.Controls = append(block.Controls, mapToIacControl(m))
+	}
+	return block
+}
+
+func mapToSastControl(m map[string]interface{}) sastControlModel {
+	ctrl := sastControlModel{baseControlModel: mapToBaseControl(m)}
+	ctrl.Languages = stringListFromMap(m, "languages")
+	ctrl.Owasp = stringListFromMap(m, "owasp")
+	ctrl.Cwe = stringListFromMap(m, "cwe")
+	if v, ok := m["section"].(string); ok {
+		ctrl.Section = types.StringValue(v)
+	}
+	if v, ok := m["confidence"].(string); ok {
+		ctrl.Confidence = types.StringValue(v)
+	}
+	if v, ok := m["impact"].(string); ok {
+		ctrl.Impact = types.StringValue(v)
+	}
+	if v, ok := m["likelihood"].(string); ok {
+		ctrl.Likelihood = types.StringValue(v)
+	}
+	return ctrl
+}
+
+func buildSastBlock(controls []map[string]interface{}) *sastBlockModel {
+	block := &sastBlockModel{}
+	for _, m := range controls {
+		block.Controls = append(block.Controls, mapToSastControl(m))
+	}
+	return block
+}
+
+func buildControlsBlock(controls []map[string]interface{}) *controlsBlockModel {
+	block := &controlsBlockModel{}
+	for _, m := range controls {
+		block.Controls = append(block.Controls, mapToBaseControl(m))
+	}
+	return block
+}
+
+func buildContainerImageBlock(apiPolicy *api_client.ShiftLeftPolicy, policyData map[string]interface{}, controls []map[string]interface{}) *containerImageBlockModel {
+	block := &containerImageBlockModel{
+		FeatureScope:                stringSliceToTypes(apiPolicy.FeatureScope),
+		Vulnerabilities:             scopeControlsFromPolicyData(policyData, "vulnerabilities", controls),
+		SecretDetection:             scopeControlsFromPolicyData(policyData, "secret_detection", controls),
+		ContainerImageBestPractices: scopeControlsFromPolicyData(policyData, "container_image_best_practices", controls),
+		Custom:                      scopeControlsFromPolicyData(policyData, "custom", controls),
+	}
+	if len(block.FeatureScope) == 0 {
+		block.FeatureScope = stringListFromMap(policyData, "feature_scope")
+	}
+	return block
+}
+
+func mapToScmControl(m map[string]interface{}) scmControlModel {
+	ctrl := scmControlModel{}
+	if v, ok := m["id"].(string); ok {
+		ctrl.ID = types.StringValue(v)
+	}
+	if v, ok := m["priority"].(string); ok {
+		ctrl.Priority = types.StringValue(v)
+	}
+	if v, ok := m["disabled"].(bool); ok {
+		ctrl.Disabled = types.BoolValue(v)
+	}
+	if v, ok := m["scm"].(string); ok {
+		ctrl.Scm = types.StringValue(v)
+	}
+	if v, ok := m["entity"].(string); ok {
+		ctrl.Entity = types.StringValue(v)
+	}
+	ctrl.Threat = stringListFromMap(m, "threat")
+	return ctrl
+}
+
+func buildScmPostureBlock(apiPolicy *api_client.ShiftLeftPolicy, controls []map[string]interface{}) *scmPostureBlockModel {
+	block := &scmPostureBlockModel{}
+	if len(apiPolicy.Scope) > 0 {
+		var scope map[string][]string
+		_ = json.Unmarshal(apiPolicy.Scope, &scope)
+		for key, ids := range scope {
+			block.Scope = append(block.Scope, scmScopeEntryModel{
+				Key: types.StringValue(key),
+				Ids: stringSliceToTypes(ids),
+			})
+		}
+	}
+	for _, m := range controls {
+		block.Controls = append(block.Controls, mapToScmControl(m))
+	}
+	return block
+}
+
+func buildLicensesBlock(controls []map[string]interface{}) *licensesBlockModel {
+	block := &licensesBlockModel{}
+	for _, m := range controls {
+		block.Controls = append(block.Controls, mapToLicenseControl(m))
+	}
+	return block
+}
+
+func resolveControls(apiPolicy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) []map[string]interface{} {
+	controls := controlsFromRaw(apiPolicy.Controls)
+	if len(controls) == 0 {
+		controls = controlsFromPolicyData(policyData)
+	}
+	return controls
+}
+
+func applyTypeBlockToState(model *shiftLeftPolicyResourceModel, policyType string, apiPolicy *api_client.ShiftLeftPolicy, policyData map[string]interface{}, controls []map[string]interface{}) {
+	switch policyType {
+	case "iac":
+		model.Iac = buildIacBlock(controls)
+	case "sast":
+		model.Sast = buildSastBlock(controls)
+	case "file_system":
+		model.FileSystem = buildControlsBlock(controls)
+	case "file_system_vulnerabilities":
+		model.FileSystemVulnerabilities = buildControlsBlock(controls)
+	case "file_system_secret_detection":
+		model.FileSystemSecretDetection = buildControlsBlock(controls)
+	case "container_image":
+		model.ContainerImage = buildContainerImageBlock(apiPolicy, policyData, controls)
+	case "scm_posture":
+		model.ScmPosture = buildScmPostureBlock(apiPolicy, controls)
+	case "licenses":
+		model.Licenses = buildLicensesBlock(controls)
+	case "sca":
+		model.Sca = buildLicensesBlock(controls)
+	}
+}
+
 func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicyResourceModel) *shiftLeftPolicyResourceModel {
 	model := &shiftLeftPolicyResourceModel{
 		ID:                       types.StringValue(apiPolicy.ID),
@@ -658,159 +882,10 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		model.Type = types.StringValue(policyType)
 	}
 
-	controls := controlsFromRaw(apiPolicy.Controls)
 	policyData := policyDataFromRaw(apiPolicy.PolicyData)
-	if len(controls) == 0 {
-		controls = controlsFromPolicyData(policyData)
-	}
+	controls := resolveControls(apiPolicy, policyData)
 
-	switch policyType {
-	case "iac":
-		block := &iacBlockModel{}
-		for _, m := range controls {
-			base := mapToBaseControl(m)
-			ctrl := iacControlModel{baseControlModel: base}
-			if vals, ok := m["frameworks"].([]interface{}); ok {
-				for _, v := range vals {
-					if s, ok := v.(string); ok {
-						ctrl.Frameworks = append(ctrl.Frameworks, types.StringValue(s))
-					}
-				}
-			}
-			if v, ok := m["orca_alert_rule_type"].(string); ok {
-				ctrl.OrcaAlertRuleType = types.StringValue(v)
-			}
-			block.Controls = append(block.Controls, ctrl)
-		}
-		model.Iac = block
-	case "sast":
-		block := &sastBlockModel{}
-		for _, m := range controls {
-			base := mapToBaseControl(m)
-			ctrl := sastControlModel{baseControlModel: base}
-			for _, key := range []string{"languages", "owasp", "cwe"} {
-				if vals, ok := m[key].([]interface{}); ok {
-					slice := make([]types.String, 0, len(vals))
-					for _, v := range vals {
-						if s, ok := v.(string); ok {
-							slice = append(slice, types.StringValue(s))
-						}
-					}
-					switch key {
-					case "languages":
-						ctrl.Languages = slice
-					case "owasp":
-						ctrl.Owasp = slice
-					case "cwe":
-						ctrl.Cwe = slice
-					}
-				}
-			}
-			for _, key := range []string{"section", "confidence", "impact", "likelihood"} {
-				if v, ok := m[key].(string); ok {
-					switch key {
-					case "section":
-						ctrl.Section = types.StringValue(v)
-					case "confidence":
-						ctrl.Confidence = types.StringValue(v)
-					case "impact":
-						ctrl.Impact = types.StringValue(v)
-					case "likelihood":
-						ctrl.Likelihood = types.StringValue(v)
-					}
-				}
-			}
-			block.Controls = append(block.Controls, ctrl)
-		}
-		model.Sast = block
-	case "file_system":
-		block := &controlsBlockModel{}
-		for _, m := range controls {
-			block.Controls = append(block.Controls, mapToBaseControl(m))
-		}
-		model.FileSystem = block
-	case "file_system_vulnerabilities":
-		block := &controlsBlockModel{}
-		for _, m := range controls {
-			block.Controls = append(block.Controls, mapToBaseControl(m))
-		}
-		model.FileSystemVulnerabilities = block
-	case "file_system_secret_detection":
-		block := &controlsBlockModel{}
-		for _, m := range controls {
-			block.Controls = append(block.Controls, mapToBaseControl(m))
-		}
-		model.FileSystemSecretDetection = block
-	case "container_image":
-		block := &containerImageBlockModel{
-			FeatureScope:                stringSliceToTypes(apiPolicy.FeatureScope),
-			Vulnerabilities:             scopeControlsFromPolicyData(policyData, "vulnerabilities", controls),
-			SecretDetection:             scopeControlsFromPolicyData(policyData, "secret_detection", controls),
-			ContainerImageBestPractices: scopeControlsFromPolicyData(policyData, "container_image_best_practices", controls),
-			Custom:                      scopeControlsFromPolicyData(policyData, "custom", controls),
-		}
-		if len(block.FeatureScope) == 0 {
-			if fs, ok := policyData["feature_scope"].([]interface{}); ok {
-				for _, v := range fs {
-					if s, ok := v.(string); ok {
-						block.FeatureScope = append(block.FeatureScope, types.StringValue(s))
-					}
-				}
-			}
-		}
-		model.ContainerImage = block
-	case "scm_posture":
-		block := &scmPostureBlockModel{}
-		if len(apiPolicy.Scope) > 0 {
-			var scope map[string][]string
-			_ = json.Unmarshal(apiPolicy.Scope, &scope)
-			for key, ids := range scope {
-				block.Scope = append(block.Scope, scmScopeEntryModel{
-					Key: types.StringValue(key),
-					Ids: stringSliceToTypes(ids),
-				})
-			}
-		}
-		for _, m := range controls {
-			ctrl := scmControlModel{}
-			if v, ok := m["id"].(string); ok {
-				ctrl.ID = types.StringValue(v)
-			}
-			if v, ok := m["priority"].(string); ok {
-				ctrl.Priority = types.StringValue(v)
-			}
-			if v, ok := m["disabled"].(bool); ok {
-				ctrl.Disabled = types.BoolValue(v)
-			}
-			if v, ok := m["scm"].(string); ok {
-				ctrl.Scm = types.StringValue(v)
-			}
-			if v, ok := m["entity"].(string); ok {
-				ctrl.Entity = types.StringValue(v)
-			}
-			if vals, ok := m["threat"].([]interface{}); ok {
-				for _, val := range vals {
-					if s, ok := val.(string); ok {
-						ctrl.Threat = append(ctrl.Threat, types.StringValue(s))
-					}
-				}
-			}
-			block.Controls = append(block.Controls, ctrl)
-		}
-		model.ScmPosture = block
-	case "licenses":
-		block := &licensesBlockModel{}
-		for _, m := range controls {
-			block.Controls = append(block.Controls, mapToLicenseControl(m))
-		}
-		model.Licenses = block
-	case "sca":
-		block := &licensesBlockModel{}
-		for _, m := range controls {
-			block.Controls = append(block.Controls, mapToLicenseControl(m))
-		}
-		model.Sca = block
-	}
+	applyTypeBlockToState(model, policyType, apiPolicy, policyData, controls)
 
 	if existing != nil {
 		mergeStateFromPlan(model, existing)
@@ -831,41 +906,31 @@ func stateFromPlanAfterWrite(plan *shiftLeftPolicyResourceModel, apiPolicy *api_
 	return &state
 }
 
+func stringValueFromMap(m map[string]interface{}, key string) types.String {
+	if v, ok := m[key].(string); ok {
+		return types.StringValue(v)
+	}
+	return types.String{}
+}
+
+func boolValueFromMap(m map[string]interface{}, key string) types.Bool {
+	if v, ok := m[key].(bool); ok {
+		return types.BoolValue(v)
+	}
+	return types.Bool{}
+}
+
 func mapToLicenseControl(m map[string]interface{}) licenseControlModel {
-	base := mapToBaseControl(m)
-	ctrl := licenseControlModel{baseControlModel: base}
-	for _, key := range []string{"license_id", "license_category", "url"} {
-		if v, ok := m[key].(string); ok {
-			switch key {
-			case "license_id":
-				ctrl.LicenseID = types.StringValue(v)
-			case "license_category":
-				ctrl.LicenseCategory = types.StringValue(v)
-			case "url":
-				ctrl.Url = types.StringValue(v)
-			}
-		}
+	return licenseControlModel{
+		baseControlModel: mapToBaseControl(m),
+		LicenseID:        stringValueFromMap(m, "license_id"),
+		LicenseCategory:  stringValueFromMap(m, "license_category"),
+		Url:              stringValueFromMap(m, "url"),
+		IsOsiApproved:    boolValueFromMap(m, "is_osi_approved"),
+		IsDeprecated:     boolValueFromMap(m, "is_deprecated"),
+		IsFsfLibre:       boolValueFromMap(m, "is_fsf_libre"),
+		AdditionalInfo:   stringListFromMap(m, "additional_info"),
 	}
-	for _, key := range []string{"is_osi_approved", "is_deprecated", "is_fsf_libre"} {
-		if v, ok := m[key].(bool); ok {
-			switch key {
-			case "is_osi_approved":
-				ctrl.IsOsiApproved = types.BoolValue(v)
-			case "is_deprecated":
-				ctrl.IsDeprecated = types.BoolValue(v)
-			case "is_fsf_libre":
-				ctrl.IsFsfLibre = types.BoolValue(v)
-			}
-		}
-	}
-	if vals, ok := m["additional_info"].([]interface{}); ok {
-		for _, val := range vals {
-			if s, ok := val.(string); ok {
-				ctrl.AdditionalInfo = append(ctrl.AdditionalInfo, types.StringValue(s))
-			}
-		}
-	}
-	return ctrl
 }
 
 func parseImportID(id string) (policyType, policyID string, err error) {

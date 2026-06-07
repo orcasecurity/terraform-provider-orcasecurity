@@ -168,8 +168,8 @@ func scmPostureBlock() schema.Block {
 						"id":       schema.StringAttribute{Required: true},
 						"priority": schema.StringAttribute{Required: true},
 						"disabled": schema.BoolAttribute{Required: true},
-						"scm":    schema.StringAttribute{Optional: true},
-						"entity": schema.StringAttribute{Optional: true},
+						"scm":      schema.StringAttribute{Optional: true},
+						"entity":   schema.StringAttribute{Optional: true},
 						"threat": schema.ListAttribute{
 							ElementType: types.StringType,
 							Optional:    true,

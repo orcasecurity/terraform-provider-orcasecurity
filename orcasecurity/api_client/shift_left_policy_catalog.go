@@ -9,24 +9,60 @@ import (
 // catalogControlIndex maps control ID to the full catalog control definition.
 type catalogControlIndex map[string]map[string]interface{}
 
+// indexControl adds a single control to the index when it has a non-empty id.
+func (index catalogControlIndex) indexControl(item interface{}) {
+	control, ok := item.(map[string]interface{})
+	if !ok {
+		return
+	}
+	if id, ok := control["id"].(string); ok && id != "" {
+		index[id] = control
+	}
+}
+
+// indexControlList adds every control in a slice to the index.
+func (index catalogControlIndex) indexControlList(items []interface{}) {
+	for _, item := range items {
+		index.indexControl(item)
+	}
+}
+
+// indexFromArray treats the catalog body as a top-level array of controls.
+// Returns true when the body parsed as an array and produced at least one control.
+func (index catalogControlIndex) indexFromArray(catalogRaw json.RawMessage) bool {
+	var asArray []interface{}
+	if err := json.Unmarshal(catalogRaw, &asArray); err != nil {
+		return false
+	}
+	index.indexControlList(asArray)
+	return len(index) > 0
+}
+
+// indexWalk recursively descends the catalog, indexing any "controls" arrays it finds.
+func (index catalogControlIndex) indexWalk(node interface{}) {
+	switch v := node.(type) {
+	case map[string]interface{}:
+		if controls, ok := v["controls"].([]interface{}); ok {
+			index.indexControlList(controls)
+		}
+		for _, child := range v {
+			index.indexWalk(child)
+		}
+	case []interface{}:
+		for _, item := range v {
+			index.indexWalk(item)
+		}
+	}
+}
+
 func buildCatalogControlIndex(catalogRaw json.RawMessage, policyType string) (catalogControlIndex, error) {
 	index := catalogControlIndex{}
 	if len(catalogRaw) == 0 {
 		return index, nil
 	}
 
-	var asArray []interface{}
-	if err := json.Unmarshal(catalogRaw, &asArray); err == nil {
-		for _, item := range asArray {
-			if control, ok := item.(map[string]interface{}); ok {
-				if id, ok := control["id"].(string); ok && id != "" {
-					index[id] = control
-				}
-			}
-		}
-		if len(index) > 0 {
-			return index, nil
-		}
+	if index.indexFromArray(catalogRaw) {
+		return index, nil
 	}
 
 	var catalog map[string]interface{}
@@ -34,40 +70,11 @@ func buildCatalogControlIndex(catalogRaw json.RawMessage, policyType string) (ca
 		return nil, err
 	}
 
-	var walk func(node interface{})
-	walk = func(node interface{}) {
-		switch v := node.(type) {
-		case map[string]interface{}:
-			if controls, ok := v["controls"].([]interface{}); ok {
-				for _, item := range controls {
-					if control, ok := item.(map[string]interface{}); ok {
-						if id, ok := control["id"].(string); ok && id != "" {
-							index[id] = control
-						}
-					}
-				}
-			}
-			for _, child := range v {
-				walk(child)
-			}
-		case []interface{}:
-			for _, item := range v {
-				walk(item)
-			}
-		}
-	}
-
-	walk(catalog)
+	index.indexWalk(catalog)
 
 	// Some policy types return controls at the top level as an array.
 	if controls, ok := catalog["controls"].([]interface{}); ok {
-		for _, item := range controls {
-			if control, ok := item.(map[string]interface{}); ok {
-				if id, ok := control["id"].(string); ok && id != "" {
-					index[id] = control
-				}
-			}
-		}
+		index.indexControlList(controls)
 	}
 
 	return index, nil
@@ -80,6 +87,19 @@ func cloneMap(src map[string]interface{}) map[string]interface{} {
 	return dst
 }
 
+// mergeConditions deep-merges override conditions onto the merged map in place.
+func mergeConditions(merged map[string]interface{}, value interface{}) {
+	overrideConditions, ok := value.(map[string]interface{})
+	if !ok || len(overrideConditions) == 0 {
+		return
+	}
+	if baseConditions, ok := merged["conditions"].(map[string]interface{}); ok {
+		merged["conditions"] = mergeControlMaps(baseConditions, overrideConditions)
+	} else {
+		merged["conditions"] = overrideConditions
+	}
+}
+
 func mergeControlMaps(base, override map[string]interface{}) map[string]interface{} {
 	if base == nil {
 		return override
@@ -90,23 +110,12 @@ func mergeControlMaps(base, override map[string]interface{}) map[string]interfac
 
 	merged := cloneMap(base)
 	for key, value := range override {
-		switch key {
-		case "priority", "disabled", "title":
-			if value != nil {
-				merged[key] = value
-			}
-		case "conditions":
-			if overrideConditions, ok := value.(map[string]interface{}); ok && len(overrideConditions) > 0 {
-				if baseConditions, ok := merged["conditions"].(map[string]interface{}); ok {
-					merged["conditions"] = mergeControlMaps(baseConditions, overrideConditions)
-				} else {
-					merged["conditions"] = overrideConditions
-				}
-			}
-		default:
-			if value != nil {
-				merged[key] = value
-			}
+		if key == "conditions" {
+			mergeConditions(merged, value)
+			continue
+		}
+		if value != nil {
+			merged[key] = value
 		}
 	}
 	return merged
@@ -140,29 +149,35 @@ func enrichControlsSlice(controls []interface{}, index catalogControlIndex) ([]i
 	return enriched, nil
 }
 
+// enrichNestedMap enriches a nested object: its "controls" slice (if any) plus any deeper maps.
+func enrichNestedMap(typed map[string]interface{}, index catalogControlIndex) error {
+	if controls, ok := typed["controls"].([]interface{}); ok {
+		enriched, err := enrichControlsSlice(controls, index)
+		if err != nil {
+			return err
+		}
+		typed["controls"] = enriched
+	}
+	return enrichControlsInMap(typed, index)
+}
+
 func enrichControlsInMap(data map[string]interface{}, index catalogControlIndex) error {
 	for key, value := range data {
 		switch typed := value.(type) {
 		case map[string]interface{}:
-			if controls, ok := typed["controls"].([]interface{}); ok {
-				enriched, err := enrichControlsSlice(controls, index)
-				if err != nil {
-					return err
-				}
-				typed["controls"] = enriched
-			}
-			if err := enrichControlsInMap(typed, index); err != nil {
+			if err := enrichNestedMap(typed, index); err != nil {
 				return err
 			}
 			data[key] = typed
 		case []interface{}:
-			if key == "controls" {
-				enriched, err := enrichControlsSlice(typed, index)
-				if err != nil {
-					return err
-				}
-				data[key] = enriched
+			if key != "controls" {
+				continue
 			}
+			enriched, err := enrichControlsSlice(typed, index)
+			if err != nil {
+				return err
+			}
+			data[key] = enriched
 		}
 	}
 	return nil
@@ -183,36 +198,44 @@ func (client *APIClient) EnrichShiftLeftPolicyFromCatalog(policyType string, pol
 		return fmt.Errorf("catalog for policy type %q returned no controls", policyType)
 	}
 
-	if len(policy.Controls) > 0 {
-		var controls []interface{}
-		if err := json.Unmarshal(policy.Controls, &controls); err != nil {
-			return err
-		}
-		enriched, err := enrichControlsSlice(controls, index)
-		if err != nil {
-			return err
-		}
-		policy.Controls, err = json.Marshal(enriched)
-		if err != nil {
-			return err
-		}
+	if policy.Controls, err = enrichControlsRaw(policy.Controls, index); err != nil {
+		return err
 	}
-
-	if len(policy.PolicyData) > 0 {
-		var policyData map[string]interface{}
-		if err := json.Unmarshal(policy.PolicyData, &policyData); err != nil {
-			return err
-		}
-		if err := enrichControlsInMap(policyData, index); err != nil {
-			return err
-		}
-		policy.PolicyData, err = json.Marshal(policyData)
-		if err != nil {
-			return err
-		}
+	if policy.PolicyData, err = enrichPolicyDataRaw(policy.PolicyData, index); err != nil {
+		return err
 	}
-
 	return nil
+}
+
+// enrichControlsRaw enriches a raw JSON array of controls. Returns the input unchanged when empty.
+func enrichControlsRaw(raw json.RawMessage, index catalogControlIndex) (json.RawMessage, error) {
+	if len(raw) == 0 {
+		return raw, nil
+	}
+	var controls []interface{}
+	if err := json.Unmarshal(raw, &controls); err != nil {
+		return nil, err
+	}
+	enriched, err := enrichControlsSlice(controls, index)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(enriched)
+}
+
+// enrichPolicyDataRaw enriches the controls nested anywhere inside a raw policy_data object.
+func enrichPolicyDataRaw(raw json.RawMessage, index catalogControlIndex) (json.RawMessage, error) {
+	if len(raw) == 0 {
+		return raw, nil
+	}
+	var policyData map[string]interface{}
+	if err := json.Unmarshal(raw, &policyData); err != nil {
+		return nil, err
+	}
+	if err := enrichControlsInMap(policyData, index); err != nil {
+		return nil, err
+	}
+	return json.Marshal(policyData)
 }
 
 // CatalogControlSummary is a flattened catalog control entry.

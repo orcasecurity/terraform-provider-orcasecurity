@@ -3,8 +3,9 @@ package shift_left_policy
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestPlanToAPI_Iac(t *testing.T) {
@@ -78,8 +79,8 @@ func TestAPIToState_Iac(t *testing.T) {
 
 func TestAPIToState_ContainerImageResolvesControlID(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
-		ID:   "policy-1",
-		Type: "container_image",
+		ID:       "policy-1",
+		Type:     "container_image",
 		Controls: []byte(`[{"id":"vuln-1","priority":"HIGH","disabled":true,"title":"Vulnerabilities of high severity with fix available"}]`),
 		PolicyData: []byte(`{
 			"feature_scope":["vulnerabilities"],
@@ -199,8 +200,8 @@ func TestAPIToState_ContainerImagePrefersPlanControlID(t *testing.T) {
 
 func TestAPIToState_ProjectsIdsNullWhenUnset(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
-		ID:   "policy-1",
-		Type: "iac",
+		ID:       "policy-1",
+		Type:     "iac",
 		Controls: []byte(`[{"id":"ctrl-1","priority":"HIGH","disabled":false}]`),
 	}
 	plan := &shiftLeftPolicyResourceModel{
