@@ -23,6 +23,8 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
 	"terraform-provider-orcasecurity/orcasecurity/rbac_role"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy_catalog_controls"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
 	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
@@ -206,6 +208,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		organizations.NewOrganizationDataSource,
 		user_preferences.NewUserPreferencesDataSource,
 		rbac_role.NewRbacRolesDataSource,
+		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 	}
 }
 
@@ -225,6 +228,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		custom_dashboard.NewCustomDashboardResource,
 		discovery_view.NewDiscoveryViewResource,
 		shift_left_project.NewShiftLeftProjectResource,
+		shift_left_policy.NewShiftLeftPolicyResource,
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
 		system_sonar_alert.NewSystemSonarAlertResource,
 		trusted_cloud_account.NewTrustedCloudAccountResource,

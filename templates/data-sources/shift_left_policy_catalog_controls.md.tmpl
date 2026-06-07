@@ -1,0 +1,20 @@
+---
+page_title: "orcasecurity_shift_left_policy_catalog_controls Data Source - orcasecurity"
+subcategory: ""
+description: |-
+  Lists available AppSec policy controls for a given policy type.
+---
+
+# orcasecurity_shift_left_policy_catalog_controls (Data Source)
+
+Lists available AppSec policy controls from the Orca catalog API. Use this data source to discover valid control IDs when authoring policies.
+
+## Example Usage
+
+```terraform
+data "orcasecurity_shift_left_policy_catalog_controls" "iac" {
+  type = "iac"
+}
+```
+
+{{ .SchemaMarkdown }}

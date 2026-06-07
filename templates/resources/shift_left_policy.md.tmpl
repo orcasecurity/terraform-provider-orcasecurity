@@ -1,0 +1,43 @@
+---
+page_title: "orcasecurity_shift_left_policy Resource - orcasecurity"
+subcategory: ""
+description: |-
+  Provides an AppSec (Shift Left) policy resource.
+---
+
+# orcasecurity_shift_left_policy (Resource)
+
+Provides an AppSec (Shift Left) policy resource. Use this resource to create and manage AppSec scan policies in Orca Security.
+
+## Example Usage
+
+```terraform
+resource "orcasecurity_shift_left_policy" "iac_baseline" {
+  type                       = "iac"
+  name                       = "IaC baseline"
+  description                = "Managed by Terraform"
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
+
+  iac {
+    controls {
+      id       = "orca.best_practices.aws_s3_bucket_public_read_prohibited"
+      priority = "HIGH"
+      disabled = false
+    }
+  }
+}
+```
+
+## Import
+
+Import requires the policy type and ID:
+
+```shell
+terraform import orcasecurity_shift_left_policy.example iac/<policy-id>
+```
+
+~> **Note:** Built-in Orca policies cannot be updated or deleted via Terraform.
+
+{{ .SchemaMarkdown }}
