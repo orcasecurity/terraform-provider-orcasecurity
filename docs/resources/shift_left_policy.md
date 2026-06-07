@@ -53,42 +53,42 @@ terraform import orcasecurity_shift_left_policy.example iac/<policy-id>
 
 ### Optional
 
-- `container_image` (Attributes) (see [below for nested schema](#nestedatt--container_image))
+- `container_image` (Block, Optional) (see [below for nested schema](#nestedblock--container_image))
 - `description` (String) Policy description.
-- `file_system` (Attributes) (see [below for nested schema](#nestedatt--file_system))
-- `file_system_secret_detection` (Attributes) (see [below for nested schema](#nestedatt--file_system_secret_detection))
-- `file_system_vulnerabilities` (Attributes) (see [below for nested schema](#nestedatt--file_system_vulnerabilities))
-- `iac` (Attributes) (see [below for nested schema](#nestedatt--iac))
-- `licenses` (Attributes) (see [below for nested schema](#nestedatt--licenses))
+- `file_system` (Block, Optional) (see [below for nested schema](#nestedblock--file_system))
+- `file_system_secret_detection` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_secret_detection))
+- `file_system_vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities))
+- `iac` (Block, Optional) (see [below for nested schema](#nestedblock--iac))
+- `licenses` (Block, Optional) (see [below for nested schema](#nestedblock--licenses))
 - `projects_ids` (List of String) Project IDs to attach this policy to.
-- `sast` (Attributes) (see [below for nested schema](#nestedatt--sast))
-- `sca` (Attributes) (see [below for nested schema](#nestedatt--sca))
-- `scm_posture` (Attributes) (see [below for nested schema](#nestedatt--scm_posture))
+- `sast` (Block, Optional) (see [below for nested schema](#nestedblock--sast))
+- `sca` (Block, Optional) (see [below for nested schema](#nestedblock--sca))
+- `scm_posture` (Block, Optional) (see [below for nested schema](#nestedblock--scm_posture))
 
 ### Read-Only
 
 - `builtin` (Boolean) Whether this is an Orca built-in policy. Built-in policies cannot be updated or deleted via Terraform.
 - `id` (String) AppSec policy ID.
 
-<a id="nestedatt--container_image"></a>
+<a id="nestedblock--container_image"></a>
 ### Nested Schema for `container_image`
 
 Optional:
 
-- `container_image_best_practices` (Attributes) (see [below for nested schema](#nestedatt--container_image--container_image_best_practices))
-- `custom` (Attributes) (see [below for nested schema](#nestedatt--container_image--custom))
+- `container_image_best_practices` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--container_image_best_practices))
+- `custom` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--custom))
 - `feature_scope` (List of String) Enabled feature scopes: vulnerabilities, secret_detection, container_image_best_practices, custom.
-- `secret_detection` (Attributes) (see [below for nested schema](#nestedatt--container_image--secret_detection))
-- `vulnerabilities` (Attributes) (see [below for nested schema](#nestedatt--container_image--vulnerabilities))
+- `secret_detection` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--secret_detection))
+- `vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--vulnerabilities))
 
-<a id="nestedatt--container_image--container_image_best_practices"></a>
+<a id="nestedblock--container_image--container_image_best_practices"></a>
 ### Nested Schema for `container_image.container_image_best_practices`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--container_image--container_image_best_practices--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--container_image--container_image_best_practices--controls))
 
-<a id="nestedatt--container_image--container_image_best_practices--controls"></a>
+<a id="nestedblock--container_image--container_image_best_practices--controls"></a>
 ### Nested Schema for `container_image.container_image_best_practices.controls`
 
 Required:
@@ -99,11 +99,11 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--container_image--container_image_best_practices--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--container_image_best_practices--controls--conditions))
 - `origin` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--container_image--container_image_best_practices--controls--conditions"></a>
+<a id="nestedblock--container_image--container_image_best_practices--controls--conditions"></a>
 ### Nested Schema for `container_image.container_image_best_practices.controls.conditions`
 
 Optional:
@@ -113,28 +113,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--container_image--container_image_best_practices--controls--conditions--severities))
-
-<a id="nestedatt--container_image--container_image_best_practices--controls--conditions--severities"></a>
-### Nested Schema for `container_image.container_image_best_practices.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--container_image--custom"></a>
+<a id="nestedblock--container_image--custom"></a>
 ### Nested Schema for `container_image.custom`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--container_image--custom--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--container_image--custom--controls))
 
-<a id="nestedatt--container_image--custom--controls"></a>
+<a id="nestedblock--container_image--custom--controls"></a>
 ### Nested Schema for `container_image.custom.controls`
 
 Required:
@@ -145,11 +137,11 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--container_image--custom--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--custom--controls--conditions))
 - `origin` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--container_image--custom--controls--conditions"></a>
+<a id="nestedblock--container_image--custom--controls--conditions"></a>
 ### Nested Schema for `container_image.custom.controls.conditions`
 
 Optional:
@@ -159,28 +151,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--container_image--custom--controls--conditions--severities))
-
-<a id="nestedatt--container_image--custom--controls--conditions--severities"></a>
-### Nested Schema for `container_image.custom.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--container_image--secret_detection"></a>
+<a id="nestedblock--container_image--secret_detection"></a>
 ### Nested Schema for `container_image.secret_detection`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--container_image--secret_detection--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--container_image--secret_detection--controls))
 
-<a id="nestedatt--container_image--secret_detection--controls"></a>
+<a id="nestedblock--container_image--secret_detection--controls"></a>
 ### Nested Schema for `container_image.secret_detection.controls`
 
 Required:
@@ -191,11 +175,11 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--container_image--secret_detection--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--secret_detection--controls--conditions))
 - `origin` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--container_image--secret_detection--controls--conditions"></a>
+<a id="nestedblock--container_image--secret_detection--controls--conditions"></a>
 ### Nested Schema for `container_image.secret_detection.controls.conditions`
 
 Optional:
@@ -205,28 +189,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--container_image--secret_detection--controls--conditions--severities))
-
-<a id="nestedatt--container_image--secret_detection--controls--conditions--severities"></a>
-### Nested Schema for `container_image.secret_detection.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--container_image--vulnerabilities"></a>
+<a id="nestedblock--container_image--vulnerabilities"></a>
 ### Nested Schema for `container_image.vulnerabilities`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--container_image--vulnerabilities--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--container_image--vulnerabilities--controls))
 
-<a id="nestedatt--container_image--vulnerabilities--controls"></a>
+<a id="nestedblock--container_image--vulnerabilities--controls"></a>
 ### Nested Schema for `container_image.vulnerabilities.controls`
 
 Required:
@@ -237,11 +213,11 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--container_image--vulnerabilities--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--container_image--vulnerabilities--controls--conditions))
 - `origin` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--container_image--vulnerabilities--controls--conditions"></a>
+<a id="nestedblock--container_image--vulnerabilities--controls--conditions"></a>
 ### Nested Schema for `container_image.vulnerabilities.controls.conditions`
 
 Optional:
@@ -251,29 +227,21 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--container_image--vulnerabilities--controls--conditions--severities))
-
-<a id="nestedatt--container_image--vulnerabilities--controls--conditions--severities"></a>
-### Nested Schema for `container_image.vulnerabilities.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
 
-
-<a id="nestedatt--file_system"></a>
+<a id="nestedblock--file_system"></a>
 ### Nested Schema for `file_system`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--file_system--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--file_system--controls))
 
-<a id="nestedatt--file_system--controls"></a>
+<a id="nestedblock--file_system--controls"></a>
 ### Nested Schema for `file_system.controls`
 
 Required:
@@ -284,10 +252,10 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--file_system--controls--conditions))
-- `title` (String)
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--file_system--controls--conditions))
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--file_system--controls--conditions"></a>
+<a id="nestedblock--file_system--controls--conditions"></a>
 ### Nested Schema for `file_system.controls.conditions`
 
 Optional:
@@ -297,28 +265,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--file_system--controls--conditions--severities))
-
-<a id="nestedatt--file_system--controls--conditions--severities"></a>
-### Nested Schema for `file_system.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--file_system_secret_detection"></a>
+<a id="nestedblock--file_system_secret_detection"></a>
 ### Nested Schema for `file_system_secret_detection`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--file_system_secret_detection--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--file_system_secret_detection--controls))
 
-<a id="nestedatt--file_system_secret_detection--controls"></a>
+<a id="nestedblock--file_system_secret_detection--controls"></a>
 ### Nested Schema for `file_system_secret_detection.controls`
 
 Required:
@@ -329,10 +289,10 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--file_system_secret_detection--controls--conditions))
-- `title` (String)
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_secret_detection--controls--conditions))
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--file_system_secret_detection--controls--conditions"></a>
+<a id="nestedblock--file_system_secret_detection--controls--conditions"></a>
 ### Nested Schema for `file_system_secret_detection.controls.conditions`
 
 Optional:
@@ -342,28 +302,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--file_system_secret_detection--controls--conditions--severities))
-
-<a id="nestedatt--file_system_secret_detection--controls--conditions--severities"></a>
-### Nested Schema for `file_system_secret_detection.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--file_system_vulnerabilities"></a>
+<a id="nestedblock--file_system_vulnerabilities"></a>
 ### Nested Schema for `file_system_vulnerabilities`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--file_system_vulnerabilities--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--file_system_vulnerabilities--controls))
 
-<a id="nestedatt--file_system_vulnerabilities--controls"></a>
+<a id="nestedblock--file_system_vulnerabilities--controls"></a>
 ### Nested Schema for `file_system_vulnerabilities.controls`
 
 Required:
@@ -374,10 +326,10 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--file_system_vulnerabilities--controls--conditions))
-- `title` (String)
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities--controls--conditions))
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--file_system_vulnerabilities--controls--conditions"></a>
+<a id="nestedblock--file_system_vulnerabilities--controls--conditions"></a>
 ### Nested Schema for `file_system_vulnerabilities.controls.conditions`
 
 Optional:
@@ -387,28 +339,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--file_system_vulnerabilities--controls--conditions--severities))
-
-<a id="nestedatt--file_system_vulnerabilities--controls--conditions--severities"></a>
-### Nested Schema for `file_system_vulnerabilities.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--iac"></a>
+<a id="nestedblock--iac"></a>
 ### Nested Schema for `iac`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--iac--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--iac--controls))
 
-<a id="nestedatt--iac--controls"></a>
+<a id="nestedblock--iac--controls"></a>
 ### Nested Schema for `iac.controls`
 
 Required:
@@ -419,12 +363,12 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--iac--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--iac--controls--conditions))
 - `frameworks` (List of String)
 - `orca_alert_rule_type` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--iac--controls--conditions"></a>
+<a id="nestedblock--iac--controls--conditions"></a>
 ### Nested Schema for `iac.controls.conditions`
 
 Optional:
@@ -434,28 +378,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--iac--controls--conditions--severities))
-
-<a id="nestedatt--iac--controls--conditions--severities"></a>
-### Nested Schema for `iac.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--licenses"></a>
+<a id="nestedblock--licenses"></a>
 ### Nested Schema for `licenses`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--licenses--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--licenses--controls))
 
-<a id="nestedatt--licenses--controls"></a>
+<a id="nestedblock--licenses--controls"></a>
 ### Nested Schema for `licenses.controls`
 
 Required:
@@ -467,16 +403,16 @@ Required:
 Optional:
 
 - `additional_info` (List of String)
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--licenses--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--licenses--controls--conditions))
 - `is_deprecated` (Boolean)
 - `is_fsf_libre` (Boolean)
 - `is_osi_approved` (Boolean)
 - `license_category` (String)
 - `license_id` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 - `url` (String)
 
-<a id="nestedatt--licenses--controls--conditions"></a>
+<a id="nestedblock--licenses--controls--conditions"></a>
 ### Nested Schema for `licenses.controls.conditions`
 
 Optional:
@@ -486,28 +422,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--licenses--controls--conditions--severities))
-
-<a id="nestedatt--licenses--controls--conditions--severities"></a>
-### Nested Schema for `licenses.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--sast"></a>
+<a id="nestedblock--sast"></a>
 ### Nested Schema for `sast`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--sast--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--sast--controls))
 
-<a id="nestedatt--sast--controls"></a>
+<a id="nestedblock--sast--controls"></a>
 ### Nested Schema for `sast.controls`
 
 Required:
@@ -518,7 +446,7 @@ Required:
 
 Optional:
 
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--sast--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--sast--controls--conditions))
 - `confidence` (String)
 - `cwe` (List of String)
 - `impact` (String)
@@ -526,9 +454,9 @@ Optional:
 - `likelihood` (String)
 - `owasp` (List of String)
 - `section` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 
-<a id="nestedatt--sast--controls--conditions"></a>
+<a id="nestedblock--sast--controls--conditions"></a>
 ### Nested Schema for `sast.controls.conditions`
 
 Optional:
@@ -538,28 +466,20 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--sast--controls--conditions--severities))
-
-<a id="nestedatt--sast--controls--conditions--severities"></a>
-### Nested Schema for `sast.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--sca"></a>
+<a id="nestedblock--sca"></a>
 ### Nested Schema for `sca`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--sca--controls))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--sca--controls))
 
-<a id="nestedatt--sca--controls"></a>
+<a id="nestedblock--sca--controls"></a>
 ### Nested Schema for `sca.controls`
 
 Required:
@@ -571,16 +491,16 @@ Required:
 Optional:
 
 - `additional_info` (List of String)
-- `conditions` (Attributes) (see [below for nested schema](#nestedatt--sca--controls--conditions))
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--sca--controls--conditions))
 - `is_deprecated` (Boolean)
 - `is_fsf_libre` (Boolean)
 - `is_osi_approved` (Boolean)
 - `license_category` (String)
 - `license_id` (String)
-- `title` (String)
+- `title` (String) Optional control title (informational; filled from the Orca catalog when creating).
 - `url` (String)
 
-<a id="nestedatt--sca--controls--conditions"></a>
+<a id="nestedblock--sca--controls--conditions"></a>
 ### Nested Schema for `sca.controls.conditions`
 
 Optional:
@@ -590,29 +510,21 @@ Optional:
 - `fix_available` (Boolean)
 - `from_base_image` (Boolean)
 - `has_exploit` (Boolean)
-- `severities` (Attributes) (see [below for nested schema](#nestedatt--sca--controls--conditions--severities))
-
-<a id="nestedatt--sca--controls--conditions--severities"></a>
-### Nested Schema for `sca.controls.conditions.severities`
-
-Required:
-
-- `operator` (String)
-- `values` (List of String)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
 
-
-<a id="nestedatt--scm_posture"></a>
+<a id="nestedblock--scm_posture"></a>
 ### Nested Schema for `scm_posture`
 
 Optional:
 
-- `controls` (Attributes List) (see [below for nested schema](#nestedatt--scm_posture--controls))
-- `scope` (Attributes List) (see [below for nested schema](#nestedatt--scm_posture--scope))
+- `controls` (Block List) (see [below for nested schema](#nestedblock--scm_posture--controls))
+- `scope` (Block List) (see [below for nested schema](#nestedblock--scm_posture--scope))
 
-<a id="nestedatt--scm_posture--controls"></a>
+<a id="nestedblock--scm_posture--controls"></a>
 ### Nested Schema for `scm_posture.controls`
 
 Required:
@@ -628,7 +540,7 @@ Optional:
 - `threat` (List of String)
 
 
-<a id="nestedatt--scm_posture--scope"></a>
+<a id="nestedblock--scm_posture--scope"></a>
 ### Nested Schema for `scm_posture.scope`
 
 Required:
