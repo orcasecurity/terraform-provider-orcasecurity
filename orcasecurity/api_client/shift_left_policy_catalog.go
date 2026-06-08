@@ -80,6 +80,20 @@ func buildCatalogControlIndex(catalogRaw json.RawMessage, policyType string) (ca
 	return index, nil
 }
 
+// findByTitle returns the catalog control whose title matches the given value (exact match).
+func (index catalogControlIndex) findByTitle(title interface{}) (map[string]interface{}, bool) {
+	wanted, ok := title.(string)
+	if !ok || wanted == "" {
+		return nil, false
+	}
+	for _, control := range index {
+		if controlTitle, ok := control["title"].(string); ok && controlTitle == wanted {
+			return control, true
+		}
+	}
+	return nil, false
+}
+
 func cloneMap(src map[string]interface{}) map[string]interface{} {
 	raw, _ := json.Marshal(src)
 	dst := map[string]interface{}{}
@@ -136,7 +150,15 @@ func enrichControlsSlice(controls []interface{}, index catalogControlIndex) ([]i
 
 		id, _ := override["id"].(string)
 		if id == "" {
-			return nil, fmt.Errorf("control id is required")
+			// No catalog id: try to resolve it from the catalog by title so callers
+			// can reference a catalog control without a data source lookup.
+			if base, found := index.findByTitle(override["title"]); found {
+				enriched = append(enriched, mergeControlMaps(base, override))
+				continue
+			}
+			// Otherwise this is a brand-new custom control: keep it as-is.
+			enriched = append(enriched, override)
+			continue
 		}
 
 		base, found := index[id]
@@ -236,6 +258,132 @@ func enrichPolicyDataRaw(raw json.RawMessage, index catalogControlIndex) (json.R
 		return nil, err
 	}
 	return json.Marshal(policyData)
+}
+
+func toControlMaps(items []interface{}) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		if m, ok := item.(map[string]interface{}); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// catalogControlsByScope groups catalog controls by feature scope. Container-style
+// catalogs key controls by top-level scope name; flat catalogs use the "" key.
+func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]interface{} {
+	result := map[string][]map[string]interface{}{}
+	if len(catalogRaw) == 0 {
+		return result
+	}
+
+	var asArray []interface{}
+	if err := json.Unmarshal(catalogRaw, &asArray); err == nil && len(asArray) > 0 {
+		result[""] = toControlMaps(asArray)
+		return result
+	}
+
+	var catalog map[string]interface{}
+	if err := json.Unmarshal(catalogRaw, &catalog); err != nil {
+		return result
+	}
+	if controls, ok := catalog["controls"].([]interface{}); ok {
+		result[""] = toControlMaps(controls)
+	}
+	for scope, value := range catalog {
+		obj, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if controls, ok := obj["controls"].([]interface{}); ok {
+			result[scope] = toControlMaps(controls)
+		}
+	}
+	return result
+}
+
+// catalogEntry reduces a catalog control to the minimal fields needed in a policy.
+// The remaining fields (title, conditions, ...) are added later by enrichment.
+func catalogEntry(control map[string]interface{}) (map[string]interface{}, bool) {
+	id, ok := control["id"].(string)
+	if !ok || id == "" {
+		return nil, false
+	}
+	entry := map[string]interface{}{"id": id, "disabled": false}
+	if priority, ok := control["priority"].(string); ok && priority != "" {
+		entry["priority"] = priority
+	} else {
+		entry["priority"] = "MEDIUM"
+	}
+	return entry, true
+}
+
+// unionPolicyDataControls returns every control referenced anywhere in policy_data.
+func unionPolicyDataControls(policyData map[string]interface{}) []interface{} {
+	if controls, ok := policyData["controls"].([]interface{}); ok {
+		return controls
+	}
+	var union []interface{}
+	for _, value := range policyData {
+		obj, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if controls, ok := obj["controls"].([]interface{}); ok {
+			union = append(union, controls...)
+		}
+	}
+	return union
+}
+
+// AddAllCatalogControls injects every catalog control for the given scopes into the
+// policy. Use scope "" for non-grouped policy types (controls live at the top level);
+// for container_image pass the feature scope names (e.g. "vulnerabilities").
+func (client *APIClient) AddAllCatalogControls(policyType string, policy *ShiftLeftPolicy, scopeKeys []string) error {
+	if len(scopeKeys) == 0 {
+		return nil
+	}
+
+	catalog, err := client.GetShiftLeftPolicyCatalogControls(policyType)
+	if err != nil {
+		return err
+	}
+	byScope := catalogControlsByScope(catalog.Body)
+
+	policyData := map[string]interface{}{}
+	if len(policy.PolicyData) > 0 {
+		if err := json.Unmarshal(policy.PolicyData, &policyData); err != nil {
+			return err
+		}
+	}
+
+	for _, scopeKey := range scopeKeys {
+		entries := make([]interface{}, 0, len(byScope[scopeKey]))
+		for _, control := range byScope[scopeKey] {
+			if entry, ok := catalogEntry(control); ok {
+				entries = append(entries, entry)
+			}
+		}
+		if scopeKey == "" {
+			policyData["controls"] = entries
+		} else {
+			policyData[scopeKey] = map[string]interface{}{"controls": entries}
+		}
+	}
+
+	pdRaw, err := json.Marshal(policyData)
+	if err != nil {
+		return err
+	}
+	policy.PolicyData = pdRaw
+
+	ctrlRaw, err := json.Marshal(unionPolicyDataControls(policyData))
+	if err != nil {
+		return err
+	}
+	policy.Controls = ctrlRaw
+	return nil
 }
 
 // CatalogControlSummary is a flattened catalog control entry.

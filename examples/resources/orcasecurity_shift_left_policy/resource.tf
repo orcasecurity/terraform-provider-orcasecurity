@@ -8,7 +8,7 @@ resource "orcasecurity_shift_left_policy" "iac_baseline" {
 
   iac {
     controls {
-      id       = "orca.best_practices.aws_s3_bucket_public_read_prohibited"
+      title    = "API Gateway is publicly accessible"
       priority = "HIGH"
       disabled = false
     }

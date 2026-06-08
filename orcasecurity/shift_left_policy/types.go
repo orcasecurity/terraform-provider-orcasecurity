@@ -77,19 +77,23 @@ type licenseControlModel struct {
 }
 
 type controlsBlockModel struct {
-	Controls []baseControlModel `tfsdk:"controls"`
+	AllControls types.Bool         `tfsdk:"all_controls"`
+	Controls    []baseControlModel `tfsdk:"controls"`
 }
 
 type iacBlockModel struct {
-	Controls []iacControlModel `tfsdk:"controls"`
+	AllControls types.Bool        `tfsdk:"all_controls"`
+	Controls    []iacControlModel `tfsdk:"controls"`
 }
 
 type sastBlockModel struct {
-	Controls []sastControlModel `tfsdk:"controls"`
+	AllControls types.Bool         `tfsdk:"all_controls"`
+	Controls    []sastControlModel `tfsdk:"controls"`
 }
 
 type containerScopeBlockModel struct {
-	Controls []containerControlModel `tfsdk:"controls"`
+	AllControls types.Bool              `tfsdk:"all_controls"`
+	Controls    []containerControlModel `tfsdk:"controls"`
 }
 
 type containerImageBlockModel struct {
@@ -111,7 +115,8 @@ type scmPostureBlockModel struct {
 }
 
 type licensesBlockModel struct {
-	Controls []licenseControlModel `tfsdk:"controls"`
+	AllControls types.Bool            `tfsdk:"all_controls"`
+	Controls    []licenseControlModel `tfsdk:"controls"`
 }
 
 type shiftLeftPolicyResourceModel struct {

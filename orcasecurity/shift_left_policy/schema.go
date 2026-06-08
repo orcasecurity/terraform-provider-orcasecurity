@@ -10,6 +10,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// allControlsAttr is a section-level toggle that tells the provider to include
+// every catalog control for that section, so users don't need a data source or
+// to list controls manually.
+func allControlsAttr() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"all_controls": schema.BoolAttribute{
+			Optional:    true,
+			Description: "When true, include every catalog control for this section automatically (no need to list controls or use a data source).",
+		},
+	}
+}
+
 func conditionsBlock() schema.Block {
 	return schema.SingleNestedBlock{
 		Attributes: map[string]schema.Attribute{
@@ -44,11 +56,12 @@ func conditionsBlock() schema.Block {
 func baseControlAttributes(extra map[string]schema.Attribute) map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"id": schema.StringAttribute{
-			Required: true,
+			Optional:    true,
+			Description: "Catalog control ID. Omit to define a custom control identified by its title and conditions.",
 		},
 		"title": schema.StringAttribute{
 			Optional:    true,
-			Description: "Optional control title (informational; filled from the Orca catalog when creating).",
+			Description: "Control title. Informational for catalog controls (filled from the Orca catalog); required to identify a custom control when no id is set.",
 		},
 		"priority": schema.StringAttribute{
 			Required: true,
@@ -79,6 +92,7 @@ func baseControlsListBlock(extra map[string]schema.Attribute) schema.Block {
 
 func iacBlock() schema.Block {
 	return schema.SingleNestedBlock{
+		Attributes: allControlsAttr(),
 		Blocks: map[string]schema.Block{
 			"controls": baseControlsListBlock(map[string]schema.Attribute{
 				"frameworks": schema.ListAttribute{
@@ -95,6 +109,7 @@ func iacBlock() schema.Block {
 
 func sastBlock() schema.Block {
 	return schema.SingleNestedBlock{
+		Attributes: allControlsAttr(),
 		Blocks: map[string]schema.Block{
 			"controls": baseControlsListBlock(map[string]schema.Attribute{
 				"languages":  schema.ListAttribute{ElementType: types.StringType, Optional: true},
@@ -111,6 +126,7 @@ func sastBlock() schema.Block {
 
 func controlsOnlyBlock() schema.Block {
 	return schema.SingleNestedBlock{
+		Attributes: allControlsAttr(),
 		Blocks: map[string]schema.Block{
 			"controls": baseControlsListBlock(nil),
 		},
@@ -119,6 +135,7 @@ func controlsOnlyBlock() schema.Block {
 
 func containerScopeBlock() schema.Block {
 	return schema.SingleNestedBlock{
+		Attributes: allControlsAttr(),
 		Blocks: map[string]schema.Block{
 			"controls": baseControlsListBlock(map[string]schema.Attribute{
 				"origin": schema.StringAttribute{Optional: true},
@@ -183,6 +200,7 @@ func scmPostureBlock() schema.Block {
 
 func licensesBlock() schema.Block {
 	return schema.SingleNestedBlock{
+		Attributes: allControlsAttr(),
 		Blocks: map[string]schema.Block{
 			"controls": baseControlsListBlock(map[string]schema.Attribute{
 				"license_id":       schema.StringAttribute{Optional: true},

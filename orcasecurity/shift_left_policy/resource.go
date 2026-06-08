@@ -81,6 +81,10 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	policyType := plan.Type.ValueString()
+	if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
+		resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
+		return
+	}
 	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
 		resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
 		return
@@ -150,6 +154,10 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 
 	policyType := plan.Type.ValueString()
 	policyID := plan.ID.ValueString()
+	if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
+		resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
+		return
+	}
 	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
 		resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
 		return

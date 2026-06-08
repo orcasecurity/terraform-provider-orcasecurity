@@ -69,9 +69,11 @@ func conditionsToMap(c *conditionsModel) map[string]interface{} {
 
 func baseControlToMap(c baseControlModel) map[string]interface{} {
 	m := map[string]interface{}{
-		"id":       c.ID.ValueString(),
 		"priority": c.Priority.ValueString(),
 		"disabled": c.Disabled.ValueBool(),
+	}
+	if id := c.ID.ValueString(); id != "" {
+		m["id"] = id
 	}
 	if !c.Title.IsNull() && c.Title.ValueString() != "" {
 		m["title"] = c.Title.ValueString()
@@ -408,6 +410,71 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 	return policy, diags
 }
 
+func boolIsTrue(b types.Bool) bool {
+	return !b.IsNull() && !b.IsUnknown() && b.ValueBool()
+}
+
+// allControlsScopeKeys returns the scope keys for which the config requested all
+// catalog controls. Container_image uses feature scope names; other types use "".
+func allControlsScopeKeys(model *shiftLeftPolicyResourceModel) []string {
+	var keys []string
+	switch model.Type.ValueString() {
+	case "iac":
+		if model.Iac != nil && boolIsTrue(model.Iac.AllControls) {
+			keys = append(keys, "")
+		}
+	case "sast":
+		if model.Sast != nil && boolIsTrue(model.Sast.AllControls) {
+			keys = append(keys, "")
+		}
+	case "file_system":
+		if model.FileSystem != nil && boolIsTrue(model.FileSystem.AllControls) {
+			keys = append(keys, "")
+		}
+	case "file_system_vulnerabilities":
+		if model.FileSystemVulnerabilities != nil && boolIsTrue(model.FileSystemVulnerabilities.AllControls) {
+			keys = append(keys, "")
+		}
+	case "file_system_secret_detection":
+		if model.FileSystemSecretDetection != nil && boolIsTrue(model.FileSystemSecretDetection.AllControls) {
+			keys = append(keys, "")
+		}
+	case "container_image":
+		keys = append(keys, containerAllControlsScopes(model.ContainerImage)...)
+	case "licenses":
+		if model.Licenses != nil && boolIsTrue(model.Licenses.AllControls) {
+			keys = append(keys, "")
+		}
+	case "sca":
+		if model.Sca != nil && boolIsTrue(model.Sca.AllControls) {
+			keys = append(keys, "")
+		}
+	}
+	return keys
+}
+
+func containerAllControlsScopes(block *containerImageBlockModel) []string {
+	if block == nil {
+		return nil
+	}
+	var keys []string
+	scopes := []struct {
+		key   string
+		block *containerScopeBlockModel
+	}{
+		{"vulnerabilities", block.Vulnerabilities},
+		{"secret_detection", block.SecretDetection},
+		{"container_image_best_practices", block.ContainerImageBestPractices},
+		{"custom", block.Custom},
+	}
+	for _, s := range scopes {
+		if s.block != nil && boolIsTrue(s.block.AllControls) {
+			keys = append(keys, s.key)
+		}
+	}
+	return keys
+}
+
 func mapSeveritiesToConditions(m map[string]interface{}, c *conditionsModel) {
 	sev, ok := m["severities"].(map[string]interface{})
 	if !ok {
@@ -507,6 +574,10 @@ func isStringSet(value types.String) bool {
 func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	if isStringSet(src.ID) {
 		dst.ID = src.ID
+	} else {
+		// Config referenced the control by title (or it is custom): keep id null
+		// in state so an API-resolved id does not show as drift.
+		dst.ID = types.StringNull()
 	}
 	if isStringSet(src.Priority) {
 		dst.Priority = src.Priority
@@ -526,6 +597,11 @@ func mergeControlsBlockFromPlan(dst, src *controlsBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
+	dst.AllControls = src.AllControls
+	if boolIsTrue(src.AllControls) {
+		dst.Controls = nil
+		return
+	}
 	for i := range dst.Controls {
 		if i < len(src.Controls) {
 			mergeBaseControlFromPlan(&dst.Controls[i], src.Controls[i])
@@ -535,6 +611,11 @@ func mergeControlsBlockFromPlan(dst, src *controlsBlockModel) {
 
 func mergeIacBlockFromPlan(dst, src *iacBlockModel) {
 	if dst == nil || src == nil {
+		return
+	}
+	dst.AllControls = src.AllControls
+	if boolIsTrue(src.AllControls) {
+		dst.Controls = nil
 		return
 	}
 	for i := range dst.Controls {
@@ -549,6 +630,11 @@ func mergeIacBlockFromPlan(dst, src *iacBlockModel) {
 
 func mergeContainerScopeFromPlan(dst, src *containerScopeBlockModel) {
 	if dst == nil || src == nil {
+		return
+	}
+	dst.AllControls = src.AllControls
+	if boolIsTrue(src.AllControls) {
+		dst.Controls = nil
 		return
 	}
 	for i := range src.Controls {
@@ -594,6 +680,11 @@ func mergeSastBlockFromPlan(dst, src *sastBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
+	dst.AllControls = src.AllControls
+	if boolIsTrue(src.AllControls) {
+		dst.Controls = nil
+		return
+	}
 	for i := range dst.Controls {
 		if i >= len(src.Controls) {
 			continue
@@ -605,6 +696,11 @@ func mergeSastBlockFromPlan(dst, src *sastBlockModel) {
 
 func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
 	if dst == nil || src == nil {
+		return
+	}
+	dst.AllControls = src.AllControls
+	if boolIsTrue(src.AllControls) {
+		dst.Controls = nil
 		return
 	}
 	for i := range dst.Controls {
