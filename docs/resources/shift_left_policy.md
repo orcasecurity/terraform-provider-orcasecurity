@@ -28,7 +28,6 @@ resource "orcasecurity_shift_left_policy" "iac_baseline" {
 
   iac {
     controls {
-      # No id: resolved from the catalog by title.
       title    = "API Gateway is publicly accessible"
       priority = "HIGH"
       disabled = false
