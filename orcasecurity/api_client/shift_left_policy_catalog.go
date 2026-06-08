@@ -337,6 +337,27 @@ func unionPolicyDataControls(policyData map[string]interface{}) []interface{} {
 	return union
 }
 
+// scopeEntries builds the minimal control entries for a single catalog scope.
+func scopeEntries(controls []map[string]interface{}) []interface{} {
+	entries := make([]interface{}, 0, len(controls))
+	for _, control := range controls {
+		if entry, ok := catalogEntry(control); ok {
+			entries = append(entries, entry)
+		}
+	}
+	return entries
+}
+
+// injectScopeControls writes the catalog entries for a scope into policy_data.
+// Scope "" stores controls at the top level; named scopes nest under their key.
+func injectScopeControls(policyData map[string]interface{}, scopeKey string, entries []interface{}) {
+	if scopeKey == "" {
+		policyData["controls"] = entries
+		return
+	}
+	policyData[scopeKey] = map[string]interface{}{"controls": entries}
+}
+
 // AddAllCatalogControls injects every catalog control for the given scopes into the
 // policy. Use scope "" for non-grouped policy types (controls live at the top level);
 // for container_image pass the feature scope names (e.g. "vulnerabilities").
@@ -359,17 +380,7 @@ func (client *APIClient) AddAllCatalogControls(policyType string, policy *ShiftL
 	}
 
 	for _, scopeKey := range scopeKeys {
-		entries := make([]interface{}, 0, len(byScope[scopeKey]))
-		for _, control := range byScope[scopeKey] {
-			if entry, ok := catalogEntry(control); ok {
-				entries = append(entries, entry)
-			}
-		}
-		if scopeKey == "" {
-			policyData["controls"] = entries
-		} else {
-			policyData[scopeKey] = map[string]interface{}{"controls": entries}
-		}
+		injectScopeControls(policyData, scopeKey, scopeEntries(byScope[scopeKey]))
 	}
 
 	pdRaw, err := json.Marshal(policyData)

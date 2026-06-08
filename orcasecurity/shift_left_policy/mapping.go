@@ -417,40 +417,34 @@ func boolIsTrue(b types.Bool) bool {
 // allControlsScopeKeys returns the scope keys for which the config requested all
 // catalog controls. Container_image uses feature scope names; other types use "".
 func allControlsScopeKeys(model *shiftLeftPolicyResourceModel) []string {
-	var keys []string
+	if model.Type.ValueString() == "container_image" {
+		return containerAllControlsScopes(model.ContainerImage)
+	}
+	if topLevelAllControlsRequested(model) {
+		return []string{""}
+	}
+	return nil
+}
+
+// topLevelAllControlsRequested reports whether a single-block policy type set all_controls.
+func topLevelAllControlsRequested(model *shiftLeftPolicyResourceModel) bool {
 	switch model.Type.ValueString() {
 	case "iac":
-		if model.Iac != nil && boolIsTrue(model.Iac.AllControls) {
-			keys = append(keys, "")
-		}
+		return model.Iac != nil && boolIsTrue(model.Iac.AllControls)
 	case "sast":
-		if model.Sast != nil && boolIsTrue(model.Sast.AllControls) {
-			keys = append(keys, "")
-		}
+		return model.Sast != nil && boolIsTrue(model.Sast.AllControls)
 	case "file_system":
-		if model.FileSystem != nil && boolIsTrue(model.FileSystem.AllControls) {
-			keys = append(keys, "")
-		}
+		return model.FileSystem != nil && boolIsTrue(model.FileSystem.AllControls)
 	case "file_system_vulnerabilities":
-		if model.FileSystemVulnerabilities != nil && boolIsTrue(model.FileSystemVulnerabilities.AllControls) {
-			keys = append(keys, "")
-		}
+		return model.FileSystemVulnerabilities != nil && boolIsTrue(model.FileSystemVulnerabilities.AllControls)
 	case "file_system_secret_detection":
-		if model.FileSystemSecretDetection != nil && boolIsTrue(model.FileSystemSecretDetection.AllControls) {
-			keys = append(keys, "")
-		}
-	case "container_image":
-		keys = append(keys, containerAllControlsScopes(model.ContainerImage)...)
+		return model.FileSystemSecretDetection != nil && boolIsTrue(model.FileSystemSecretDetection.AllControls)
 	case "licenses":
-		if model.Licenses != nil && boolIsTrue(model.Licenses.AllControls) {
-			keys = append(keys, "")
-		}
+		return model.Licenses != nil && boolIsTrue(model.Licenses.AllControls)
 	case "sca":
-		if model.Sca != nil && boolIsTrue(model.Sca.AllControls) {
-			keys = append(keys, "")
-		}
+		return model.Sca != nil && boolIsTrue(model.Sca.AllControls)
 	}
-	return keys
+	return false
 }
 
 func containerAllControlsScopes(block *containerImageBlockModel) []string {
