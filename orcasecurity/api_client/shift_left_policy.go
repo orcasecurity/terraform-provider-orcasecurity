@@ -67,10 +67,7 @@ func (client *APIClient) GetShiftLeftPolicy(policyType, id string) (*ShiftLeftPo
 }
 
 func (client *APIClient) DoesShiftLeftPolicyExist(policyType, id string) (bool, error) {
-	resp, err := client.Head(shiftLeftPolicyItemPath(policyType, id))
-	if err != nil {
-		return false, err
-	}
+	resp, _ := client.Head(shiftLeftPolicyItemPath(policyType, id))
 	return resp.StatusCode() == 200, nil
 }
 
