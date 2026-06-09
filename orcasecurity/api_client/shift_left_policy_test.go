@@ -79,6 +79,72 @@ func TestDeleteShiftLeftPolicy(t *testing.T) {
 	}
 }
 
+func TestDoesShiftLeftPolicyExist(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != "HEAD" {
+			t.Errorf("expected HEAD, got %s", req.Method)
+		}
+		if req.URL.Path != "/api/shiftleft/iac/policies/policy-123/" {
+			t.Errorf("unexpected path: %s", req.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(``)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	exists, err := client.DoesShiftLeftPolicyExist("iac", "policy-123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("expected policy to exist for 200 response")
+	}
+}
+
+func TestDoesShiftLeftPolicyExist_NotFound(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(strings.NewReader(``)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	exists, err := client.DoesShiftLeftPolicyExist("iac", "missing")
+	if err != nil {
+		t.Fatalf("expected no error on 404 so the plan recreates the resource, got: %v", err)
+	}
+	if exists {
+		t.Error("expected policy not to exist for 404 response")
+	}
+}
+
+func TestUpdateShiftLeftPolicy(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != "PUT" {
+			t.Errorf("expected PUT, got %s", req.Method)
+		}
+		if req.URL.Path != "/api/shiftleft/iac/policies/policy-123/" {
+			t.Errorf("unexpected path: %s", req.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"id":"policy-123","name":"updated","type":"iac"}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	policy, err := client.UpdateShiftLeftPolicy("iac", "policy-123", ShiftLeftPolicy{Name: "updated"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if policy.Name != "updated" {
+		t.Errorf("expected name updated, got %s", policy.Name)
+	}
+}
+
 func TestGetShiftLeftPolicyCatalogControls(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.URL.Path != "/api/shiftleft/iac/catalog/controls" {
