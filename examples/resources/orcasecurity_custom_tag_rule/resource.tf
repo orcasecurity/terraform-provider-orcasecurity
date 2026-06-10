@@ -8,7 +8,7 @@ resource "orcasecurity_custom_tag_rule" "string_rule" {
   }
 }
 
-# Using a JSON discovery query (the format used by the Orca UI)
+# Using a JSON discovery query
 resource "orcasecurity_custom_tag_rule" "json_rule" {
   name        = "Tag internet-facing EC2 instances"
   description = "Automatically tag all internet-facing EC2 instances"
