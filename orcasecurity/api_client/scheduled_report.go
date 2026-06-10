@@ -36,8 +36,8 @@ type ScheduledReport struct {
 	SonarQuery       string                 `json:"sonar_query,omitempty"`
 	SonarQueryParams map[string]interface{} `json:"sonar_query_params,omitempty"`
 	QueryFilters     map[string]interface{} `json:"query_filters,omitempty"`
-	Config       map[string]interface{} `json:"config,omitempty"`
-	S3Path       string                 `json:"s3_path,omitempty"`
+	Config           map[string]interface{} `json:"config,omitempty"`
+	S3Path           string                 `json:"s3_path,omitempty"`
 
 	RecipientsEmails   []string `json:"recipients_emails"`
 	CustomEmailSubject string   `json:"custom_email_subject,omitempty"`

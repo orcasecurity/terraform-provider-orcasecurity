@@ -89,8 +89,8 @@ type scheduledReportResourceModel struct {
 	SonarQuery       types.String `tfsdk:"sonar_query"`
 	SonarQueryParams types.String `tfsdk:"sonar_query_params"`
 	QueryFilters     types.String `tfsdk:"query_filters"`
-	Config       types.String `tfsdk:"config"`
-	S3Path       types.String `tfsdk:"s3_path"`
+	Config           types.String `tfsdk:"config"`
+	S3Path           types.String `tfsdk:"s3_path"`
 
 	RecipientsEmails   types.List   `tfsdk:"recipients_emails"`
 	CustomEmailSubject types.String `tfsdk:"custom_email_subject"`
@@ -380,8 +380,8 @@ func (r *scheduledReportResource) buildAPIPayload(ctx context.Context, plan *sch
 		SonarQuery:       plan.SonarQuery.ValueString(),
 		SonarQueryParams: jsonAttributeToMap(plan.SonarQueryParams, "sonar_query_params", &jsonDiags),
 		QueryFilters:     jsonAttributeToMap(plan.QueryFilters, "query_filters", &jsonDiags),
-		Config:       jsonAttributeToMap(plan.Config, "config", &jsonDiags),
-		S3Path:       plan.S3Path.ValueString(),
+		Config:           jsonAttributeToMap(plan.Config, "config", &jsonDiags),
+		S3Path:           plan.S3Path.ValueString(),
 
 		RecipientsEmails:   stringList(ctx, plan.RecipientsEmails),
 		CustomEmailSubject: plan.CustomEmailSubject.ValueString(),
