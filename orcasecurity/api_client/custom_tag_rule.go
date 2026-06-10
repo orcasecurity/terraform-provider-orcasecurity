@@ -8,6 +8,9 @@ import (
 const CustomTagRuleRuleTypeString = "string"
 const CustomTagRuleRuleTypeJSON = "json"
 
+const customTagRulesAPIPath = "/api/custom_tags"
+const customTagRuleAPIPathTemplate = customTagRulesAPIPath + "/%s"
+
 type CustomTagRule struct {
 	ID          string            `json:"id,omitempty"`
 	Name        string            `json:"name"`
@@ -88,7 +91,7 @@ func newCustomTagRuleRequest(data CustomTagRule) (*customTagRuleRequest, error) 
 }
 
 func (client *APIClient) DoesCustomTagRuleExist(id string) (bool, error) {
-	resp, err := client.Get(fmt.Sprintf("/api/custom_tags/%s", id))
+	resp, err := client.Get(fmt.Sprintf(customTagRuleAPIPathTemplate, id))
 	if resp != nil && resp.StatusCode() == 404 {
 		return false, nil
 	}
@@ -103,7 +106,7 @@ func (client *APIClient) GetCustomTagRule(id string) (*CustomTagRule, error) {
 		Data customTagRuleResponse `json:"data"`
 	}
 
-	resp, err := client.Get(fmt.Sprintf("/api/custom_tags/%s", id))
+	resp, err := client.Get(fmt.Sprintf(customTagRuleAPIPathTemplate, id))
 	if resp != nil && resp.StatusCode() == 404 {
 		return nil, nil
 	}
@@ -131,7 +134,7 @@ func (client *APIClient) CreateCustomTagRule(data CustomTagRule) (*CustomTagRule
 		return nil, err
 	}
 
-	resp, err := client.Post("/api/custom_tags", request)
+	resp, err := client.Post(customTagRulesAPIPath, request)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +157,7 @@ func (client *APIClient) UpdateCustomTagRule(id string, data CustomTagRule) (*Cu
 		return nil, err
 	}
 
-	resp, err := client.Put(fmt.Sprintf("/api/custom_tags/%s", id), request)
+	resp, err := client.Put(fmt.Sprintf(customTagRuleAPIPathTemplate, id), request)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +170,6 @@ func (client *APIClient) UpdateCustomTagRule(id string, data CustomTagRule) (*Cu
 }
 
 func (client *APIClient) DeleteCustomTagRule(id string) error {
-	_, err := client.Delete(fmt.Sprintf("/api/custom_tags/%s", id))
+	_, err := client.Delete(fmt.Sprintf(customTagRuleAPIPathTemplate, id))
 	return err
 }
