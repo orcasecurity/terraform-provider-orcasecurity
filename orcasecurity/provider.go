@@ -15,6 +15,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_role"
 	"terraform-provider-orcasecurity/orcasecurity/custom_sonar_alert"
+	"terraform-provider-orcasecurity/orcasecurity/custom_tag_rule"
 	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
@@ -220,6 +221,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
 		custom_discovery_alert.NewCustomDiscoveryAlertResource,
 		custom_sonar_alert.NewCustomSonarAlertResource,
+		custom_tag_rule.NewCustomTagRuleResource,
 		custom_role.NewCustomRoleResource,
 		group.NewGroupResource,
 		group_access.NewGroupAccessResource,
