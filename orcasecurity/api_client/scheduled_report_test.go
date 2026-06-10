@@ -36,39 +36,45 @@ const testScheduledReportResponse = `{
 	}
 }`
 
+func assertScheduledReportCreateRequest(t *testing.T, req *http.Request) {
+	t.Helper()
+
+	if req.Method != "POST" {
+		t.Errorf("expected POST, got %s", req.Method)
+	}
+	if !strings.HasSuffix(req.URL.Path, "/api/reporting/scheduled_reports") {
+		t.Errorf("unexpected path: %s", req.URL.Path)
+	}
+
+	body, _ := io.ReadAll(req.Body)
+	payload := map[string]interface{}{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("request body is not valid JSON: %v", err)
+	}
+
+	expectedValues := map[string]interface{}{
+		"name":   "Weekly open alerts",
+		"type":   "alerts_svl",
+		"status": float64(1), // status is sent as an integer
+	}
+	for field, expected := range expectedValues {
+		if payload[field] != expected {
+			t.Errorf("unexpected %s in payload: %v (expected %v)", field, payload[field], expected)
+		}
+	}
+
+	// recipients_emails and columns are always sent so PATCH updates can clear them
+	requiredFields := []string{"sonar_query_params", "recipients_emails", "columns"}
+	for _, field := range requiredFields {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("expected %s in payload", field)
+		}
+	}
+}
+
 func TestCreateScheduledReport(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "POST" {
-			t.Errorf("expected POST, got %s", req.Method)
-		}
-		if !strings.HasSuffix(req.URL.Path, "/api/reporting/scheduled_reports") {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
-
-		body, _ := io.ReadAll(req.Body)
-		payload := map[string]interface{}{}
-		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("request body is not valid JSON: %v", err)
-		}
-		if payload["name"] != "Weekly open alerts" {
-			t.Errorf("unexpected name in payload: %v", payload["name"])
-		}
-		if payload["type"] != "alerts_svl" {
-			t.Errorf("expected string enum for type, got %v", payload["type"])
-		}
-		if payload["status"] != float64(1) {
-			t.Errorf("expected integer status 1, got %v", payload["status"])
-		}
-		if _, ok := payload["sonar_query_params"]; !ok {
-			t.Error("expected sonar_query_params in payload")
-		}
-		// always sent so PATCH updates can clear them
-		if _, ok := payload["recipients_emails"]; !ok {
-			t.Error("expected recipients_emails in payload")
-		}
-		if _, ok := payload["columns"]; !ok {
-			t.Error("expected columns in payload")
-		}
+		assertScheduledReportCreateRequest(t, req)
 
 		return &http.Response{
 			StatusCode: 201,
