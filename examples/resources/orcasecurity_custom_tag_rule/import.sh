@@ -1,0 +1,1 @@
+terraform import orcasecurity_custom_tag_rule.example TAGS_RULE_ID
