@@ -90,17 +90,6 @@ func newCustomTagRuleRequest(data CustomTagRule) (*customTagRuleRequest, error) 
 	return &request, nil
 }
 
-func (client *APIClient) DoesCustomTagRuleExist(id string) (bool, error) {
-	resp, err := client.Get(fmt.Sprintf(customTagRuleAPIPathTemplate, id))
-	if resp != nil && resp.StatusCode() == 404 {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 func (client *APIClient) GetCustomTagRule(id string) (*CustomTagRule, error) {
 	type responseType struct {
 		Data customTagRuleResponse `json:"data"`

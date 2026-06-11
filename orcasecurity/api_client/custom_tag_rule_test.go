@@ -108,32 +108,6 @@ func TestCustomTagRule_Get404(t *testing.T) {
 	}
 }
 
-func TestCustomTagRule_DoesExist(t *testing.T) {
-	for _, testCase := range []struct {
-		statusCode int
-		expected   bool
-	}{
-		{200, true},
-		{404, false},
-	} {
-		apiClient := newCustomTagRuleTestClient(func(req *http.Request) *http.Response {
-			return &http.Response{
-				StatusCode: testCase.statusCode,
-				Body:       io.NopCloser(strings.NewReader(`{"status": "success"}`)),
-				Request:    req,
-			}
-		})
-
-		exists, err := apiClient.DoesCustomTagRuleExist("rule-1")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if exists != testCase.expected {
-			t.Errorf("status %d: expected exists=%v, got %v", testCase.statusCode, testCase.expected, exists)
-		}
-	}
-}
-
 // The API expects the rule as a JSON object (not a string) when rule_type is
 // "json". The client must decode the configured string before sending.
 func TestCustomTagRule_CreateJsonRuleSendsRuleAsObject(t *testing.T) {
