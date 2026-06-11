@@ -178,6 +178,25 @@ func (c *APIClient) Put(path string, data interface{}) (*APIResponse, error) {
 	return c.doRequest(*req)
 }
 
+// Execute PATCH HTTP request.
+func (c *APIClient) Patch(path string, data interface{}) (*APIResponse, error) {
+	payload, err := json.Marshal(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(
+		"PATCH",
+		fmt.Sprintf("%s%s", c.APIEndpoint, path),
+		strings.NewReader(string(payload)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.doRequest(*req)
+}
+
 // Execute DELETE HTTP request.
 func (c *APIClient) Delete(path string) (*APIResponse, error) {
 	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s%s", c.APIEndpoint, path), nil)
