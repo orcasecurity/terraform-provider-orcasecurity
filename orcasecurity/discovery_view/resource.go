@@ -36,8 +36,92 @@ type discoveryViewResourceModel struct {
 	Name              types.String                `tfsdk:"name"`
 	FilterData        discoveryQueryResourceModel `tfsdk:"filter_data"`
 	ExtraParameters   map[string]interface{}      `tfsdk:"extra_params"`
+	Columns           types.List                  `tfsdk:"columns"`
+	Sort              types.String                `tfsdk:"sort"`
+	GroupBy           types.List                  `tfsdk:"group_by"`
 	OrganizationLevel types.Bool                  `tfsdk:"organization_level"`
 	ViewType          types.String                `tfsdk:"view_type"`
+}
+
+// Keys within the view's extra_params object. columns2 holds the ordered
+// display columns (under its "keys" array), sort2 holds the sort column, and
+// groupBy2 holds the grouping columns.
+const (
+	extraParamsColumnsKey = "columns2"
+	extraParamsSortKey    = "sort2"
+	extraParamsGroupByKey = "groupBy2"
+)
+
+// buildExtraParams converts the configured columns, sort and grouping into the
+// extra_params shape the API expects:
+// {"columns2": {"keys": [...]}, "sort2": "...", "groupBy2": [...]}.
+func buildExtraParams(columns []string, sort string, groupBy []string) map[string]interface{} {
+	extraParams := map[string]interface{}{}
+	if len(columns) > 0 {
+		extraParams[extraParamsColumnsKey] = map[string]interface{}{
+			"keys": columns,
+		}
+	}
+	if sort != "" {
+		extraParams[extraParamsSortKey] = sort
+	}
+	if len(groupBy) > 0 {
+		extraParams[extraParamsGroupByKey] = groupBy
+	}
+	return extraParams
+}
+
+// extractSort pulls the sort column out of an API extra_params object.
+func extractSort(extraParams map[string]interface{}) string {
+	if sort, ok := extraParams[extraParamsSortKey].(string); ok {
+		return sort
+	}
+	return ""
+}
+
+// extractGroupBy pulls the grouping columns out of an API extra_params object.
+func extractGroupBy(extraParams map[string]interface{}) []string {
+	rawGroupBy, ok := extraParams[extraParamsGroupByKey].([]interface{})
+	if !ok {
+		return nil
+	}
+	groupBy := make([]string, 0, len(rawGroupBy))
+	for _, raw := range rawGroupBy {
+		if value, ok := raw.(string); ok {
+			groupBy = append(groupBy, value)
+		}
+	}
+	return groupBy
+}
+
+// extractColumns pulls the ordered column list out of an API extra_params
+// object (extra_params.columns2.keys), ignoring the UI-only fields like hash
+// and collapsedKeys.
+func extractColumns(extraParams map[string]interface{}) []string {
+	columnsConfig, ok := extraParams[extraParamsColumnsKey].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	rawKeys, ok := columnsConfig["keys"].([]interface{})
+	if !ok {
+		return nil
+	}
+	keys := make([]string, 0, len(rawKeys))
+	for _, rawKey := range rawKeys {
+		if key, ok := rawKey.(string); ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func listToStrings(ctx context.Context, list types.List) []string {
+	if list.IsNull() || list.IsUnknown() {
+		return nil
+	}
+	var out []string
+	list.ElementsAs(ctx, &out, false)
+	return out
 }
 
 func NewDiscoveryViewResource() resource.Resource {
@@ -87,9 +171,29 @@ func (r *discoveryViewResource) Schema(ctx context.Context, req resource.SchemaR
 				Required:    true,
 			},
 			"extra_params": schema.MapAttribute{
-				Description: "NOT YET IMPLEMENTED. Allows you to set a limit of returned results, amongst other things.",
+				Description: "Reserved for additional view parameters. To control which columns are displayed, use the `columns` attribute instead.",
 				ElementType: types.StringType,
 				Required:    true,
+			},
+			"columns": schema.ListAttribute{
+				Description: "Ordered list of columns to display in the discovery view. When omitted, the view uses Orca's default columns. " +
+					"Each entry is either a Sonar field name (e.g. `OrcaScore`, `CloudAccount`, `Exposure`, `SensitiveData`, `Tags`, `AssetUniqueId`) " +
+					"or a special aggregate column (e.g. `$overview`, `$alertsStats`, `$attackPaths`, `$targetAttackPaths`). " +
+					"Valid keys depend on the models targeted by `filter_data.query`. " +
+					"The authoritative way to obtain exact keys for a given view is to configure the columns in the Orca UI and read them back from " +
+					"`GET /api/user_preferences/{id}?view_type=discovery` (`data.extra_params.columns2.keys`). See the resource documentation for details.",
+				ElementType: types.StringType,
+				Optional:    true,
+			},
+			"sort": schema.StringAttribute{
+				Description: "Column to sort the view by. Use a Sonar field name; prefix with `-` for descending order (e.g. `-OrcaScore`). " +
+					"When omitted, the view uses Orca's default sort.",
+				Optional: true,
+			},
+			"group_by": schema.ListAttribute{
+				Description: "Ordered list of columns to group the view results by (e.g. `AlertType`). When omitted, results are not grouped.",
+				ElementType: types.StringType,
+				Optional:    true,
 			},
 			"filter_data": schema.SingleNestedAttribute{
 				Required: true,
@@ -128,7 +232,7 @@ func (r *discoveryViewResource) Create(ctx context.Context, req resource.CreateR
 		Name:              plan.Name.ValueString(),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.String()[1 : len(plan.ViewType.String())-1],
-		ExtraParameters:   make(map[string]interface{}),
+		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), listToStrings(ctx, plan.GroupBy)),
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 
@@ -203,6 +307,30 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	state.ExtraParameters = make(map[string]interface{})
 	state.FilterData = discoveryQueryResourceModel{Data: types.StringValue(queryString)}
 
+	columns := extractColumns(instance.ExtraParameters)
+	if len(columns) > 0 {
+		columnsList, columnsDiags := types.ListValueFrom(ctx, types.StringType, columns)
+		resp.Diagnostics.Append(columnsDiags...)
+		state.Columns = columnsList
+	} else {
+		state.Columns = types.ListNull(types.StringType)
+	}
+
+	if sort := extractSort(instance.ExtraParameters); sort != "" {
+		state.Sort = types.StringValue(sort)
+	} else {
+		state.Sort = types.StringNull()
+	}
+
+	groupBy := extractGroupBy(instance.ExtraParameters)
+	if len(groupBy) > 0 {
+		groupByList, groupByDiags := types.ListValueFrom(ctx, types.StringType, groupBy)
+		resp.Diagnostics.Append(groupByDiags...)
+		state.GroupBy = groupByList
+	} else {
+		state.GroupBy = types.ListNull(types.StringType)
+	}
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -236,7 +364,7 @@ func (r *discoveryViewResource) Update(ctx context.Context, req resource.UpdateR
 		Name:              plan.Name.ValueString(),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.String()[1 : len(plan.ViewType.String())-1],
-		ExtraParameters:   make(map[string]interface{}),
+		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), listToStrings(ctx, plan.GroupBy)),
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 

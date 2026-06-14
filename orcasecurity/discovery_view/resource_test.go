@@ -186,6 +186,72 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 	})
 }
 
+func TestAccDiscoveryViewResource_Columns(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create with custom columns
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_discovery_view" "tf-disco-columns" {
+    name = "orca-disco-columns-view"
+    organization_level = false
+    view_type = "discovery"
+    extra_params = {}
+    columns = ["OrcaScore", "CloudAccount", "AssetUniqueId"]
+    sort = "-OrcaScore"
+    group_by = ["AlertType"]
+    filter_data = {
+        query = jsonencode({
+            "models": ["AwsEc2Instance"],
+            "type": "object_set"
+        })
+    }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.#", "3"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.0", "OrcaScore"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.1", "CloudAccount"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.2", "AssetUniqueId"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "sort", "-OrcaScore"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "group_by.#", "1"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "group_by.0", "AlertType"),
+				),
+			},
+			// import
+			{
+				ResourceName:      "orcasecurity_discovery_view.tf-disco-columns",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// update columns (different set and order)
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_discovery_view" "tf-disco-columns" {
+    name = "orca-disco-columns-view"
+    organization_level = false
+    view_type = "discovery"
+    extra_params = {}
+    columns = ["CloudAccount", "OrcaScore", "Exposure", "Tags"]
+    filter_data = {
+        query = jsonencode({
+            "models": ["AwsEc2Instance"],
+            "type": "object_set"
+        })
+    }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.#", "4"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.0", "CloudAccount"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-columns", "columns.2", "Exposure"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccDiscoveryViewResource_RiskFindings(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
