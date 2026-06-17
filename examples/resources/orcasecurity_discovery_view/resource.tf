@@ -56,3 +56,52 @@ resource "orcasecurity_discovery_view" "tf-disco-view-with-columns" {
     })
   }
 }
+
+// Inventory assets in specific cloud accounts.
+// Discovery view columns use UI keys (extra_params.columns2.keys), NOT Sonar
+// query "select" paths — e.g. use "CloudAccount"
+resource "orcasecurity_discovery_view" "tf-disco-view-inventory-by-account" {
+  name = "orca-disco-view-inventory-by-account"
+
+  organization_level = true
+  view_type          = "discovery"
+  extra_params       = {}
+
+  sort = "-OrcaScore"
+
+  columns = [
+    "$overview",
+    "CloudAccount",
+    "CloudAccount.Name",
+    "OrcaScore",
+    "$alertsStats",
+    "$attackPaths",
+    "$targetAttackPaths",
+    "Exposure",
+    "SensitiveData",
+    "Tags",
+    "NewCategory",
+    "NewSubCategory",
+    "AssetUniqueId",
+    "ConsoleUrlLink"
+  ]
+
+  filter_data = {
+    query = jsonencode({
+      models = ["Inventory"]
+      type   = "object_set"
+      with = {
+        keys     = ["CloudAccount"]
+        models   = ["CloudAccount"]
+        type     = "object"
+        operator = "has"
+        with = {
+          key      = "Name"
+          values   = ["tesd_dev", "test_rnd"]
+          type     = "str"
+          operator = "in"
+        }
+      }
+    })
+  }
+}
