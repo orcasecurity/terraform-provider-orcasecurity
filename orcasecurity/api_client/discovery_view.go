@@ -24,19 +24,25 @@ type discoveryViewAPIResponseType struct {
 
 func (client *APIClient) DoesDiscoveryViewExist(id string) (bool, error) {
 	resp, err := client.Head(fmt.Sprintf("/api/user_preferences/%s", id))
-	if err != nil || resp == nil {
+	if resp != nil && resp.StatusCode() == 404 {
+		return false, nil
+	}
+	if err != nil {
 		return false, err
+	}
+	if resp == nil {
+		return false, nil
 	}
 	return resp.StatusCode() == 200, nil
 }
 
 func (client *APIClient) GetDiscoveryView(id string) (*DiscoveryView, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/user_preferences/%s", id))
+	if resp != nil && (resp.StatusCode() == 404 || resp.StatusCode() == 400 || resp.StatusCode() == 500) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
-	}
-	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
-		return nil, nil
 	}
 
 	response := discoveryViewAPIResponseType{}
@@ -78,6 +84,9 @@ func (client *APIClient) UpdateDiscoveryView(data DiscoveryView) (*DiscoveryView
 }
 
 func (client *APIClient) DeleteDiscoveryView(id string) error {
-	_, err := client.Delete(fmt.Sprintf("/api/user_preferences/%s", id))
+	resp, err := client.Delete(fmt.Sprintf("/api/user_preferences/%s", id))
+	if resp != nil && resp.StatusCode() == 404 {
+		return nil
+	}
 	return err
 }

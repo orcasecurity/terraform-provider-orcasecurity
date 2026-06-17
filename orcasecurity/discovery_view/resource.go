@@ -297,6 +297,11 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 		)
 		return
 	}
+	if instance == nil {
+		tflog.Warn(ctx, fmt.Sprintf("Discovery view %s is missing on the remote side.", state.ID.ValueString()))
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
 	queryString := state.FilterData.Data.ValueString()
 
