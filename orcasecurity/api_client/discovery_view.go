@@ -38,7 +38,7 @@ func (client *APIClient) DoesDiscoveryViewExist(id string) (bool, error) {
 
 func (client *APIClient) GetDiscoveryView(id string) (*DiscoveryView, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/user_preferences/%s", id))
-	if resp != nil && (resp.StatusCode() == 404 || resp.StatusCode() == 400 || resp.StatusCode() == 500) {
+	if resp != nil && resp.StatusCode() == 404 {
 		return nil, nil
 	}
 	if err != nil {

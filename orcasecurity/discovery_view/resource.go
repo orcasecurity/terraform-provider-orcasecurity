@@ -256,6 +256,13 @@ func (r *discoveryViewResource) Create(ctx context.Context, req resource.CreateR
 		)
 		return
 	}
+	if instance == nil {
+		resp.Diagnostics.AddError(
+			"Error refreshing Discovery view",
+			"Could not read discovery view after create: not found",
+		)
+		return
+	}
 
 	plan.ID = types.StringValue(instance.ID)
 
@@ -395,6 +402,13 @@ func (r *discoveryViewResource) Update(ctx context.Context, req resource.UpdateR
 		resp.Diagnostics.AddError(
 			"Error updating discovery view",
 			"Could not read discovery view, unexpected error: "+err2.Error(),
+		)
+		return
+	}
+	if instance == nil {
+		resp.Diagnostics.AddError(
+			"Error updating discovery view",
+			"Could not read discovery view after update: not found",
 		)
 		return
 	}
