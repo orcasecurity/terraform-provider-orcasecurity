@@ -85,15 +85,20 @@ resource "orcasecurity_discovery_view" "tf-disco-view-inventory-by-account" {
   sort = "-OrcaScore"
 
   columns = [
+    "$overview",
     "CloudAccount",
+    "CloudAccount.Name",
     "OrcaScore",
+    "$alertsStats",
+    "$attackPaths",
+    "$targetAttackPaths",
     "Exposure",
     "SensitiveData",
     "Tags",
     "NewCategory",
     "NewSubCategory",
     "AssetUniqueId",
-    "ConsoleUrlLink",
+    "ConsoleUrlLink"
   ]
 
   filter_data = {
