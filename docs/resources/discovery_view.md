@@ -107,7 +107,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-inventory-by-account" {
         operator = "has"
         with = {
           key      = "Name"
-          values   = ["278791148672-3", "AWS China RnD 3"]
+          values   = ["tesd_dev", "test_rnd"]
           type     = "str"
           operator = "in"
         }
