@@ -72,6 +72,34 @@ func TestDoesDiscoveryViewExist_NotFound(t *testing.T) {
 	}
 }
 
+func TestGetDiscoveryView_Found(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", req.Method)
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(testDiscoveryViewResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := newTestAPIClient(httpClient)
+	view, err := apiClient.GetDiscoveryView(testDiscoveryViewID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if view == nil {
+		t.Fatal("expected discovery view, got nil")
+	}
+	if view.ID != testDiscoveryViewID {
+		t.Errorf("unexpected id: %s", view.ID)
+	}
+	if view.Name != "orca-disco-view-inventory-by-account" {
+		t.Errorf("unexpected name: %s", view.Name)
+	}
+}
+
 func TestGetDiscoveryView_NotFound(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
