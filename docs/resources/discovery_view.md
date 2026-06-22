@@ -14,7 +14,7 @@ Provides a Discovery view resource.
 
 ```terraform
 //Saved discovery view
-resource "orcasecurity_discovery_view" "tf-disco-view-1" {
+resource "orcasecurity_discovery_view" "tf_disco_view_1" {
   name = "orca-disco-view-1"
 
   organization_level = true
@@ -31,7 +31,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 }
 
 //Saved discovery view with custom display columns
-resource "orcasecurity_discovery_view" "tf-disco-view-with-columns" {
+resource "orcasecurity_discovery_view" "tf_disco_view_with_columns" {
   name = "orca-disco-view-with-columns"
 
   organization_level = true
@@ -75,7 +75,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-with-columns" {
 // Inventory assets in specific cloud accounts.
 // Discovery view columns use UI keys (extra_params.columns2.keys), NOT Sonar
 // query "select" paths — e.g. use "CloudAccount"
-resource "orcasecurity_discovery_view" "tf-disco-view-inventory-by-account" {
+resource "orcasecurity_discovery_view" "tf_disco_view_inventory_by_account" {
   name = "orca-disco-view-inventory-by-account"
 
   organization_level = true

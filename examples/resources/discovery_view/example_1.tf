@@ -1,5 +1,5 @@
 //Saved discovery view
-resource "orcasecurity_discovery_view" "tf-disco-view-1" {
+resource "orcasecurity_discovery_view" "tf_disco_view_1" {
   name = "orca-disco-view-1"
 
   organization_level = true
