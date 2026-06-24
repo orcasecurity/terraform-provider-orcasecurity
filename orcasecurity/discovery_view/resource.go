@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -39,23 +40,46 @@ type discoveryViewResourceModel struct {
 	Columns           types.List                  `tfsdk:"columns"`
 	Sort              types.String                `tfsdk:"sort"`
 	GroupBy           types.List                  `tfsdk:"group_by"`
+	GroupBy2          []groupByEntryModel         `tfsdk:"group_by_2"`
 	OrganizationLevel types.Bool                  `tfsdk:"organization_level"`
 	ViewType          types.String                `tfsdk:"view_type"`
 }
 
+type groupByEntryModel struct {
+	Key  types.String       `tfsdk:"key"`
+	Sort []groupBySortModel `tfsdk:"sort"`
+}
+
+type groupBySortModel struct {
+	Field     types.String `tfsdk:"field"`
+	Direction types.String `tfsdk:"direction"`
+}
+
 // Keys within the view's extra_params object. columns2 holds the ordered
 // display columns (under its "keys" array), sort2 holds the sort column, and
-// groupBy2 holds the grouping columns.
+// groupBy2 holds the grouping columns. Each groupBy2 entry is an object with
+// a required "key" and an optional "sort" (list of {field, direction}).
 const (
 	extraParamsColumnsKey = "columns2"
 	extraParamsSortKey    = "sort2"
 	extraParamsGroupByKey = "groupBy2"
 )
 
+// groupByAPIEntry mirrors the API shape of a single groupBy2 entry.
+type groupByAPIEntry struct {
+	Key  string
+	Sort []groupBySortAPIEntry
+}
+
+type groupBySortAPIEntry struct {
+	Field     string
+	Direction string
+}
+
 // buildExtraParams converts the configured columns, sort and grouping into the
 // extra_params shape the API expects:
-// {"columns2": {"keys": [...]}, "sort2": "...", "groupBy2": [...]}.
-func buildExtraParams(columns []string, sort string, groupBy []string) map[string]interface{} {
+// {"columns2": {"keys": [...]}, "sort2": "...", "groupBy2": [{"key": ..., "sort": [...]}, ...]}.
+func buildExtraParams(columns []string, sort string, groupBy []groupByAPIEntry) map[string]interface{} {
 	extraParams := map[string]interface{}{}
 	if len(columns) > 0 {
 		extraParams[extraParamsColumnsKey] = map[string]interface{}{
@@ -66,7 +90,22 @@ func buildExtraParams(columns []string, sort string, groupBy []string) map[strin
 		extraParams[extraParamsSortKey] = sort
 	}
 	if len(groupBy) > 0 {
-		extraParams[extraParamsGroupByKey] = groupBy
+		entries := make([]map[string]interface{}, 0, len(groupBy))
+		for _, entry := range groupBy {
+			obj := map[string]interface{}{"key": entry.Key}
+			if len(entry.Sort) > 0 {
+				sortItems := make([]map[string]interface{}, 0, len(entry.Sort))
+				for _, s := range entry.Sort {
+					sortItems = append(sortItems, map[string]interface{}{
+						"field":     s.Field,
+						"direction": s.Direction,
+					})
+				}
+				obj["sort"] = sortItems
+			}
+			entries = append(entries, obj)
+		}
+		extraParams[extraParamsGroupByKey] = entries
 	}
 	return extraParams
 }
@@ -80,18 +119,111 @@ func extractSort(extraParams map[string]interface{}) string {
 }
 
 // extractGroupBy pulls the grouping columns out of an API extra_params object.
-func extractGroupBy(extraParams map[string]interface{}) []string {
+// The API may return either the legacy shape (list of strings) or the current
+// shape (list of {key, sort} objects); both are normalized here.
+func extractGroupBy(extraParams map[string]interface{}) []groupByAPIEntry {
 	rawGroupBy, ok := extraParams[extraParamsGroupByKey].([]interface{})
 	if !ok {
 		return nil
 	}
-	groupBy := make([]string, 0, len(rawGroupBy))
+	groupBy := make([]groupByAPIEntry, 0, len(rawGroupBy))
 	for _, raw := range rawGroupBy {
-		if value, ok := raw.(string); ok {
-			groupBy = append(groupBy, value)
+		switch value := raw.(type) {
+		case string:
+			groupBy = append(groupBy, groupByAPIEntry{Key: value})
+		case map[string]interface{}:
+			entry := groupByAPIEntry{}
+			if key, ok := value["key"].(string); ok {
+				entry.Key = key
+			}
+			if rawSort, ok := value["sort"].([]interface{}); ok {
+				for _, rawItem := range rawSort {
+					item, ok := rawItem.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					sortEntry := groupBySortAPIEntry{}
+					if field, ok := item["field"].(string); ok {
+						sortEntry.Field = field
+					}
+					if direction, ok := item["direction"].(string); ok {
+						sortEntry.Direction = direction
+					}
+					entry.Sort = append(entry.Sort, sortEntry)
+				}
+			}
+			groupBy = append(groupBy, entry)
 		}
 	}
 	return groupBy
+}
+
+// groupByOnlyKeys reports whether every entry has only a key (no sort), i.e.
+// fits the legacy `group_by` (list of strings) shape.
+func groupByOnlyKeys(groupBy []groupByAPIEntry) bool {
+	for _, entry := range groupBy {
+		if len(entry.Sort) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// groupByKeys returns the bare keys for the legacy list-of-strings projection.
+func groupByKeys(groupBy []groupByAPIEntry) []string {
+	keys := make([]string, 0, len(groupBy))
+	for _, entry := range groupBy {
+		keys = append(keys, entry.Key)
+	}
+	return keys
+}
+
+// apiGroupByToModel converts API entries back into the typed resource model
+// used by the `group_by_2` attribute.
+func apiGroupByToModel(entries []groupByAPIEntry) []groupByEntryModel {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]groupByEntryModel, 0, len(entries))
+	for _, entry := range entries {
+		item := groupByEntryModel{Key: types.StringValue(entry.Key)}
+		for _, s := range entry.Sort {
+			item.Sort = append(item.Sort, groupBySortModel{
+				Field:     types.StringValue(s.Field),
+				Direction: types.StringValue(s.Direction),
+			})
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+// planGroupByEntries builds the API entries from the resource model, preferring
+// the new `group_by_2` attribute and falling back to the legacy `group_by`.
+func planGroupByEntries(ctx context.Context, plan discoveryViewResourceModel) []groupByAPIEntry {
+	if len(plan.GroupBy2) > 0 {
+		entries := make([]groupByAPIEntry, 0, len(plan.GroupBy2))
+		for _, item := range plan.GroupBy2 {
+			entry := groupByAPIEntry{Key: item.Key.ValueString()}
+			for _, s := range item.Sort {
+				entry.Sort = append(entry.Sort, groupBySortAPIEntry{
+					Field:     s.Field.ValueString(),
+					Direction: s.Direction.ValueString(),
+				})
+			}
+			entries = append(entries, entry)
+		}
+		return entries
+	}
+	keys := listToStrings(ctx, plan.GroupBy)
+	if len(keys) == 0 {
+		return nil
+	}
+	entries := make([]groupByAPIEntry, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, groupByAPIEntry{Key: key})
+	}
+	return entries
 }
 
 // extractColumns pulls the ordered column list out of an API extra_params
@@ -191,9 +323,50 @@ func (r *discoveryViewResource) Schema(ctx context.Context, req resource.SchemaR
 				Optional: true,
 			},
 			"group_by": schema.ListAttribute{
-				Description: "Ordered list of columns to group the view results by (e.g. `AlertType`). When omitted, results are not grouped.",
-				ElementType: types.StringType,
-				Optional:    true,
+				Description: "Ordered list of columns to group the view results by (e.g. `AlertType`). When omitted, results are not grouped. " +
+					"Deprecated: use `group_by_2` instead, which supports per-group sorting. Only one of `group_by` and `group_by_2` may be set.",
+				ElementType:        types.StringType,
+				Optional:           true,
+				DeprecationMessage: "Use `group_by_2` instead. `group_by` does not support per-group sorting and will be removed in a future release.",
+			},
+			"group_by_2": schema.ListNestedAttribute{
+				Description: "Ordered list of group-by entries. Each entry has a `key` (the column to group by, e.g. `CloudAccount.Name`) and an optional `sort` " +
+					"list that controls the per-group ordering (each sort item has a `field` such as `COUNT` and a `direction` of `asc` or `desc`). " +
+					"Mutually exclusive with the deprecated `group_by` attribute.",
+				Optional: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"key": schema.StringAttribute{
+							Description: "Column key to group by (e.g. `CloudAccount.Name`, `AlertType`).",
+							Required:    true,
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
+						"sort": schema.ListNestedAttribute{
+							Description: "Optional per-group sort. Each entry sorts the group by `field` in `direction`.",
+							Optional:    true,
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"field": schema.StringAttribute{
+										Description: "Field to sort the group by (e.g. `COUNT`).",
+										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+										},
+									},
+									"direction": schema.StringAttribute{
+										Description: "Sort direction: `asc` or `desc`.",
+										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.OneOf("asc", "desc"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 			"filter_data": schema.SingleNestedAttribute{
 				Required: true,
@@ -205,6 +378,15 @@ func (r *discoveryViewResource) Schema(ctx context.Context, req resource.SchemaR
 				},
 			},
 		},
+	}
+}
+
+func (r *discoveryViewResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.Conflicting(
+			path.MatchRoot("group_by"),
+			path.MatchRoot("group_by_2"),
+		),
 	}
 }
 
@@ -232,7 +414,7 @@ func (r *discoveryViewResource) Create(ctx context.Context, req resource.CreateR
 		Name:              plan.Name.ValueString(),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.String()[1 : len(plan.ViewType.String())-1],
-		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), listToStrings(ctx, plan.GroupBy)),
+		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), planGroupByEntries(ctx, plan)),
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 
@@ -335,12 +517,23 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	}
 
 	groupBy := extractGroupBy(instance.ExtraParameters)
-	if len(groupBy) > 0 {
-		groupByList, groupByDiags := types.ListValueFrom(ctx, types.StringType, groupBy)
+	// Decide which attribute to populate. Preserve the user's chosen attribute
+	// when possible: if state already used the legacy `group_by` and the data
+	// still fits that shape (no per-group sort), keep `group_by`. Otherwise use
+	// `group_by_2`.
+	legacyGroupByInUse := !state.GroupBy.IsNull() && !state.GroupBy.IsUnknown()
+	switch {
+	case len(groupBy) == 0:
+		state.GroupBy = types.ListNull(types.StringType)
+		state.GroupBy2 = nil
+	case legacyGroupByInUse && groupByOnlyKeys(groupBy):
+		groupByList, groupByDiags := types.ListValueFrom(ctx, types.StringType, groupByKeys(groupBy))
 		resp.Diagnostics.Append(groupByDiags...)
 		state.GroupBy = groupByList
-	} else {
+		state.GroupBy2 = nil
+	default:
 		state.GroupBy = types.ListNull(types.StringType)
+		state.GroupBy2 = apiGroupByToModel(groupBy)
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -376,7 +569,7 @@ func (r *discoveryViewResource) Update(ctx context.Context, req resource.UpdateR
 		Name:              plan.Name.ValueString(),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.String()[1 : len(plan.ViewType.String())-1],
-		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), listToStrings(ctx, plan.GroupBy)),
+		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), planGroupByEntries(ctx, plan)),
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 

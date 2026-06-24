@@ -31,17 +31,49 @@ func TestBuildExtraParams_ColumnsOnly(t *testing.T) {
 }
 
 func TestBuildExtraParams_All(t *testing.T) {
-	got := buildExtraParams([]string{"OrcaScore"}, "-OrcaScore", []string{"AlertType"})
+	got := buildExtraParams(
+		[]string{"OrcaScore"},
+		"-OrcaScore",
+		[]groupByAPIEntry{{Key: "AlertType"}},
+	)
 
 	if got[extraParamsSortKey] != "-OrcaScore" {
 		t.Errorf("unexpected sort2: %v", got[extraParamsSortKey])
 	}
-	if !reflect.DeepEqual(got[extraParamsGroupByKey], []string{"AlertType"}) {
+	expectedGroupBy := []map[string]interface{}{{"key": "AlertType"}}
+	if !reflect.DeepEqual(got[extraParamsGroupByKey], expectedGroupBy) {
 		t.Errorf("unexpected groupBy2: %v", got[extraParamsGroupByKey])
 	}
 	columns, ok := got[extraParamsColumnsKey].(map[string]interface{})
 	if !ok || !reflect.DeepEqual(columns["keys"], []string{"OrcaScore"}) {
 		t.Errorf("unexpected columns2: %v", got[extraParamsColumnsKey])
+	}
+}
+
+func TestBuildExtraParams_GroupByWithSort(t *testing.T) {
+	got := buildExtraParams(
+		nil,
+		"",
+		[]groupByAPIEntry{
+			{
+				Key: "CloudAccount.Name",
+				Sort: []groupBySortAPIEntry{
+					{Field: "COUNT", Direction: "desc"},
+				},
+			},
+		},
+	)
+
+	expected := []map[string]interface{}{
+		{
+			"key": "CloudAccount.Name",
+			"sort": []map[string]interface{}{
+				{"field": "COUNT", "direction": "desc"},
+			},
+		},
+	}
+	if !reflect.DeepEqual(got[extraParamsGroupByKey], expected) {
+		t.Errorf("unexpected groupBy2: %v", got[extraParamsGroupByKey])
 	}
 }
 
@@ -110,14 +142,42 @@ func TestExtractGroupBy(t *testing.T) {
 	testCases := []struct {
 		name        string
 		extraParams map[string]interface{}
-		expected    []string
+		expected    []groupByAPIEntry
 	}{
 		{
-			name:        "valid groupBy2",
+			name:        "legacy string entries",
 			extraParams: map[string]interface{}{"groupBy2": []interface{}{"AlertType", "CloudAccount"}},
-			expected:    []string{"AlertType", "CloudAccount"},
+			expected:    []groupByAPIEntry{{Key: "AlertType"}, {Key: "CloudAccount"}},
 		},
-		{name: "empty groupBy2", extraParams: map[string]interface{}{"groupBy2": []interface{}{}}, expected: []string{}},
+		{
+			name: "object entries with sort",
+			extraParams: map[string]interface{}{
+				"groupBy2": []interface{}{
+					map[string]interface{}{
+						"key": "CloudAccount.Name",
+						"sort": []interface{}{
+							map[string]interface{}{"field": "COUNT", "direction": "desc"},
+						},
+					},
+				},
+			},
+			expected: []groupByAPIEntry{
+				{
+					Key: "CloudAccount.Name",
+					Sort: []groupBySortAPIEntry{{Field: "COUNT", Direction: "desc"}},
+				},
+			},
+		},
+		{
+			name: "object entries without sort",
+			extraParams: map[string]interface{}{
+				"groupBy2": []interface{}{
+					map[string]interface{}{"key": "AlertType"},
+				},
+			},
+			expected: []groupByAPIEntry{{Key: "AlertType"}},
+		},
+		{name: "empty groupBy2", extraParams: map[string]interface{}{"groupBy2": []interface{}{}}, expected: []groupByAPIEntry{}},
 		{name: "missing groupBy2", extraParams: map[string]interface{}{}, expected: nil},
 		{name: "groupBy2 wrong type", extraParams: map[string]interface{}{"groupBy2": "nope"}, expected: nil},
 	}
@@ -137,15 +197,22 @@ func TestExtractGroupBy(t *testing.T) {
 func TestExtraParamsRoundTrip(t *testing.T) {
 	columns := []string{"$overview", "CloudAccount", "OrcaScore"}
 	sort := "-OrcaScore"
-	groupBy := []string{"AlertType"}
+	groupBy := []groupByAPIEntry{
+		{
+			Key: "CloudAccount.Name",
+			Sort: []groupBySortAPIEntry{
+				{Field: "COUNT", Direction: "desc"},
+			},
+		},
+	}
 
 	built := buildExtraParams(columns, sort, groupBy)
 
 	// Simulate the API echoing the object back through JSON-like decoding,
-	// where arrays come back as []interface{}.
+	// where arrays come back as []interface{} and objects as map[string]interface{}.
 	apiResponse := map[string]interface{}{
 		extraParamsSortKey:    built[extraParamsSortKey],
-		extraParamsGroupByKey: toInterfaceSlice(groupBy),
+		extraParamsGroupByKey: groupByToInterfaceSlice(groupBy),
 		extraParamsColumnsKey: map[string]interface{}{
 			"keys": toInterfaceSlice(columns),
 		},
@@ -160,6 +227,25 @@ func TestExtraParamsRoundTrip(t *testing.T) {
 	if got := extractGroupBy(apiResponse); !reflect.DeepEqual(got, groupBy) {
 		t.Errorf("group_by round-trip mismatch: expected %v, got %v", groupBy, got)
 	}
+}
+
+func groupByToInterfaceSlice(entries []groupByAPIEntry) []interface{} {
+	out := make([]interface{}, 0, len(entries))
+	for _, entry := range entries {
+		obj := map[string]interface{}{"key": entry.Key}
+		if len(entry.Sort) > 0 {
+			sortItems := make([]interface{}, 0, len(entry.Sort))
+			for _, s := range entry.Sort {
+				sortItems = append(sortItems, map[string]interface{}{
+					"field":     s.Field,
+					"direction": s.Direction,
+				})
+			}
+			obj["sort"] = sortItems
+		}
+		out = append(out, obj)
+	}
+	return out
 }
 
 func toInterfaceSlice(values []string) []interface{} {
