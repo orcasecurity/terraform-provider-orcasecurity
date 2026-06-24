@@ -163,7 +163,7 @@ func TestExtractGroupBy(t *testing.T) {
 			},
 			expected: []groupByAPIEntry{
 				{
-					Key: "CloudAccount.Name",
+					Key:  "CloudAccount.Name",
 					Sort: []groupBySortAPIEntry{{Field: "COUNT", Direction: "desc"}},
 				},
 			},

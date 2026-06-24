@@ -128,34 +128,54 @@ func extractGroupBy(extraParams map[string]interface{}) []groupByAPIEntry {
 	}
 	groupBy := make([]groupByAPIEntry, 0, len(rawGroupBy))
 	for _, raw := range rawGroupBy {
-		switch value := raw.(type) {
-		case string:
-			groupBy = append(groupBy, groupByAPIEntry{Key: value})
-		case map[string]interface{}:
-			entry := groupByAPIEntry{}
-			if key, ok := value["key"].(string); ok {
-				entry.Key = key
-			}
-			if rawSort, ok := value["sort"].([]interface{}); ok {
-				for _, rawItem := range rawSort {
-					item, ok := rawItem.(map[string]interface{})
-					if !ok {
-						continue
-					}
-					sortEntry := groupBySortAPIEntry{}
-					if field, ok := item["field"].(string); ok {
-						sortEntry.Field = field
-					}
-					if direction, ok := item["direction"].(string); ok {
-						sortEntry.Direction = direction
-					}
-					entry.Sort = append(entry.Sort, sortEntry)
-				}
-			}
+		if entry, ok := parseGroupByEntry(raw); ok {
 			groupBy = append(groupBy, entry)
 		}
 	}
 	return groupBy
+}
+
+// parseGroupByEntry normalizes a single groupBy2 element coming from the API
+// into a groupByAPIEntry. It accepts both legacy string entries and the
+// current object shape.
+func parseGroupByEntry(raw interface{}) (groupByAPIEntry, bool) {
+	switch value := raw.(type) {
+	case string:
+		return groupByAPIEntry{Key: value}, true
+	case map[string]interface{}:
+		entry := groupByAPIEntry{}
+		if key, ok := value["key"].(string); ok {
+			entry.Key = key
+		}
+		entry.Sort = parseGroupBySort(value["sort"])
+		return entry, true
+	}
+	return groupByAPIEntry{}, false
+}
+
+// parseGroupBySort converts the raw "sort" payload of a groupBy2 entry into
+// the typed slice. Unknown shapes and unknown items are skipped.
+func parseGroupBySort(raw interface{}) []groupBySortAPIEntry {
+	rawSort, ok := raw.([]interface{})
+	if !ok || len(rawSort) == 0 {
+		return nil
+	}
+	out := make([]groupBySortAPIEntry, 0, len(rawSort))
+	for _, rawItem := range rawSort {
+		item, ok := rawItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sortEntry := groupBySortAPIEntry{}
+		if field, ok := item["field"].(string); ok {
+			sortEntry.Field = field
+		}
+		if direction, ok := item["direction"].(string); ok {
+			sortEntry.Direction = direction
+		}
+		out = append(out, sortEntry)
+	}
+	return out
 }
 
 // groupByOnlyKeys reports whether every entry has only a key (no sort), i.e.
