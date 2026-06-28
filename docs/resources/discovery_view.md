@@ -57,6 +57,7 @@ resource "orcasecurity_discovery_view" "tf_disco_view_with_columns" {
   ]
 
   # Sort by OrcaScore descending ("-" prefix), and group results by AlertType.
+  # `group_by` is kept here for backwards compatibility; prefer `group_by_2` (see below).
   sort     = "-OrcaScore"
   group_by = ["AlertType"]
 
@@ -67,6 +68,34 @@ resource "orcasecurity_discovery_view" "tf_disco_view_with_columns" {
         "AzureComputeVm",
         "GcpVmInstance",
       ],
+      "type" : "object_set"
+    })
+  }
+}
+
+// Saved discovery view that groups by CloudAccount.Name and orders each group
+// by the number of assets in it (using the richer `group_by_2` shape).
+resource "orcasecurity_discovery_view" "tf_disco_view_group_by_2" {
+  name = "orca-disco-view-group-by-2"
+
+  organization_level = true
+  view_type          = "discovery"
+  extra_params       = {}
+
+  sort = "-OrcaScore"
+
+  group_by_2 = [
+    {
+      key = "CloudAccount.Name"
+      sort = [
+        { field = "COUNT", direction = "desc" },
+      ]
+    },
+  ]
+
+  filter_data = {
+    query = jsonencode({
+      "models" : ["AwsEc2ElasticIpAddress"],
       "type" : "object_set"
     })
   }
@@ -136,7 +165,8 @@ resource "orcasecurity_discovery_view" "tf_disco_view_inventory_by_account" {
 ### Optional
 
 - `columns` (List of String) Ordered list of columns to display in the discovery view. When omitted, the view uses Orca's default columns. Each entry is either a Sonar field name (e.g. `OrcaScore`, `CloudAccount`, `Exposure`, `SensitiveData`, `Tags`, `AssetUniqueId`) or a special aggregate column (e.g. `$overview`, `$alertsStats`, `$attackPaths`, `$targetAttackPaths`). Valid keys depend on the models targeted by `filter_data.query`. The authoritative way to obtain exact keys for a given view is to configure the columns in the Orca UI and read them back from `GET /api/user_preferences/{id}?view_type=discovery` (`data.extra_params.columns2.keys`). See the resource documentation for details.
-- `group_by` (List of String) Ordered list of columns to group the view results by (e.g. `AlertType`). When omitted, results are not grouped.
+- `group_by` (List of String, Deprecated) Ordered list of columns to group the view results by (e.g. `AlertType`). When omitted, results are not grouped. Deprecated: use `group_by_2` instead, which supports per-group sorting. Only one of `group_by` and `group_by_2` may be set.
+- `group_by_2` (Attributes List) Ordered list of group-by entries. Each entry has a `key` (the column to group by, e.g. `CloudAccount.Name`) and an optional `sort` list that controls the per-group ordering (each sort item has a `field` such as `COUNT` and a `direction` of `asc` or `desc`). Mutually exclusive with the deprecated `group_by` attribute. (see [below for nested schema](#nestedatt--group_by_2))
 - `sort` (String) Column to sort the view by. Use a Sonar field name; prefix with `-` for descending order (e.g. `-OrcaScore`). When omitted, the view uses Orca's default sort.
 
 ### Read-Only
@@ -149,6 +179,26 @@ resource "orcasecurity_discovery_view" "tf_disco_view_inventory_by_account" {
 Required:
 
 - `query` (String) Discovery query that will be created. Should be in JSON format.
+
+
+<a id="nestedatt--group_by_2"></a>
+### Nested Schema for `group_by_2`
+
+Required:
+
+- `key` (String) Column key to group by (e.g. `CloudAccount.Name`, `AlertType`).
+
+Optional:
+
+- `sort` (Attributes List) Optional per-group sort. Each entry sorts the group by `field` in `direction`. (see [below for nested schema](#nestedatt--group_by_2--sort))
+
+<a id="nestedatt--group_by_2--sort"></a>
+### Nested Schema for `group_by_2.sort`
+
+Required:
+
+- `direction` (String) Sort direction: `asc` or `desc`.
+- `field` (String) Field to sort the group by (e.g. `COUNT`).
 
 ## Discovering column keys
 
@@ -163,4 +213,4 @@ Because the full set of valid keys is large and model-dependent, the reliable wa
 GET /api/user_preferences/{id}?view_type=discovery
 ```
 
-The ordered list under `data.extra_params.columns2.keys` in the response can be copied directly into the `columns` attribute. The same response also exposes the view's sort and grouping under `data.extra_params.sort2` and `data.extra_params.groupBy2`, which map to the `sort` and `group_by` attributes respectively. `sort` uses a column key with an optional `-` prefix for descending order (e.g. `-OrcaScore`).
+The ordered list under `data.extra_params.columns2.keys` in the response can be copied directly into the `columns` attribute. The same response also exposes the view's sort and grouping under `data.extra_params.sort2` and `data.extra_params.groupBy2`, which map to the `sort` and `group_by_2` attributes respectively. `sort` uses a column key with an optional `-` prefix for descending order (e.g. `-OrcaScore`). `group_by_2` entries take the shape `{ key, sort: [{ field, direction }] }`; the legacy `group_by` attribute (list of strings) is still accepted but deprecated.

@@ -33,4 +33,4 @@ Because the full set of valid keys is large and model-dependent, the reliable wa
 GET /api/user_preferences/{id}?view_type=discovery
 ```
 
-The ordered list under `data.extra_params.columns2.keys` in the response can be copied directly into the `columns` attribute. The same response also exposes the view's sort and grouping under `data.extra_params.sort2` and `data.extra_params.groupBy2`, which map to the `sort` and `group_by` attributes respectively. `sort` uses a column key with an optional `-` prefix for descending order (e.g. `-OrcaScore`).
+The ordered list under `data.extra_params.columns2.keys` in the response can be copied directly into the `columns` attribute. The same response also exposes the view's sort and grouping under `data.extra_params.sort2` and `data.extra_params.groupBy2`, which map to the `sort` and `group_by_2` attributes respectively. `sort` uses a column key with an optional `-` prefix for descending order (e.g. `-OrcaScore`). `group_by_2` entries take the shape `{ key, sort: [{ field, direction }] }`; the legacy `group_by` attribute (list of strings) is still accepted but deprecated.

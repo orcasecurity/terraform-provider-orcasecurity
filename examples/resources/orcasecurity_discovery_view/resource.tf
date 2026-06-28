@@ -42,6 +42,7 @@ resource "orcasecurity_discovery_view" "tf_disco_view_with_columns" {
   ]
 
   # Sort by OrcaScore descending ("-" prefix), and group results by AlertType.
+  # `group_by` is kept here for backwards compatibility; prefer `group_by_2` (see below).
   sort     = "-OrcaScore"
   group_by = ["AlertType"]
 
@@ -52,6 +53,34 @@ resource "orcasecurity_discovery_view" "tf_disco_view_with_columns" {
         "AzureComputeVm",
         "GcpVmInstance",
       ],
+      "type" : "object_set"
+    })
+  }
+}
+
+// Saved discovery view that groups by CloudAccount.Name and orders each group
+// by the number of assets in it (using the richer `group_by_2` shape).
+resource "orcasecurity_discovery_view" "tf_disco_view_group_by_2" {
+  name = "orca-disco-view-group-by-2"
+
+  organization_level = true
+  view_type          = "discovery"
+  extra_params       = {}
+
+  sort = "-OrcaScore"
+
+  group_by_2 = [
+    {
+      key = "CloudAccount.Name"
+      sort = [
+        { field = "COUNT", direction = "desc" },
+      ]
+    },
+  ]
+
+  filter_data = {
+    query = jsonencode({
+      "models" : ["AwsEc2ElasticIpAddress"],
       "type" : "object_set"
     })
   }
