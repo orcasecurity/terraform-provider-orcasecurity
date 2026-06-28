@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -11,23 +12,42 @@ type CustomWidgetExtraParametersSettingsField struct {
 
 type RequestParams struct {
 	Query            map[string]interface{} `json:"query"`
-	GroupBy          []string               `json:"group_by[]"`
-	GroupByList      []string               `json:"group_by_list[],omitempty"`
+	GroupBy          []string               `json:"group_by"`
+	GroupByBracket   []string               `json:"group_by[],omitempty"`
+	GroupByList      []string               `json:"group_by_list,omitempty"`
 	AdditionalModels []string               `json:"additional_models[]"`
 	Limit            int64                  `json:"limit,omitempty"`
 	OrderBy          []string               `json:"order_by[],omitempty"`
-	StartAtIndex     int64                  `json:"start_at_index"`
-	EnablePagination bool                   `json:"enable_pagination"`
+	StartAtIndex     *int64                 `json:"start_at_index,omitempty"`
+	EnablePagination *bool                  `json:"enable_pagination,omitempty"`
+}
+
+// ComparisonRequestParam is one entry in a PIE_CHART_MULTI request params array.
+type ComparisonRequestParam struct {
+	ID     string        `json:"id"`
+	Title  string        `json:"title"`
+	Params RequestParams `json:"params"`
+}
+
+// WidgetInnerExtraParams is the extra "extraParams" sub-object used by PIE_CHART_MULTI
+// (and possibly other compound widget types) — sibling of settings/requestParams.
+type WidgetInnerExtraParams struct {
+	Field         *CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
+	ValuesFormat  string                                    `json:"valuesFormat,omitempty"`
+	DefaultMapper map[string]interface{}                    `json:"defaultMapper,omitempty"`
 }
 
 // CustomWidgetExtraParametersSettings holds widget settings. V1 API uses requestParams;
 // V2 API uses requestParams2 in the response. Both are supported for Read/Import.
+// RequestParams2 is polymorphic: an object for single-query widgets, an array of
+// ComparisonRequestParam for PIE_CHART_MULTI — modeled as json.RawMessage.
 type CustomWidgetExtraParametersSettings struct {
-	Size              string                                   `json:"size"`
-	Columns           []string                                 `json:"columns"`
-	Field             CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
-	RequestParameters RequestParams                            `json:"requestParams"`
-	RequestParams2    *RequestParams                           `json:"requestParams2,omitempty"` // V2 API
+	Size              string                                    `json:"size"`
+	Columns           []string                                  `json:"columns,omitempty"`
+	Field             *CustomWidgetExtraParametersSettingsField `json:"field,omitempty"`
+	ExtraParams       *WidgetInnerExtraParams                   `json:"extraParams,omitempty"`
+	RequestParameters *RequestParams                            `json:"requestParams,omitempty"`
+	RequestParams2    json.RawMessage                           `json:"requestParams2,omitempty"`
 }
 
 type CustomWidgetExtraParameters struct {
@@ -39,12 +59,13 @@ type CustomWidgetExtraParameters struct {
 	Title             string                                `json:"title"`
 	Subtitle          string                                `json:"subtitle"`
 	Description       string                                `json:"description"`
-	RequestParams     *RequestParams                        `json:"requestParams,omitempty"`
+	ExtraParams       *WidgetInnerExtraParams               `json:"extraParams,omitempty"`
+	RequestParams     json.RawMessage                       `json:"requestParams,omitempty"`
 	Settings          []CustomWidgetExtraParametersSettings `json:"settings"`
 }
 
 type CustomWidget struct {
-	ID                string                      `json:"id"`
+	ID                string                      `json:"id,omitempty"`
 	Name              string                      `json:"name"`
 	FilterData        map[string]interface{}      `json:"filter_data"`
 	OrganizationLevel bool                        `json:"organization_level"`

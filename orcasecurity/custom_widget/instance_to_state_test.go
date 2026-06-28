@@ -50,18 +50,16 @@ func TestInstanceToStateDonutWidget(t *testing.T) {
 				{
 					Size:    "sm",
 					Columns: []string{"col1"},
-					Field: api_client.CustomWidgetExtraParametersSettingsField{
+					Field: &api_client.CustomWidgetExtraParametersSettingsField{
 						Name: "Region",
 						Type: "str",
 					},
-					RequestParameters: api_client.RequestParams{
-						Query:            map[string]interface{}{"type": "object_set"},
-						GroupBy:          []string{"Type"},
-						GroupByList:      []string{"CloudAccount.Name"},
-						Limit:            10,
-						StartAtIndex:     0,
-						EnablePagination: true,
-						OrderBy:          []string{"-Score"},
+					RequestParameters: &api_client.RequestParams{
+						Query:       map[string]interface{}{"type": "object_set"},
+						GroupBy:     []string{"Type"},
+						GroupByList: []string{"CloudAccount.Name"},
+						Limit:       10,
+						OrderBy:     []string{"-Score"},
 					},
 				},
 			},
@@ -137,7 +135,7 @@ func TestInstanceToStateAlertTable(t *testing.T) {
 			Settings: []api_client.CustomWidgetExtraParametersSettings{
 				{
 					Columns: []string{"alert", "status"},
-					RequestParameters: api_client.RequestParams{
+					RequestParameters: &api_client.RequestParams{
 						GroupBy: []string{"Name"},
 					},
 				},
@@ -157,8 +155,8 @@ func TestInstanceToStateAlertTable(t *testing.T) {
 
 func TestApiSettingsToStateSettingsEmptyField(t *testing.T) {
 	s := api_client.CustomWidgetExtraParametersSettings{
-		Field: api_client.CustomWidgetExtraParametersSettingsField{},
-		RequestParameters: api_client.RequestParams{
+		Field: &api_client.CustomWidgetExtraParametersSettingsField{},
+		RequestParameters: &api_client.RequestParams{
 			GroupBy: []string{"Type"},
 		},
 	}
@@ -175,6 +173,7 @@ func TestApiSettingsToStateSettingsEmptyField(t *testing.T) {
 
 func TestInstanceToStateV2RequestParams2(t *testing.T) {
 	// V2 API returns requestParams2 in settings; provider should parse it
+	rp2 := []byte(`{"query":{"models":["Inventory"],"type":"object_set"},"group_by":["Type"],"group_by_list":["Type"],"additional_models[]":null,"start_at_index":0,"enable_pagination":false}`)
 	instance := &api_client.CustomWidget{
 		ID:   "v2-widget",
 		Name: "All Cloud Assets",
@@ -182,13 +181,9 @@ func TestInstanceToStateV2RequestParams2(t *testing.T) {
 			Type: "PIE_CHART_SINGLE",
 			Settings: []api_client.CustomWidgetExtraParametersSettings{
 				{
-					Size:  "sm",
-					Field: api_client.CustomWidgetExtraParametersSettingsField{Name: "Type", Type: "str"},
-					RequestParams2: &api_client.RequestParams{
-						Query:       map[string]interface{}{"models": []interface{}{"Inventory"}, "type": "object_set"},
-						GroupBy:     []string{"Type"},
-						GroupByList: []string{"Type"},
-					},
+					Size:           "sm",
+					Field:          &api_client.CustomWidgetExtraParametersSettingsField{Name: "Type", Type: "str"},
+					RequestParams2: rp2,
 				},
 			},
 		},
