@@ -24,7 +24,10 @@ var (
 	_ resource.ResourceWithImportState = &customWidgetResource{}
 )
 
-const errReadingCustomWidget = "Error reading custom widget"
+const (
+	errReadingCustomWidget = "Error reading custom widget"
+	tfTypeAlertTable       = "alert-table"
+)
 
 type customWidgetResource struct {
 	apiClient *api_client.APIClient
@@ -43,10 +46,10 @@ type customWidgetExtraParametersSettingsModel struct {
 }
 
 type comparisonRequestParamModel struct {
-	ID       types.String   `tfsdk:"id"`
-	Title    types.String   `tfsdk:"title"`
-	Query    types.String   `tfsdk:"query"`
-	GroupBy  []types.String `tfsdk:"group_by"`
+	ID      types.String   `tfsdk:"id"`
+	Title   types.String   `tfsdk:"title"`
+	Query   types.String   `tfsdk:"query"`
+	GroupBy []types.String `tfsdk:"group_by"`
 }
 
 type widgetInnerExtraParamsModel struct {
@@ -307,7 +310,7 @@ func needsGroupByBracket(tfType string) bool {
 // (table/alert-table only). Server 500s when those keys are present for metric/donut/comparison.
 func supportsPagination(tfType string) bool {
 	switch tfType {
-	case "table", "asset-table", "alert-table":
+	case "table", "asset-table", tfTypeAlertTable:
 		return true
 	default:
 		return false
@@ -407,7 +410,7 @@ func tfTypeToAPI(tfType string) string {
 		return "PIE_CHART_SINGLE"
 	case "table", "asset-table":
 		return "ASSETS_TABLE"
-	case "alert-table":
+	case tfTypeAlertTable:
 		return "ALERTS_TABLE"
 	case "metric":
 		return "ICON_GRID"
@@ -426,7 +429,7 @@ func apiWidgetTypeToTerraform(apiType string) string {
 	case "ASSETS_TABLE":
 		return "table"
 	case "ALERTS_TABLE":
-		return "alert-table"
+		return tfTypeAlertTable
 	case "ICON_GRID":
 		return "metric"
 	case "PIE_CHART_MULTI":
@@ -563,44 +566,13 @@ func apiSettingsToStateSettings(ctx context.Context, s api_client.CustomWidgetEx
 	settings := customWidgetExtraParametersSettingsModel{Columns: columns}
 
 	if comparison := getComparisonParams(s); comparison != nil {
-		list := make([]comparisonRequestParamModel, 0, len(comparison))
-		for _, c := range comparison {
-			qJSON, _ := json.Marshal(c.Params.Query)
-			list = append(list, comparisonRequestParamModel{
-				ID:      types.StringValue(c.ID),
-				Title:   types.StringValue(c.Title),
-				Query:   types.StringValue(string(qJSON)),
-				GroupBy: stringSliceToTypesStrings(c.Params.GroupBy),
-			})
-		}
-		settings.RequestParamsList = list
+		settings.RequestParamsList = comparisonParamsToState(comparison)
 	} else {
-		params := getRequestParams(s)
-		queryJSON, mErr := json.Marshal(params.Query)
-		if mErr != nil {
-			return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("marshaling request query: %w", mErr)
+		rp, rpErr := singleParamsToState(ctx, s)
+		if rpErr != nil {
+			return customWidgetExtraParametersSettingsModel{}, rpErr
 		}
-		orderBy, oErr := orderByFromAPI(ctx, params.OrderBy)
-		if oErr != nil {
-			return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("order_by: %w", oErr)
-		}
-		var sai int64
-		if params.StartAtIndex != nil {
-			sai = *params.StartAtIndex
-		}
-		var ep bool
-		if params.EnablePagination != nil {
-			ep = *params.EnablePagination
-		}
-		settings.RequestParameters = &requestParamsModel{
-			Query:            types.StringValue(string(queryJSON)),
-			GroupBy:          stringSliceToTypesStrings(params.GroupBy),
-			GroupByList:      stringSliceToTypesStrings(params.GroupByList),
-			Limit:            types.Int64Value(params.Limit),
-			StartAtIndex:     types.Int64Value(sai),
-			EnablePagination: types.BoolValue(ep),
-			OrderBy:          orderBy,
-		}
+		settings.RequestParameters = rp
 	}
 
 	if s.Field != nil && (s.Field.Name != "" || s.Field.Type != "") {
@@ -610,6 +582,49 @@ func apiSettingsToStateSettings(ctx context.Context, s api_client.CustomWidgetEx
 		}
 	}
 	return settings, nil
+}
+
+func comparisonParamsToState(comparison []api_client.ComparisonRequestParam) []comparisonRequestParamModel {
+	list := make([]comparisonRequestParamModel, 0, len(comparison))
+	for _, c := range comparison {
+		qJSON, _ := json.Marshal(c.Params.Query)
+		list = append(list, comparisonRequestParamModel{
+			ID:      types.StringValue(c.ID),
+			Title:   types.StringValue(c.Title),
+			Query:   types.StringValue(string(qJSON)),
+			GroupBy: stringSliceToTypesStrings(c.Params.GroupBy),
+		})
+	}
+	return list
+}
+
+func singleParamsToState(ctx context.Context, s api_client.CustomWidgetExtraParametersSettings) (*requestParamsModel, error) {
+	params := getRequestParams(s)
+	queryJSON, mErr := json.Marshal(params.Query)
+	if mErr != nil {
+		return nil, fmt.Errorf("marshaling request query: %w", mErr)
+	}
+	orderBy, oErr := orderByFromAPI(ctx, params.OrderBy)
+	if oErr != nil {
+		return nil, fmt.Errorf("order_by: %w", oErr)
+	}
+	var sai int64
+	if params.StartAtIndex != nil {
+		sai = *params.StartAtIndex
+	}
+	var ep bool
+	if params.EnablePagination != nil {
+		ep = *params.EnablePagination
+	}
+	return &requestParamsModel{
+		Query:            types.StringValue(string(queryJSON)),
+		GroupBy:          stringSliceToTypesStrings(params.GroupBy),
+		GroupByList:      stringSliceToTypesStrings(params.GroupByList),
+		Limit:            types.Int64Value(params.Limit),
+		StartAtIndex:     types.Int64Value(sai),
+		EnablePagination: types.BoolValue(ep),
+		OrderBy:          orderBy,
+	}, nil
 }
 
 func widgetExtraParamsToState(ep *api_client.WidgetInnerExtraParams) *widgetInnerExtraParamsModel {
