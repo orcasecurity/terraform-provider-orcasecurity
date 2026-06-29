@@ -318,11 +318,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Attributes: map[string]schema.Attribute{
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are being dismissed.",
+						Description: "The reason these alerts are being dismissed. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are being dismissed.",
+						Description: "More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -332,11 +332,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Attributes: map[string]schema.Attribute{
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are having their score decreased.",
+						Description: "The reason these alerts are having their score decreased. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+						Description: "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -346,11 +346,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Attributes: map[string]schema.Attribute{
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are having their score increased.",
+						Description: "The reason these alerts are having their score increased. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+						Description: "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -364,11 +364,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are having their score changed.",
+						Description: "The reason these alerts are having their score changed. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+						Description: "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -385,11 +385,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "Reason for snoozing.",
+						Description: "Reason for snoozing. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "Justification for snoozing.",
+						Description: "Justification for snoozing. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -463,18 +463,23 @@ func buildV2Filter(plan *automationV2FilterModel) (api_client.AutomationV2Filter
 	}, nil
 }
 
+func setOptionalString(payload map[string]interface{}, key string, value types.String) {
+	if value.IsNull() || value.IsUnknown() {
+		return
+	}
+	if v := value.ValueString(); v != "" {
+		payload[key] = v
+	}
+}
+
 func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.APIClient) ([]api_client.AutomationV2Action, error) {
 	var actions []api_client.AutomationV2Action
 
 	if plan.SnoozeTemplate != nil {
 		payload := make(map[string]interface{})
 		payload["days"] = plan.SnoozeTemplate.Days.ValueInt64()
-		if !plan.SnoozeTemplate.Reason.IsNull() && !plan.SnoozeTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.SnoozeTemplate.Reason.ValueString()
-		}
-		if !plan.SnoozeTemplate.Justification.IsNull() && !plan.SnoozeTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.SnoozeTemplate.Justification.ValueString()
-		}
+		setOptionalString(payload, "reason", plan.SnoozeTemplate.Reason)
+		setOptionalString(payload, "justification", plan.SnoozeTemplate.Justification)
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationSnoozeID,
 			Data: payload,
@@ -483,12 +488,8 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 
 	if plan.AlertDismissalTemplate != nil {
 		payload := make(map[string]interface{})
-		if !plan.AlertDismissalTemplate.Reason.IsNull() && !plan.AlertDismissalTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertDismissalTemplate.Reason.ValueString()
-		}
-		if !plan.AlertDismissalTemplate.Justification.IsNull() && !plan.AlertDismissalTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertDismissalTemplate.Justification.ValueString()
-		}
+		setOptionalString(payload, "reason", plan.AlertDismissalTemplate.Reason)
+		setOptionalString(payload, "justification", plan.AlertDismissalTemplate.Justification)
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationAlertDismissalID,
 			Data: payload,
@@ -498,12 +499,8 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 	if plan.AlertScoreDecreaseTemplate != nil {
 		payload := make(map[string]interface{})
 		payload["decrease_orca_score"] = 1
-		if !plan.AlertScoreDecreaseTemplate.Reason.IsNull() && !plan.AlertScoreDecreaseTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertScoreDecreaseTemplate.Reason.ValueString()
-		}
-		if !plan.AlertScoreDecreaseTemplate.Justification.IsNull() && !plan.AlertScoreDecreaseTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertScoreDecreaseTemplate.Justification.ValueString()
-		}
+		setOptionalString(payload, "reason", plan.AlertScoreDecreaseTemplate.Reason)
+		setOptionalString(payload, "justification", plan.AlertScoreDecreaseTemplate.Justification)
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationAlertScoreChangeID,
 			Data: payload,
@@ -513,12 +510,8 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 	if plan.AlertScoreIncreaseTemplate != nil {
 		payload := make(map[string]interface{})
 		payload["increase_orca_score"] = 1
-		if !plan.AlertScoreIncreaseTemplate.Reason.IsNull() && !plan.AlertScoreIncreaseTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertScoreIncreaseTemplate.Reason.ValueString()
-		}
-		if !plan.AlertScoreIncreaseTemplate.Justification.IsNull() && !plan.AlertScoreIncreaseTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertScoreIncreaseTemplate.Justification.ValueString()
-		}
+		setOptionalString(payload, "reason", plan.AlertScoreIncreaseTemplate.Reason)
+		setOptionalString(payload, "justification", plan.AlertScoreIncreaseTemplate.Justification)
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationAlertScoreChangeID,
 			Data: payload,
@@ -528,12 +521,8 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 	if plan.AlertScoreSpecifyTemplate != nil {
 		payload := make(map[string]interface{})
 		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
-		if !plan.AlertScoreSpecifyTemplate.Reason.IsNull() && !plan.AlertScoreSpecifyTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
-		}
-		if !plan.AlertScoreSpecifyTemplate.Justification.IsNull() && !plan.AlertScoreSpecifyTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
-		}
+		setOptionalString(payload, "reason", plan.AlertScoreSpecifyTemplate.Reason)
+		setOptionalString(payload, "justification", plan.AlertScoreSpecifyTemplate.Justification)
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationAlertScoreChangeID,
 			Data: payload,

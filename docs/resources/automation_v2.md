@@ -572,8 +572,8 @@ Required:
 
 Optional:
 
-- `justification` (String) More detailed reasoning as to why these alerts are being dismissed.
-- `reason` (String) The reason these alerts are being dismissed.
+- `justification` (String) More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted.
+- `reason` (String) The reason these alerts are being dismissed. Optional; empty string is treated as omitted.
 
 <a id="nestedatt--alert_score_decrease_details"></a>
 
@@ -581,8 +581,8 @@ Optional:
 
 Optional:
 
-- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
-- `reason` (String) The reason these alerts are having their score decreased.
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.
+- `reason` (String) The reason these alerts are having their score decreased. Optional; empty string is treated as omitted.
 
 <a id="nestedatt--alert_score_increase_details"></a>
 
@@ -590,8 +590,8 @@ Optional:
 
 Optional:
 
-- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
-- `reason` (String) The reason these alerts are having their score increased.
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.
+- `reason` (String) The reason these alerts are having their score increased. Optional; empty string is treated as omitted.
 
 <a id="nestedatt--alert_score_specify_details"></a>
 
@@ -603,8 +603,8 @@ Required:
 
 Optional:
 
-- `justification` (String) More detailed reasoning as to why these alerts are having their score changed.
-- `reason` (String) The reason these alerts are having their score changed.
+- `justification` (String) More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.
+- `reason` (String) The reason these alerts are having their score changed. Optional; empty string is treated as omitted.
 
 <a id="nestedatt--aws_security_hub_template"></a>
 
@@ -822,8 +822,8 @@ Required:
 
 Optional:
 
-- `justification` (String) Justification for snoozing.
-- `reason` (String) Reason for snoozing.
+- `justification` (String) Justification for snoozing. Optional; empty string is treated as omitted.
+- `reason` (String) Reason for snoozing. Optional; empty string is treated as omitted.
 
 <a id="nestedatt--snowflake_template"></a>
 
