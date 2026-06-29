@@ -159,7 +159,7 @@ resource "orcasecurity_discovery_view" "tf_disco_view_inventory_by_account" {
 - `extra_params` (Map of String) Reserved for additional view parameters. To control which columns are displayed, use the `columns` attribute instead.
 - `filter_data` (Attributes) (see [below for nested schema](#nestedatt--filter_data))
 - `name` (String) Discovery view name.
-- `organization_level` (Boolean) If set to true, it is is a shared discovery view (can be viewed by any member of your Orca org). If set to false, it is a personal discovery view (can be viewed only by you, not other members of your Orca org).
+- `organization_level` (Boolean) If set to true, it is a shared discovery view (visible to every member of your Orca org). If set to false, it is a personal discovery view that is **scoped to the user identity behind the API token used by this provider**, not whichever user is logged into the Orca UI. Personal views created via Terraform therefore only appear in the UI when you log in as that token user; if your TF token user differs from your UI user, the view will exist in the API (`GET /api/user_preferences?view_type=discovery` returns it under `data.user_preferences[]`) but it will not be shown in the UI. For views that should be visible to multiple users, set `organization_level = true`.
 - `view_type` (String) Should be set to 'discovery' for discovery views.
 
 ### Optional
