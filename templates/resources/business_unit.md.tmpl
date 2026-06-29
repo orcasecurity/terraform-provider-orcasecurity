@@ -33,7 +33,7 @@ Please note that a business unit cannot be composed of multiple, different filte
 
 - `application` (String) Application or product line the business unit represents.
 - `business_criticality` (String) Business criticality. Valid values: `low`, `medium`, `high`, `critical`.
-- `contact_emails` (List of String) Contact emails associated with the business unit.
+- `contact_emails` (List of String) Contact emails associated with the business unit. Up to 2 values.
 - `deployment_stages` (List of String) Deployment stages associated with the business unit. Up to 2 values.
 - `filter_data` (Attributes) The filter to select the resources of the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded. (see [below for nested schema](#nestedatt--filter_data))
 - `global_filter` (Boolean) Whether or not this is a business unit all users within your Orca org can use. If set to true, then it is accessible to all other users in your org.

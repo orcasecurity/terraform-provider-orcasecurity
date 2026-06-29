@@ -175,9 +175,12 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:    true,
 			},
 			"contact_emails": schema.ListAttribute{
-				Description: "Contact emails associated with the business unit.",
+				Description: "Contact emails associated with the business unit. Up to 2 values.",
 				ElementType: types.StringType,
 				Optional:    true,
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(2),
+				},
 			},
 			"deployment_stages": schema.ListAttribute{
 				Description: "Deployment stages associated with the business unit. Up to 2 values.",
