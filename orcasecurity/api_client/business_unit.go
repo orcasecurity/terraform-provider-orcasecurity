@@ -22,10 +22,15 @@ type BusinessUnitShiftLeftFilter struct {
 }
 
 type BusinessUnit struct {
-	ID              string                       `json:"filter_id,omitempty"`
-	Name            string                       `json:"name"`
-	Filter          *BusinessUnitFilter          `json:"filter_data,omitempty"`
-	ShiftLeftFilter *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
+	ID                  string                       `json:"filter_id,omitempty"`
+	Name                string                       `json:"name"`
+	Filter              *BusinessUnitFilter          `json:"filter_data,omitempty"`
+	ShiftLeftFilter     *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
+	BusinessCriticality string                       `json:"business_criticality,omitempty"`
+	OwnerTeam           string                       `json:"owner_team,omitempty"`
+	Application         string                       `json:"application,omitempty"`
+	ContactEmails       []string                     `json:"contact_emails,omitempty"`
+	DeploymentStages    []string                     `json:"deployment_stages,omitempty"`
 }
 
 type businessUnitAPIResponseType struct {

@@ -44,11 +44,16 @@ type businessUnitShiftLeftFilterModel struct {
 }
 
 type businessUnitResourceModel struct {
-	ID              types.String                      `tfsdk:"id"`
-	Name            types.String                      `tfsdk:"name"`
-	Filter          *businessUnitFilterModel          `tfsdk:"filter_data"`
-	ShiftLeftFilter *businessUnitShiftLeftFilterModel `tfsdk:"shiftleft_filter_data"`
-	GlobalFilter    types.Bool                        `tfsdk:"global_filter"`
+	ID                  types.String                      `tfsdk:"id"`
+	Name                types.String                      `tfsdk:"name"`
+	Filter              *businessUnitFilterModel          `tfsdk:"filter_data"`
+	ShiftLeftFilter     *businessUnitShiftLeftFilterModel `tfsdk:"shiftleft_filter_data"`
+	GlobalFilter        types.Bool                        `tfsdk:"global_filter"`
+	BusinessCriticality types.String                      `tfsdk:"business_criticality"`
+	OwnerTeam           types.String                      `tfsdk:"owner_team"`
+	Application         types.String                      `tfsdk:"application"`
+	ContactEmails       []types.String                    `tfsdk:"contact_emails"`
+	DeploymentStages    []types.String                    `tfsdk:"deployment_stages"`
 }
 
 // uuidValidator validates that a string is a valid UUID.
@@ -120,6 +125,7 @@ func (r *businessUnitResource) ImportState(ctx context.Context, req resource.Imp
 
 	state.ShiftLeftFilter = apiShiftLeftFilterToModel(businessUnit.ShiftLeftFilter)
 	state.Filter = apiFilterToModel(businessUnit.Filter)
+	setMetadataInState(&state, businessUnit)
 
 	// Set the entire state at once
 	diags := resp.State.Set(ctx, &state)
@@ -147,6 +153,34 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 			"global_filter": schema.BoolAttribute{
 				Description: "Whether or not this is a business unit all users within your Orca org can use. If set to true, then it is accessible to all other users in your org.",
 				Optional:    true,
+			},
+			"business_criticality": schema.StringAttribute{
+				Description: "Business criticality. Valid values: `low`, `medium`, `high`, `critical`.",
+				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("low", "medium", "high", "critical"),
+				},
+			},
+			"owner_team": schema.StringAttribute{
+				Description: "Owning team or department for the business unit.",
+				Optional:    true,
+			},
+			"application": schema.StringAttribute{
+				Description: "Application or product line the business unit represents.",
+				Optional:    true,
+			},
+			"contact_emails": schema.ListAttribute{
+				Description: "Contact emails associated with the business unit.",
+				ElementType: types.StringType,
+				Optional:    true,
+			},
+			"deployment_stages": schema.ListAttribute{
+				Description: "Deployment stages associated with the business unit. Up to 2 values.",
+				ElementType: types.StringType,
+				Optional:    true,
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(2),
+				},
 			},
 			"shiftleft_filter_data": schema.SingleNestedAttribute{
 				Description: "The filter to select Shift Left resources for the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded.",
@@ -330,6 +364,60 @@ func stringSliceToTypes(s []string) []types.String {
 	return out
 }
 
+func typesSliceToStrings(in []types.String) []string {
+	out := make([]string, len(in))
+	for i, v := range in {
+		out[i] = v.ValueString()
+	}
+	return out
+}
+
+func applyMetadataToRequest(req *api_client.BusinessUnit, plan *businessUnitResourceModel) {
+	if !plan.BusinessCriticality.IsNull() && !plan.BusinessCriticality.IsUnknown() {
+		req.BusinessCriticality = plan.BusinessCriticality.ValueString()
+	}
+	if !plan.OwnerTeam.IsNull() && !plan.OwnerTeam.IsUnknown() {
+		req.OwnerTeam = plan.OwnerTeam.ValueString()
+	}
+	if !plan.Application.IsNull() && !plan.Application.IsUnknown() {
+		req.Application = plan.Application.ValueString()
+	}
+	if len(plan.ContactEmails) > 0 {
+		req.ContactEmails = typesSliceToStrings(plan.ContactEmails)
+	}
+	if len(plan.DeploymentStages) > 0 {
+		req.DeploymentStages = typesSliceToStrings(plan.DeploymentStages)
+	}
+}
+
+func setMetadataInState(state *businessUnitResourceModel, instance *api_client.BusinessUnit) {
+	if instance.BusinessCriticality != "" {
+		state.BusinessCriticality = types.StringValue(instance.BusinessCriticality)
+	} else {
+		state.BusinessCriticality = types.StringNull()
+	}
+	if instance.OwnerTeam != "" {
+		state.OwnerTeam = types.StringValue(instance.OwnerTeam)
+	} else {
+		state.OwnerTeam = types.StringNull()
+	}
+	if instance.Application != "" {
+		state.Application = types.StringValue(instance.Application)
+	} else {
+		state.Application = types.StringNull()
+	}
+	if len(instance.ContactEmails) > 0 {
+		state.ContactEmails = stringSliceToTypes(instance.ContactEmails)
+	} else {
+		state.ContactEmails = nil
+	}
+	if len(instance.DeploymentStages) > 0 {
+		state.DeploymentStages = stringSliceToTypes(instance.DeploymentStages)
+	} else {
+		state.DeploymentStages = nil
+	}
+}
+
 func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan businessUnitResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -380,6 +468,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		Filter:          businessUnitFilter,
 		ShiftLeftFilter: businessUnitShiftLeftFilter,
 	}
+	applyMetadataToRequest(&createReq, &plan)
 
 	// Make the API call to create the business unit
 	instance, err := r.apiClient.CreateBusinessUnit(createReq)
@@ -447,6 +536,7 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 		state.Filter.CloudAccountIds = state.Filter.CloudAccounts
 		state.Filter.CloudAccounts = nil
 	}
+	setMetadataInState(&state, instance)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -480,6 +570,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			Name:   plan.Name.ValueString(),
 			Filter: &filter,
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
 		if err != nil {
@@ -513,6 +604,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			Name:            plan.Name.ValueString(),
 			ShiftLeftFilter: &slFilter,
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
 
@@ -546,6 +638,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			ShiftLeftFilter: &slFilter,
 			Filter:          &filter,
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
 
@@ -573,6 +666,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
 		if err != nil {
@@ -605,6 +699,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
 		if err != nil {
@@ -637,6 +732,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
 		if err != nil {
@@ -669,6 +765,7 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			Filter: &filter,
 			Name:   plan.Name.ValueString(),
 		}
+		applyMetadataToRequest(&updateReq, &plan)
 
 		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
 		if err != nil {
