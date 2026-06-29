@@ -28,6 +28,8 @@ var (
 	_ resource.ResourceWithConfigValidators = &automationV2Resource{}
 )
 
+const scoreChangeJustificationDescription = "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted."
+
 type automationV2Resource struct {
 	apiClient *api_client.APIClient
 }
@@ -318,11 +320,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Attributes: map[string]schema.Attribute{
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are being dismissed.",
+						Description: "The reason these alerts are being dismissed. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are being dismissed.",
+						Description: "More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -332,11 +334,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Attributes: map[string]schema.Attribute{
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are having their score decreased.",
+						Description: "The reason these alerts are having their score decreased. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+						Description: scoreChangeJustificationDescription,
 					},
 				},
 			},
@@ -346,11 +348,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Attributes: map[string]schema.Attribute{
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are having their score increased.",
+						Description: "The reason these alerts are having their score increased. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+						Description: scoreChangeJustificationDescription,
 					},
 				},
 			},
@@ -364,11 +366,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "The reason these alerts are having their score changed.",
+						Description: "The reason these alerts are having their score changed. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed.",
+						Description: scoreChangeJustificationDescription,
 					},
 				},
 			},
@@ -385,11 +387,11 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"reason": schema.StringAttribute{
 						Optional:    true,
-						Description: "Reason for snoozing.",
+						Description: "Reason for snoozing. Optional; empty string is treated as omitted.",
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "Justification for snoozing.",
+						Description: "Justification for snoozing. Optional; empty string is treated as omitted.",
 					},
 				},
 			},
@@ -463,352 +465,139 @@ func buildV2Filter(plan *automationV2FilterModel) (api_client.AutomationV2Filter
 	}, nil
 }
 
+func setOptionalString(payload map[string]interface{}, key string, value types.String) {
+	if value.IsNull() || value.IsUnknown() {
+		return
+	}
+	if v := value.ValueString(); v != "" {
+		payload[key] = v
+	}
+}
+
+func appendExternalConfigAction(actions []api_client.AutomationV2Action, tmpl *automationV2ExternalConfigTemplateModel, actionType int32) []api_client.AutomationV2Action {
+	if tmpl == nil {
+		return actions
+	}
+	externalConfigID := tmpl.ExternalConfigID.ValueString()
+	return append(actions, api_client.AutomationV2Action{
+		Type:           actionType,
+		Data:           map[string]interface{}{},
+		ExternalConfig: &externalConfigID,
+	})
+}
+
+func appendExternalConfigWithParentAction(actions []api_client.AutomationV2Action, tmpl *automationV2ExternalConfigWithParentTemplateModel, actionType int32) []api_client.AutomationV2Action {
+	if tmpl == nil || tmpl.ExternalConfigID.IsNull() {
+		return actions
+	}
+	externalConfigID := tmpl.ExternalConfigID.ValueString()
+	payload := map[string]interface{}{}
+	if !tmpl.ParentIssueID.IsNull() {
+		payload["parent_id"] = tmpl.ParentIssueID.ValueString()
+	}
+	return append(actions, api_client.AutomationV2Action{
+		Type:           actionType,
+		Data:           payload,
+		ExternalConfig: &externalConfigID,
+	})
+}
+
+func appendReasonJustificationAction(actions []api_client.AutomationV2Action, actionType int32, reason, justification types.String, extra map[string]interface{}) []api_client.AutomationV2Action {
+	payload := extra
+	if payload == nil {
+		payload = map[string]interface{}{}
+	}
+	setOptionalString(payload, "reason", reason)
+	setOptionalString(payload, "justification", justification)
+	return append(actions, api_client.AutomationV2Action{
+		Type: actionType,
+		Data: payload,
+	})
+}
+
 func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.APIClient) ([]api_client.AutomationV2Action, error) {
 	var actions []api_client.AutomationV2Action
 
 	if plan.SnoozeTemplate != nil {
-		payload := make(map[string]interface{})
-		payload["days"] = plan.SnoozeTemplate.Days.ValueInt64()
-		if !plan.SnoozeTemplate.Reason.IsNull() && !plan.SnoozeTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.SnoozeTemplate.Reason.ValueString()
-		}
-		if !plan.SnoozeTemplate.Justification.IsNull() && !plan.SnoozeTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.SnoozeTemplate.Justification.ValueString()
-		}
-		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationSnoozeID,
-			Data: payload,
-		})
+		actions = appendReasonJustificationAction(actions, api_client.AutomationSnoozeID,
+			plan.SnoozeTemplate.Reason, plan.SnoozeTemplate.Justification,
+			map[string]interface{}{"days": plan.SnoozeTemplate.Days.ValueInt64()})
 	}
 
 	if plan.AlertDismissalTemplate != nil {
-		payload := make(map[string]interface{})
-		if !plan.AlertDismissalTemplate.Reason.IsNull() && !plan.AlertDismissalTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertDismissalTemplate.Reason.ValueString()
-		}
-		if !plan.AlertDismissalTemplate.Justification.IsNull() && !plan.AlertDismissalTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertDismissalTemplate.Justification.ValueString()
-		}
-		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationAlertDismissalID,
-			Data: payload,
-		})
+		actions = appendReasonJustificationAction(actions, api_client.AutomationAlertDismissalID,
+			plan.AlertDismissalTemplate.Reason, plan.AlertDismissalTemplate.Justification, nil)
 	}
 
 	if plan.AlertScoreDecreaseTemplate != nil {
-		payload := make(map[string]interface{})
-		payload["decrease_orca_score"] = 1
-		if !plan.AlertScoreDecreaseTemplate.Reason.IsNull() && !plan.AlertScoreDecreaseTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertScoreDecreaseTemplate.Reason.ValueString()
-		}
-		if !plan.AlertScoreDecreaseTemplate.Justification.IsNull() && !plan.AlertScoreDecreaseTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertScoreDecreaseTemplate.Justification.ValueString()
-		}
-		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationAlertScoreChangeID,
-			Data: payload,
-		})
+		actions = appendReasonJustificationAction(actions, api_client.AutomationAlertScoreChangeID,
+			plan.AlertScoreDecreaseTemplate.Reason, plan.AlertScoreDecreaseTemplate.Justification,
+			map[string]interface{}{"decrease_orca_score": 1})
 	}
 
 	if plan.AlertScoreIncreaseTemplate != nil {
-		payload := make(map[string]interface{})
-		payload["increase_orca_score"] = 1
-		if !plan.AlertScoreIncreaseTemplate.Reason.IsNull() && !plan.AlertScoreIncreaseTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertScoreIncreaseTemplate.Reason.ValueString()
-		}
-		if !plan.AlertScoreIncreaseTemplate.Justification.IsNull() && !plan.AlertScoreIncreaseTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertScoreIncreaseTemplate.Justification.ValueString()
-		}
-		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationAlertScoreChangeID,
-			Data: payload,
-		})
+		actions = appendReasonJustificationAction(actions, api_client.AutomationAlertScoreChangeID,
+			plan.AlertScoreIncreaseTemplate.Reason, plan.AlertScoreIncreaseTemplate.Justification,
+			map[string]interface{}{"increase_orca_score": 1})
 	}
 
 	if plan.AlertScoreSpecifyTemplate != nil {
-		payload := make(map[string]interface{})
-		payload["change_orca_score"] = plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()
-		if !plan.AlertScoreSpecifyTemplate.Reason.IsNull() && !plan.AlertScoreSpecifyTemplate.Reason.IsUnknown() {
-			payload["reason"] = plan.AlertScoreSpecifyTemplate.Reason.ValueString()
-		}
-		if !plan.AlertScoreSpecifyTemplate.Justification.IsNull() && !plan.AlertScoreSpecifyTemplate.Justification.IsUnknown() {
-			payload["justification"] = plan.AlertScoreSpecifyTemplate.Justification.ValueString()
-		}
-		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationAlertScoreChangeID,
-			Data: payload,
-		})
+		actions = appendReasonJustificationAction(actions, api_client.AutomationAlertScoreChangeID,
+			plan.AlertScoreSpecifyTemplate.Reason, plan.AlertScoreSpecifyTemplate.Justification,
+			map[string]interface{}{"change_orca_score": plan.AlertScoreSpecifyTemplate.NewScore.ValueFloat64()})
 	}
 
-	if plan.AwsSecurityHubTemplate != nil {
-		externalConfigID := plan.AwsSecurityHubTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationAWSSecurityHubID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
+	externalConfigBindings := []struct {
+		tmpl       *automationV2ExternalConfigTemplateModel
+		actionType int32
+	}{
+		{plan.AwsSecurityHubTemplate, api_client.AutomationAWSSecurityHubID},
+		{plan.AwsSecurityLakeTemplate, api_client.AutomationAwsSecurityLakeID},
+		{plan.AwsSqsTemplate, api_client.AutomationAwsSqsID},
+		{plan.AwsSnsTemplate, api_client.AutomationAwsSnsID},
+		{plan.AzureSentinelTemplate, api_client.AutomationAzureSentinelID},
+		{plan.ChronicleTemplate, api_client.AutomationChronicleID},
+		{plan.CoralogixTemplate, api_client.AutomationCoralogixID},
+		{plan.CriblTemplate, api_client.AutomationCriblID},
+		{plan.GcpPubSubTemplate, api_client.AutomationGcpPubSubID},
+		{plan.LinearTemplate, api_client.AutomationLinearID},
+		{plan.MondayTemplate, api_client.AutomationMondayID},
+		{plan.MsTeamsTemplate, api_client.AutomationMsTeamsID},
+		{plan.OpsgenieTemplate, api_client.AutomationOpsgenieID},
+		{plan.OpusTemplate, api_client.AutomationOpusID},
+		{plan.PagerDutyTemplate, api_client.AutomationPagerDutyID},
+		{plan.PantherTemplate, api_client.AutomationPantherID},
+		{plan.ServiceNowIncidentsTemplate, api_client.AutomationServiceNowIncidentsID},
+		{plan.ServiceNowSIIncidentsTemplate, api_client.AutomationServiceNowSIIncidentsID},
+		{plan.SlackTemplate, api_client.AutomationSlackID},
+		{plan.SnowflakeTemplate, api_client.AutomationSnowflakeID},
+		{plan.SplunkTemplate, api_client.AutomationSplunkID},
+		{plan.SumoLogicTemplate, api_client.AutomationSumoLogicID},
+		{plan.TinesTemplate, api_client.AutomationTinesID},
+		{plan.TorqTemplate, api_client.AutomationTorqID},
+		{plan.WebhookTemplate, api_client.AutomationWebhookID},
+	}
+	for _, b := range externalConfigBindings {
+		actions = appendExternalConfigAction(actions, b.tmpl, b.actionType)
 	}
 
-	if plan.AwsSecurityLakeTemplate != nil {
-		externalConfigID := plan.AwsSecurityLakeTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationAwsSecurityLakeID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
+	externalConfigWithParentBindings := []struct {
+		tmpl       *automationV2ExternalConfigWithParentTemplateModel
+		actionType int32
+	}{
+		{plan.AzureDevopsTemplate, api_client.AutomationAzureDevopsID},
+		{plan.JiraCloudTemplate, api_client.AutomationJiraID},
+		{plan.JiraServerTemplate, api_client.AutomationJiraServerID},
 	}
-
-	if plan.AwsSqsTemplate != nil {
-		externalConfigID := plan.AwsSqsTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationAwsSqsID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.AzureDevopsTemplate != nil && !plan.AzureDevopsTemplate.ExternalConfigID.IsNull() {
-		externalConfigID := plan.AzureDevopsTemplate.ExternalConfigID.ValueString()
-
-		payload := make(map[string]interface{})
-		if !plan.AzureDevopsTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.AzureDevopsTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationAzureDevopsID,
-			Data:           payload,
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.AzureSentinelTemplate != nil {
-		externalConfigID := plan.AzureSentinelTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationAzureSentinelID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.CoralogixTemplate != nil {
-		externalConfigID := plan.CoralogixTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationCoralogixID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.GcpPubSubTemplate != nil {
-		externalConfigID := plan.GcpPubSubTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationGcpPubSubID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.JiraCloudTemplate != nil && !plan.JiraCloudTemplate.ExternalConfigID.IsNull() {
-		externalConfigID := plan.JiraCloudTemplate.ExternalConfigID.ValueString()
-
-		payload := make(map[string]interface{})
-		if !plan.JiraCloudTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraCloudTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationJiraID,
-			Data:           payload,
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.JiraServerTemplate != nil && !plan.JiraServerTemplate.ExternalConfigID.IsNull() {
-		externalConfigID := plan.JiraServerTemplate.ExternalConfigID.ValueString()
-
-		payload := make(map[string]interface{})
-		if !plan.JiraServerTemplate.ParentIssueID.IsNull() {
-			payload["parent_id"] = plan.JiraServerTemplate.ParentIssueID.ValueString()
-		}
-
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationJiraServerID,
-			Data:           payload,
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.OpsgenieTemplate != nil {
-		externalConfigID := plan.OpsgenieTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationOpsgenieID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.PagerDutyTemplate != nil {
-		externalConfigID := plan.PagerDutyTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationPagerDutyID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.SnowflakeTemplate != nil {
-		externalConfigID := plan.SnowflakeTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationSnowflakeID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.SplunkTemplate != nil {
-		externalConfigID := plan.SplunkTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationSplunkID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.SumoLogicTemplate != nil {
-		externalConfigID := plan.SumoLogicTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationSumoLogicID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.TinesTemplate != nil {
-		externalConfigID := plan.TinesTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationTinesID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.TorqTemplate != nil {
-		externalConfigID := plan.TorqTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationTorqID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.WebhookTemplate != nil {
-		externalConfigID := plan.WebhookTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationWebhookID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.MsTeamsTemplate != nil {
-		externalConfigID := plan.MsTeamsTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationMsTeamsID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.ChronicleTemplate != nil {
-		externalConfigID := plan.ChronicleTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationChronicleID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.PantherTemplate != nil {
-		externalConfigID := plan.PantherTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationPantherID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.ServiceNowIncidentsTemplate != nil {
-		externalConfigID := plan.ServiceNowIncidentsTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationServiceNowIncidentsID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.ServiceNowSIIncidentsTemplate != nil {
-		externalConfigID := plan.ServiceNowSIIncidentsTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationServiceNowSIIncidentsID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.MondayTemplate != nil {
-		externalConfigID := plan.MondayTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationMondayID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.LinearTemplate != nil {
-		externalConfigID := plan.LinearTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationLinearID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.AwsSnsTemplate != nil {
-		externalConfigID := plan.AwsSnsTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationAwsSnsID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
+	for _, b := range externalConfigWithParentBindings {
+		actions = appendExternalConfigWithParentAction(actions, b.tmpl, b.actionType)
 	}
 
 	if plan.DatadogTemplate != nil {
 		externalConfigID := plan.DatadogTemplate.ExternalConfigID.ValueString()
-		payload := make(map[string]interface{})
-		payload["type"] = plan.DatadogTemplate.Type.ValueString()
-
 		actions = append(actions, api_client.AutomationV2Action{
 			Type:           api_client.AutomationDatadogID,
-			Data:           payload,
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.CriblTemplate != nil {
-		externalConfigID := plan.CriblTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationCriblID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
-		})
-	}
-
-	if plan.OpusTemplate != nil {
-		externalConfigID := plan.OpusTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationOpusID,
-			Data:           make(map[string]interface{}),
+			Data:           map[string]interface{}{"type": plan.DatadogTemplate.Type.ValueString()},
 			ExternalConfig: &externalConfigID,
 		})
 	}
@@ -816,23 +605,12 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 	if plan.EmailTemplate != nil {
 		var emailAddresses []string
 		_ = plan.EmailTemplate.EmailAddresses.ElementsAs(context.Background(), &emailAddresses, false)
-
-		payload := make(map[string]interface{})
-		payload["email"] = emailAddresses
-		payload["multi_alerts"] = plan.EmailTemplate.MultiAlerts.ValueBool()
-
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationEmailID,
-			Data: payload,
-		})
-	}
-
-	if plan.SlackTemplate != nil {
-		externalConfigID := plan.SlackTemplate.ExternalConfigID.ValueString()
-		actions = append(actions, api_client.AutomationV2Action{
-			Type:           api_client.AutomationSlackID,
-			Data:           make(map[string]interface{}),
-			ExternalConfig: &externalConfigID,
+			Data: map[string]interface{}{
+				"email":        emailAddresses,
+				"multi_alerts": plan.EmailTemplate.MultiAlerts.ValueBool(),
+			},
 		})
 	}
 

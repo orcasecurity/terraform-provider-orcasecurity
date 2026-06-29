@@ -11,6 +11,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -134,6 +137,9 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 			"view_type": schema.StringAttribute{
 				Description: "This variable is `customs_widgets` for custom widgets.",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"extra_params": schema.SingleNestedAttribute{
 				Required: true,
@@ -145,6 +151,9 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 					"category": schema.StringAttribute{
 						Description: "Should be set to 'custom' for custom dashboards.",
 						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"empty_state_message": schema.StringAttribute{
 						Description: "When no objects are returned by the widget's underlying Discovery query, the widget would present this message.",
@@ -161,6 +170,9 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 					"title": schema.StringAttribute{
 						Description: "Custom widget title that will be presented in the UI.",
 						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"subtitle": schema.StringAttribute{
 						Description: "Custom widget subtitle that will be presented in the UI.",
@@ -231,21 +243,41 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 										ElementType: types.StringType,
 										Description: "How to group the returned results. Do not use this option with the table-type widget",
 										Optional:    true,
+										Computed:    true,
+										PlanModifiers: []planmodifier.List{
+											listplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"limit": schema.Int64Attribute{
 										Description: "Number of items returned in query.",
 										Optional:    true,
+										Computed:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"order_by": schema.ListAttribute{
 										ElementType: types.StringType,
 										Description: "How the returned items are ordered.",
 										Optional:    true,
+										Computed:    true,
+										PlanModifiers: []planmodifier.List{
+											listplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"start_at_index": schema.Int64Attribute{
 										Optional: true,
+										Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"enable_pagination": schema.BoolAttribute{
 										Optional: true,
+										Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
