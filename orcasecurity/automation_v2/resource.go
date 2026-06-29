@@ -28,6 +28,8 @@ var (
 	_ resource.ResourceWithConfigValidators = &automationV2Resource{}
 )
 
+const scoreChangeJustificationDescription = "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted."
+
 type automationV2Resource struct {
 	apiClient *api_client.APIClient
 }
@@ -336,7 +338,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.",
+						Description: scoreChangeJustificationDescription,
 					},
 				},
 			},
@@ -350,7 +352,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.",
+						Description: scoreChangeJustificationDescription,
 					},
 				},
 			},
@@ -368,7 +370,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					},
 					"justification": schema.StringAttribute{
 						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.",
+						Description: scoreChangeJustificationDescription,
 					},
 				},
 			},
