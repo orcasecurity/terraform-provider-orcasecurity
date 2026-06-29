@@ -24,7 +24,10 @@ var (
 	_ resource.ResourceWithImportState = &customWidgetResource{}
 )
 
-const errReadingCustomWidget = "Error reading custom widget"
+const (
+	errReadingCustomWidget = "Error reading custom widget"
+	tfTypeAlertTable       = "alert-table"
+)
 
 type customWidgetResource struct {
 	apiClient *api_client.APIClient
@@ -38,7 +41,21 @@ type customWidgetExtraParmetersSettingsFieldModel struct {
 type customWidgetExtraParametersSettingsModel struct {
 	Columns           types.List                                    `tfsdk:"columns"`
 	Field             *customWidgetExtraParmetersSettingsFieldModel `tfsdk:"field"`
-	RequestParameters requestParamsModel                            `tfsdk:"request_params"`
+	RequestParameters *requestParamsModel                           `tfsdk:"request_params"`
+	RequestParamsList []comparisonRequestParamModel                 `tfsdk:"request_params_list"`
+}
+
+type comparisonRequestParamModel struct {
+	ID      types.String   `tfsdk:"id"`
+	Title   types.String   `tfsdk:"title"`
+	Query   types.String   `tfsdk:"query"`
+	GroupBy []types.String `tfsdk:"group_by"`
+}
+
+type widgetInnerExtraParamsModel struct {
+	Field         *customWidgetExtraParmetersSettingsFieldModel `tfsdk:"field"`
+	ValuesFormat  types.String                                  `tfsdk:"values_format"`
+	DefaultMapper types.String                                  `tfsdk:"default_mapper"`
 }
 
 type requestParamsModel struct {
@@ -60,6 +77,7 @@ type customWidgetExtraParametersModel struct {
 	Title             types.String                             `tfsdk:"title"`
 	Subtitle          types.String                             `tfsdk:"subtitle"`
 	Description       types.String                             `tfsdk:"description"`
+	WidgetExtraParams *widgetInnerExtraParamsModel             `tfsdk:"widget_extra_params"`
 	Settings          customWidgetExtraParametersSettingsModel `tfsdk:"settings"`
 }
 
@@ -121,7 +139,7 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 				Required: true,
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
-						Description: "Type of custom widget to create. Valid values are `donut` and `table`. Legacy aliases `asset-table` and `alert-table` are also accepted; state will normalize to `table` for asset tables.",
+						Description: "Type of custom widget to create. Valid values: `donut` (PIE_CHART_SINGLE), `table` (ASSETS_TABLE), `alert-table` (ALERTS_TABLE), `metric` (ICON_GRID), `comparison` (PIE_CHART_MULTI). Legacy alias `asset-table` accepted; state normalizes to `table`.",
 						Required:    true,
 					},
 					"category": schema.StringAttribute{
@@ -152,6 +170,27 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						Description: "Custom widget description (the text that appears in the info bubble).",
 						Required:    true,
 					},
+					"widget_extra_params": schema.SingleNestedAttribute{
+						Description: "Extra params block (`extraParams` in API). Used by `comparison` (PIE_CHART_MULTI) widgets to hold field, default_mapper, and values_format.",
+						Optional:    true,
+						Attributes: map[string]schema.Attribute{
+							"field": schema.SingleNestedAttribute{
+								Optional: true,
+								Attributes: map[string]schema.Attribute{
+									"name": schema.StringAttribute{Required: true},
+									"type": schema.StringAttribute{Required: true},
+								},
+							},
+							"values_format": schema.StringAttribute{
+								Description: "UI values format (e.g. `default`).",
+								Optional:    true,
+							},
+							"default_mapper": schema.StringAttribute{
+								Description: "JSON-encoded default mapper (object). Example: jsonencode({ main = { color = \"...\" }, comparison = { color = \"...\" } }).",
+								Optional:    true,
+							},
+						},
+					},
 					"settings": schema.SingleNestedAttribute{
 						Description: "These are the settings for the custom widget.",
 						Required:    true,
@@ -176,8 +215,8 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 								},
 							},
 							"request_params": schema.SingleNestedAttribute{
-								Description: "These settings define the query and the grouping for the widget. For inventory-based queries, a common setting is to set 'group_by' to 'Type' and 'group_by_list' to 'CloudAccount.Name'.",
-								Required:    true,
+								Description: "Query and grouping for the widget. Required for donut/table/alert-table/metric. Omit for `comparison` widgets (use `request_params_list` instead).",
+								Optional:    true,
 								Attributes: map[string]schema.Attribute{
 									"query": schema.StringAttribute{
 										Description: "Discovery query that the widget will use for its data.",
@@ -210,6 +249,21 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 									},
 								},
 							},
+							"request_params_list": schema.ListNestedAttribute{
+								Description: "List of named query param sets for `comparison` (PIE_CHART_MULTI) widgets. Typically two entries: `main` and `comparison`.",
+								Optional:    true,
+								NestedObject: schema.NestedAttributeObject{
+									Attributes: map[string]schema.Attribute{
+										"id":    schema.StringAttribute{Required: true},
+										"title": schema.StringAttribute{Required: true},
+										"query": schema.StringAttribute{Required: true},
+										"group_by": schema.ListAttribute{
+											ElementType: types.StringType,
+											Required:    true,
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -218,20 +272,52 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 	}
 }
 
-func generateField(plan *customWidgetExtraParametersSettingsModel) api_client.CustomWidgetExtraParametersSettingsField {
-	if plan.Field != nil {
-		return api_client.CustomWidgetExtraParametersSettingsField{
-			Name: plan.Field.Name.ValueString(),
-			Type: plan.Field.Type.ValueString(),
-		}
+func generateField(plan *customWidgetExtraParametersSettingsModel) *api_client.CustomWidgetExtraParametersSettingsField {
+	if plan.Field == nil {
+		return nil
 	}
-	// Return empty struct instead of nil
-	return api_client.CustomWidgetExtraParametersSettingsField{}
+	return &api_client.CustomWidgetExtraParametersSettingsField{
+		Name: plan.Field.Name.ValueString(),
+		Type: plan.Field.Type.ValueString(),
+	}
 }
 
-func generateRequestParameters(plan *requestParamsModel) api_client.RequestParams {
-	var request_params api_client.RequestParams
+// additionalModelsFor returns the default additional_models[] for a given Terraform
+// widget type. Donut/metric/comparison widgets include CustomTags + BusinessUnits;
+// table/alert-table widgets include only CloudAccount.
+func additionalModelsFor(tfType string) []string {
+	switch tfType {
+	case "donut", "metric", "comparison":
+		return []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
+	default:
+		return []string{"CloudAccount"}
+	}
+}
 
+// needsGroupByBracket reports whether this widget type needs the legacy
+// `group_by[]` key duplicated alongside `group_by` (server requires both for
+// PIE_CHART_SINGLE / ICON_GRID / PIE_CHART_MULTI).
+func needsGroupByBracket(tfType string) bool {
+	switch tfType {
+	case "donut", "metric", "comparison":
+		return true
+	default:
+		return false
+	}
+}
+
+// supportsPagination reports whether this widget type uses start_at_index/enable_pagination
+// (table/alert-table only). Server 500s when those keys are present for metric/donut/comparison.
+func supportsPagination(tfType string) bool {
+	switch tfType {
+	case "table", "asset-table", tfTypeAlertTable:
+		return true
+	default:
+		return false
+	}
+}
+
+func generateRequestParameters(plan *requestParamsModel, additionalModels []string, withBracket bool, withPagination bool) api_client.RequestParams {
 	queryString := plan.Query
 	query := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(queryString.ValueString()), &query)
@@ -248,31 +334,115 @@ func generateRequestParameters(plan *requestParamsModel) api_client.RequestParam
 		}
 	}
 
-	// Orca API expects these additional models for discovery queries
-	additionalModels := []string{"CloudAccount", "CustomTags", "BusinessUnits.Name"}
-
 	var elements []string
-
 	for _, v := range plan.OrderBy.Elements() {
 		elements = append(elements, v.String()[1:len(v.String())-1])
 	}
 
-	request_params = api_client.RequestParams{
+	rp := api_client.RequestParams{
 		Query:            query,
 		GroupBy:          group_by_string,
 		GroupByList:      group_by_list_string,
 		AdditionalModels: additionalModels,
 		Limit:            plan.Limit.ValueInt64(),
 		OrderBy:          elements,
-		StartAtIndex:     plan.StartAtIndex.ValueInt64(),
-		EnablePagination: plan.EnablePagination.ValueBool(),
 	}
+	if withBracket {
+		rp.GroupByBracket = group_by_string
+	}
+	if withPagination {
+		sai := plan.StartAtIndex.ValueInt64()
+		ep := plan.EnablePagination.ValueBool()
+		rp.StartAtIndex = &sai
+		rp.EnablePagination = &ep
+	}
+	return rp
+}
 
-	return request_params
+func generateComparisonParams(list []comparisonRequestParamModel, additionalModels []string) []api_client.ComparisonRequestParam {
+	out := make([]api_client.ComparisonRequestParam, 0, len(list))
+	for _, p := range list {
+		query := make(map[string]interface{})
+		_ = json.Unmarshal([]byte(p.Query.ValueString()), &query)
+		groupBy := make([]string, 0, len(p.GroupBy))
+		for _, g := range p.GroupBy {
+			groupBy = append(groupBy, g.ValueString())
+		}
+		out = append(out, api_client.ComparisonRequestParam{
+			ID:    p.ID.ValueString(),
+			Title: p.Title.ValueString(),
+			Params: api_client.RequestParams{
+				Query:            query,
+				GroupBy:          groupBy,
+				GroupByBracket:   groupBy,
+				AdditionalModels: additionalModels,
+			},
+		})
+	}
+	return out
+}
+
+func generateWidgetExtraParams(plan *widgetInnerExtraParamsModel) *api_client.WidgetInnerExtraParams {
+	if plan == nil {
+		return nil
+	}
+	out := &api_client.WidgetInnerExtraParams{
+		ValuesFormat: plan.ValuesFormat.ValueString(),
+	}
+	if plan.Field != nil {
+		out.Field = &api_client.CustomWidgetExtraParametersSettingsField{
+			Name: plan.Field.Name.ValueString(),
+			Type: plan.Field.Type.ValueString(),
+		}
+	}
+	if !plan.DefaultMapper.IsNull() && plan.DefaultMapper.ValueString() != "" {
+		m := make(map[string]interface{})
+		_ = json.Unmarshal([]byte(plan.DefaultMapper.ValueString()), &m)
+		out.DefaultMapper = m
+	}
+	return out
+}
+
+// tfTypeToAPI maps Terraform widget type strings to API widget type strings.
+func tfTypeToAPI(tfType string) string {
+	switch tfType {
+	case "donut":
+		return "PIE_CHART_SINGLE"
+	case "table", "asset-table":
+		return "ASSETS_TABLE"
+	case tfTypeAlertTable:
+		return "ALERTS_TABLE"
+	case "metric":
+		return "ICON_GRID"
+	case "comparison":
+		return "PIE_CHART_MULTI"
+	default:
+		return tfType
+	}
+}
+
+// apiWidgetTypeToTerraform maps API widget type strings to Terraform schema values.
+func apiWidgetTypeToTerraform(apiType string) string {
+	switch apiType {
+	case "PIE_CHART_SINGLE":
+		return "donut"
+	case "ASSETS_TABLE":
+		return "table"
+	case "ALERTS_TABLE":
+		return tfTypeAlertTable
+	case "ICON_GRID":
+		return "metric"
+	case "PIE_CHART_MULTI":
+		return "comparison"
+	default:
+		return apiType
+	}
 }
 
 func generateSettings(plan *customWidgetExtraParametersModel) []api_client.CustomWidgetExtraParametersSettings {
 	item := plan.Settings
+	tfType := plan.Type.ValueString()
+	additionalModels := additionalModelsFor(tfType)
 
 	var columns []string
 	for _, v := range plan.Settings.Columns.Elements() {
@@ -280,15 +450,31 @@ func generateSettings(plan *customWidgetExtraParametersModel) []api_client.Custo
 	}
 
 	field := generateField(&item)
-	reqParams := generateRequestParameters(&item.RequestParameters)
-	settings := []api_client.CustomWidgetExtraParametersSettings{
-		{
-			Size:              plan.Size.ValueString(),
-			Columns:           columns,
-			Field:             field,
-			RequestParameters: reqParams,
-			RequestParams2:    &reqParams,
-		},
+	innerExtra := generateWidgetExtraParams(plan.WidgetExtraParams)
+
+	// Marshal requestParams2 polymorphically: array for comparison, object otherwise.
+	var rp2Bytes []byte
+	if tfType == "comparison" && len(item.RequestParamsList) > 0 {
+		list := generateComparisonParams(item.RequestParamsList, additionalModels)
+		rp2Bytes, _ = json.Marshal(list)
+	} else if item.RequestParameters != nil {
+		single := generateRequestParameters(item.RequestParameters, additionalModels, needsGroupByBracket(tfType), supportsPagination(tfType))
+		rp2Bytes, _ = json.Marshal(single)
+	}
+
+	// Dashboard renderer looks up settings entry by size. Emit one entry per size
+	// (sm/md/lg) so widget renders regardless of dashboard cell size.
+	sizes := []string{"sm", "md", "lg"}
+	settings := make([]api_client.CustomWidgetExtraParametersSettings, 0, len(sizes))
+	for _, s := range sizes {
+		entry := api_client.CustomWidgetExtraParametersSettings{
+			Size:           s,
+			Columns:        columns,
+			Field:          field,
+			ExtraParams:    innerExtra,
+			RequestParams2: rp2Bytes,
+		}
+		settings = append(settings, entry)
 	}
 
 	return settings
@@ -296,22 +482,9 @@ func generateSettings(plan *customWidgetExtraParametersModel) []api_client.Custo
 
 // Extra Parameters
 func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomWidgetExtraParameters {
-
 	settings := generateSettings(plan.ExtraParameters)
-
-	var widgetType string
-
-	if plan.ExtraParameters.Type.ValueString() == "donut" {
-		widgetType = "PIE_CHART_SINGLE"
-	} else if plan.ExtraParameters.Type.ValueString() == "asset-table" || plan.ExtraParameters.Type.ValueString() == "table" {
-		widgetType = "ASSETS_TABLE"
-	} else if plan.ExtraParameters.Type.ValueString() == "alert-table" {
-		widgetType = "ALERTS_TABLE"
-	} else {
-		widgetType = plan.ExtraParameters.Type.ValueString()
-	}
-
-	requestParams := generateRequestParameters(&plan.ExtraParameters.Settings.RequestParameters)
+	tfType := plan.ExtraParameters.Type.ValueString()
+	widgetType := tfTypeToAPI(tfType)
 
 	extra_params := api_client.CustomWidgetExtraParameters{
 		Type:              widgetType,
@@ -322,74 +495,158 @@ func generateExtraParameters(plan *customWidgetResourceModel) api_client.CustomW
 		Title:             plan.Name.ValueString(),
 		Subtitle:          plan.ExtraParameters.Subtitle.ValueString(),
 		Description:       plan.ExtraParameters.Description.ValueString(),
-		RequestParams:     &requestParams,
+		ExtraParams:       generateWidgetExtraParams(plan.ExtraParameters.WidgetExtraParams),
 		Settings:          settings,
+	}
+
+	// PIE_CHART_MULTI needs the comparison params array at the top level too.
+	if tfType == "comparison" && len(plan.ExtraParameters.Settings.RequestParamsList) > 0 {
+		list := generateComparisonParams(plan.ExtraParameters.Settings.RequestParamsList, additionalModelsFor(tfType))
+		if b, err := json.Marshal(list); err == nil {
+			extra_params.RequestParams = b
+		}
 	}
 
 	return extra_params
 }
 
-// apiWidgetTypeToTerraform maps API widget type strings to Terraform schema values.
-func apiWidgetTypeToTerraform(apiType string) string {
-	switch apiType {
-	case "PIE_CHART_SINGLE":
-		return "donut"
-	case "ASSETS_TABLE":
-		// Canonical Terraform value is "table" (see schema docs).
-		// "asset-table" is kept as a legacy alias on input only.
-		return "table"
-	case "ALERTS_TABLE":
-		return "alert-table"
-	default:
-		return apiType
+// getRequestParams returns the effective single request params. V2 API uses
+// requestParams2 (RawMessage), V1 uses requestParams. For comparison widgets
+// where requestParams2 is an array, returns the first entry's params.
+func getRequestParams(s api_client.CustomWidgetExtraParametersSettings) api_client.RequestParams {
+	if len(s.RequestParams2) > 0 {
+		trimmed := bytesTrimSpace(s.RequestParams2)
+		if len(trimmed) > 0 && trimmed[0] == '[' {
+			var list []api_client.ComparisonRequestParam
+			if err := json.Unmarshal(s.RequestParams2, &list); err == nil && len(list) > 0 {
+				return list[0].Params
+			}
+		} else {
+			var single api_client.RequestParams
+			if err := json.Unmarshal(s.RequestParams2, &single); err == nil {
+				return single
+			}
+		}
 	}
+	if s.RequestParameters != nil {
+		return *s.RequestParameters
+	}
+	return api_client.RequestParams{}
 }
 
-// getRequestParams returns the effective request params. V2 API uses requestParams2;
-// V1 uses requestParams. Prefer requestParams2 when present (V2-created widgets).
-func getRequestParams(s api_client.CustomWidgetExtraParametersSettings) api_client.RequestParams {
-	if s.RequestParams2 != nil {
-		return *s.RequestParams2
+// getComparisonParams returns the parsed comparison param list if requestParams2 is an array.
+func getComparisonParams(s api_client.CustomWidgetExtraParametersSettings) []api_client.ComparisonRequestParam {
+	if len(s.RequestParams2) == 0 {
+		return nil
 	}
-	return s.RequestParameters
+	trimmed := bytesTrimSpace(s.RequestParams2)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		return nil
+	}
+	var list []api_client.ComparisonRequestParam
+	if err := json.Unmarshal(s.RequestParams2, &list); err != nil {
+		return nil
+	}
+	return list
+}
+
+func bytesTrimSpace(b []byte) []byte {
+	for len(b) > 0 && (b[0] == ' ' || b[0] == '\t' || b[0] == '\n' || b[0] == '\r') {
+		b = b[1:]
+	}
+	return b
 }
 
 // apiSettingsToStateSettings converts API settings to Terraform state model.
 func apiSettingsToStateSettings(ctx context.Context, s api_client.CustomWidgetExtraParametersSettings) (customWidgetExtraParametersSettingsModel, error) {
-	params := getRequestParams(s)
-	queryJSON, err := json.Marshal(params.Query)
-	if err != nil {
-		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("marshaling request query: %w", err)
-	}
-	groupBy := stringSliceToTypesStrings(params.GroupBy)
-	groupByList := stringSliceToTypesStrings(params.GroupByList)
 	columns, err := columnsFromAPI(ctx, s.Columns)
 	if err != nil {
 		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("columns: %w", err)
 	}
-	orderBy, err := orderByFromAPI(ctx, params.OrderBy)
-	if err != nil {
-		return customWidgetExtraParametersSettingsModel{}, fmt.Errorf("order_by: %w", err)
+	settings := customWidgetExtraParametersSettingsModel{Columns: columns}
+
+	if comparison := getComparisonParams(s); comparison != nil {
+		settings.RequestParamsList = comparisonParamsToState(comparison)
+	} else {
+		rp, rpErr := singleParamsToState(ctx, s)
+		if rpErr != nil {
+			return customWidgetExtraParametersSettingsModel{}, rpErr
+		}
+		settings.RequestParameters = rp
 	}
-	settings := customWidgetExtraParametersSettingsModel{
-		Columns: columns,
-		RequestParameters: requestParamsModel{
-			Query:            types.StringValue(string(queryJSON)),
-			GroupBy:          groupBy,
-			GroupByList:      groupByList,
-			Limit:            types.Int64Value(params.Limit),
-			StartAtIndex:     types.Int64Value(params.StartAtIndex),
-			EnablePagination: types.BoolValue(params.EnablePagination),
-			OrderBy:          orderBy,
-		},
-	}
-	if s.Field.Name != "" || s.Field.Type != "" {
+
+	if s.Field != nil && (s.Field.Name != "" || s.Field.Type != "") {
 		settings.Field = &customWidgetExtraParmetersSettingsFieldModel{
 			Name: types.StringValue(s.Field.Name),
 			Type: types.StringValue(s.Field.Type),
 		}
 	}
 	return settings, nil
+}
+
+func comparisonParamsToState(comparison []api_client.ComparisonRequestParam) []comparisonRequestParamModel {
+	list := make([]comparisonRequestParamModel, 0, len(comparison))
+	for _, c := range comparison {
+		qJSON, _ := json.Marshal(c.Params.Query)
+		list = append(list, comparisonRequestParamModel{
+			ID:      types.StringValue(c.ID),
+			Title:   types.StringValue(c.Title),
+			Query:   types.StringValue(string(qJSON)),
+			GroupBy: stringSliceToTypesStrings(c.Params.GroupBy),
+		})
+	}
+	return list
+}
+
+func singleParamsToState(ctx context.Context, s api_client.CustomWidgetExtraParametersSettings) (*requestParamsModel, error) {
+	params := getRequestParams(s)
+	queryJSON, mErr := json.Marshal(params.Query)
+	if mErr != nil {
+		return nil, fmt.Errorf("marshaling request query: %w", mErr)
+	}
+	orderBy, oErr := orderByFromAPI(ctx, params.OrderBy)
+	if oErr != nil {
+		return nil, fmt.Errorf("order_by: %w", oErr)
+	}
+	var sai int64
+	if params.StartAtIndex != nil {
+		sai = *params.StartAtIndex
+	}
+	var ep bool
+	if params.EnablePagination != nil {
+		ep = *params.EnablePagination
+	}
+	return &requestParamsModel{
+		Query:            types.StringValue(string(queryJSON)),
+		GroupBy:          stringSliceToTypesStrings(params.GroupBy),
+		GroupByList:      stringSliceToTypesStrings(params.GroupByList),
+		Limit:            types.Int64Value(params.Limit),
+		StartAtIndex:     types.Int64Value(sai),
+		EnablePagination: types.BoolValue(ep),
+		OrderBy:          orderBy,
+	}, nil
+}
+
+func widgetExtraParamsToState(ep *api_client.WidgetInnerExtraParams) *widgetInnerExtraParamsModel {
+	if ep == nil {
+		return nil
+	}
+	out := &widgetInnerExtraParamsModel{
+		ValuesFormat:  types.StringValue(ep.ValuesFormat),
+		DefaultMapper: types.StringNull(),
+	}
+	if ep.Field != nil {
+		out.Field = &customWidgetExtraParmetersSettingsFieldModel{
+			Name: types.StringValue(ep.Field.Name),
+			Type: types.StringValue(ep.Field.Type),
+		}
+	}
+	if ep.DefaultMapper != nil {
+		if b, err := json.Marshal(ep.DefaultMapper); err == nil {
+			out.DefaultMapper = types.StringValue(string(b))
+		}
+	}
+	return out
 }
 
 func stringSliceToTypesStrings(ss []string) []types.String {
@@ -457,6 +714,7 @@ func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (cu
 			Title:             types.StringValue(ep.Title),
 			Subtitle:          types.StringValue(ep.Subtitle),
 			Description:       types.StringValue(ep.Description),
+			WidgetExtraParams: widgetExtraParamsToState(ep.ExtraParams),
 			Settings:          settings,
 		},
 	}, nil
