@@ -490,6 +490,14 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 	// Always set the ID from the API response
 	plan.ID = types.StringValue(instance.ID)
 
+	// Sync computed metadata back from the API response so any attribute
+	// the framework marked as unknown after planning becomes known.
+	if instance.GlobalFilter != nil {
+		plan.GlobalFilter = types.BoolValue(*instance.GlobalFilter)
+	} else {
+		plan.GlobalFilter = types.BoolValue(false)
+	}
+
 	// Set the state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
