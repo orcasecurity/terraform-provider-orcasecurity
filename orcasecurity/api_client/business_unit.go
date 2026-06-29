@@ -26,6 +26,7 @@ type BusinessUnit struct {
 	Name                string                       `json:"name"`
 	Filter              *BusinessUnitFilter          `json:"filter_data,omitempty"`
 	ShiftLeftFilter     *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
+	GlobalFilter        *bool                        `json:"global_filter,omitempty"`
 	BusinessCriticality string                       `json:"business_criticality,omitempty"`
 	OwnerTeam           string                       `json:"owner_team,omitempty"`
 	Application         string                       `json:"application,omitempty"`

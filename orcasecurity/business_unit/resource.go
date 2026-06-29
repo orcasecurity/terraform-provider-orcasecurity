@@ -373,6 +373,10 @@ func typesSliceToStrings(in []types.String) []string {
 }
 
 func applyMetadataToRequest(req *api_client.BusinessUnit, plan *businessUnitResourceModel) {
+	if !plan.GlobalFilter.IsNull() && !plan.GlobalFilter.IsUnknown() {
+		v := plan.GlobalFilter.ValueBool()
+		req.GlobalFilter = &v
+	}
 	if !plan.BusinessCriticality.IsNull() && !plan.BusinessCriticality.IsUnknown() {
 		req.BusinessCriticality = plan.BusinessCriticality.ValueString()
 	}
@@ -391,6 +395,11 @@ func applyMetadataToRequest(req *api_client.BusinessUnit, plan *businessUnitReso
 }
 
 func setMetadataInState(state *businessUnitResourceModel, instance *api_client.BusinessUnit) {
+	if instance.GlobalFilter != nil {
+		state.GlobalFilter = types.BoolValue(*instance.GlobalFilter)
+	} else {
+		state.GlobalFilter = types.BoolNull()
+	}
 	if instance.BusinessCriticality != "" {
 		state.BusinessCriticality = types.StringValue(instance.BusinessCriticality)
 	} else {
@@ -781,6 +790,26 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 			resp.Diagnostics.AddError(
 				"Error reading business unit",
 				"Could not read Business Unit ID: "+plan.ID.ValueString()+": "+err.Error(),
+			)
+			return
+		}
+
+		diags = resp.State.Set(ctx, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else {
+		updateReq := api_client.BusinessUnit{
+			Name: plan.Name.ValueString(),
+		}
+		applyMetadataToRequest(&updateReq, &plan)
+
+		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating business unit",
+				"Could not update business unit, unexpected error: "+err.Error(),
 			)
 			return
 		}
