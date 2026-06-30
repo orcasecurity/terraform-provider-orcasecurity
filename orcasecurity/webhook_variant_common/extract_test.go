@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
