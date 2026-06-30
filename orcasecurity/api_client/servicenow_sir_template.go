@@ -13,91 +13,31 @@ import (
 const ServiceNowSIRTemplateConfigType = "SIR"
 
 func (client *APIClient) CreateServiceNowSIRTemplate(payload ServiceNowITSMTemplate) (*ServiceNowITSMTemplate, error) {
-	payload.ServiceName = ServiceNowITSMServiceName
 	payload.Config.Type = ServiceNowSIRTemplateConfigType
-
-	resp, err := client.Post("/api/external_service/config", payload)
-	if err != nil {
-		return nil, err
-	}
-
-	response := serviceNowITSMTemplateSingleResponse{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode ServiceNow SIR template create response: %w", err)
-	}
-	if response.Data.ID == "" {
-		return nil, fmt.Errorf("servicenow sir template was not returned by the API")
-	}
-	return &response.Data, nil
+	return CreateExternalServiceConfig[ServiceNowITSMTemplateConfig](client, ServiceNowITSMServiceName, payload)
 }
 
 // GetServiceNowSIRTemplate looks up a template by name and filters on “config.type == "SIR"“
 // so it does not collide with an ITSM template that happens to share a template_name.
 func (client *APIClient) GetServiceNowSIRTemplate(templateName string) (*ServiceNowITSMTemplate, error) {
-	path := fmt.Sprintf(
-		"/api/external_service/config?service_name=%s&template_name=%s",
-		ServiceNowITSMServiceName, url.QueryEscape(templateName),
-	)
-	resp, err := client.Get(path)
-	if err != nil {
-		if resp != nil && resp.StatusCode() == 404 {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	response := serviceNowITSMTemplateListResponse{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode ServiceNow SIR template list response: %w", err)
-	}
-	for _, item := range response.Data {
-		if item.Config.Type == ServiceNowSIRTemplateConfigType {
-			return &item, nil
-		}
-	}
-	return nil, nil
+	return GetExternalServiceConfig[ServiceNowITSMTemplateConfig](client, ServiceNowITSMServiceName, templateName, func(item *ServiceNowITSMTemplate) bool {
+		return item.Config.Type == ServiceNowSIRTemplateConfigType
+	})
 }
 
 func (client *APIClient) UpdateServiceNowSIRTemplate(templateName string, payload ServiceNowITSMTemplate) (*ServiceNowITSMTemplate, error) {
-	path := fmt.Sprintf(
-		"/api/external_service/config/%s?template=%s",
-		ServiceNowITSMServiceName, url.QueryEscape(templateName),
-	)
-
 	payload.Config.Type = ServiceNowSIRTemplateConfigType
-	body := map[string]interface{}{
-		"is_enabled": payload.IsEnabled,
-		"is_default": payload.IsDefault,
-		"config":     payload.Config,
-	}
+	// ``business_units`` is intentionally omitted from PUT — Orca rejects updates with
+	// "You can't change business units". Matches the ITSM template behaviour.
+	body := BuildUpdateBody(payload, payload.Config, false)
 	if payload.Resource != "" {
 		body["resource"] = payload.Resource
 	}
-	// ``business_units`` is intentionally omitted from PUT — Orca rejects updates with
-	// "You can't change business units". Matches the ITSM template behaviour.
-
-	resp, err := client.Put(path, body)
-	if err != nil {
-		return nil, err
-	}
-
-	response := serviceNowITSMTemplateSingleResponse{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode ServiceNow SIR template update response: %w", err)
-	}
-	if response.Data.ID == "" {
-		return nil, fmt.Errorf("servicenow sir template was not returned by the API")
-	}
-	return &response.Data, nil
+	return UpdateExternalServiceConfig[ServiceNowITSMTemplateConfig](client, ServiceNowITSMServiceName, templateName, body)
 }
 
 func (client *APIClient) DeleteServiceNowSIRTemplate(templateName string) error {
-	path := fmt.Sprintf(
-		"/api/external_service/config/%s?template=%s",
-		ServiceNowITSMServiceName, url.QueryEscape(templateName),
-	)
-	_, err := client.Delete(path)
-	return err
+	return DeleteExternalServiceConfig(client, ServiceNowITSMServiceName, templateName)
 }
 
 // ServiceNowSIRSchemaField is a single field exposed by Orca's SIR schema endpoint. Customers

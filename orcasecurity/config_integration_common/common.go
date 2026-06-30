@@ -67,7 +67,15 @@ type Spec[P any] struct {
 
 	// Extract pulls the cross-variant Common-shape fields out of the API response and
 	// writes any variant-specific Computed fields back into ``state`` (e.g. echoed URLs).
+	// Called on Create / Update / Read by default.
 	Extract func(apiObj *P, state State) APIObject
+
+	// ExtractOnRead is an optional override used only on Read. Variants whose Create/Update
+	// responses can't be safely re-applied to state (e.g. the Plugin Framework's
+	// "inconsistent sensitive attribute" check when a sensitive nested block round-trips
+	// through the API) supply a narrower Extract for Create/Update and a fuller one here
+	// for Read. When nil, Extract is used on every call.
+	ExtractOnRead func(apiObj *P, state State) APIObject
 
 	// CRUD method references — typically the bound ``(*api_client.APIClient).XyzConfig``
 	// methods. The base calls these via the shared API client so per-variant files don't
@@ -154,10 +162,16 @@ func (r *genericResource[P]) Schema(_ context.Context, _ resource.SchemaRequest,
 }
 
 // errorWrap converts an api_client error into a TF diagnostic without forcing every variant
-// to repeat the same AddError boilerplate.
+// to repeat the same AddError boilerplate. action is the bare verb ("create", "read"); the
+// title uses the gerund form so the wording matches existing handwritten diagnostics
+// ("Error creating X" / "Could not create X: ...").
 func errorWrap(diags *diag.Diagnostics, action, ui string, err error) {
+	gerund := action + "ing"
+	if action == "create" || action == "update" {
+		gerund = action[:len(action)-1] + "ing"
+	}
 	diags.AddError(
-		fmt.Sprintf("Error %s %s", action, ui),
+		fmt.Sprintf("Error %s %s", gerund, ui),
 		fmt.Sprintf("Could not %s %s: %s", action, ui, err.Error()),
 	)
 }
@@ -178,7 +192,7 @@ func (r *genericResource[P]) Create(ctx context.Context, req resource.CreateRequ
 	}
 	created, err := r.spec.Create(r.client, payload)
 	if err != nil {
-		errorWrap(&resp.Diagnostics, "creating", r.spec.UIName, err)
+		errorWrap(&resp.Diagnostics, "create", r.spec.UIName, err)
 		return
 	}
 	applyCommon(ctx, plan, r.spec.Extract(created, plan), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
@@ -196,14 +210,18 @@ func (r *genericResource[P]) Read(ctx context.Context, req resource.ReadRequest,
 	}
 	current, err := r.spec.Get(r.client, state.GetCommon().TemplateName.ValueString())
 	if err != nil {
-		errorWrap(&resp.Diagnostics, "reading", r.spec.UIName, err)
+		errorWrap(&resp.Diagnostics, "read", r.spec.UIName, err)
 		return
 	}
 	if current == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	applyCommon(ctx, state, r.spec.Extract(current, state), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	extract := r.spec.Extract
+	if r.spec.ExtractOnRead != nil {
+		extract = r.spec.ExtractOnRead
+	}
+	applyCommon(ctx, state, extract(current, state), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -227,7 +245,7 @@ func (r *genericResource[P]) Update(ctx context.Context, req resource.UpdateRequ
 	}
 	updated, err := r.spec.Update(r.client, state.GetCommon().TemplateName.ValueString(), payload)
 	if err != nil {
-		errorWrap(&resp.Diagnostics, "updating", r.spec.UIName, err)
+		errorWrap(&resp.Diagnostics, "update", r.spec.UIName, err)
 		return
 	}
 	applyCommon(ctx, plan, r.spec.Extract(updated, plan), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
@@ -244,7 +262,7 @@ func (r *genericResource[P]) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 	if err := r.spec.Delete(r.client, state.GetCommon().TemplateName.ValueString()); err != nil {
-		errorWrap(&resp.Diagnostics, "deleting", r.spec.UIName, err)
+		errorWrap(&resp.Diagnostics, "delete", r.spec.UIName, err)
 	}
 }
 
