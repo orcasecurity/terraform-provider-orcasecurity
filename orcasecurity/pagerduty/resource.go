@@ -2,219 +2,137 @@ package pagerduty
 
 import (
 	"context"
-	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+type state struct {
+	ID             types.String `tfsdk:"id"`
+	TemplateName   types.String `tfsdk:"template_name"`
+	IsEnabled      types.Bool   `tfsdk:"is_enabled"`
+	IsDefault      types.Bool   `tfsdk:"is_default"`
+	IntegrationKey types.String `tfsdk:"integration_key"`
+}
+
+func (s *state) GetCommon() *cc.Common {
+	return &cc.Common{
+		ID:            s.ID,
+		TemplateName:  s.TemplateName,
+		IsEnabled:     s.IsEnabled,
+		IsDefault:     s.IsDefault,
+		BusinessUnits: types.SetNull(types.StringType),
+	}
+}
+
+func (s *state) SetCommon(c cc.Common) {
+	s.ID = c.ID
+	s.TemplateName = c.TemplateName
+	s.IsEnabled = c.IsEnabled
+	s.IsDefault = c.IsDefault
+}
+
+type variant struct{}
+
+func (variant) TypeNameSuffix() string      { return "_integration_pagerduty" }
+func (variant) UIName() string              { return "PagerDuty integration" }
+func (variant) SupportsBusinessUnits() bool { return false }
+func (variant) Description() string {
+	return "Manage a PagerDuty integration in Orca. Creates an external service config of `service_name = \"pagerduty\"` and stores the integration key in Orca's secret store."
+}
+
+func (variant) VariantAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"integration_key": schema.StringAttribute{
+			Required:    true,
+			Sensitive:   true,
+			Description: "PagerDuty Events API V2 integration key. Stored in Orca's secret store; never returned by the API.",
+			Validators: []validator.String{
+				stringvalidator.LengthAtLeast(1),
+			},
+		},
+	}
+}
+
+func (variant) NewState() cc.State { return &state{} }
+
+func (variant) buildPayload(s *state) api_client.PagerDutyExternalServiceConfig {
+	return api_client.PagerDutyExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config: api_client.PagerDutyConfig{
+			IntegrationKey: s.IntegrationKey.ValueString(),
+		},
+	}
+}
+
+func apiObj(o *api_client.PagerDutyExternalServiceConfig) cc.APIObject {
+	return cc.APIObject{
+		ID:           o.ID,
+		TemplateName: o.TemplateName,
+		IsEnabled:    o.IsEnabled,
+		IsDefault:    o.IsDefault,
+	}
+}
+
+func (v variant) Create(c *api_client.APIClient, _ context.Context, plan cc.State, _ *diag.Diagnostics) (cc.APIObject, diag.Diagnostics) {
+	created, err := c.CreatePagerDutyConfig(v.buildPayload(plan.(*state)))
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError("Error creating PagerDuty integration", err.Error())
+		return cc.APIObject{}, diags
+	}
+	return apiObj(created), nil
+}
+
+func (v variant) Read(c *api_client.APIClient, _ context.Context, state cc.State, _ *diag.Diagnostics) (cc.APIObject, bool, diag.Diagnostics) {
+	current, err := c.GetPagerDutyConfig(state.GetCommon().TemplateName.ValueString())
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError("Error reading PagerDuty integration", err.Error())
+		return cc.APIObject{}, false, diags
+	}
+	if current == nil {
+		return cc.APIObject{}, false, nil
+	}
+	return apiObj(current), true, nil
+}
+
+func (v variant) Update(c *api_client.APIClient, _ context.Context, plan cc.State, templateName string, _ *diag.Diagnostics) (cc.APIObject, diag.Diagnostics) {
+	updated, err := c.UpdatePagerDutyConfig(templateName, v.buildPayload(plan.(*state)))
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError("Error updating PagerDuty integration", err.Error())
+		return cc.APIObject{}, diags
+	}
+	return apiObj(updated), nil
+}
+
+func (v variant) Delete(c *api_client.APIClient, templateName string) error {
+	return c.DeletePagerDutyConfig(templateName)
+}
+
+type pagerDutyResource struct {
+	cc.Resource
+}
+
+func NewPagerDutyResource() resource.Resource {
+	return &pagerDutyResource{Resource: cc.Resource{V: variant{}}}
+}
+
+func (r *pagerDutyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = cc.Schema(r.V)
+}
 
 var (
 	_ resource.Resource                = &pagerDutyResource{}
 	_ resource.ResourceWithConfigure   = &pagerDutyResource{}
 	_ resource.ResourceWithImportState = &pagerDutyResource{}
 )
-
-type pagerDutyResource struct {
-	apiClient *api_client.APIClient
-}
-
-type pagerDutyResourceModel struct {
-	ID             types.String `tfsdk:"id"`
-	TemplateName   types.String `tfsdk:"template_name"`
-	IntegrationKey types.String `tfsdk:"integration_key"`
-	IsEnabled      types.Bool   `tfsdk:"is_enabled"`
-	IsDefault      types.Bool   `tfsdk:"is_default"`
-}
-
-func NewPagerDutyResource() resource.Resource {
-	return &pagerDutyResource{}
-}
-
-func (r *pagerDutyResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_integration_pagerduty"
-}
-
-func (r *pagerDutyResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	r.apiClient = req.ProviderData.(*api_client.APIClient)
-}
-
-func (r *pagerDutyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		Description: "Manage a PagerDuty integration in Orca. Creates an external service config of `service_name = \"pagerduty\"` and stores the integration key in Orca's secret store.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Orca external service config identifier (UUID).",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"template_name": schema.StringAttribute{
-				Required:    true,
-				Description: "Template name for the PagerDuty integration. Acts as the human-readable identifier for the integration in Orca. Changing this forces a new resource.",
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"integration_key": schema.StringAttribute{
-				Required:    true,
-				Sensitive:   true,
-				Description: "PagerDuty Events API V2 integration key. The value is stored in Orca's secret store and is never returned by the API.",
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"is_enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether the PagerDuty integration is enabled. Defaults to `true`.",
-				Default:     booldefault.StaticBool(true),
-			},
-			"is_default": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether this integration is the organisation's default PagerDuty configuration. Defaults to `false`.",
-				Default:     booldefault.StaticBool(false),
-			},
-		},
-	}
-}
-
-func (r *pagerDutyResource) buildPayload(plan pagerDutyResourceModel) api_client.PagerDutyExternalServiceConfig {
-	return api_client.PagerDutyExternalServiceConfig{
-		TemplateName: plan.TemplateName.ValueString(),
-		IsEnabled:    plan.IsEnabled.ValueBool(),
-		IsDefault:    plan.IsDefault.ValueBool(),
-		Config: api_client.PagerDutyConfig{
-			IntegrationKey: plan.IntegrationKey.ValueString(),
-		},
-	}
-}
-
-func (r *pagerDutyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if r.apiClient == nil {
-		resp.Diagnostics.AddError("Error creating PagerDuty integration", "API client not configured.")
-		return
-	}
-
-	var plan pagerDutyResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	created, err := r.apiClient.CreatePagerDutyConfig(r.buildPayload(plan))
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating PagerDuty integration",
-			fmt.Sprintf("Could not create PagerDuty integration: %s", err.Error()),
-		)
-		return
-	}
-
-	plan.ID = types.StringValue(created.ID)
-	plan.IsEnabled = types.BoolValue(created.IsEnabled)
-	plan.IsDefault = types.BoolValue(created.IsDefault)
-	if created.TemplateName != "" {
-		plan.TemplateName = types.StringValue(created.TemplateName)
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-}
-
-func (r *pagerDutyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state pagerDutyResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	current, err := r.apiClient.GetPagerDutyConfig(state.TemplateName.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading PagerDuty integration",
-			fmt.Sprintf("Could not read PagerDuty integration %s: %s", state.TemplateName.ValueString(), err.Error()),
-		)
-		return
-	}
-
-	if current == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	state.ID = types.StringValue(current.ID)
-	state.TemplateName = types.StringValue(current.TemplateName)
-	state.IsEnabled = types.BoolValue(current.IsEnabled)
-	state.IsDefault = types.BoolValue(current.IsDefault)
-	// Orca strips the integration key from responses (stored in SSM); keep existing state value.
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-}
-
-func (r *pagerDutyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan pagerDutyResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	var state pagerDutyResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	updated, err := r.apiClient.UpdatePagerDutyConfig(state.TemplateName.ValueString(), r.buildPayload(plan))
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating PagerDuty integration",
-			fmt.Sprintf("Could not update PagerDuty integration %s: %s", state.TemplateName.ValueString(), err.Error()),
-		)
-		return
-	}
-
-	plan.ID = types.StringValue(updated.ID)
-	plan.IsEnabled = types.BoolValue(updated.IsEnabled)
-	plan.IsDefault = types.BoolValue(updated.IsDefault)
-	if updated.TemplateName != "" {
-		plan.TemplateName = types.StringValue(updated.TemplateName)
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-}
-
-func (r *pagerDutyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state pagerDutyResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if err := r.apiClient.DeletePagerDutyConfig(state.TemplateName.ValueString()); err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting PagerDuty integration",
-			fmt.Sprintf("Could not delete PagerDuty integration %s: %s", state.TemplateName.ValueString(), err.Error()),
-		)
-		return
-	}
-}
-
-func (r *pagerDutyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Config endpoints look up integrations by template_name; import keys on that value.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("template_name"), req.ID)...)
-}
