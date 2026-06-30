@@ -33,13 +33,13 @@ data "orcasecurity_integration_servicenow_resource" "existing" {
 }
 
 resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
-  template_name = "Yuri Demo"
+  template_name = template_name
   resource_id   = data.orcasecurity_integration_servicenow_resource.existing.id
-  instance_name = "ven03666"
+  instance_name = "instnace_name"
 
   resolution_status = "6"
   resolution_code   = "Resolved by caller"
-  resolution_note   = "Resolved by Yuri"
+  resolution_note   = "Resolved by someone"
 
   mapping_json = jsonencode({
     category    = [{ value = "software" }]
