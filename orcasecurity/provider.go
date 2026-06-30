@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"terraform-provider-orcasecurity/orcasecurity/akamai"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
 	"terraform-provider-orcasecurity/orcasecurity/azure_devops_template"
+	"terraform-provider-orcasecurity/orcasecurity/azure_sentinel"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
+	"terraform-provider-orcasecurity/orcasecurity/cloudflare"
+	"terraform-provider-orcasecurity/orcasecurity/coralogix"
 	"terraform-provider-orcasecurity/orcasecurity/custom_compliance_framework"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
@@ -20,11 +24,22 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/group_access"
+	"terraform-provider-orcasecurity/orcasecurity/jira_cloud_template"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
+	"terraform-provider-orcasecurity/orcasecurity/opsgenie"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
+	"terraform-provider-orcasecurity/orcasecurity/pagerduty"
 	"terraform-provider-orcasecurity/orcasecurity/rbac_role"
+	"terraform-provider-orcasecurity/orcasecurity/s3_bucket"
 	"terraform-provider-orcasecurity/orcasecurity/scheduled_report"
+	"terraform-provider-orcasecurity/orcasecurity/servicenow"
+	"terraform-provider-orcasecurity/orcasecurity/servicenow_itsm_template"
+	"terraform-provider-orcasecurity/orcasecurity/servicenow_sir_template"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
+	"terraform-provider-orcasecurity/orcasecurity/snyk"
+	"terraform-provider-orcasecurity/orcasecurity/splunk"
+	"terraform-provider-orcasecurity/orcasecurity/terraform_cloud"
+	"terraform-provider-orcasecurity/orcasecurity/torq"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy_catalog_controls"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
@@ -33,6 +48,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
 	"terraform-provider-orcasecurity/orcasecurity/user_preferences"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
+	"terraform-provider-orcasecurity/orcasecurity/zscaler"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -206,6 +222,9 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 	return []func() datasource.DataSource{
 		azure_devops_template.NewAzureDevopsTemplateDataSource,
 		jira_template.NewJiraTemplateDataSource,
+		s3_bucket.NewS3BucketPolicyDataSource,
+		servicenow.NewServiceNowDataSource,
+		servicenow_sir_template.NewServiceNowSIRSchemaDataSource,
 		webhook.NewWebhookDataSource,
 		organizations.NewOrganizationDataSource,
 		user_preferences.NewUserPreferencesDataSource,
@@ -227,10 +246,27 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		group.NewGroupResource,
 		group_access.NewGroupAccessResource,
 		business_unit.NewBusinessUnitResource,
+		akamai.NewAkamaiResource,
+		azure_sentinel.NewAzureSentinelResource,
+		cloudflare.NewCloudflareResource,
+		coralogix.NewCoralogixResource,
+		jira_cloud_template.NewJiraCloudTemplateResource,
+		opsgenie.NewOpsgenieResource,
+		pagerduty.NewPagerDutyResource,
+		s3_bucket.NewS3BucketResource,
+		snyk.NewSnykResource,
+		splunk.NewSplunkResource,
+		terraform_cloud.NewTerraformCloudResource,
+		torq.NewTorqResource,
+		webhook.NewWebhookResource,
+		zscaler.NewZscalerResource,
 		custom_widget.NewCustomWidgetResource,
 		custom_dashboard.NewCustomDashboardResource,
 		discovery_view.NewDiscoveryViewResource,
 		scheduled_report.NewScheduledReportResource,
+		servicenow.NewServiceNowResource,
+		servicenow_itsm_template.NewServiceNowITSMTemplateResource,
+		servicenow_sir_template.NewServiceNowSIRTemplateResource,
 		shift_left_project.NewShiftLeftProjectResource,
 		shift_left_policy.NewShiftLeftPolicyResource,
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
