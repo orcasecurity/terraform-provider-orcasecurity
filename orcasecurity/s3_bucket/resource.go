@@ -25,6 +25,10 @@ import (
 // pasting a bucket name and hitting a confusing connectivity error later.
 var arnOrURLPattern = regexp.MustCompile(`^(arn:|https?://|s3://)`)
 
+// errRenderingPolicy is the diagnostic summary used by Create/Read/Update when
+// populateComputed fails. Centralised so future copy edits land in one place.
+const errRenderingPolicy = "Error rendering S3 bucket policy"
+
 var (
 	_ resource.Resource                = &s3BucketResource{}
 	_ resource.ResourceWithConfigure   = &s3BucketResource{}
@@ -281,7 +285,7 @@ func (r *s3BucketResource) Create(ctx context.Context, req resource.CreateReques
 	plan.Folder = types.StringValue(created.Config.Folder)
 
 	if err := r.populateComputed(&plan); err != nil {
-		resp.Diagnostics.AddError("Error rendering S3 bucket policy", err.Error())
+		resp.Diagnostics.AddError(errRenderingPolicy, err.Error())
 		return
 	}
 
@@ -319,7 +323,7 @@ func (r *s3BucketResource) Read(ctx context.Context, req resource.ReadRequest, r
 	state.Folder = types.StringValue(current.Config.Folder)
 
 	if err := r.populateComputed(&state); err != nil {
-		resp.Diagnostics.AddError("Error rendering S3 bucket policy", err.Error())
+		resp.Diagnostics.AddError(errRenderingPolicy, err.Error())
 		return
 	}
 
@@ -360,7 +364,7 @@ func (r *s3BucketResource) Update(ctx context.Context, req resource.UpdateReques
 	plan.Folder = types.StringValue(updated.Config.Folder)
 
 	if err := r.populateComputed(&plan); err != nil {
-		resp.Diagnostics.AddError("Error rendering S3 bucket policy", err.Error())
+		resp.Diagnostics.AddError(errRenderingPolicy, err.Error())
 		return
 	}
 
