@@ -22,8 +22,8 @@ and is never returned by the API.
 ```terraform
 # Splunk HEC integration
 resource "orcasecurity_integration_splunk" "example" {
-  template_name          = "Test_Dor"
-  url                    = "https://prd-p-o3tuy.splunkcloud.com:8088/services/collector/event"
+  template_name          = "splunk_test"
+  url                    = "https://prd-p-splunk.splunkcloud.com:8088/services/collector/event"
   token                  = var.splunk_hec_token
   allow_self_signed_cert = true
   is_enabled             = true
@@ -74,7 +74,7 @@ resource "orcasecurity_integration_splunk" "from_vault" {
 ## Import
 
 ```bash
-terraform import orcasecurity_integration_splunk.example Test_Dor
+terraform import orcasecurity_integration_splunk.example splunk_test
 ```
 
 After import, set the `token` argument in your configuration — the API does

@@ -131,5 +131,5 @@ resource "orcasecurity_integration_servicenow_sir_template" "demo" {
 ## Import
 
 ```bash
-terraform import orcasecurity_integration_servicenow_sir_template.example "test_SIR_NAME"
+terraform import orcasecurity_integration_servicenow_sir_template.example template_name
 ```

@@ -104,5 +104,5 @@ resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
 ## Import
 
 ```bash
-terraform import orcasecurity_integration_servicenow_itsm_template.example "Yuri Demo"
+terraform import orcasecurity_integration_servicenow_itsm_template.example template_name
 ```
