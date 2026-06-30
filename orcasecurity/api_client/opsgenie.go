@@ -46,7 +46,7 @@ func (client *APIClient) CreateOpsgenieConfig(payload OpsgenieExternalServiceCon
 		return nil, fmt.Errorf("failed to decode Opsgenie create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Opsgenie integration was not returned by the API")
+		return nil, fmt.Errorf("opsgenie integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -104,7 +104,7 @@ func (client *APIClient) UpdateOpsgenieConfig(templateName string, payload Opsge
 		return nil, fmt.Errorf("failed to decode Opsgenie update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Opsgenie integration was not returned by the API")
+		return nil, fmt.Errorf("opsgenie integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

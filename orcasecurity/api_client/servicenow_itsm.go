@@ -49,7 +49,7 @@ func (client *APIClient) CreateServiceNowITSMResource(payload ServiceNowITSMReso
 		if err := resp.ReadJSON(&direct); err == nil && direct.ID != "" {
 			return &direct, nil
 		}
-		return nil, fmt.Errorf("ServiceNow ITSM resource was not returned by the API")
+		return nil, fmt.Errorf("servicenow itsm resource was not returned by the API")
 	}
 
 	return &response.Data, nil
@@ -57,7 +57,7 @@ func (client *APIClient) CreateServiceNowITSMResource(payload ServiceNowITSMReso
 
 // ListServiceNowITSMResources returns every external_service/resources entry filed under
 // service_name=sn_incidents in the caller's organisation. Use it when looking up an existing
-// resource by its human-friendly ``name`` (Orca does not expose a name filter on this
+// resource by its human-friendly “name“ (Orca does not expose a name filter on this
 // endpoint, so the provider does the match client-side).
 func (client *APIClient) ListServiceNowITSMResources() ([]ServiceNowITSMResource, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/external_service/resources?service_name=%s", ServiceNowITSMServiceName))
@@ -140,7 +140,7 @@ func (client *APIClient) UpdateServiceNowITSMResource(id string, payload Service
 		if err := resp.ReadJSON(&direct); err == nil && direct.ID != "" {
 			return &direct, nil
 		}
-		return nil, fmt.Errorf("ServiceNow ITSM resource was not returned by the API")
+		return nil, fmt.Errorf("servicenow itsm resource was not returned by the API")
 	}
 
 	return &response.Data, nil

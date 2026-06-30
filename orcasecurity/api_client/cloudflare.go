@@ -45,7 +45,7 @@ func (client *APIClient) CreateCloudflareConfig(payload CloudflareExternalServic
 		return nil, fmt.Errorf("failed to decode Cloudflare create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Cloudflare integration was not returned by the API")
+		return nil, fmt.Errorf("cloudflare integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -99,7 +99,7 @@ func (client *APIClient) UpdateCloudflareConfig(templateName string, payload Clo
 		return nil, fmt.Errorf("failed to decode Cloudflare update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Cloudflare integration was not returned by the API")
+		return nil, fmt.Errorf("cloudflare integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

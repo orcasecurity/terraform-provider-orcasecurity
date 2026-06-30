@@ -36,10 +36,10 @@ type s3BucketListResponse struct {
 // OrcaSettings is the public app-settings document exposed by Orca. The provider uses it to
 // surface the report_uploader_arn that customers paste into their bucket policy.
 type OrcaSettings struct {
-	AWSAccountID                            string `json:"aws_account_id"`
+	AWSAccountID                             string `json:"aws_account_id"`
 	IntegrationCloudformationTemplatesFolder string `json:"integration_cloudformation_templates_folder"`
-	ReportUploaderArn                       string `json:"report_uploader_arn"`
-	ResourcePartition                       string `json:"resource_partition"`
+	ReportUploaderArn                        string `json:"report_uploader_arn"`
+	ResourcePartition                        string `json:"resource_partition"`
 }
 
 type orcaSettingsResponse struct {
@@ -63,7 +63,7 @@ func (client *APIClient) GetOrcaSettings() (*OrcaSettings, error) {
 	if err := resp.ReadJSON(&direct); err == nil && direct.ReportUploaderArn != "" {
 		return &direct, nil
 	}
-	return nil, fmt.Errorf("Orca settings response did not include report_uploader_arn")
+	return nil, fmt.Errorf("orca settings response did not include report_uploader_arn")
 }
 
 func (client *APIClient) CreateS3BucketConfig(payload S3BucketExternalServiceConfig) (*S3BucketExternalServiceConfig, error) {
@@ -79,7 +79,7 @@ func (client *APIClient) CreateS3BucketConfig(payload S3BucketExternalServiceCon
 		return nil, fmt.Errorf("failed to decode S3 bucket create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("S3 bucket integration was not returned by the API")
+		return nil, fmt.Errorf("s3 bucket integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -136,7 +136,7 @@ func (client *APIClient) UpdateS3BucketConfig(templateName string, payload S3Buc
 		return nil, fmt.Errorf("failed to decode S3 bucket update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("S3 bucket integration was not returned by the API")
+		return nil, fmt.Errorf("s3 bucket integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

@@ -26,12 +26,12 @@ type AzureSentinelExternalServiceConfig struct {
 }
 
 type azureSentinelSingleResponse struct {
-	Status string                            `json:"status"`
+	Status string                             `json:"status"`
 	Data   AzureSentinelExternalServiceConfig `json:"data"`
 }
 
 type azureSentinelListResponse struct {
-	Status string                              `json:"status"`
+	Status string                               `json:"status"`
 	Data   []AzureSentinelExternalServiceConfig `json:"data"`
 }
 
@@ -48,7 +48,7 @@ func (client *APIClient) CreateAzureSentinelConfig(payload AzureSentinelExternal
 		return nil, fmt.Errorf("failed to decode Azure Sentinel create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Azure Sentinel integration was not returned by the API")
+		return nil, fmt.Errorf("azure sentinel integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -111,7 +111,7 @@ func (client *APIClient) UpdateAzureSentinelConfig(templateName string, payload 
 		return nil, fmt.Errorf("failed to decode Azure Sentinel update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Azure Sentinel integration was not returned by the API")
+		return nil, fmt.Errorf("azure sentinel integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

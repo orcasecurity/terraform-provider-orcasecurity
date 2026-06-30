@@ -26,12 +26,12 @@ func (client *APIClient) CreateServiceNowSIRTemplate(payload ServiceNowITSMTempl
 		return nil, fmt.Errorf("failed to decode ServiceNow SIR template create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("ServiceNow SIR template was not returned by the API")
+		return nil, fmt.Errorf("servicenow sir template was not returned by the API")
 	}
 	return &response.Data, nil
 }
 
-// GetServiceNowSIRTemplate looks up a template by name and filters on ``config.type == "SIR"``
+// GetServiceNowSIRTemplate looks up a template by name and filters on “config.type == "SIR"“
 // so it does not collide with an ITSM template that happens to share a template_name.
 func (client *APIClient) GetServiceNowSIRTemplate(templateName string) (*ServiceNowITSMTemplate, error) {
 	path := fmt.Sprintf(
@@ -86,7 +86,7 @@ func (client *APIClient) UpdateServiceNowSIRTemplate(templateName string, payloa
 		return nil, fmt.Errorf("failed to decode ServiceNow SIR template update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("ServiceNow SIR template was not returned by the API")
+		return nil, fmt.Errorf("servicenow sir template was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -101,7 +101,7 @@ func (client *APIClient) DeleteServiceNowSIRTemplate(templateName string) error 
 }
 
 // ServiceNowSIRSchemaField is a single field exposed by Orca's SIR schema endpoint. Customers
-// use this to discover which ServiceNow fields they can include in ``mapping_json`` on the
+// use this to discover which ServiceNow fields they can include in “mapping_json“ on the
 // SIR template resource.
 type ServiceNowSIRSchemaField struct {
 	Element      string `json:"element"`

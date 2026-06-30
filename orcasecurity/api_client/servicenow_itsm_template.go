@@ -11,19 +11,19 @@ import (
 // json.RawMessage so the provider can preserve the customer's arbitrary key/value structure
 // (Orca validates them server-side against sn_incidents.schema.json).
 type ServiceNowITSMTemplateConfig struct {
-	Type                       string          `json:"type"`
-	InstanceName               string          `json:"instance_name,omitempty"`
-	BaseURL                    string          `json:"base_url,omitempty"`
-	Username                   string          `json:"username,omitempty"`
-	Password                   string          `json:"password,omitempty"`
-	ResolutionStatus           string          `json:"resolution_status,omitempty"`
-	ResolutionCode             string          `json:"resolution_code,omitempty"`
-	ResolutionNote             string          `json:"resolution_note,omitempty"`
-	ReopenStatus               string          `json:"reopen_status,omitempty"`
-	Mapping                    json.RawMessage `json:"mapping,omitempty"`
-	OnCloseAlertMapping        json.RawMessage `json:"on_close_alert_mapping,omitempty"`
-	AllowReopenAndResolution   *bool           `json:"allow_reopen_and_resolution,omitempty"`
-	AllowMapping               *bool           `json:"allow_mapping,omitempty"`
+	Type                     string          `json:"type"`
+	InstanceName             string          `json:"instance_name,omitempty"`
+	BaseURL                  string          `json:"base_url,omitempty"`
+	Username                 string          `json:"username,omitempty"`
+	Password                 string          `json:"password,omitempty"`
+	ResolutionStatus         string          `json:"resolution_status,omitempty"`
+	ResolutionCode           string          `json:"resolution_code,omitempty"`
+	ResolutionNote           string          `json:"resolution_note,omitempty"`
+	ReopenStatus             string          `json:"reopen_status,omitempty"`
+	Mapping                  json.RawMessage `json:"mapping,omitempty"`
+	OnCloseAlertMapping      json.RawMessage `json:"on_close_alert_mapping,omitempty"`
+	AllowReopenAndResolution *bool           `json:"allow_reopen_and_resolution,omitempty"`
+	AllowMapping             *bool           `json:"allow_mapping,omitempty"`
 }
 
 type ServiceNowITSMTemplate struct {
@@ -63,7 +63,7 @@ func (client *APIClient) CreateServiceNowITSMTemplate(payload ServiceNowITSMTemp
 		return nil, fmt.Errorf("failed to decode ServiceNow ITSM template create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("ServiceNow ITSM template was not returned by the API")
+		return nil, fmt.Errorf("servicenow itsm template was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -126,7 +126,7 @@ func (client *APIClient) UpdateServiceNowITSMTemplate(templateName string, paylo
 		return nil, fmt.Errorf("failed to decode ServiceNow ITSM template update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("ServiceNow ITSM template was not returned by the API")
+		return nil, fmt.Errorf("servicenow itsm template was not returned by the API")
 	}
 	return &response.Data, nil
 }

@@ -84,7 +84,7 @@ func (r *snykResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 			"region": schema.StringAttribute{
-				Required:    true,
+				Required: true,
 				Description: "Snyk tenant region. The Orca UI exposes four choices — pass the matching API code here:\n" +
 					"  - `US`  — United States (app.snyk.io)\n" +
 					"  - `US2` — United States 2 (app.us.snyk.io)\n" +

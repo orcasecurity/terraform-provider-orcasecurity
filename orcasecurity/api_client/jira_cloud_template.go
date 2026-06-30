@@ -8,7 +8,7 @@ import (
 
 const JiraCloudServiceName = "jira"
 
-// JiraCloudTemplateConfig mirrors the ``config`` block of the Jira Cloud
+// JiraCloudTemplateConfig mirrors the “config“ block of the Jira Cloud
 // external_service/config payload. The free-form mapping fields are kept as json.RawMessage
 // so the provider can preserve the customer's structure verbatim (Orca validates server-side).
 type JiraCloudTemplateConfig struct {
@@ -59,7 +59,7 @@ func (client *APIClient) CreateJiraCloudTemplate(payload JiraCloudTemplate) (*Ji
 		return nil, fmt.Errorf("failed to decode Jira Cloud create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Jira Cloud template was not returned by the API")
+		return nil, fmt.Errorf("jira cloud template was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -111,7 +111,7 @@ func (client *APIClient) UpdateJiraCloudTemplate(templateName string, payload Ji
 		return nil, fmt.Errorf("failed to decode Jira Cloud update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Jira Cloud template was not returned by the API")
+		return nil, fmt.Errorf("jira cloud template was not returned by the API")
 	}
 	return &response.Data, nil
 }

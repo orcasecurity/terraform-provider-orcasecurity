@@ -22,12 +22,12 @@ type s3BucketPolicyDataSource struct {
 }
 
 type s3BucketPolicyDataSourceModel struct {
-	ArnOrURL          types.String `tfsdk:"arn_or_url"`
-	Folder            types.String `tfsdk:"folder"`
-	BucketName        types.String `tfsdk:"bucket_name"`
-	UploaderRoleArn   types.String `tfsdk:"uploader_role_arn"`
-	BucketPolicyJSON  types.String `tfsdk:"bucket_policy_json"`
-	BucketPolicyHint  types.String `tfsdk:"bucket_policy_instructions"`
+	ArnOrURL         types.String `tfsdk:"arn_or_url"`
+	Folder           types.String `tfsdk:"folder"`
+	BucketName       types.String `tfsdk:"bucket_name"`
+	UploaderRoleArn  types.String `tfsdk:"uploader_role_arn"`
+	BucketPolicyJSON types.String `tfsdk:"bucket_policy_json"`
+	BucketPolicyHint types.String `tfsdk:"bucket_policy_instructions"`
 }
 
 func NewS3BucketPolicyDataSource() datasource.DataSource {

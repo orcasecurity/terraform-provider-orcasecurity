@@ -36,16 +36,16 @@ type s3BucketResource struct {
 }
 
 type s3BucketResourceModel struct {
-	ID                types.String `tfsdk:"id"`
-	TemplateName      types.String `tfsdk:"template_name"`
-	ArnOrURL          types.String `tfsdk:"arn_or_url"`
-	Folder            types.String `tfsdk:"folder"`
-	IsEnabled         types.Bool   `tfsdk:"is_enabled"`
-	IsDefault         types.Bool   `tfsdk:"is_default"`
-	BucketName        types.String `tfsdk:"bucket_name"`
-	UploaderRoleArn   types.String `tfsdk:"uploader_role_arn"`
-	BucketPolicyJSON  types.String `tfsdk:"bucket_policy_json"`
-	BucketPolicyHint  types.String `tfsdk:"bucket_policy_instructions"`
+	ID               types.String `tfsdk:"id"`
+	TemplateName     types.String `tfsdk:"template_name"`
+	ArnOrURL         types.String `tfsdk:"arn_or_url"`
+	Folder           types.String `tfsdk:"folder"`
+	IsEnabled        types.Bool   `tfsdk:"is_enabled"`
+	IsDefault        types.Bool   `tfsdk:"is_default"`
+	BucketName       types.String `tfsdk:"bucket_name"`
+	UploaderRoleArn  types.String `tfsdk:"uploader_role_arn"`
+	BucketPolicyJSON types.String `tfsdk:"bucket_policy_json"`
+	BucketPolicyHint types.String `tfsdk:"bucket_policy_instructions"`
 }
 
 func NewS3BucketResource() resource.Resource {
@@ -181,7 +181,7 @@ func parseBucketName(arnOrURL string) (string, error) {
 }
 
 // buildBucketPolicyJSON renders the policy document the customer must attach to the bucket so
-// Orca's uploader role can write into ``folder/*``. The Resource ARN matches what Orca's
+// Orca's uploader role can write into “folder/*“. The Resource ARN matches what Orca's
 // connectivity check exercises (PutObject with bucket-owner-full-control ACL).
 func buildBucketPolicyJSON(bucketName, folder, uploaderArn string) (string, error) {
 	resource := fmt.Sprintf("arn:aws:s3:::%s", bucketName)

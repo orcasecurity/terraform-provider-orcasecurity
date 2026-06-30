@@ -2,9 +2,9 @@ package jira_cloud_template
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -157,47 +157,6 @@ func (r *jiraCloudResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	}
 }
 
-func decodeJSONField(s types.String, fieldName string) (json.RawMessage, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if s.IsNull() || s.IsUnknown() || s.ValueString() == "" {
-		return nil, diags
-	}
-	raw := json.RawMessage(s.ValueString())
-	if !json.Valid(raw) {
-		diags.AddError(fmt.Sprintf("Invalid JSON in %s", fieldName), "Value must be a JSON-encoded object.")
-		return nil, diags
-	}
-	return raw, diags
-}
-
-func encodeJSONField(raw json.RawMessage, planned types.String) (types.String, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if len(raw) == 0 {
-		if planned.IsNull() || planned.IsUnknown() {
-			return types.StringNull(), diags
-		}
-		return planned, diags
-	}
-	var generic interface{}
-	if err := json.Unmarshal(raw, &generic); err != nil {
-		diags.AddError("Invalid JSON from API", err.Error())
-		return planned, diags
-	}
-	encoded, err := json.Marshal(generic)
-	if err != nil {
-		diags.AddError("Could not re-marshal JSON from API", err.Error())
-		return planned, diags
-	}
-	return types.StringValue(string(encoded)), diags
-}
-
-func businessUnitsFromAPI(ctx context.Context, apiBus []string, planned types.Set) (types.Set, diag.Diagnostics) {
-	if len(apiBus) == 0 && planned.IsNull() {
-		return types.SetNull(types.StringType), nil
-	}
-	return types.SetValueFrom(ctx, types.StringType, apiBus)
-}
-
 func (r *jiraCloudResource) buildPayload(ctx context.Context, plan jiraCloudResourceModel, diags *diag.Diagnostics) api_client.JiraCloudTemplate {
 	cfg := api_client.JiraCloudTemplateConfig{
 		ResourceID:         plan.ResourceID.ValueString(),
@@ -207,23 +166,23 @@ func (r *jiraCloudResource) buildPayload(ctx context.Context, plan jiraCloudReso
 		SubtaskIssueTypeID: plan.SubtaskIssueTypeID.ValueString(),
 	}
 
-	mapping, mappingDiags := decodeJSONField(plan.MappingJSON, "mapping_json")
+	mapping, mappingDiags := common.DecodeJSONField(plan.MappingJSON, "mapping_json")
 	diags.Append(mappingDiags...)
 	cfg.Mapping = mapping
 
-	alertStatus, alertDiags := decodeJSONField(plan.AlertStatusMappingJSON, "alert_status_mapping_json")
+	alertStatus, alertDiags := common.DecodeJSONField(plan.AlertStatusMappingJSON, "alert_status_mapping_json")
 	diags.Append(alertDiags...)
 	cfg.AlertStatusMapping = alertStatus
 
-	ticketStatus, ticketDiags := decodeJSONField(plan.TicketStatusMappingJSON, "ticket_status_mapping_json")
+	ticketStatus, ticketDiags := common.DecodeJSONField(plan.TicketStatusMappingJSON, "ticket_status_mapping_json")
 	diags.Append(ticketDiags...)
 	cfg.TicketStatusMapping = ticketStatus
 
-	subAlertStatus, subAlertDiags := decodeJSONField(plan.SubtaskAlertStatusMappingJSON, "subtask_alert_status_mapping_json")
+	subAlertStatus, subAlertDiags := common.DecodeJSONField(plan.SubtaskAlertStatusMappingJSON, "subtask_alert_status_mapping_json")
 	diags.Append(subAlertDiags...)
 	cfg.SubtaskAlertStatusMapping = subAlertStatus
 
-	subTicketStatus, subTicketDiags := decodeJSONField(plan.SubtaskTicketStatusMappingJSON, "subtask_ticket_status_mapping_json")
+	subTicketStatus, subTicketDiags := common.DecodeJSONField(plan.SubtaskTicketStatusMappingJSON, "subtask_ticket_status_mapping_json")
 	diags.Append(subTicketDiags...)
 	cfg.SubtaskTicketStatusMapping = subTicketStatus
 
@@ -267,27 +226,27 @@ func (r *jiraCloudResource) applyAPIResponse(ctx context.Context, plan *jiraClou
 		plan.SubtaskIssueTypeID = types.StringValue(apiObj.Config.SubtaskIssueTypeID)
 	}
 
-	mapping, mappingDiags := encodeJSONField(apiObj.Config.Mapping, plan.MappingJSON)
+	mapping, mappingDiags := common.EncodeJSONField(apiObj.Config.Mapping, plan.MappingJSON)
 	diags.Append(mappingDiags...)
 	plan.MappingJSON = mapping
 
-	alertStatus, alertDiags := encodeJSONField(apiObj.Config.AlertStatusMapping, plan.AlertStatusMappingJSON)
+	alertStatus, alertDiags := common.EncodeJSONField(apiObj.Config.AlertStatusMapping, plan.AlertStatusMappingJSON)
 	diags.Append(alertDiags...)
 	plan.AlertStatusMappingJSON = alertStatus
 
-	ticketStatus, ticketDiags := encodeJSONField(apiObj.Config.TicketStatusMapping, plan.TicketStatusMappingJSON)
+	ticketStatus, ticketDiags := common.EncodeJSONField(apiObj.Config.TicketStatusMapping, plan.TicketStatusMappingJSON)
 	diags.Append(ticketDiags...)
 	plan.TicketStatusMappingJSON = ticketStatus
 
-	subAlertStatus, subAlertDiags := encodeJSONField(apiObj.Config.SubtaskAlertStatusMapping, plan.SubtaskAlertStatusMappingJSON)
+	subAlertStatus, subAlertDiags := common.EncodeJSONField(apiObj.Config.SubtaskAlertStatusMapping, plan.SubtaskAlertStatusMappingJSON)
 	diags.Append(subAlertDiags...)
 	plan.SubtaskAlertStatusMappingJSON = subAlertStatus
 
-	subTicketStatus, subTicketDiags := encodeJSONField(apiObj.Config.SubtaskTicketStatusMapping, plan.SubtaskTicketStatusMappingJSON)
+	subTicketStatus, subTicketDiags := common.EncodeJSONField(apiObj.Config.SubtaskTicketStatusMapping, plan.SubtaskTicketStatusMappingJSON)
 	diags.Append(subTicketDiags...)
 	plan.SubtaskTicketStatusMappingJSON = subTicketStatus
 
-	bus, busDiags := businessUnitsFromAPI(ctx, apiObj.BusinessUnits, plan.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, apiObj.BusinessUnits, plan.BusinessUnits)
 	diags.Append(busDiags...)
 	plan.BusinessUnits = bus
 }

@@ -46,7 +46,7 @@ func (client *APIClient) CreateSnykConfig(payload SnykExternalServiceConfig) (*S
 		return nil, fmt.Errorf("failed to decode Snyk create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Snyk integration was not returned by the API")
+		return nil, fmt.Errorf("snyk integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -103,7 +103,7 @@ func (client *APIClient) UpdateSnykConfig(templateName string, payload SnykExter
 		return nil, fmt.Errorf("failed to decode Snyk update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Snyk integration was not returned by the API")
+		return nil, fmt.Errorf("snyk integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

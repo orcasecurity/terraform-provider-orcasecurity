@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -110,22 +111,8 @@ func (r *opsgenieResource) buildPayload(ctx context.Context, plan opsgenieResour
 			OpsgenieKey: plan.OpsgenieKey.ValueString(),
 		},
 	}
-	if !plan.BusinessUnits.IsNull() && !plan.BusinessUnits.IsUnknown() {
-		var bus []string
-		diags.Append(plan.BusinessUnits.ElementsAs(ctx, &bus, false)...)
-		payload.BusinessUnits = bus
-	}
+	payload.BusinessUnits = common.BusinessUnitsToAPI(ctx, plan.BusinessUnits, diags)
 	return payload
-}
-
-// businessUnitsFromAPI converts the API's business_units field into a Terraform list value.
-// When the user did not declare business_units in their config (planned value is null) and the
-// API returns an empty list, preserve the null to avoid a "null vs []" diff on every plan.
-func businessUnitsFromAPI(ctx context.Context, apiBus []string, planned types.Set) (types.Set, diag.Diagnostics) {
-	if len(apiBus) == 0 && planned.IsNull() {
-		return types.SetNull(types.StringType), nil
-	}
-	return types.SetValueFrom(ctx, types.StringType, apiBus)
 }
 
 func (r *opsgenieResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -159,7 +146,7 @@ func (r *opsgenieResource) Create(ctx context.Context, req resource.CreateReques
 	if created.TemplateName != "" {
 		plan.TemplateName = types.StringValue(created.TemplateName)
 	}
-	bus, busDiags := businessUnitsFromAPI(ctx, created.BusinessUnits, plan.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, created.BusinessUnits, plan.BusinessUnits)
 	resp.Diagnostics.Append(busDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -194,7 +181,7 @@ func (r *opsgenieResource) Read(ctx context.Context, req resource.ReadRequest, r
 	state.TemplateName = types.StringValue(current.TemplateName)
 	state.IsEnabled = types.BoolValue(current.IsEnabled)
 	state.IsDefault = types.BoolValue(current.IsDefault)
-	bus, busDiags := businessUnitsFromAPI(ctx, current.BusinessUnits, state.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, current.BusinessUnits, state.BusinessUnits)
 	resp.Diagnostics.Append(busDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -237,7 +224,7 @@ func (r *opsgenieResource) Update(ctx context.Context, req resource.UpdateReques
 	if updated.TemplateName != "" {
 		plan.TemplateName = types.StringValue(updated.TemplateName)
 	}
-	bus, busDiags := businessUnitsFromAPI(ctx, updated.BusinessUnits, plan.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, updated.BusinessUnits, plan.BusinessUnits)
 	resp.Diagnostics.Append(busDiags...)
 	if resp.Diagnostics.HasError() {
 		return

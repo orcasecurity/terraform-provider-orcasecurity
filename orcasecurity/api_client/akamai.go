@@ -48,7 +48,7 @@ func (client *APIClient) CreateAkamaiConfig(payload AkamaiExternalServiceConfig)
 		return nil, fmt.Errorf("failed to decode Akamai create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Akamai integration was not returned by the API")
+		return nil, fmt.Errorf("akamai integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -113,7 +113,7 @@ func (client *APIClient) UpdateAkamaiConfig(templateName string, payload AkamaiE
 		return nil, fmt.Errorf("failed to decode Akamai update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Akamai integration was not returned by the API")
+		return nil, fmt.Errorf("akamai integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

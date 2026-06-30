@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -149,13 +150,6 @@ func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
-func businessUnitsFromAPI(ctx context.Context, apiBus []string, planned types.Set) (types.Set, diag.Diagnostics) {
-	if len(apiBus) == 0 && planned.IsNull() {
-		return types.SetNull(types.StringType), nil
-	}
-	return types.SetValueFrom(ctx, types.StringType, apiBus)
-}
-
 func (r *webhookResource) buildPayload(ctx context.Context, plan webhookResourceModel, diags *diag.Diagnostics) api_client.WebhookExternalServiceConfig {
 	payload := api_client.WebhookExternalServiceConfig{
 		TemplateName: plan.TemplateName.ValueString(),
@@ -183,12 +177,7 @@ func (r *webhookResource) buildPayload(ctx context.Context, plan webhookResource
 		}
 	}
 
-	if !plan.BusinessUnits.IsNull() && !plan.BusinessUnits.IsUnknown() {
-		var bus []string
-		diags.Append(plan.BusinessUnits.ElementsAs(ctx, &bus, false)...)
-		payload.BusinessUnits = bus
-	}
-
+	payload.BusinessUnits = common.BusinessUnitsToAPI(ctx, plan.BusinessUnits, diags)
 	return payload
 }
 
@@ -266,9 +255,9 @@ func bodyFieldsFromAPI(ctx context.Context, fields []string, planned types.List)
 }
 
 // applyAPITopLevelToPlan updates the non-config fields from the API response and leaves the
-// nested ``config`` block exactly as the user planned it. The Plugin Framework treats any
-// parent of a sensitive attribute (here, ``config`` wraps ``api_key``) as sensitive, so any
-// post-apply mismatch anywhere inside ``config`` — even on a non-sensitive child the API
+// nested “config“ block exactly as the user planned it. The Plugin Framework treats any
+// parent of a sensitive attribute (here, “config“ wraps “api_key“) as sensitive, so any
+// post-apply mismatch anywhere inside “config“ — even on a non-sensitive child the API
 // normalises (URL trailing slash, header ordering, etc.) — triggers
 // "inconsistent values for sensitive attribute". Trusting the plan side-steps the whole class
 // of issues on Create/Update.
@@ -280,14 +269,14 @@ func (r *webhookResource) applyAPITopLevelToPlan(ctx context.Context, plan *webh
 		plan.TemplateName = types.StringValue(apiObj.TemplateName)
 	}
 
-	bus, busDiags := businessUnitsFromAPI(ctx, apiObj.BusinessUnits, plan.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, apiObj.BusinessUnits, plan.BusinessUnits)
 	diags.Append(busDiags...)
 	plan.BusinessUnits = bus
 }
 
-// applyAPIResponseToState refreshes the whole resource — including the ``config`` block — from
+// applyAPIResponseToState refreshes the whole resource — including the “config“ block — from
 // an API response. Used by Read, where we want to detect drift the next time the user runs
-// ``terraform plan``. ``api_key`` is intentionally not overwritten: the API may strip or
+// “terraform plan“. “api_key“ is intentionally not overwritten: the API may strip or
 // re-encode it, and we already store the user-supplied value in state.
 func (r *webhookResource) applyAPIResponseToState(ctx context.Context, state *webhookResourceModel, apiObj *api_client.WebhookExternalServiceConfig, diags *diag.Diagnostics) {
 	r.applyAPITopLevelToPlan(ctx, state, apiObj, diags)

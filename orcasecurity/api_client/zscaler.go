@@ -47,7 +47,7 @@ func (client *APIClient) CreateZscalerConfig(payload ZscalerExternalServiceConfi
 		return nil, fmt.Errorf("failed to decode Zscaler create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Zscaler integration was not returned by the API")
+		return nil, fmt.Errorf("zscaler integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -107,7 +107,7 @@ func (client *APIClient) UpdateZscalerConfig(templateName string, payload Zscale
 		return nil, fmt.Errorf("failed to decode Zscaler update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Zscaler integration was not returned by the API")
+		return nil, fmt.Errorf("zscaler integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

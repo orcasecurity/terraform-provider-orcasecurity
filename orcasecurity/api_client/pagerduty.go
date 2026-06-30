@@ -45,7 +45,7 @@ func (client *APIClient) CreatePagerDutyConfig(payload PagerDutyExternalServiceC
 		return nil, fmt.Errorf("failed to decode PagerDuty create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("PagerDuty integration was not returned by the API")
+		return nil, fmt.Errorf("pagerduty integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -101,7 +101,7 @@ func (client *APIClient) UpdatePagerDutyConfig(templateName string, payload Page
 		return nil, fmt.Errorf("failed to decode PagerDuty update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("PagerDuty integration was not returned by the API")
+		return nil, fmt.Errorf("pagerduty integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

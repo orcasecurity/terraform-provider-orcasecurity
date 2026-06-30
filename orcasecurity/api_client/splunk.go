@@ -47,7 +47,7 @@ func (client *APIClient) CreateSplunkConfig(payload SplunkExternalServiceConfig)
 		return nil, fmt.Errorf("failed to decode Splunk create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Splunk integration was not returned by the API")
+		return nil, fmt.Errorf("splunk integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -106,7 +106,7 @@ func (client *APIClient) UpdateSplunkConfig(templateName string, payload SplunkE
 		return nil, fmt.Errorf("failed to decode Splunk update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Splunk integration was not returned by the API")
+		return nil, fmt.Errorf("splunk integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -117,13 +118,6 @@ func (r *azureSentinelResource) Schema(_ context.Context, _ resource.SchemaReque
 	}
 }
 
-func businessUnitsFromAPI(ctx context.Context, apiBus []string, planned types.Set) (types.Set, diag.Diagnostics) {
-	if len(apiBus) == 0 && planned.IsNull() {
-		return types.SetNull(types.StringType), nil
-	}
-	return types.SetValueFrom(ctx, types.StringType, apiBus)
-}
-
 func (r *azureSentinelResource) buildPayload(ctx context.Context, plan azureSentinelResourceModel, diags *diag.Diagnostics) api_client.AzureSentinelExternalServiceConfig {
 	payload := api_client.AzureSentinelExternalServiceConfig{
 		TemplateName: plan.TemplateName.ValueString(),
@@ -135,11 +129,7 @@ func (r *azureSentinelResource) buildPayload(ctx context.Context, plan azureSent
 			WorkspaceID: plan.WorkspaceID.ValueString(),
 		},
 	}
-	if !plan.BusinessUnits.IsNull() && !plan.BusinessUnits.IsUnknown() {
-		var bus []string
-		diags.Append(plan.BusinessUnits.ElementsAs(ctx, &bus, false)...)
-		payload.BusinessUnits = bus
-	}
+	payload.BusinessUnits = common.BusinessUnitsToAPI(ctx, plan.BusinessUnits, diags)
 	return payload
 }
 
@@ -181,7 +171,7 @@ func (r *azureSentinelResource) Create(ctx context.Context, req resource.CreateR
 		plan.WorkspaceID = types.StringValue(created.Config.WorkspaceID)
 	}
 	// primary_key is SSM-backed and stripped from responses; keep the planned value.
-	bus, busDiags := businessUnitsFromAPI(ctx, created.BusinessUnits, plan.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, created.BusinessUnits, plan.BusinessUnits)
 	resp.Diagnostics.Append(busDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -222,7 +212,7 @@ func (r *azureSentinelResource) Read(ctx context.Context, req resource.ReadReque
 	if current.Config.WorkspaceID != "" {
 		state.WorkspaceID = types.StringValue(current.Config.WorkspaceID)
 	}
-	bus, busDiags := businessUnitsFromAPI(ctx, current.BusinessUnits, state.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, current.BusinessUnits, state.BusinessUnits)
 	resp.Diagnostics.Append(busDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -271,7 +261,7 @@ func (r *azureSentinelResource) Update(ctx context.Context, req resource.UpdateR
 	if updated.Config.WorkspaceID != "" {
 		plan.WorkspaceID = types.StringValue(updated.Config.WorkspaceID)
 	}
-	bus, busDiags := businessUnitsFromAPI(ctx, updated.BusinessUnits, plan.BusinessUnits)
+	bus, busDiags := common.BusinessUnitsFromAPI(ctx, updated.BusinessUnits, plan.BusinessUnits)
 	resp.Diagnostics.Append(busDiags...)
 	if resp.Diagnostics.HasError() {
 		return

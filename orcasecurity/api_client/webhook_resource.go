@@ -58,7 +58,7 @@ func (client *APIClient) CreateWebhookConfig(payload WebhookExternalServiceConfi
 		return nil, fmt.Errorf("failed to decode Webhook create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Webhook integration was not returned by the API")
+		return nil, fmt.Errorf("webhook integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -111,7 +111,7 @@ func (client *APIClient) UpdateWebhookConfig(templateName string, payload Webhoo
 		return nil, fmt.Errorf("failed to decode Webhook update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Webhook integration was not returned by the API")
+		return nil, fmt.Errorf("webhook integration was not returned by the API")
 	}
 	return &response.Data, nil
 }

@@ -46,7 +46,7 @@ func (client *APIClient) CreateTerraformCloudConfig(payload TerraformCloudExtern
 		return nil, fmt.Errorf("failed to decode Terraform Cloud create response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Terraform Cloud integration was not returned by the API")
+		return nil, fmt.Errorf("terraform cloud integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
@@ -103,7 +103,7 @@ func (client *APIClient) UpdateTerraformCloudConfig(templateName string, payload
 		return nil, fmt.Errorf("failed to decode Terraform Cloud update response: %w", err)
 	}
 	if response.Data.ID == "" {
-		return nil, fmt.Errorf("Terraform Cloud integration was not returned by the API")
+		return nil, fmt.Errorf("terraform cloud integration was not returned by the API")
 	}
 	return &response.Data, nil
 }
