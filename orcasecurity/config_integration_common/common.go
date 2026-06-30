@@ -1,9 +1,9 @@
 // Package config_integration_common holds the resource skeleton shared by every
 // /api/external_service/config integration (PagerDuty, Opsgenie, Snyk, Splunk, Cloudflare,
-// Akamai, Zscaler ZPA, Terraform Cloud, Azure Sentinel). Each per-variant resource only has
-// to supply the Variant interface (model + payload/response conversion + variant-specific
-// schema attributes); CRUD plumbing, Metadata/Configure/ImportState, and the shared schema
-// shell live here exactly once.
+// Akamai, Zscaler ZPA, Terraform Cloud, Azure Sentinel). Each per-variant file declares the
+// state struct (with tfsdk tags), a Spec carrying the variant-specific attributes /
+// payload-encoding / api_client method references, and calls New() — no per-variant CRUD or
+// resource-type boilerplate.
 package config_integration_common
 
 import (
@@ -13,7 +13,6 @@ import (
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -25,7 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Common holds the cross-variant fields every config-endpoint integration carries.
+// Common carries the cross-variant fields every config-endpoint integration declares.
 type Common struct {
 	ID            types.String
 	TemplateName  types.String
@@ -34,8 +33,7 @@ type Common struct {
 	BusinessUnits types.Set
 }
 
-// APIObject is the API-shape view of those cross-variant fields. Variants pull the variant-
-// specific fields out of api_client structs themselves.
+// APIObject is the API-shape view of those fields.
 type APIObject struct {
 	ID            string
 	TemplateName  string
@@ -44,90 +42,72 @@ type APIObject struct {
 	BusinessUnits []string
 }
 
-// Variant is what each per-resource package supplies. The methods convert between Terraform
-// state and the variant-specific api_client payload structs without this package having to
-// take a dependency on any of them.
-type Variant interface {
-	// TypeNameSuffix is appended to the provider type name (e.g. "_integration_pagerduty").
-	TypeNameSuffix() string
-	// UIName is used in error messages ("PagerDuty integration").
-	UIName() string
-	// Description appears at the top of the rendered docs.
-	Description() string
-	// SupportsBusinessUnits says whether this integration accepts a business_units field at
-	// all. PagerDuty and Cloudflare don't; Opsgenie/Snyk/etc. do.
-	SupportsBusinessUnits() bool
-	// VariantAttributes returns the variant-specific TF schema attributes that get spliced
-	// in alongside the shared (id/template_name/is_enabled/is_default/business_units) set.
-	VariantAttributes() map[string]schema.Attribute
-	// NewState constructs a zero-value plan/state model the framework can decode into.
-	NewState() State
-	// CRUD operations are wired through the variant so the base can call the right
-	// api_client method without knowing which one.
-	Create(client *api_client.APIClient, ctx context.Context, plan State, diags *diag.Diagnostics) (APIObject, diag.Diagnostics)
-	Read(client *api_client.APIClient, ctx context.Context, state State, diags *diag.Diagnostics) (apiObj APIObject, found bool, errDiags diag.Diagnostics)
-	Update(client *api_client.APIClient, ctx context.Context, plan State, templateName string, diags *diag.Diagnostics) (APIObject, diag.Diagnostics)
-	Delete(client *api_client.APIClient, templateName string) error
-}
-
-// State is the per-variant TF model. Each variant package implements it to wire the framework
-// codec into the variant-specific struct fields without exposing them to the base.
+// State is the per-variant TF model. Implementations expose the cross-variant fields via
+// Get/Set so the base can refresh them after a CRUD call without knowing the concrete type.
 type State interface {
 	GetCommon() *Common
 	SetCommon(Common)
 }
 
-// Schema renders the full schema. “variant“ controls the variant-specific attributes; the
-// rest (id/template_name/is_enabled/is_default and optional business_units) come from here.
-func Schema(v Variant) schema.Schema {
+// Spec is parameterised over the variant's api_client payload type. Per-variant code provides
+// the schema attributes, payload encoding, response extraction, and api_client method refs;
+// everything else lives in this package.
+type Spec[P any] struct {
+	TypeNameSuffix        string
+	UIName                string
+	Description           string
+	SupportsBusinessUnits bool
+	VariantAttributes     map[string]schema.Attribute
+
+	// NewState constructs an empty plan/state model the framework can decode into.
+	NewState func() State
+
+	// BuildPayload converts the planned state into an API payload.
+	BuildPayload func(ctx context.Context, state State, diags *diag.Diagnostics) P
+
+	// Extract pulls the cross-variant Common-shape fields out of the API response and
+	// writes any variant-specific Computed fields back into ``state`` (e.g. echoed URLs).
+	Extract func(apiObj *P, state State) APIObject
+
+	// CRUD method references — typically the bound ``(*api_client.APIClient).XyzConfig``
+	// methods. The base calls these via the shared API client so per-variant files don't
+	// hand-roll the error-wrapping plumbing.
+	Create func(client *api_client.APIClient, payload P) (*P, error)
+	Get    func(client *api_client.APIClient, templateName string) (*P, error)
+	Update func(client *api_client.APIClient, templateName string, payload P) (*P, error)
+	Delete func(client *api_client.APIClient, templateName string) error
+}
+
+func buildSchema[P any](spec Spec[P]) schema.Schema {
 	attrs := map[string]schema.Attribute{
 		"id": schema.StringAttribute{
-			Computed:    true,
-			Description: "Orca external service config identifier (UUID).",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
+			Computed:      true,
+			Description:   "Orca external service config identifier (UUID).",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"template_name": schema.StringAttribute{
-			Required:    true,
-			Description: "Template name used as the URL key for update/delete. Changing this forces a new resource.",
-			Validators: []validator.String{
-				stringvalidator.LengthAtLeast(1),
-			},
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.RequiresReplace(),
-			},
+			Required:      true,
+			Description:   "Template name used as the URL key for update/delete. Changing this forces a new resource.",
+			Validators:    []validator.String{stringvalidator.LengthAtLeast(1)},
+			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
-		"is_enabled": schema.BoolAttribute{
-			Optional: true,
-			Computed: true,
-			Default:  booldefault.StaticBool(true),
-		},
-		"is_default": schema.BoolAttribute{
-			Optional: true,
-			Computed: true,
-			Default:  booldefault.StaticBool(false),
-		},
+		"is_enabled": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true)},
+		"is_default": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false)},
 	}
-	if v.SupportsBusinessUnits() {
+	if spec.SupportsBusinessUnits {
 		attrs["business_units"] = schema.SetAttribute{
 			Optional:    true,
 			ElementType: types.StringType,
 			Description: "Optional set of Orca business unit IDs that may use this integration.",
 		}
 	}
-	for name, attribute := range v.VariantAttributes() {
+	for name, attribute := range spec.VariantAttributes {
 		attrs[name] = attribute
 	}
-	return schema.Schema{
-		Description: v.Description(),
-		Attributes:  attrs,
-	}
+	return schema.Schema{Description: spec.Description, Attributes: attrs}
 }
 
-// ApplyCommon copies cross-variant fields from the API object back into state. “planned“
-// is consulted so a null business_units stays null when the API echoes an empty list.
-func ApplyCommon(ctx context.Context, st State, apiObj APIObject, supportsBUs bool, diags *diag.Diagnostics) {
+func applyCommon(ctx context.Context, st State, apiObj APIObject, supportsBUs bool, diags *diag.Diagnostics) {
 	c := st.GetCommon()
 	c.ID = types.StringValue(apiObj.ID)
 	c.IsEnabled = types.BoolValue(apiObj.IsEnabled)
@@ -140,133 +120,141 @@ func ApplyCommon(ctx context.Context, st State, apiObj APIObject, supportsBUs bo
 		diags.Append(busDiags...)
 		c.BusinessUnits = bus
 	} else {
-		// Variants that don't expose business_units in their schema must keep this null so
-		// the framework codec doesn't complain about an unknown attribute on save.
 		c.BusinessUnits = types.SetNull(types.StringType)
 	}
 	st.SetCommon(*c)
 }
 
-// Resource is the embeddable CRUD base. Per-variant packages create one as:
-//
-//	type myResource struct { config_integration_common.Resource }
-//	func New() resource.Resource { return &myResource{Resource: config_integration_common.Resource{V: &myVariant{}}} }
-//	func (r *myResource) Schema(...) { resp.Schema = config_integration_common.Schema(r.V) }
-type Resource struct {
-	APIClient *api_client.APIClient
-	V         Variant
+// genericResource implements resource.Resource for any Spec[P]. There is exactly one Create /
+// Read / Update / Delete / Schema / Metadata / Configure / ImportState across all variants.
+type genericResource[P any] struct {
+	client *api_client.APIClient
+	spec   Spec[P]
 }
 
-// EnsureVariantAttrType keeps schema definitions of variant attributes terse — callers can
-// use this to suppress the unused-import warning when only schema.* names are referenced.
-// (Kept for parity with the per-variant files that previously imported attr/typehelpers).
-var _ attr.Type = types.StringType
-
-func (r *Resource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + r.V.TypeNameSuffix()
+// New returns a fully configured resource.Resource. Per-variant files declare a Spec and
+// hand it to this constructor; no extra resource type is required.
+func New[P any](spec Spec[P]) resource.Resource {
+	return &genericResource[P]{spec: spec}
 }
 
-func (r *Resource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *genericResource[P]) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + r.spec.TypeNameSuffix
+}
+
+func (r *genericResource[P]) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
-	r.APIClient = req.ProviderData.(*api_client.APIClient)
+	r.client = req.ProviderData.(*api_client.APIClient)
 }
 
-func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if r.APIClient == nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Error creating %s", r.V.UIName()), "API client not configured.")
+func (r *genericResource[P]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = buildSchema(r.spec)
+}
+
+// errorWrap converts an api_client error into a TF diagnostic without forcing every variant
+// to repeat the same AddError boilerplate.
+func errorWrap(diags *diag.Diagnostics, action, ui string, err error) {
+	diags.AddError(
+		fmt.Sprintf("Error %s %s", action, ui),
+		fmt.Sprintf("Could not %s %s: %s", action, ui, err.Error()),
+	)
+}
+
+func (r *genericResource[P]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Error creating %s", r.spec.UIName), "API client not configured.")
 		return
 	}
-
-	plan := r.V.NewState()
+	plan := r.spec.NewState()
 	resp.Diagnostics.Append(req.Plan.Get(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	apiObj, diags := r.V.Create(r.APIClient, ctx, plan, &resp.Diagnostics)
-	resp.Diagnostics.Append(diags...)
+	payload := r.spec.BuildPayload(ctx, plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	ApplyCommon(ctx, plan, apiObj, r.V.SupportsBusinessUnits(), &resp.Diagnostics)
+	created, err := r.spec.Create(r.client, payload)
+	if err != nil {
+		errorWrap(&resp.Diagnostics, "creating", r.spec.UIName, err)
+		return
+	}
+	applyCommon(ctx, plan, r.spec.Extract(created, plan), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	state := r.V.NewState()
+func (r *genericResource[P]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	state := r.spec.NewState()
 	resp.Diagnostics.Append(req.State.Get(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	apiObj, found, diags := r.V.Read(r.APIClient, ctx, state, &resp.Diagnostics)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	current, err := r.spec.Get(r.client, state.GetCommon().TemplateName.ValueString())
+	if err != nil {
+		errorWrap(&resp.Diagnostics, "reading", r.spec.UIName, err)
 		return
 	}
-	if !found {
+	if current == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-
-	ApplyCommon(ctx, state, apiObj, r.V.SupportsBusinessUnits(), &resp.Diagnostics)
+	applyCommon(ctx, state, r.spec.Extract(current, state), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	plan := r.V.NewState()
+func (r *genericResource[P]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	plan := r.spec.NewState()
 	resp.Diagnostics.Append(req.Plan.Get(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	state := r.V.NewState()
+	state := r.spec.NewState()
 	resp.Diagnostics.Append(req.State.Get(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	apiObj, diags := r.V.Update(r.APIClient, ctx, plan, state.GetCommon().TemplateName.ValueString(), &resp.Diagnostics)
-	resp.Diagnostics.Append(diags...)
+	payload := r.spec.BuildPayload(ctx, plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	ApplyCommon(ctx, plan, apiObj, r.V.SupportsBusinessUnits(), &resp.Diagnostics)
+	updated, err := r.spec.Update(r.client, state.GetCommon().TemplateName.ValueString(), payload)
+	if err != nil {
+		errorWrap(&resp.Diagnostics, "updating", r.spec.UIName, err)
+		return
+	}
+	applyCommon(ctx, plan, r.spec.Extract(updated, plan), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	state := r.V.NewState()
+func (r *genericResource[P]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	state := r.spec.NewState()
 	resp.Diagnostics.Append(req.State.Get(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	if err := r.V.Delete(r.APIClient, state.GetCommon().TemplateName.ValueString()); err != nil {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("Error deleting %s", r.V.UIName()),
-			fmt.Sprintf("Could not delete %s %s: %s", r.V.UIName(), state.GetCommon().TemplateName.ValueString(), err.Error()),
-		)
-		return
+	if err := r.spec.Delete(r.client, state.GetCommon().TemplateName.ValueString()); err != nil {
+		errorWrap(&resp.Diagnostics, "deleting", r.spec.UIName, err)
 	}
 }
 
-func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *genericResource[P]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("template_name"), req.ID)...)
 }
+
+// Compile-time interface assertions.
+var (
+	_ resource.Resource                = &genericResource[struct{}]{}
+	_ resource.ResourceWithConfigure   = &genericResource[struct{}]{}
+	_ resource.ResourceWithImportState = &genericResource[struct{}]{}
+)
