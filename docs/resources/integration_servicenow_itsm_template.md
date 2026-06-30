@@ -13,7 +13,7 @@ Manages a ServiceNow **ITSM template** in Orca Security.
 Orca splits the ServiceNow integration into two pieces:
 
 1. The **resource** (managed by
-   [`orcasecurity_integration_servicenow`](integration_servicenow.md)) — holds
+   [`orcasecurity_integration_servicenow_resource`](integration_servicenow_resource.md)) — holds
    the ServiceNow credentials. The same credentials back both ITSM and SIR
    templates.
 2. The **template** (this resource) — holds the per-ticket settings: which instance
@@ -28,7 +28,7 @@ with `service_name = "sn_incidents"` and `config.type = "ITSM"`. Updates go to
 
 ```terraform
 # Credentials side of the integration — created separately.
-resource "orcasecurity_integration_servicenow" "creds" {
+resource "orcasecurity_integration_servicenow_resource" "creds" {
   name           = "servicenow-itsm-prod"
   servicenow_url = "https://ven03666.service-now.com"
   username       = "username"
@@ -39,7 +39,7 @@ resource "orcasecurity_integration_servicenow" "creds" {
 # resolution/reopen events behave.
 resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
   template_name = "teamplate_name"
-  resource_id   = orcasecurity_integration_servicenow.creds.id
+  resource_id   = orcasecurity_integration_servicenow_resource.creds.id
   instance_name = "instance_name"
   username      = "username"
 
@@ -65,7 +65,7 @@ resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
 * `template_name` — (Required, String) Identifier for the template, used as the URL key
   for updates and deletes. Changing this forces a new resource.
 * `resource_id` — (Optional, String) ID of the
-  `orcasecurity_integration_servicenow` resource that carries the credentials.
+  `orcasecurity_integration_servicenow_resource` resource that carries the credentials.
 * `instance_name` — (Optional, String) ServiceNow instance subdomain (for example,
   `ven03666`). Mutually exclusive with `base_url`. Required when no `resource_id` is
   given.
@@ -94,7 +94,7 @@ resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
 
 > **Note:** Orca does not accept `business_units` on this endpoint — the UI
 > does not send it either. To scope a template to specific business units,
-> manage the scoping at the credentials resource (`orcasecurity_integration_servicenow`)
+> manage the scoping at the credentials resource (`orcasecurity_integration_servicenow_resource`)
 > level or via Orca's RBAC.
 
 ## Attribute Reference

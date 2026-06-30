@@ -1,5 +1,5 @@
 # Credentials side of the integration — created separately.
-resource "orcasecurity_integration_servicenow" "creds" {
+resource "orcasecurity_integration_servicenow_resource" "creds" {
   name           = "servicenow-itsm-prod"
   servicenow_url = "https://ven03666.service-now.com"
   username       = "username"
@@ -10,7 +10,7 @@ resource "orcasecurity_integration_servicenow" "creds" {
 # resolution/reopen events behave.
 resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
   template_name = "teamplate_name"
-  resource_id   = orcasecurity_integration_servicenow.creds.id
+  resource_id   = orcasecurity_integration_servicenow_resource.creds.id
   instance_name = "instance_name"
   username      = "username"
 

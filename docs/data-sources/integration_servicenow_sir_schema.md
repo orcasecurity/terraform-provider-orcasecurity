@@ -36,7 +36,7 @@ output "sir_fields" {
 ## Argument Reference
 
 * `resource_id` — (Required, String) ID of the SIR credentials resource (an
-  `orcasecurity_integration_servicenow` resource ID).
+  `orcasecurity_integration_servicenow_resource` resource ID).
 
 ## Attribute Reference
 

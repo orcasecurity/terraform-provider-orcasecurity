@@ -13,10 +13,10 @@ Manages a ServiceNow **SIR (Security Incident Response) template** in Orca Secur
 The template is the per-record settings layer of the SIR integration: which alert
 fields map to which SIR fields, the resolution code/state, the reopen state, etc.
 Credentials are owned separately by an
-[`orcasecurity_integration_servicenow`](integration_servicenow.md) resource —
+[`orcasecurity_integration_servicenow_resource`](integration_servicenow_resource.md) resource —
 the same credentials back both ITSM and SIR templates. Existing credentials can
 also be looked up via
-[`data.orcasecurity_integration_servicenow`](../data-sources/integration_servicenow.md).
+[`data.orcasecurity_integration_servicenow_resource`](../data-sources/integration_servicenow_resource.md).
 
 Under the hood this creates an entry under `POST /api/external_service/config`
 with `service_name = "sn_incidents"` and `config.type = "SIR"`. Updates go to
@@ -31,7 +31,7 @@ data source — it hits the same schema endpoint the Orca UI uses
 
 ```terraform
 # Credentials side of the integration — created separately.
-resource "orcasecurity_integration_servicenow" "creds" {
+resource "orcasecurity_integration_servicenow_resource" "creds" {
   name           = "cred_name"
   servicenow_url = "https://instance_name.service-now.com"
   username       = "username"
@@ -40,7 +40,7 @@ resource "orcasecurity_integration_servicenow" "creds" {
 
 # Optional — discover the available SIR fields so you know what's valid in mapping_json.
 data "orcasecurity_integration_servicenow_sir_schema" "fields" {
-  resource_id = orcasecurity_integration_servicenow.creds.id
+  resource_id = orcasecurity_integration_servicenow_resource.creds.id
 }
 
 output "sir_field_names" {
@@ -49,7 +49,7 @@ output "sir_field_names" {
 
 resource "orcasecurity_integration_servicenow_sir_template" "demo" {
   template_name = "teamplate_name"
-  resource_id   = orcasecurity_integration_servicenow.creds.id
+  resource_id   = orcasecurity_integration_servicenow_resource.creds.id
 
   resolution_status = "10"
   resolution_code   = "-100"
@@ -97,7 +97,7 @@ resource "orcasecurity_integration_servicenow_sir_template" "demo" {
 * `template_name` — (Required, String) Identifier for the template, used as the URL key
   for updates and deletes. Changing this forces a new resource.
 * `resource_id` — (Optional, String) ID of the
-  `orcasecurity_integration_servicenow` resource that carries the credentials.
+  `orcasecurity_integration_servicenow_resource` resource that carries the credentials.
 * `instance_name` — (Optional, String) ServiceNow instance subdomain. Mutually
   exclusive with `base_url`. Required when no `resource_id` is given.
 * `base_url` — (Optional, String) Full ServiceNow base URL (`https://...`).

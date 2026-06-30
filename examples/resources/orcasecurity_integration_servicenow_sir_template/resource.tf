@@ -1,5 +1,5 @@
 # Credentials side of the integration — created separately.
-resource "orcasecurity_integration_servicenow" "creds" {
+resource "orcasecurity_integration_servicenow_resource" "creds" {
   name           = "cred_name"
   servicenow_url = "https://instance_name.service-now.com"
   username       = "username"
@@ -8,7 +8,7 @@ resource "orcasecurity_integration_servicenow" "creds" {
 
 # Optional — discover the available SIR fields so you know what's valid in mapping_json.
 data "orcasecurity_integration_servicenow_sir_schema" "fields" {
-  resource_id = orcasecurity_integration_servicenow.creds.id
+  resource_id = orcasecurity_integration_servicenow_resource.creds.id
 }
 
 output "sir_field_names" {
@@ -17,7 +17,7 @@ output "sir_field_names" {
 
 resource "orcasecurity_integration_servicenow_sir_template" "demo" {
   template_name = "teamplate_name"
-  resource_id   = orcasecurity_integration_servicenow.creds.id
+  resource_id   = orcasecurity_integration_servicenow_resource.creds.id
 
   resolution_status = "10"
   resolution_code   = "-100"

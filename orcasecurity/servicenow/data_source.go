@@ -33,7 +33,7 @@ func NewServiceNowDataSource() datasource.DataSource {
 }
 
 func (ds *itsmDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_integration_servicenow"
+	resp.TypeName = req.ProviderTypeName + "_integration_servicenow_resource"
 }
 
 func (ds *itsmDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
