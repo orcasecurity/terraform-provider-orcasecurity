@@ -11,8 +11,8 @@ import (
 
 // apiObject is the response we'd get from /api/external_service/config. The test forces a
 // mismatch between the planned config block and the API echo to confirm that:
-//  - extractTopLevel (Create/Update) leaves the planned config in place
-//  - extractFull (Read) refreshes the config block from the API
+//   - extractTopLevel (Create/Update) leaves the planned config in place
+//   - extractFull (Read) refreshes the config block from the API
 func sampleAPIResponse() *api_client.WebhookExternalServiceConfig {
 	return &api_client.WebhookExternalServiceConfig{
 		ID:           "id-1",
@@ -109,6 +109,5 @@ func TestExtractHooks_AgreeOnCommon(t *testing.T) {
 	if len(topLevel.BusinessUnits) != len(full.BusinessUnits) {
 		t.Errorf("business_units mismatch between hooks: %v vs %v", topLevel.BusinessUnits, full.BusinessUnits)
 	}
-	// Type-assert just to verify the var is consumed; keeps the linter quiet.
-	var _ cc.APIObject = topLevel
+	_ = topLevel
 }

@@ -231,15 +231,15 @@ func NewResource(opts Options) resource.Resource {
 		},
 		// Extract: Create/Update path. Touches only top-level fields so the planned (sensitive)
 		// config block survives the post-apply consistency check.
-		Extract:       extractTopLevel,
+		Extract: extractTopLevel,
 		// ExtractOnRead: Read path. Refreshes the whole resource so drift in any non-secret
 		// config field is detected on the next plan. api_key is intentionally NOT overwritten —
 		// the API may strip or re-encode the value and we already keep the user-supplied secret
 		// in state from Create/Update.
 		ExtractOnRead: extractFull,
-		Create: opts.Create,
-		Get:    opts.Get,
-		Update: opts.Update,
-		Delete: opts.Delete,
+		Create:        opts.Create,
+		Get:           opts.Get,
+		Update:        opts.Update,
+		Delete:        opts.Delete,
 	})
 }
