@@ -28,8 +28,9 @@ var (
 )
 
 const (
-	errReadingCustomWidget = "Error reading custom widget"
-	tfTypeAlertTable       = "alert-table"
+	errReadingCustomWidget  = "Error reading custom widget"
+	errCreatingCustomWidget = "Error creating widget"
+	tfTypeAlertTable        = "alert-table"
 )
 
 type customWidgetResource struct {
@@ -778,7 +779,7 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 	instance, err := r.apiClient.CreateCustomWidget(createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating widget",
+			errCreatingCustomWidget,
 			"Could not create widget, unexpected error: "+err.Error(),
 		)
 		return
@@ -787,7 +788,7 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 	created, err := r.apiClient.GetCustomWidget(instance.ID)
 	if err != nil || created == nil {
 		resp.Diagnostics.AddError(
-			"Error creating widget",
+			errCreatingCustomWidget,
 			fmt.Sprintf("Widget created but could not be read back (ID: %s): %v", instance.ID, err),
 		)
 		return
@@ -796,7 +797,7 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 	state, err := instanceToState(ctx, created)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating widget",
+			errCreatingCustomWidget,
 			"Could not convert widget state: "+err.Error(),
 		)
 		return

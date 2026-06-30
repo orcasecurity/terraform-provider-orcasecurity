@@ -105,6 +105,47 @@ func variantAttributes() map[string]schema.Attribute {
 	}
 }
 
+// extractStateFromAPI copies non-empty API response fields into the Terraform state model.
+// Keeping this in a named function drops the cognitive complexity of the Extract closure.
+func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state) {
+	if api.Resource != "" {
+		s.ResourceID = types.StringValue(api.Resource)
+	}
+	if api.Config.InstanceName != "" {
+		s.InstanceName = types.StringValue(api.Config.InstanceName)
+	}
+	if api.Config.BaseURL != "" {
+		s.BaseURL = types.StringValue(api.Config.BaseURL)
+	}
+	if api.Config.Username != "" {
+		s.Username = types.StringValue(api.Config.Username)
+	}
+	if api.Config.ResolutionStatus != "" {
+		s.ResolutionStatus = types.StringValue(api.Config.ResolutionStatus)
+	}
+	if api.Config.ResolutionCode != "" {
+		s.ResolutionCode = types.StringValue(api.Config.ResolutionCode)
+	}
+	if api.Config.ResolutionNote != "" {
+		s.ResolutionNote = types.StringValue(api.Config.ResolutionNote)
+	}
+	if api.Config.ReopenStatus != "" {
+		s.ReopenStatus = types.StringValue(api.Config.ReopenStatus)
+	}
+	if api.Config.AllowReopenAndResolution != nil {
+		s.AllowReopenAndResolution = types.BoolValue(*api.Config.AllowReopenAndResolution)
+	}
+	if api.Config.AllowMapping != nil {
+		s.AllowMapping = types.BoolValue(*api.Config.AllowMapping)
+	}
+	// JSON-field round-trip uses the EncodeJSONField helper so plans don't drift on
+	// whitespace differences between the API response and the user's HCL.
+	mapping, _ := common.EncodeJSONField(api.Config.Mapping, s.MappingJSON)
+	s.MappingJSON = mapping
+	onClose, _ := common.EncodeJSONField(api.Config.OnCloseAlertMapping, s.OnCloseAlertMappingJSON)
+	s.OnCloseAlertMappingJSON = onClose
+}
+
 // NewResource returns a resource.Resource built on top of the generic Spec[P]. There is no
 // per-variant CRUD code: the only delta between ITSM and SIR is opts.ConfigType plus the
 // CRUD method refs (which pin service_name / config.type / GET filter inside api_client).
@@ -152,44 +193,7 @@ func NewResource(opts Options) resource.Resource {
 		},
 		Extract: func(api *api_client.ServiceNowITSMTemplate, st cc.State) cc.APIObject {
 			s := st.(*state)
-			if api.Resource != "" {
-				s.ResourceID = types.StringValue(api.Resource)
-			}
-			if api.Config.InstanceName != "" {
-				s.InstanceName = types.StringValue(api.Config.InstanceName)
-			}
-			if api.Config.BaseURL != "" {
-				s.BaseURL = types.StringValue(api.Config.BaseURL)
-			}
-			if api.Config.Username != "" {
-				s.Username = types.StringValue(api.Config.Username)
-			}
-			if api.Config.ResolutionStatus != "" {
-				s.ResolutionStatus = types.StringValue(api.Config.ResolutionStatus)
-			}
-			if api.Config.ResolutionCode != "" {
-				s.ResolutionCode = types.StringValue(api.Config.ResolutionCode)
-			}
-			if api.Config.ResolutionNote != "" {
-				s.ResolutionNote = types.StringValue(api.Config.ResolutionNote)
-			}
-			if api.Config.ReopenStatus != "" {
-				s.ReopenStatus = types.StringValue(api.Config.ReopenStatus)
-			}
-			if api.Config.AllowReopenAndResolution != nil {
-				s.AllowReopenAndResolution = types.BoolValue(*api.Config.AllowReopenAndResolution)
-			}
-			if api.Config.AllowMapping != nil {
-				s.AllowMapping = types.BoolValue(*api.Config.AllowMapping)
-			}
-
-			// JSON-field round-trip uses the EncodeJSONField helper so plans don't drift on
-			// whitespace differences between the API response and the user's HCL.
-			mapping, _ := common.EncodeJSONField(api.Config.Mapping, s.MappingJSON)
-			s.MappingJSON = mapping
-			onClose, _ := common.EncodeJSONField(api.Config.OnCloseAlertMapping, s.OnCloseAlertMappingJSON)
-			s.OnCloseAlertMappingJSON = onClose
-
+			extractStateFromAPI(api, s)
 			return cc.APIObject{
 				ID:           api.ID,
 				TemplateName: api.TemplateName,

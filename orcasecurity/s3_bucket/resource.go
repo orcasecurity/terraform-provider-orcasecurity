@@ -157,30 +157,7 @@ func parseBucketName(arnOrURL string) (string, error) {
 		return "", fmt.Errorf("arn_or_url is empty")
 	}
 	if strings.HasPrefix(arnOrURL, "http://") || strings.HasPrefix(arnOrURL, "https://") || strings.HasPrefix(arnOrURL, "s3://") {
-		parsed, err := url.Parse(arnOrURL)
-		if err != nil {
-			return "", fmt.Errorf("could not parse arn_or_url as URL: %w", err)
-		}
-		host := parsed.Host
-		if host == "" {
-			return "", fmt.Errorf("could not extract bucket name from URL %q", arnOrURL)
-		}
-		// Path-style: s3.amazonaws.com/<bucket>/..., s3.<region>.amazonaws.com/<bucket>/...,
-		// or legacy s3-<region>.amazonaws.com/<bucket>/... — bucket is the first path segment.
-		lowerHost := strings.ToLower(host)
-		if lowerHost == "s3.amazonaws.com" || strings.HasPrefix(lowerHost, "s3.") || strings.HasPrefix(lowerHost, "s3-") {
-			segment := strings.SplitN(strings.TrimPrefix(parsed.Path, "/"), "/", 2)[0]
-			if segment == "" {
-				return "", fmt.Errorf("could not extract bucket name from path-style URL %q", arnOrURL)
-			}
-			return segment, nil
-		}
-		// Virtual-hosted style: <bucket>.s3.<region>.amazonaws.com — take the first label.
-		if strings.Contains(host, ".") {
-			return strings.Split(host, ".")[0], nil
-		}
-		// s3://bucket-name form.
-		return host, nil
+		return bucketFromURL(arnOrURL)
 	}
 	if strings.HasPrefix(arnOrURL, "arn:") {
 		parts := strings.Split(arnOrURL, ":")
@@ -191,6 +168,34 @@ func parseBucketName(arnOrURL string) (string, error) {
 		return strings.TrimPrefix(bucket, "/"), nil
 	}
 	return "", fmt.Errorf("arn_or_url must start with arn:, https://, http://, or s3://")
+}
+
+// bucketFromURL resolves the bucket name from an HTTP, HTTPS, or s3:// URL.
+func bucketFromURL(rawURL string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("could not parse arn_or_url as URL: %w", err)
+	}
+	host := parsed.Host
+	if host == "" {
+		return "", fmt.Errorf("could not extract bucket name from URL %q", rawURL)
+	}
+	// Path-style: s3.amazonaws.com/<bucket>/..., s3.<region>.amazonaws.com/<bucket>/...,
+	// or legacy s3-<region>.amazonaws.com/<bucket>/... — bucket is the first path segment.
+	lowerHost := strings.ToLower(host)
+	if lowerHost == "s3.amazonaws.com" || strings.HasPrefix(lowerHost, "s3.") || strings.HasPrefix(lowerHost, "s3-") {
+		segment := strings.SplitN(strings.TrimPrefix(parsed.Path, "/"), "/", 2)[0]
+		if segment == "" {
+			return "", fmt.Errorf("could not extract bucket name from path-style URL %q", rawURL)
+		}
+		return segment, nil
+	}
+	// Virtual-hosted style: <bucket>.s3.<region>.amazonaws.com — take the first label.
+	if strings.Contains(host, ".") {
+		return strings.Split(host, ".")[0], nil
+	}
+	// s3://bucket-name form.
+	return host, nil
 }
 
 // buildBucketPolicyJSON renders the policy document the customer must attach to the bucket so
