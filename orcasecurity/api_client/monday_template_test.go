@@ -103,4 +103,7 @@ func TestMondayTemplate_GetReturnsFirstEntry(t *testing.T) {
 	if out.Config.BoardID != "b1" || out.Config.GroupID != "topics" {
 		t.Errorf("unexpected config: %+v", out.Config)
 	}
+	if out.Resource != "res-1" {
+		t.Errorf("expected top-level resource res-1 to round-trip, got %q", out.Resource)
+	}
 }
