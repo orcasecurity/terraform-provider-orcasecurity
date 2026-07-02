@@ -26,6 +26,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/group_access"
 	"terraform-provider-orcasecurity/orcasecurity/jira_cloud_template"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
+	"terraform-provider-orcasecurity/orcasecurity/monday_template"
 	"terraform-provider-orcasecurity/orcasecurity/opsgenie"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
 	"terraform-provider-orcasecurity/orcasecurity/pagerduty"
@@ -251,6 +252,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		cloudflare.NewCloudflareResource,
 		coralogix.NewCoralogixResource,
 		jira_cloud_template.NewJiraCloudTemplateResource,
+		monday_template.NewMondayTemplateResource,
 		opsgenie.NewOpsgenieResource,
 		pagerduty.NewPagerDutyResource,
 		s3_bucket.NewS3BucketResource,
