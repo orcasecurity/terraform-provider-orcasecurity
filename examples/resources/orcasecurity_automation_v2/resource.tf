@@ -164,6 +164,42 @@ resource "orcasecurity_automation_v2" "email_individual" {
   }
 }
 
+# Email by tag - recipients derived from asset tag values
+resource "orcasecurity_automation_v2" "email_by_tag" {
+  name        = "Email Resource Owners by Region"
+  description = "Send alerts to the owners derived from the asset's Region tag"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  email_template = {
+    asset_tag_keys = ["Region"]
+  }
+}
+
+# Remediation (Auto Remediate) action
+resource "orcasecurity_automation_v2" "auto_remediate_s3" {
+  name        = "Auto Remediate S3 Findings"
+  description = "Run a remediation action on matching S3 alerts"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  remediation_template = {
+    remediation_action = "AWS-S3-004"
+  }
+}
+
 # Snooze automation for test environments
 resource "orcasecurity_automation_v2" "snooze_test_env" {
   name        = "Auto-snooze Test Environment Alerts"
@@ -329,6 +365,11 @@ resource "orcasecurity_automation_v2" "siem_integration" {
 
   azure_sentinel_template = {
     external_config_id = "99999999-aaaa-bbbb-cccc-dddddddddddd"
+  }
+
+  # SIEM "API Token" action (Orca built-in SIEM push)
+  api_token_template = {
+    external_config_id = "09827e5e-19d2-41dd-87b1-8f90009773a6"
   }
 }
 

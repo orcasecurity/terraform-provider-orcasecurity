@@ -160,7 +160,7 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 						},
 						"section": schema.StringAttribute{
 							Required:    true,
-							Description: "Custom framework section.",
+							Description: "Custom framework section. For nested sections, join the levels with `/` (e.g. `Identify/Risk Assessment/Vulnerabilities in assets are identified`); up to three levels are supported.",
 						},
 						"priority": schema.StringAttribute{
 							Required:    true,
@@ -294,8 +294,9 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 	var frameworks []frameworkStateModel
 	for _, frameworkData := range instance.ComplianceFrameworks {
 		frameworks = append(frameworks, frameworkStateModel{
-			Name:     types.StringValue(frameworkData.Name),
-			Section:  types.StringValue(frameworkData.Section),
+			Name: types.StringValue(frameworkData.Name),
+			Section: types.StringValue(api_client.JoinComplianceSection(
+				frameworkData.Category, frameworkData.SubCategory, frameworkData.SubSubCategory)),
 			Priority: types.StringValue(frameworkData.Priority),
 		})
 	}
@@ -419,10 +420,13 @@ func validateCategory(client *api_client.APIClient, category string) error {
 func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomSonarAlertComplianceFramework {
 	var frameworksReq []api_client.CustomSonarAlertComplianceFramework
 	for _, frameworkState := range frameworks {
+		category, subCategory, subSubCategory := api_client.SplitComplianceSection(frameworkState.Section.ValueString())
 		frameworksReq = append(frameworksReq, api_client.CustomSonarAlertComplianceFramework{
-			Name:     frameworkState.Name.ValueString(),
-			Section:  frameworkState.Section.ValueString(),
-			Priority: frameworkState.Priority.ValueString(),
+			Name:           frameworkState.Name.ValueString(),
+			Category:       category,
+			SubCategory:    subCategory,
+			SubSubCategory: subSubCategory,
+			Priority:       frameworkState.Priority.ValueString(),
 		})
 	}
 	return frameworksReq

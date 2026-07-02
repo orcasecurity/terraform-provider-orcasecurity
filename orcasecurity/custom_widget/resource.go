@@ -28,8 +28,9 @@ var (
 )
 
 const (
-	errReadingCustomWidget = "Error reading custom widget"
-	tfTypeAlertTable       = "alert-table"
+	errReadingCustomWidget  = "Error reading custom widget"
+	errCreatingCustomWidget = "Error creating widget"
+	tfTypeAlertTable        = "alert-table"
 )
 
 type customWidgetResource struct {
@@ -241,12 +242,8 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 									},
 									"group_by_list": schema.ListAttribute{
 										ElementType: types.StringType,
-										Description: "How to group the returned results. Do not use this option with the table-type widget",
+										Description: "How to group the returned results. Do not use this option with the table-type widget.",
 										Optional:    true,
-										Computed:    true,
-										PlanModifiers: []planmodifier.List{
-											listplanmodifier.UseStateForUnknown(),
-										},
 									},
 									"limit": schema.Int64Attribute{
 										Description: "Number of items returned in query.",
@@ -651,7 +648,7 @@ func singleParamsToState(ctx context.Context, s api_client.CustomWidgetExtraPara
 	return &requestParamsModel{
 		Query:            types.StringValue(string(queryJSON)),
 		GroupBy:          stringSliceToTypesStrings(params.GroupBy),
-		GroupByList:      stringSliceToTypesStrings(params.GroupByList),
+		GroupByList:      nilIfEmptyStrings(params.GroupByList),
 		Limit:            types.Int64Value(params.Limit),
 		StartAtIndex:     types.Int64Value(sai),
 		EnablePagination: types.BoolValue(ep),
@@ -689,6 +686,13 @@ func stringSliceToTypesStrings(ss []string) []types.String {
 	return out
 }
 
+func nilIfEmptyStrings(ss []string) []types.String {
+	if len(ss) == 0 {
+		return nil
+	}
+	return stringSliceToTypesStrings(ss)
+}
+
 func columnsFromAPI(ctx context.Context, columns []string) (types.List, error) {
 	if len(columns) == 0 {
 		return types.ListNull(types.StringType), nil
@@ -723,7 +727,9 @@ func diagError(diags diag.Diagnostics) error {
 // instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
 func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
 	ep := instance.ExtraParameters
-	settings := customWidgetExtraParametersSettingsModel{}
+	settings := customWidgetExtraParametersSettingsModel{
+		Columns: types.ListNull(types.StringType),
+	}
 	if len(ep.Settings) > 0 {
 		var err error
 		settings, err = apiSettingsToStateSettings(ctx, ep.Settings[0])
@@ -773,18 +779,31 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 	instance, err := r.apiClient.CreateCustomWidget(createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating widget",
+			errCreatingCustomWidget,
 			"Could not create widget, unexpected error: "+err.Error(),
 		)
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
-	plan.ViewType = types.StringValue("customs_widgets")
-	plan.ExtraParameters.Category = types.StringValue("Custom")
-	plan.ExtraParameters.Title = plan.Name
+	created, err := r.apiClient.GetCustomWidget(instance.ID)
+	if err != nil || created == nil {
+		resp.Diagnostics.AddError(
+			errCreatingCustomWidget,
+			fmt.Sprintf("Widget created but could not be read back (ID: %s): %v", instance.ID, err),
+		)
+		return
+	}
 
-	diags = resp.State.Set(ctx, plan)
+	state, err := instanceToState(ctx, created)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			errCreatingCustomWidget,
+			"Could not convert widget state: "+err.Error(),
+		)
+		return
+	}
+
+	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

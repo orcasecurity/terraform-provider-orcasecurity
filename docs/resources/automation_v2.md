@@ -517,6 +517,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 - `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
 - `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding specifying a new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
+- `api_token_template` (Attributes) API Token template to use for the automation. (see [below for nested schema](#nestedatt--api_token_template))
 - `aws_security_hub_template` (Attributes) AWS Security Hub template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_hub_template))
 - `aws_security_lake_template` (Attributes) AWS Security Lake template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_lake_template))
 - `aws_sns_template` (Attributes) AWS SNS template to use for the automation. (see [below for nested schema](#nestedatt--aws_sns_template))
@@ -529,7 +530,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 - `cribl_template` (Attributes) Cribl template to use for the automation. (see [below for nested schema](#nestedatt--cribl_template))
 - `datadog_template` (Attributes) Datadog template to use for the automation. (see [below for nested schema](#nestedatt--datadog_template))
 - `description` (String) Automation description.
-- `email_template` (Attributes) Email settings. (see [below for nested schema](#nestedatt--email_template))
+- `email_template` (Attributes) Email settings. Provide at least one recipient mode: `email`, `asset_tag_keys`, or `custom_tag_keys`. (see [below for nested schema](#nestedatt--email_template))
 - `end_time` (String) End time for the automation (ISO 8601 format). If specified, the automation will automatically disable after this time.
 - `gcp_pub_sub_template` (Attributes) GCP Pub/Sub template to use for the automation. (see [below for nested schema](#nestedatt--gcp_pub_sub_template))
 - `jira_cloud_template` (Attributes) Jira Cloud template to use for the automation. (see [below for nested schema](#nestedatt--jira_cloud_template))
@@ -541,6 +542,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 - `opus_template` (Attributes) Opus template to use for the automation. (see [below for nested schema](#nestedatt--opus_template))
 - `pager_duty_template` (Attributes) PagerDuty template to use for the automation. (see [below for nested schema](#nestedatt--pager_duty_template))
 - `panther_template` (Attributes) Panther template to use for the automation. (see [below for nested schema](#nestedatt--panther_template))
+- `remediation_template` (Attributes) Remediation (Auto Remediate) settings. (see [below for nested schema](#nestedatt--remediation_template))
 - `servicenow_incidents_template` (Attributes) ServiceNow Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_incidents_template))
 - `servicenow_si_incidents_template` (Attributes) ServiceNow Security Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_si_incidents_template))
 - `slack_template` (Attributes) Slack template to use for the automation. (see [below for nested schema](#nestedatt--slack_template))
@@ -605,6 +607,14 @@ Optional:
 
 - `justification` (String) More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.
 - `reason` (String) The reason these alerts are having their score changed. Optional; empty string is treated as omitted.
+
+<a id="nestedatt--api_token_template"></a>
+
+### Nested Schema for `api_token_template`
+
+Required:
+
+- `external_config_id` (String) API Token external service config UUID.
 
 <a id="nestedatt--aws_security_hub_template"></a>
 
@@ -695,9 +705,11 @@ Required:
 
 ### Nested Schema for `email_template`
 
-Required:
+Optional:
 
-- `email` (List of String) Email addresses to send the alerts to
+- `asset_tag_keys` (List of String) Asset tag keys whose values are used to derive the email recipients ("email by tag").
+- `custom_tag_keys` (List of String) Custom tag keys whose values are used to derive the email recipients.
+- `email` (List of String) Email addresses to send the alerts to.
 - `multi_alerts` (Boolean) `true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.
 
 <a id="nestedatt--gcp_pub_sub_template"></a>
@@ -787,6 +799,14 @@ Required:
 Required:
 
 - `external_config_id` (String) Panther external service config UUID.
+
+<a id="nestedatt--remediation_template"></a>
+
+### Nested Schema for `remediation_template`
+
+Required:
+
+- `remediation_action` (String) The remediation action ID to run (e.g. `AWS-S3-004`).
 
 <a id="nestedatt--servicenow_incidents_template"></a>
 

@@ -51,9 +51,11 @@ resource "orcasecurity_scheduled_report" "weekly_alerts" {
     "CloudAccount.Name", "CreatedAt", "LastSeen", "AlertId",
   ]
 
+  # Compression is set via the typed attribute; other extras go in `config`.
+  compression = ".zip"
+
   config = jsonencode({
-    buIds            = []
-    compression_type = ".zip"
+    buIds = []
   })
 }
 
