@@ -12,7 +12,9 @@ import (
 const (
 	apiUserInvitesBulkCreatePath = "/api/user_invites/bulk_create/"
 	apiUserInvitesListPath       = "/api/user_invites/"
-	apiUserInviteByIDFmt         = "/api/user_invites/%s"
+	// Trailing slash is required: the DRF router redirects the slash-less URL to
+	// the canonical form, and the redirect downgrades DELETE to GET (405).
+	apiUserInviteByIDFmt = "/api/user_invites/%s/"
 )
 
 // UserInviteRequest is the bulk_create payload. For a single-invite resource the

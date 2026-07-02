@@ -91,7 +91,7 @@ func TestDeleteUserInvite(t *testing.T) {
 		if req.Method != "DELETE" {
 			t.Errorf("expected DELETE, got %s", req.Method)
 		}
-		if !strings.HasSuffix(req.URL.Path, "/api/user_invites/"+testUserInviteID) {
+		if !strings.HasSuffix(req.URL.Path, "/api/user_invites/"+testUserInviteID+"/") {
 			t.Errorf("unexpected path: %s", req.URL.Path)
 		}
 		return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader("")), Request: req}
