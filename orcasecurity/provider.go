@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"terraform-provider-orcasecurity/orcasecurity/add_users"
 	"terraform-provider-orcasecurity/orcasecurity/akamai"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
@@ -47,6 +48,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/torq"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
+	"terraform-provider-orcasecurity/orcasecurity/user_access"
 	"terraform-provider-orcasecurity/orcasecurity/user_preferences"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
 	"terraform-provider-orcasecurity/orcasecurity/zscaler"
@@ -246,6 +248,8 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		custom_role.NewCustomRoleResource,
 		group.NewGroupResource,
 		group_access.NewGroupAccessResource,
+		add_users.NewAddUsersResource,
+		user_access.NewUserAccessResource,
 		business_unit.NewBusinessUnitResource,
 		akamai.NewAkamaiResource,
 		azure_sentinel.NewAzureSentinelResource,

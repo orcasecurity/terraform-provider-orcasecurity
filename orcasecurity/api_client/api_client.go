@@ -206,3 +206,24 @@ func (c *APIClient) Delete(path string) (*APIResponse, error) {
 
 	return c.doRequest(*req)
 }
+
+// DeleteWithBody executes a DELETE HTTP request carrying a JSON body. Some Orca
+// RBAC endpoints (e.g. /api/rbac/access/user) identify the record by an id in
+// the request body rather than in the URL path.
+func (c *APIClient) DeleteWithBody(path string, data interface{}) (*APIResponse, error) {
+	payload, err := json.Marshal(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(
+		"DELETE",
+		fmt.Sprintf("%s%s", c.APIEndpoint, path),
+		strings.NewReader(string(payload)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.doRequest(*req)
+}
