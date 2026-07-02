@@ -107,7 +107,7 @@ func variantAttributes() map[string]schema.Attribute {
 
 // extractStateFromAPI copies non-empty API response fields into the Terraform state model.
 // Keeping this in a named function drops the cognitive complexity of the Extract closure.
-func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state) {
+func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state, diags *diag.Diagnostics) {
 	if api.Resource != "" {
 		s.ResourceID = types.StringValue(api.Resource)
 	}
@@ -140,9 +140,11 @@ func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state) {
 	}
 	// JSON-field round-trip uses the EncodeJSONField helper so plans don't drift on
 	// whitespace differences between the API response and the user's HCL.
-	mapping, _ := common.EncodeJSONField(api.Config.Mapping, s.MappingJSON)
+	mapping, mDiags := common.EncodeJSONField(api.Config.Mapping, s.MappingJSON)
+	diags.Append(mDiags...)
 	s.MappingJSON = mapping
-	onClose, _ := common.EncodeJSONField(api.Config.OnCloseAlertMapping, s.OnCloseAlertMappingJSON)
+	onClose, ocDiags := common.EncodeJSONField(api.Config.OnCloseAlertMapping, s.OnCloseAlertMappingJSON)
+	diags.Append(ocDiags...)
 	s.OnCloseAlertMappingJSON = onClose
 }
 
@@ -191,9 +193,9 @@ func NewResource(opts Options) resource.Resource {
 				Config:       cfg,
 			}
 		},
-		Extract: func(api *api_client.ServiceNowITSMTemplate, st cc.State) cc.APIObject {
+		Extract: func(api *api_client.ServiceNowITSMTemplate, st cc.State, diags *diag.Diagnostics) cc.APIObject {
 			s := st.(*state)
-			extractStateFromAPI(api, s)
+			extractStateFromAPI(api, s, diags)
 			return cc.APIObject{
 				ID:           api.ID,
 				TemplateName: api.TemplateName,

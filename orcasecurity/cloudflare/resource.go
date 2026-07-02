@@ -41,7 +41,7 @@ func NewCloudflareResource() resource.Resource {
 				Config:       api_client.CloudflareConfig{APIToken: s.APIToken.ValueString()},
 			}
 		},
-		Extract: func(o *api_client.CloudflareExternalServiceConfig, _ cc.State) cc.APIObject {
+		Extract: func(o *api_client.CloudflareExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
 			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
 		},
 		Create: (*api_client.APIClient).CreateCloudflareConfig,

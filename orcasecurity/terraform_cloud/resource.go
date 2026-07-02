@@ -47,7 +47,7 @@ func NewTerraformCloudResource() resource.Resource {
 				Config:       api_client.TerraformCloudConfig{APIToken: s.APIToken.ValueString(), APIURL: s.APIURL.ValueString()},
 			}
 		},
-		Extract: func(o *api_client.TerraformCloudExternalServiceConfig, st cc.State) cc.APIObject {
+		Extract: func(o *api_client.TerraformCloudExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
 			if o.Config.APIURL != "" {
 				st.(*state).APIURL = types.StringValue(o.Config.APIURL)
 			}

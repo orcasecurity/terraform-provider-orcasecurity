@@ -88,6 +88,35 @@ func TestAppendExternalConfigWithParentAction_IncludeParent(t *testing.T) {
 	}
 }
 
+func TestGenerateV2Actions_ApiTokenTemplate(t *testing.T) {
+	plan := &automationV2ResourceModel{
+		ApiTokenTemplate: &automationV2ExternalConfigTemplateModel{
+			ExternalConfigID: types.StringValue("09827e5e-19d2-41dd-87b1-8f90009773a6"),
+		},
+	}
+
+	actions, err := generateV2Actions(plan, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(actions))
+	}
+	a := actions[0]
+	if a.Type != api_client.AutomationSiemID {
+		t.Errorf("expected Type %d, got %d", api_client.AutomationSiemID, a.Type)
+	}
+	if a.SiemToken == nil || *a.SiemToken != "09827e5e-19d2-41dd-87b1-8f90009773a6" {
+		t.Errorf("expected SiemToken 09827e5e-19d2-41dd-87b1-8f90009773a6, got %v", a.SiemToken)
+	}
+	if a.ExternalConfig != nil {
+		t.Errorf("expected nil ExternalConfig, got %v", *a.ExternalConfig)
+	}
+	if len(a.Data) != 0 {
+		t.Errorf("expected empty Data, got %v", a.Data)
+	}
+}
+
 func TestAppendReasonJustificationAction_EmptyValuesSkipped(t *testing.T) {
 	out := appendReasonJustificationAction(nil, api_client.AutomationAlertDismissalID,
 		types.StringValue(""), types.StringNull(), nil)

@@ -60,7 +60,7 @@ func NewAzureSentinelResource() resource.Resource {
 				},
 			}
 		},
-		Extract: func(o *api_client.AzureSentinelExternalServiceConfig, st cc.State) cc.APIObject {
+		Extract: func(o *api_client.AzureSentinelExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
 			s := st.(*state)
 			if o.Config.LogType != "" {
 				s.LogType = types.StringValue(o.Config.LogType)

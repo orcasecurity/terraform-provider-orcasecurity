@@ -53,7 +53,7 @@ func NewSnykResource() resource.Resource {
 				Config:       api_client.SnykConfig{APIToken: s.APIToken.ValueString(), Region: s.Region.ValueString()},
 			}
 		},
-		Extract: func(o *api_client.SnykExternalServiceConfig, st cc.State) cc.APIObject {
+		Extract: func(o *api_client.SnykExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
 			if o.Config.Region != "" {
 				st.(*state).Region = types.StringValue(o.Config.Region)
 			}

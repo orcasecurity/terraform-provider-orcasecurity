@@ -66,7 +66,7 @@ func NewAkamaiResource() resource.Resource {
 				},
 			}
 		},
-		Extract: func(o *api_client.AkamaiExternalServiceConfig, st cc.State) cc.APIObject {
+		Extract: func(o *api_client.AkamaiExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
 			if o.Config.Host != "" {
 				st.(*state).Host = types.StringValue(o.Config.Host)
 			}

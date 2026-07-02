@@ -34,6 +34,9 @@ type AutomationV2Action struct {
 	Type           int32                  `json:"type"`
 	Data           map[string]interface{} `json:"data"`
 	ExternalConfig *string                `json:"external_config,omitempty"`
+	// SiemToken carries the config-reference UUID for the SIEM "API Token" action
+	// (type AutomationSiemID), which uses siem_token instead of external_config.
+	SiemToken *string `json:"siem_token,omitempty"`
 }
 
 func (client *APIClient) GetAutomationV2(automationID string) (*AutomationV2, error) {

@@ -44,7 +44,7 @@ func NewOpsgenieResource() resource.Resource {
 				BusinessUnits: common.BusinessUnitsToAPI(ctx, s.BusinessUnits, diags),
 			}
 		},
-		Extract: func(o *api_client.OpsgenieExternalServiceConfig, _ cc.State) cc.APIObject {
+		Extract: func(o *api_client.OpsgenieExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
 			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault, BusinessUnits: o.BusinessUnits}
 		},
 		Create: (*api_client.APIClient).CreateOpsgenieConfig,

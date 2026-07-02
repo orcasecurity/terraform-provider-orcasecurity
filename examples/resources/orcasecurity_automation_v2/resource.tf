@@ -330,6 +330,11 @@ resource "orcasecurity_automation_v2" "siem_integration" {
   azure_sentinel_template = {
     external_config_id = "99999999-aaaa-bbbb-cccc-dddddddddddd"
   }
+
+  # SIEM "API Token" action (Orca built-in SIEM push)
+  api_token_template = {
+    external_config_id = "09827e5e-19d2-41dd-87b1-8f90009773a6"
+  }
 }
 
 # Cloud services integration

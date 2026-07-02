@@ -41,7 +41,7 @@ func NewPagerDutyResource() resource.Resource {
 				Config:       api_client.PagerDutyConfig{IntegrationKey: s.IntegrationKey.ValueString()},
 			}
 		},
-		Extract: func(o *api_client.PagerDutyExternalServiceConfig, _ cc.State) cc.APIObject {
+		Extract: func(o *api_client.PagerDutyExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
 			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
 		},
 		Create: (*api_client.APIClient).CreatePagerDutyConfig,

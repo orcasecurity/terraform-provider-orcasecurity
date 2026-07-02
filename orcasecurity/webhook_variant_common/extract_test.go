@@ -5,6 +5,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -36,7 +37,7 @@ func TestExtractTopLevel_LeavesConfigBlockAlone(t *testing.T) {
 	}
 	apiObj := sampleAPIResponse()
 
-	obj := extractTopLevel(apiObj, s)
+	obj := ExtractTopLevel(apiObj, s, &diag.Diagnostics{})
 
 	if obj.ID != "id-1" {
 		t.Errorf("expected ID extracted, got %q", obj.ID)
@@ -57,7 +58,7 @@ func TestExtractFull_RefreshesConfigFromAPI(t *testing.T) {
 	}
 	apiObj := sampleAPIResponse()
 
-	obj := extractFull(apiObj, s)
+	obj := extractFull(apiObj, s, &diag.Diagnostics{})
 
 	if obj.ID != "id-1" {
 		t.Errorf("expected ID extracted, got %q", obj.ID)
@@ -82,7 +83,7 @@ func TestExtractFull_APIKeyUnknownTakesAPIValue(t *testing.T) {
 	}
 	apiObj := sampleAPIResponse()
 
-	extractFull(apiObj, s)
+	extractFull(apiObj, s, &diag.Diagnostics{})
 
 	if s.APIKey.ValueString() != "echoed-key" {
 		t.Errorf("expected API key copied when planned is unknown, got %q", s.APIKey.ValueString())
@@ -95,12 +96,12 @@ func TestExtractFull_APIKeyUnknownTakesAPIValue(t *testing.T) {
 func TestExtractHooks_AgreeOnCommon(t *testing.T) {
 	apiObj := sampleAPIResponse()
 
-	topLevel := extractTopLevel(apiObj, &state{})
+	topLevel := ExtractTopLevel(apiObj, &state{}, &diag.Diagnostics{})
 	full := extractFull(apiObj, &state{
 		WebhookURL: types.StringNull(),
 		APIKey:     types.StringNull(),
 		BodyFields: types.ListNull(types.StringType),
-	})
+	}, &diag.Diagnostics{})
 
 	if topLevel.ID != full.ID || topLevel.TemplateName != full.TemplateName {
 		t.Errorf("Extract vs ExtractOnRead disagree on common fields: %+v vs %+v", topLevel, full)

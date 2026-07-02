@@ -59,7 +59,7 @@ func NewSplunkResource() resource.Resource {
 				},
 			}
 		},
-		Extract: func(o *api_client.SplunkExternalServiceConfig, st cc.State) cc.APIObject {
+		Extract: func(o *api_client.SplunkExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
 			s := st.(*state)
 			if o.Config.URL != "" {
 				s.URL = types.StringValue(o.Config.URL)

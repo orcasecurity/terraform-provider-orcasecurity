@@ -105,6 +105,7 @@ type automationV2ResourceModel struct {
 
 	SumoLogicTemplate     *automationV2ExternalConfigTemplateModel `tfsdk:"sumo_logic_template"`
 	AzureSentinelTemplate *automationV2ExternalConfigTemplateModel `tfsdk:"azure_sentinel_template"`
+	ApiTokenTemplate      *automationV2ExternalConfigTemplateModel `tfsdk:"api_token_template"`
 
 	JiraCloudTemplate   *automationV2ExternalConfigWithParentTemplateModel `tfsdk:"jira_cloud_template"`
 	JiraServerTemplate  *automationV2ExternalConfigWithParentTemplateModel `tfsdk:"jira_server_template"`
@@ -168,6 +169,7 @@ func (r *automationV2Resource) ConfigValidators(_ context.Context) []resource.Co
 			path.MatchRoot("ms_teams_template"),
 			path.MatchRoot("sumo_logic_template"),
 			path.MatchRoot("azure_sentinel_template"),
+			path.MatchRoot("api_token_template"),
 			path.MatchRoot("splunk_template"),
 			path.MatchRoot("aws_security_hub_template"),
 			path.MatchRoot("chronicle_template"),
@@ -422,6 +424,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 
 			"sumo_logic_template":     createExternalConfigTemplateSchema("Sumo Logic"),
 			"azure_sentinel_template": createExternalConfigTemplateSchema("Azure Sentinel"),
+			"api_token_template":      createExternalConfigTemplateSchema("API Token"),
 
 			"azure_devops_template": createExternalConfigWithParentTemplateSchema("Azure DevOps", "Automatically nest under parent issue."),
 			"jira_cloud_template":   createExternalConfigWithParentTemplateSchema("Jira Cloud", "Automatically nest under this parent issue."),
@@ -591,6 +594,15 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 	}
 	for _, b := range externalConfigWithParentBindings {
 		actions = appendExternalConfigWithParentAction(actions, b.tmpl, b.actionType)
+	}
+
+	if plan.ApiTokenTemplate != nil {
+		token := plan.ApiTokenTemplate.ExternalConfigID.ValueString()
+		actions = append(actions, api_client.AutomationV2Action{
+			Type:      api_client.AutomationSiemID,
+			Data:      map[string]interface{}{},
+			SiemToken: &token,
+		})
 	}
 
 	if plan.DatadogTemplate != nil {

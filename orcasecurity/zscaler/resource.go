@@ -58,7 +58,7 @@ func NewZscalerResource() resource.Resource {
 				},
 			}
 		},
-		Extract: func(o *api_client.ZscalerExternalServiceConfig, st cc.State) cc.APIObject {
+		Extract: func(o *api_client.ZscalerExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
 			if o.Config.VanityDomain != "" {
 				st.(*state).VanityDomain = types.StringValue(o.Config.VanityDomain)
 			}

@@ -517,6 +517,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 - `alert_score_decrease_details` (Attributes) Details regarding decreasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_decrease_details))
 - `alert_score_increase_details` (Attributes) Details regarding increasing the score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_increase_details))
 - `alert_score_specify_details` (Attributes) Details regarding specifying a new score for the selected alerts. (see [below for nested schema](#nestedatt--alert_score_specify_details))
+- `api_token_template` (Attributes) API Token template to use for the automation. (see [below for nested schema](#nestedatt--api_token_template))
 - `aws_security_hub_template` (Attributes) AWS Security Hub template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_hub_template))
 - `aws_security_lake_template` (Attributes) AWS Security Lake template to use for the automation. (see [below for nested schema](#nestedatt--aws_security_lake_template))
 - `aws_sns_template` (Attributes) AWS SNS template to use for the automation. (see [below for nested schema](#nestedatt--aws_sns_template))
@@ -605,6 +606,14 @@ Optional:
 
 - `justification` (String) More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted.
 - `reason` (String) The reason these alerts are having their score changed. Optional; empty string is treated as omitted.
+
+<a id="nestedatt--api_token_template"></a>
+
+### Nested Schema for `api_token_template`
+
+Required:
+
+- `external_config_id` (String) API Token external service config UUID.
 
 <a id="nestedatt--aws_security_hub_template"></a>
 

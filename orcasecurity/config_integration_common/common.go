@@ -67,15 +67,22 @@ type Spec[P any] struct {
 
 	// Extract pulls the cross-variant Common-shape fields out of the API response and
 	// writes any variant-specific Computed fields back into ``state`` (e.g. echoed URLs).
-	// Called on Create / Update / Read by default.
-	Extract func(apiObj *P, state State) APIObject
+	// Called on Create / Update / Read by default. Append to diags for any conversion error
+	// that should surface instead of being silently swallowed.
+	Extract func(apiObj *P, state State, diags *diag.Diagnostics) APIObject
 
 	// ExtractOnRead is an optional override used only on Read. Variants whose Create/Update
 	// responses can't be safely re-applied to state (e.g. the Plugin Framework's
 	// "inconsistent sensitive attribute" check when a sensitive nested block round-trips
 	// through the API) supply a narrower Extract for Create/Update and a fuller one here
 	// for Read. When nil, Extract is used on every call.
-	ExtractOnRead func(apiObj *P, state State) APIObject
+	ExtractOnRead func(apiObj *P, state State, diags *diag.Diagnostics) APIObject
+
+	// AfterExtract is an optional hook run on every Create/Read/Update after the API response
+	// has been applied to state. Unlike Extract it receives the API client, so variants that
+	// derive Computed attributes from a *second* endpoint (e.g. S3 bucket policy rendered from
+	// GET /api/settings) can populate them without hand-rolling their own CRUD loop.
+	AfterExtract func(client *api_client.APIClient, state State, diags *diag.Diagnostics)
 
 	// CRUD method references — typically the bound ``(*api_client.APIClient).XyzConfig``
 	// methods. The base calls these via the shared API client so per-variant files don't
@@ -161,17 +168,22 @@ func (r *genericResource[P]) Schema(_ context.Context, _ resource.SchemaRequest,
 	resp.Schema = buildSchema(r.spec)
 }
 
+// gerunds maps each CRUD verb to its gerund so diagnostic titles read "Error creating X"
+// while the body keeps the bare verb ("Could not create X: ..."). An explicit table beats
+// clever suffix arithmetic — "delete" -> "deleting" needs the trailing 'e' dropped just like
+// "create"/"update", which a naive action+"ing" would miss.
+var gerunds = map[string]string{
+	"create": "creating",
+	"read":   "reading",
+	"update": "updating",
+	"delete": "deleting",
+}
+
 // errorWrap converts an api_client error into a TF diagnostic without forcing every variant
-// to repeat the same AddError boilerplate. action is the bare verb ("create", "read"); the
-// title uses the gerund form so the wording matches existing handwritten diagnostics
-// ("Error creating X" / "Could not create X: ...").
+// to repeat the same AddError boilerplate. action is the bare verb ("create", "read").
 func errorWrap(diags *diag.Diagnostics, action, ui string, err error) {
-	gerund := action + "ing"
-	if action == "create" || action == "update" {
-		gerund = action[:len(action)-1] + "ing"
-	}
 	diags.AddError(
-		fmt.Sprintf("Error %s %s", gerund, ui),
+		fmt.Sprintf("Error %s %s", gerunds[action], ui),
 		fmt.Sprintf("Could not %s %s: %s", action, ui, err.Error()),
 	)
 }
@@ -195,11 +207,19 @@ func (r *genericResource[P]) Create(ctx context.Context, req resource.CreateRequ
 		errorWrap(&resp.Diagnostics, "create", r.spec.UIName, err)
 		return
 	}
-	applyCommon(ctx, plan, r.spec.Extract(created, plan), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	applyCommon(ctx, plan, r.spec.Extract(created, plan, &resp.Diagnostics), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	r.afterExtract(plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+}
+
+// afterExtract runs the optional AfterExtract hook, if the variant declares one.
+func (r *genericResource[P]) afterExtract(st State, diags *diag.Diagnostics) {
+	if r.spec.AfterExtract != nil {
+		r.spec.AfterExtract(r.client, st, diags)
+	}
 }
 
 func (r *genericResource[P]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -221,7 +241,8 @@ func (r *genericResource[P]) Read(ctx context.Context, req resource.ReadRequest,
 	if r.spec.ExtractOnRead != nil {
 		extract = r.spec.ExtractOnRead
 	}
-	applyCommon(ctx, state, extract(current, state), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	applyCommon(ctx, state, extract(current, state, &resp.Diagnostics), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	r.afterExtract(state, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -248,7 +269,8 @@ func (r *genericResource[P]) Update(ctx context.Context, req resource.UpdateRequ
 		errorWrap(&resp.Diagnostics, "update", r.spec.UIName, err)
 		return
 	}
-	applyCommon(ctx, plan, r.spec.Extract(updated, plan), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	applyCommon(ctx, plan, r.spec.Extract(updated, plan, &resp.Diagnostics), r.spec.SupportsBusinessUnits, &resp.Diagnostics)
+	r.afterExtract(plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}

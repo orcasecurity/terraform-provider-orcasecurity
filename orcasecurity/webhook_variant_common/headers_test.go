@@ -12,7 +12,7 @@ import (
 
 func TestCustomHeadersToAPI_NullMap(t *testing.T) {
 	ctx := context.Background()
-	got, diags := CustomHeadersToAPI(ctx, types.MapNull(customHeaderListType()))
+	got, diags := CustomHeadersToAPI(ctx, types.MapNull(CustomHeaderListType()))
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
@@ -34,7 +34,7 @@ func TestCustomHeadersToAPI_RoundTrip(t *testing.T) {
 
 	listForAuth, _ := types.ListValue(objType, []attr.Value{mkObj("Bearer abc"), mkObj("Bearer def")})
 	listForTrace, _ := types.ListValue(objType, []attr.Value{mkObj("trace-1")})
-	planned, _ := types.MapValue(customHeaderListType(), map[string]attr.Value{
+	planned, _ := types.MapValue(CustomHeaderListType(), map[string]attr.Value{
 		"authorization": listForAuth,
 		"x-trace":       listForTrace,
 	})
@@ -64,7 +64,7 @@ func TestCustomHeadersToAPI_RoundTrip(t *testing.T) {
 }
 
 func TestCustomHeadersFromAPI_NullPreservedOnEmpty(t *testing.T) {
-	got, diags := CustomHeadersFromAPI(map[string][]api_client.WebhookCustomHeaderValue{}, types.MapNull(customHeaderListType()))
+	got, diags := CustomHeadersFromAPI(map[string][]api_client.WebhookCustomHeaderValue{}, types.MapNull(CustomHeaderListType()))
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}

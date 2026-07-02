@@ -51,7 +51,9 @@ func CustomHeaderObjectType() types.ObjectType {
 	}}
 }
 
-func customHeaderListType() types.ListType {
+// CustomHeaderListType is the list-of-objects element type used for the custom_headers map.
+// Exported so the generic webhook resource shares the exact same shape as the variants.
+func CustomHeaderListType() types.ListType {
 	return types.ListType{ElemType: CustomHeaderObjectType()}
 }
 
@@ -75,7 +77,7 @@ func variantAttributes(opts Options) map[string]schema.Attribute {
 		},
 		"custom_headers": schema.MapAttribute{
 			Optional:    true,
-			ElementType: customHeaderListType(),
+			ElementType: CustomHeaderListType(),
 			Description: "Optional custom HTTP headers, keyed by header name. Each value is a list of `{ custom = \"<value>\" }` objects so a single header can carry multiple values.",
 		},
 	}
@@ -118,7 +120,7 @@ func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string][]ap
 // CustomHeadersFromAPI is exported so unit tests can exercise the API map → Terraform Map
 // conversion. Preserves a null planned value when the API returns no headers.
 func CustomHeadersFromAPI(headers map[string][]api_client.WebhookCustomHeaderValue, planned types.Map) (types.Map, diag.Diagnostics) {
-	listType := customHeaderListType()
+	listType := CustomHeaderListType()
 	if len(headers) == 0 && planned.IsNull() {
 		return types.MapNull(listType), nil
 	}
@@ -147,9 +149,10 @@ func CustomHeadersFromAPI(headers map[string][]api_client.WebhookCustomHeaderVal
 	return result, diags
 }
 
-// extractTopLevel populates only the cross-variant identifiers. Used on Create/Update so the
-// planned (sensitive) config block survives the Plugin Framework's consistency check.
-func extractTopLevel(api *api_client.WebhookExternalServiceConfig, _ cc.State) cc.APIObject {
+// ExtractTopLevel populates only the cross-variant identifiers. Used on Create/Update so the
+// planned (sensitive) config block survives the Plugin Framework's consistency check. Exported
+// so the generic webhook resource reuses the exact same top-level extraction.
+func ExtractTopLevel(api *api_client.WebhookExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
 	return cc.APIObject{
 		ID:            api.ID,
 		TemplateName:  api.TemplateName,
@@ -162,7 +165,7 @@ func extractTopLevel(api *api_client.WebhookExternalServiceConfig, _ cc.State) c
 // extractFull refreshes the whole config block from the API response. Used on Read so the
 // next plan can detect drift. api_key is intentionally not overwritten with API echoes — the
 // API may strip or re-encode the value, and the user-supplied secret already lives in state.
-func extractFull(api *api_client.WebhookExternalServiceConfig, st cc.State) cc.APIObject {
+func extractFull(api *api_client.WebhookExternalServiceConfig, st cc.State, diags *diag.Diagnostics) cc.APIObject {
 	s := st.(*state)
 	s.WebhookURL = types.StringValue(api.Config.WebhookURL)
 	if s.APIKey.IsUnknown() {
@@ -172,14 +175,18 @@ func extractFull(api *api_client.WebhookExternalServiceConfig, st cc.State) cc.A
 			s.APIKey = types.StringNull()
 		}
 	}
-	bodyFields, _ := bodyFieldsFromAPI(context.Background(), api.Config.BodyFields, s.BodyFields)
+	bodyFields, bfDiags := BodyFieldsFromAPI(context.Background(), api.Config.BodyFields, s.BodyFields)
+	diags.Append(bfDiags...)
 	s.BodyFields = bodyFields
-	headers, _ := CustomHeadersFromAPI(api.Config.CustomHeaders, s.CustomHeaders)
+	headers, headerDiags := CustomHeadersFromAPI(api.Config.CustomHeaders, s.CustomHeaders)
+	diags.Append(headerDiags...)
 	s.CustomHeaders = headers
-	return extractTopLevel(api, st)
+	return ExtractTopLevel(api, st, diags)
 }
 
-func bodyFieldsFromAPI(ctx context.Context, fields []string, planned types.List) (types.List, diag.Diagnostics) {
+// BodyFieldsFromAPI mirrors the API's body_fields list into a Terraform List, preserving the
+// planned null-vs-empty shape. Exported so the generic webhook resource shares it.
+func BodyFieldsFromAPI(ctx context.Context, fields []string, planned types.List) (types.List, diag.Diagnostics) {
 	if len(fields) == 0 {
 		if planned.IsNull() {
 			return types.ListNull(types.StringType), nil
@@ -231,7 +238,7 @@ func NewResource(opts Options) resource.Resource {
 		},
 		// Extract: Create/Update path. Touches only top-level fields so the planned (sensitive)
 		// config block survives the post-apply consistency check.
-		Extract: extractTopLevel,
+		Extract: ExtractTopLevel,
 		// ExtractOnRead: Read path. Refreshes the whole resource so drift in any non-secret
 		// config field is detected on the next plan. api_key is intentionally NOT overwritten —
 		// the API may strip or re-encode the value and we already keep the user-supplied secret
