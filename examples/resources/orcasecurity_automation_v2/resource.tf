@@ -164,6 +164,42 @@ resource "orcasecurity_automation_v2" "email_individual" {
   }
 }
 
+# Email by tag - recipients derived from asset tag values
+resource "orcasecurity_automation_v2" "email_by_tag" {
+  name        = "Email Resource Owners by Region"
+  description = "Send alerts to the owners derived from the asset's Region tag"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  email_template = {
+    asset_tag_keys = ["Region"]
+  }
+}
+
+# Remediation (Auto Remediate) action
+resource "orcasecurity_automation_v2" "auto_remediate_s3" {
+  name        = "Auto Remediate S3 Findings"
+  description = "Run a remediation action on matching S3 alerts"
+  status      = "enabled"
+
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type   = "object_set"
+    })
+  }
+
+  remediation_template = {
+    remediation_action = "AWS-S3-004"
+  }
+}
+
 # Snooze automation for test environments
 resource "orcasecurity_automation_v2" "snooze_test_env" {
   name        = "Auto-snooze Test Environment Alerts"

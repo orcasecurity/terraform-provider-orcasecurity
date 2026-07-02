@@ -71,6 +71,12 @@ type automationV2ExternalConfigWithParentTemplateModel struct {
 type automationV2EmailTemplateModel struct {
 	EmailAddresses types.List `tfsdk:"email"`
 	MultiAlerts    types.Bool `tfsdk:"multi_alerts"`
+	AssetTagKeys   types.List `tfsdk:"asset_tag_keys"`
+	CustomTagKeys  types.List `tfsdk:"custom_tag_keys"`
+}
+
+type automationV2RemediationTemplateModel struct {
+	RemediationAction types.String `tfsdk:"remediation_action"`
 }
 
 type automationV2DatadogTemplateModel struct {
@@ -102,6 +108,8 @@ type automationV2ResourceModel struct {
 	SlackTemplate *automationV2ExternalConfigTemplateModel `tfsdk:"slack_template"`
 
 	EmailTemplate *automationV2EmailTemplateModel `tfsdk:"email_template"`
+
+	RemediationTemplate *automationV2RemediationTemplateModel `tfsdk:"remediation_template"`
 
 	SumoLogicTemplate     *automationV2ExternalConfigTemplateModel `tfsdk:"sumo_logic_template"`
 	AzureSentinelTemplate *automationV2ExternalConfigTemplateModel `tfsdk:"azure_sentinel_template"`
@@ -193,6 +201,7 @@ func (r *automationV2Resource) ConfigValidators(_ context.Context) []resource.Co
 			path.MatchRoot("torq_template"),
 			path.MatchRoot("opus_template"),
 			path.MatchRoot("panther_template"),
+			path.MatchRoot("remediation_template"),
 		),
 	}
 }
@@ -433,16 +442,36 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 			"slack_template": createExternalConfigTemplateSchema("Slack"),
 			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
-				Description: "Email settings.",
+				Description: "Email settings. Provide at least one recipient mode: `email`, `asset_tag_keys`, or `custom_tag_keys`.",
 				Attributes: map[string]schema.Attribute{
 					"email": schema.ListAttribute{
 						ElementType: types.StringType,
-						Required:    true,
-						Description: "Email addresses to send the alerts to",
+						Optional:    true,
+						Description: "Email addresses to send the alerts to.",
 					},
 					"multi_alerts": schema.BoolAttribute{
-						Required:    true,
+						Optional:    true,
 						Description: "`true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.",
+					},
+					"asset_tag_keys": schema.ListAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+						Description: "Asset tag keys whose values are used to derive the email recipients (\"email by tag\").",
+					},
+					"custom_tag_keys": schema.ListAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+						Description: "Custom tag keys whose values are used to derive the email recipients.",
+					},
+				},
+			},
+			"remediation_template": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Remediation (Auto Remediate) settings.",
+				Attributes: map[string]schema.Attribute{
+					"remediation_action": schema.StringAttribute{
+						Required:    true,
+						Description: "The remediation action ID to run (e.g. `AWS-S3-004`).",
 					},
 				},
 			},
@@ -615,18 +644,52 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 	}
 
 	if plan.EmailTemplate != nil {
-		var emailAddresses []string
-		_ = plan.EmailTemplate.EmailAddresses.ElementsAs(context.Background(), &emailAddresses, false)
+		data := map[string]interface{}{}
+		if emails := stringListToSlice(plan.EmailTemplate.EmailAddresses); len(emails) > 0 {
+			data["email"] = emails
+		}
+		if tags := stringListToSlice(plan.EmailTemplate.AssetTagKeys); len(tags) > 0 {
+			data["asset_tag_keys"] = tags
+		}
+		if tags := stringListToSlice(plan.EmailTemplate.CustomTagKeys); len(tags) > 0 {
+			data["custom_tag_keys"] = tags
+		}
+		_, hasEmail := data["email"]
+		_, hasAssetTags := data["asset_tag_keys"]
+		_, hasCustomTags := data["custom_tag_keys"]
+		if !hasEmail && !hasAssetTags && !hasCustomTags {
+			return nil, fmt.Errorf("email_template requires at least one of email, asset_tag_keys, or custom_tag_keys")
+		}
+		if !plan.EmailTemplate.MultiAlerts.IsNull() && !plan.EmailTemplate.MultiAlerts.IsUnknown() {
+			data["multi_alerts"] = plan.EmailTemplate.MultiAlerts.ValueBool()
+		}
 		actions = append(actions, api_client.AutomationV2Action{
 			Type: api_client.AutomationEmailID,
+			Data: data,
+		})
+	}
+
+	if plan.RemediationTemplate != nil {
+		actions = append(actions, api_client.AutomationV2Action{
+			Type: api_client.AutomationRemediationID,
 			Data: map[string]interface{}{
-				"email":        emailAddresses,
-				"multi_alerts": plan.EmailTemplate.MultiAlerts.ValueBool(),
+				"remediation_action": plan.RemediationTemplate.RemediationAction.ValueString(),
 			},
 		})
 	}
 
 	return actions, nil
+}
+
+// stringListToSlice converts a Terraform string list into a Go slice, returning
+// nil for null/unknown lists.
+func stringListToSlice(l types.List) []string {
+	if l.IsNull() || l.IsUnknown() {
+		return nil
+	}
+	var out []string
+	_ = l.ElementsAs(context.Background(), &out, false)
+	return out
 }
 
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
