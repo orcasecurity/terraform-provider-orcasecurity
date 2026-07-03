@@ -3,6 +3,7 @@ package add_users
 import (
 	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -173,25 +174,15 @@ func (r *addUsersResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 	}
 }
 
-func stringSliceFromList(ctx context.Context, l types.List) ([]string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if l.IsNull() || l.IsUnknown() {
-		return []string{}, diags
-	}
-	var out []string
-	diags = l.ElementsAs(ctx, &out, false)
-	return out, diags
-}
-
 func (r *addUsersResource) modelToRequest(ctx context.Context, plan addUsersResourceModel) (api_client.UserInviteRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	groups, d := stringSliceFromList(ctx, plan.Groups)
+	groups, d := common.StringSliceFromList(ctx, plan.Groups)
 	diags.Append(d...)
-	cloudAccounts, d := stringSliceFromList(ctx, plan.CloudAccounts)
+	cloudAccounts, d := common.StringSliceFromList(ctx, plan.CloudAccounts)
 	diags.Append(d...)
-	userFilters, d := stringSliceFromList(ctx, plan.UserFilters)
+	userFilters, d := common.StringSliceFromList(ctx, plan.UserFilters)
 	diags.Append(d...)
-	shiftleft, d := stringSliceFromList(ctx, plan.ShiftleftProjects)
+	shiftleft, d := common.StringSliceFromList(ctx, plan.ShiftleftProjects)
 	diags.Append(d...)
 	if diags.HasError() {
 		return api_client.UserInviteRequest{}, diags

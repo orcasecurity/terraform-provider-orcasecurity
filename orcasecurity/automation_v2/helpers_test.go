@@ -213,7 +213,11 @@ func TestGenerateV2Actions_EmailByCustomTags(t *testing.T) {
 	}
 }
 
-func TestGenerateV2Actions_EmailRequiresRecipient(t *testing.T) {
+// Recipient enforcement (at least one of email / asset_tag_keys / custom_tag_keys)
+// now lives in the schema-level objectvalidator on email_template, so it surfaces at
+// plan time. The builder no longer re-checks it: given an email_template with no
+// recipients it emits the email action with empty data and returns no error.
+func TestGenerateV2Actions_EmailNoRecipientNoError(t *testing.T) {
 	plan := &automationV2ResourceModel{
 		EmailTemplate: &automationV2EmailTemplateModel{
 			EmailAddresses: types.ListNull(types.StringType),
@@ -223,8 +227,15 @@ func TestGenerateV2Actions_EmailRequiresRecipient(t *testing.T) {
 		},
 	}
 
-	if _, err := generateV2Actions(plan, nil); err == nil {
-		t.Fatalf("expected error when no recipient provided, got nil")
+	actions, err := generateV2Actions(plan, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(actions))
+	}
+	if want := map[string]interface{}{}; !reflect.DeepEqual(actions[0].Data, want) {
+		t.Errorf("expected empty data %v, got %v", want, actions[0].Data)
 	}
 }
 

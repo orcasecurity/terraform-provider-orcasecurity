@@ -2,7 +2,6 @@ package monday_template
 
 import (
 	"context"
-	"encoding/json"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
@@ -78,36 +77,21 @@ func variantAttributes() map[string]schema.Attribute {
 
 // decodeMappings pulls the three JSON-string fields off the plan into the API config.
 func decodeMappings(s *state, cfg *api_client.MondayTemplateConfig, diags *diag.Diagnostics) {
-	for _, m := range []struct {
-		src   types.String
-		field string
-		dst   *json.RawMessage
-	}{
-		{s.MappingJSON, "mapping_json", &cfg.Mapping},
-		{s.AlertStatusMappingJSON, "alert_status_mapping_json", &cfg.AlertStatusMapping},
-		{s.TicketStatusMappingJSON, "ticket_status_mapping_json", &cfg.TicketStatusMapping},
-	} {
-		raw, d := common.DecodeJSONField(m.src, m.field)
-		diags.Append(d...)
-		*m.dst = raw
-	}
+	common.DecodeJSONFields([]common.JSONFieldDecode{
+		{Src: s.MappingJSON, Field: "mapping_json", Dst: &cfg.Mapping},
+		{Src: s.AlertStatusMappingJSON, Field: "alert_status_mapping_json", Dst: &cfg.AlertStatusMapping},
+		{Src: s.TicketStatusMappingJSON, Field: "ticket_status_mapping_json", Dst: &cfg.TicketStatusMapping},
+	}, diags)
 }
 
 // encodeMappings writes the three JSON config fields from the API response back onto state,
 // preserving each field's planned whitespace shape via EncodeJSONField.
 func encodeMappings(s *state, cfg *api_client.MondayTemplateConfig, diags *diag.Diagnostics) {
-	for _, m := range []struct {
-		raw json.RawMessage
-		dst *types.String
-	}{
-		{cfg.Mapping, &s.MappingJSON},
-		{cfg.AlertStatusMapping, &s.AlertStatusMappingJSON},
-		{cfg.TicketStatusMapping, &s.TicketStatusMappingJSON},
-	} {
-		encoded, d := common.EncodeJSONField(m.raw, *m.dst)
-		diags.Append(d...)
-		*m.dst = encoded
-	}
+	common.EncodeJSONFields([]common.JSONFieldEncode{
+		{Raw: cfg.Mapping, Dst: &s.MappingJSON},
+		{Raw: cfg.AlertStatusMapping, Dst: &s.AlertStatusMappingJSON},
+		{Raw: cfg.TicketStatusMapping, Dst: &s.TicketStatusMappingJSON},
+	}, diags)
 }
 
 func NewMondayTemplateResource() resource.Resource {

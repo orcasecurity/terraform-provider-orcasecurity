@@ -11,7 +11,9 @@ func (client *APIClient) CreateTorqConfig(payload WebhookExternalServiceConfig) 
 }
 
 func (client *APIClient) GetTorqConfig(templateName string) (*WebhookExternalServiceConfig, error) {
-	return client.GetWebhookConfigByTemplate(templateName)
+	return GetExternalServiceConfig[WebhookResourceConfig](client, WebhookConfigServiceName, templateName, func(e *WebhookExternalServiceConfig) bool {
+		return e.Config.Type == TorqWebhookType
+	})
 }
 
 func (client *APIClient) UpdateTorqConfig(templateName string, payload WebhookExternalServiceConfig) (*WebhookExternalServiceConfig, error) {

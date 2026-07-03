@@ -2,7 +2,6 @@ package jira_cloud_template
 
 import (
 	"context"
-	"encoding/json"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
@@ -95,40 +94,25 @@ func variantAttributes() map[string]schema.Attribute {
 
 // decodeMappings pulls the five JSON-string fields off the plan into the API config.
 func decodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *diag.Diagnostics) {
-	for _, m := range []struct {
-		src   types.String
-		field string
-		dst   *json.RawMessage
-	}{
-		{s.MappingJSON, "mapping_json", &cfg.Mapping},
-		{s.AlertStatusMappingJSON, "alert_status_mapping_json", &cfg.AlertStatusMapping},
-		{s.TicketStatusMappingJSON, "ticket_status_mapping_json", &cfg.TicketStatusMapping},
-		{s.SubtaskAlertStatusMappingJSON, "subtask_alert_status_mapping_json", &cfg.SubtaskAlertStatusMapping},
-		{s.SubtaskTicketStatusMappingJSON, "subtask_ticket_status_mapping_json", &cfg.SubtaskTicketStatusMapping},
-	} {
-		raw, d := common.DecodeJSONField(m.src, m.field)
-		diags.Append(d...)
-		*m.dst = raw
-	}
+	common.DecodeJSONFields([]common.JSONFieldDecode{
+		{Src: s.MappingJSON, Field: "mapping_json", Dst: &cfg.Mapping},
+		{Src: s.AlertStatusMappingJSON, Field: "alert_status_mapping_json", Dst: &cfg.AlertStatusMapping},
+		{Src: s.TicketStatusMappingJSON, Field: "ticket_status_mapping_json", Dst: &cfg.TicketStatusMapping},
+		{Src: s.SubtaskAlertStatusMappingJSON, Field: "subtask_alert_status_mapping_json", Dst: &cfg.SubtaskAlertStatusMapping},
+		{Src: s.SubtaskTicketStatusMappingJSON, Field: "subtask_ticket_status_mapping_json", Dst: &cfg.SubtaskTicketStatusMapping},
+	}, diags)
 }
 
 // encodeMappings writes the five JSON config fields from the API response back onto state,
 // preserving each field's planned whitespace shape via EncodeJSONField.
 func encodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *diag.Diagnostics) {
-	for _, m := range []struct {
-		raw json.RawMessage
-		dst *types.String
-	}{
-		{cfg.Mapping, &s.MappingJSON},
-		{cfg.AlertStatusMapping, &s.AlertStatusMappingJSON},
-		{cfg.TicketStatusMapping, &s.TicketStatusMappingJSON},
-		{cfg.SubtaskAlertStatusMapping, &s.SubtaskAlertStatusMappingJSON},
-		{cfg.SubtaskTicketStatusMapping, &s.SubtaskTicketStatusMappingJSON},
-	} {
-		encoded, d := common.EncodeJSONField(m.raw, *m.dst)
-		diags.Append(d...)
-		*m.dst = encoded
-	}
+	common.EncodeJSONFields([]common.JSONFieldEncode{
+		{Raw: cfg.Mapping, Dst: &s.MappingJSON},
+		{Raw: cfg.AlertStatusMapping, Dst: &s.AlertStatusMappingJSON},
+		{Raw: cfg.TicketStatusMapping, Dst: &s.TicketStatusMappingJSON},
+		{Raw: cfg.SubtaskAlertStatusMapping, Dst: &s.SubtaskAlertStatusMappingJSON},
+		{Raw: cfg.SubtaskTicketStatusMapping, Dst: &s.SubtaskTicketStatusMappingJSON},
+	}, diags)
 }
 
 func NewJiraCloudTemplateResource() resource.Resource {

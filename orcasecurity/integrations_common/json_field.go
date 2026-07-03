@@ -49,3 +49,41 @@ func EncodeJSONField(raw json.RawMessage, planned types.String) (types.String, d
 	}
 	return types.StringValue(string(encoded)), diags
 }
+
+// JSONFieldDecode describes one (Terraform String -> API RawMessage) mapping: Src is the
+// planned Terraform value, Field names the attribute for error messages, and Dst points at the
+// API config field to fill in.
+type JSONFieldDecode struct {
+	Src   types.String
+	Field string
+	Dst   *json.RawMessage
+}
+
+// DecodeJSONFields runs DecodeJSONField over each mapping, appending any diagnostics and writing
+// the resulting RawMessage into the field's Dst. It captures the loop shared by the per-variant
+// template resources.
+func DecodeJSONFields(fields []JSONFieldDecode, diags *diag.Diagnostics) {
+	for _, f := range fields {
+		raw, d := DecodeJSONField(f.Src, f.Field)
+		diags.Append(d...)
+		*f.Dst = raw
+	}
+}
+
+// JSONFieldEncode describes one (API RawMessage -> Terraform String) mapping: Raw is the API
+// value and Dst points at the Terraform state field, which also supplies the planned shape.
+type JSONFieldEncode struct {
+	Raw json.RawMessage
+	Dst *types.String
+}
+
+// EncodeJSONFields runs EncodeJSONField over each mapping, appending any diagnostics and writing
+// the resulting String back into the field's Dst. It captures the loop shared by the per-variant
+// template resources.
+func EncodeJSONFields(fields []JSONFieldEncode, diags *diag.Diagnostics) {
+	for _, f := range fields {
+		encoded, d := EncodeJSONField(f.Raw, *f.Dst)
+		diags.Append(d...)
+		*f.Dst = encoded
+	}
+}

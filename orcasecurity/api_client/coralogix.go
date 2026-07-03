@@ -12,7 +12,9 @@ func (client *APIClient) CreateCoralogixConfig(payload WebhookExternalServiceCon
 }
 
 func (client *APIClient) GetCoralogixConfig(templateName string) (*WebhookExternalServiceConfig, error) {
-	return client.GetWebhookConfigByTemplate(templateName)
+	return GetExternalServiceConfig[WebhookResourceConfig](client, WebhookConfigServiceName, templateName, func(e *WebhookExternalServiceConfig) bool {
+		return e.Config.Type == CoralogixWebhookType
+	})
 }
 
 func (client *APIClient) UpdateCoralogixConfig(templateName string, payload WebhookExternalServiceConfig) (*WebhookExternalServiceConfig, error) {

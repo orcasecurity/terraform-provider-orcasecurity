@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -443,6 +444,13 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Email settings. Provide at least one recipient mode: `email`, `asset_tag_keys`, or `custom_tag_keys`.",
+				Validators: []validator.Object{
+					objectvalidator.AtLeastOneOf(
+						path.MatchRelative().AtName("email"),
+						path.MatchRelative().AtName("asset_tag_keys"),
+						path.MatchRelative().AtName("custom_tag_keys"),
+					),
+				},
 				Attributes: map[string]schema.Attribute{
 					"email": schema.ListAttribute{
 						ElementType: types.StringType,
@@ -653,12 +661,6 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 		}
 		if tags := stringListToSlice(plan.EmailTemplate.CustomTagKeys); len(tags) > 0 {
 			data["custom_tag_keys"] = tags
-		}
-		_, hasEmail := data["email"]
-		_, hasAssetTags := data["asset_tag_keys"]
-		_, hasCustomTags := data["custom_tag_keys"]
-		if !hasEmail && !hasAssetTags && !hasCustomTags {
-			return nil, fmt.Errorf("email_template requires at least one of email, asset_tag_keys, or custom_tag_keys")
 		}
 		if !plan.EmailTemplate.MultiAlerts.IsNull() && !plan.EmailTemplate.MultiAlerts.IsUnknown() {
 			data["multi_alerts"] = plan.EmailTemplate.MultiAlerts.ValueBool()

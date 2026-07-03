@@ -290,7 +290,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 		}
 	}
 
-	/*var frameworks []frameworkStateModel
+	var frameworks []frameworkStateModel
 	for _, frameworkData := range instance.ComplianceFrameworks {
 		frameworks = append(frameworks, frameworkStateModel{
 			Name: types.StringValue(frameworkData.Name),
@@ -299,7 +299,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 			Priority: types.StringValue(frameworkData.Priority),
 		})
 	}
-	state.Frameworks = frameworks*/
+	state.Frameworks = frameworks
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

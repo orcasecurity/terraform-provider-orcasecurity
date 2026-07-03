@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -69,7 +70,7 @@ func TestMergeGroupAccessAfterCreate_FillsFromPlanAndPayload(t *testing.T) {
 func TestOptionalListMatchPlan_NullPlanEmptyAPI(t *testing.T) {
 	ctx := context.Background()
 	nullPlan := types.ListNull(types.StringType)
-	got, diags := optionalListMatchPlan(ctx, nullPlan, nil)
+	got, diags := common.OptionalListMatchPlan(ctx, nullPlan, nil)
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
@@ -81,7 +82,7 @@ func TestOptionalListMatchPlan_NullPlanEmptyAPI(t *testing.T) {
 func TestOptionalListMatchPlan_NullPlanEmptySliceAPI(t *testing.T) {
 	ctx := context.Background()
 	nullPlan := types.ListNull(types.StringType)
-	got, diags := optionalListMatchPlan(ctx, nullPlan, []string{})
+	got, diags := common.OptionalListMatchPlan(ctx, nullPlan, []string{})
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
@@ -93,7 +94,7 @@ func TestOptionalListMatchPlan_NullPlanEmptySliceAPI(t *testing.T) {
 func TestOptionalListMatchPlan_UnknownPlanEmptyAPI(t *testing.T) {
 	ctx := context.Background()
 	unknownPlan := types.ListUnknown(types.StringType)
-	got, diags := optionalListMatchPlan(ctx, unknownPlan, []string{})
+	got, diags := common.OptionalListMatchPlan(ctx, unknownPlan, []string{})
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
@@ -108,7 +109,7 @@ func TestOptionalListMatchPlan_EmptyKnownPlanEmptyAPI(t *testing.T) {
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
-	got, diags := optionalListMatchPlan(ctx, empty, []string{})
+	got, diags := common.OptionalListMatchPlan(ctx, empty, []string{})
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
@@ -125,7 +126,7 @@ func TestOptionalListMatchPlan_EmptyKnownPlanEmptyAPI(t *testing.T) {
 func TestOptionalListMatchPlan_NonEmptyAPI(t *testing.T) {
 	ctx := context.Background()
 	nullPlan := types.ListNull(types.StringType)
-	got, diags := optionalListMatchPlan(ctx, nullPlan, []string{"a", "b"})
+	got, diags := common.OptionalListMatchPlan(ctx, nullPlan, []string{"a", "b"})
 	if diags.HasError() {
 		t.Fatal(diags)
 	}

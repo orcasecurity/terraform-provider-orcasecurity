@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -101,35 +102,13 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-func stringSliceFromList(ctx context.Context, l types.List) ([]string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if l.IsNull() || l.IsUnknown() {
-		return []string{}, diags
-	}
-	var out []string
-	diags = l.ElementsAs(ctx, &out, false)
-	return out, diags
-}
-
-// optionalListMatchPlan maps API slices to Terraform optional lists: omitted config (null) stays null when API returns empty.
-func optionalListMatchPlan(ctx context.Context, planOrPrior types.List, api []string) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if len(api) > 0 {
-		return types.ListValueFrom(ctx, types.StringType, api)
-	}
-	if planOrPrior.IsNull() || planOrPrior.IsUnknown() {
-		return types.ListNull(types.StringType), diags
-	}
-	return types.ListValueFrom(ctx, types.StringType, []string{})
-}
-
 func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessResourceModel, assignmentID string) (api_client.GroupAccess, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	cloudAccounts, d := stringSliceFromList(ctx, plan.CloudAccounts)
+	cloudAccounts, d := common.StringSliceFromList(ctx, plan.CloudAccounts)
 	diags.Append(d...)
-	shiftleft, d := stringSliceFromList(ctx, plan.ShiftleftProjects)
+	shiftleft, d := common.StringSliceFromList(ctx, plan.ShiftleftProjects)
 	diags.Append(d...)
-	userFilters, d := stringSliceFromList(ctx, plan.UserFilters)
+	userFilters, d := common.StringSliceFromList(ctx, plan.UserFilters)
 	diags.Append(d...)
 	if diags.HasError() {
 		return api_client.GroupAccess{}, diags
@@ -148,11 +127,11 @@ func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessRe
 // apiToModel builds state from the API. ref is the plan (create/update) or prior state (read) for optional list null vs [] consistency.
 func (r *groupAccessResource) apiToModel(ctx context.Context, ga *api_client.GroupAccess, ref *groupAccessResourceModel) (groupAccessResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	cloudList, d := optionalListMatchPlan(ctx, ref.CloudAccounts, ga.CloudAccounts)
+	cloudList, d := common.OptionalListMatchPlan(ctx, ref.CloudAccounts, ga.CloudAccounts)
 	diags.Append(d...)
-	shiftList, d := optionalListMatchPlan(ctx, ref.ShiftleftProjects, ga.ShiftleftProjects)
+	shiftList, d := common.OptionalListMatchPlan(ctx, ref.ShiftleftProjects, ga.ShiftleftProjects)
 	diags.Append(d...)
-	filterList, d := optionalListMatchPlan(ctx, ref.UserFilters, ga.UserFilters)
+	filterList, d := common.OptionalListMatchPlan(ctx, ref.UserFilters, ga.UserFilters)
 	diags.Append(d...)
 	if diags.HasError() {
 		return groupAccessResourceModel{}, diags

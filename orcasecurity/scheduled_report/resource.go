@@ -377,6 +377,26 @@ func stringOrNull(apiValue string, state types.String) types.String {
 	return types.StringValue(apiValue)
 }
 
+// popCompressionType splits the "compression_type" key out of a report config
+// map so it can be surfaced through the typed `compression` attribute. It
+// returns a copy of the config without that key plus the extracted value. When
+// the key is absent or empty, the original map is returned unchanged and
+// compression is "".
+func popCompressionType(config map[string]interface{}) (rest map[string]interface{}, compression string) {
+	ct, ok := config["compression_type"].(string)
+	if !ok || ct == "" {
+		return config, ""
+	}
+	rest = make(map[string]interface{}, len(config))
+	for k, v := range config {
+		if k == "compression_type" {
+			continue
+		}
+		rest[k] = v
+	}
+	return rest, ct
+}
+
 func (r *scheduledReportResource) buildAPIPayload(ctx context.Context, plan *scheduledReportResourceModel) (*api_client.ScheduledReport, []string) {
 	jsonDiags := jsonDiagnostics{}
 
@@ -532,18 +552,7 @@ func (r *scheduledReportResource) Read(ctx context.Context, req resource.ReadReq
 
 	// compression_type is surfaced through the typed `compression` attribute, so
 	// keep it out of the free-form `config` string to avoid two sources of truth.
-	apiConfig := instance.Config
-	var apiCompression string
-	if ct, ok := instance.Config["compression_type"].(string); ok && ct != "" {
-		apiCompression = ct
-		apiConfig = make(map[string]interface{}, len(instance.Config))
-		for k, v := range instance.Config {
-			if k == "compression_type" {
-				continue
-			}
-			apiConfig[k] = v
-		}
-	}
+	apiConfig, apiCompression := popCompressionType(instance.Config)
 	state.Config = refreshJSONAttribute(state.Config, apiConfig, &resp.Diagnostics)
 	if state.Compression.IsNull() && apiCompression != "" {
 		state.Compression = types.StringValue(apiCompression)
