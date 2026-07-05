@@ -4,10 +4,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
+
+// httpDebugEnvVar gates verbose HTTP logging. When unset, the client emits no
+// request/response detail — critical because those bodies carry integration
+// secrets (API tokens, keys). Set it to any non-empty value to troubleshoot.
+const httpDebugEnvVar = "ORCASECURITY_HTTP_DEBUG"
+
+// debugf logs to stderr (never stdout — stdout is the go-plugin protocol channel
+// Terraform speaks over) and only when httpDebugEnvVar is set.
+func (c *APIClient) debugf(format string, a ...any) {
+	if os.Getenv(httpDebugEnvVar) == "" {
+		return
+	}
+	log.Printf(format, a...)
+}
 
 type APIClient struct {
 	APIEndpoint string
@@ -90,17 +106,15 @@ func (c *APIClient) Execute(req http.Request) (*http.Response, error) {
 }
 
 func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
-	// Log request details
-	fmt.Printf("Making request to: %s %s\n", req.Method, req.URL)
+	c.debugf("Making request to: %s %s", req.Method, req.URL)
 
 	resp, err := c.roundTripWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("request execution failed: %v", err)
 	}
 
-	// Log response details
-	fmt.Printf("Response Status: %d\n", resp.StatusCode())
-	fmt.Printf("Response Body: %s\n", string(resp.Body()))
+	c.debugf("Response Status: %d", resp.StatusCode())
+	c.debugf("Response Body: %s", string(resp.Body()))
 
 	if !resp.IsOk() {
 		apiErr := resp.Error()
@@ -137,7 +151,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	}
 
 	fullURL := fmt.Sprintf("%s%s", c.APIEndpoint, path)
-	fmt.Printf("Making POST request to: %s\n", fullURL) // Debug log
+	c.debugf("Making POST request to: %s", fullURL)
 
 	req, err := http.NewRequest(
 		"POST",
@@ -148,12 +162,14 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 		return nil, fmt.Errorf("failed to create request: %v, URL: %s", err, fullURL)
 	}
 
-	// Add debug logging for request payload
-	fmt.Printf("Request payload: %s\n", string(payload))
+	c.debugf("Request payload: %s", string(payload))
 
 	response, err := c.doRequest(*req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %v, URL: %s, payload: %s", err, fullURL, string(payload))
+		// Do not append the request payload — it carries integration secrets and
+		// this error surfaces to the user via diagnostics. doRequest already wraps
+		// the server's response body for context.
+		return nil, fmt.Errorf("request failed: %v, URL: %s", err, fullURL)
 	}
 
 	return response, nil
