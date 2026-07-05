@@ -36,23 +36,27 @@ const testUserAccessListResponse = `{
 	]
 }`
 
+func assertCreateUserAccessRequest(t *testing.T, req *http.Request) {
+	if !strings.HasSuffix(req.URL.Path, "/api/rbac/access/user") {
+		t.Errorf("unexpected path: %s", req.URL.Path)
+	}
+	body, _ := io.ReadAll(req.Body)
+	payload := map[string]interface{}{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("invalid JSON body: %v", err)
+	}
+	if payload["user_id"] != testUserAccessUserID {
+		t.Errorf("expected user_id %s, got %v", testUserAccessUserID, payload["user_id"])
+	}
+	if payload["role_id"] != testUserAccessRoleID {
+		t.Errorf("expected role_id %s, got %v", testUserAccessRoleID, payload["role_id"])
+	}
+}
+
 func TestCreateUserAccess(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method == "POST" {
-			if !strings.HasSuffix(req.URL.Path, "/api/rbac/access/user") {
-				t.Errorf("unexpected path: %s", req.URL.Path)
-			}
-			body, _ := io.ReadAll(req.Body)
-			payload := map[string]interface{}{}
-			if err := json.Unmarshal(body, &payload); err != nil {
-				t.Fatalf("invalid JSON body: %v", err)
-			}
-			if payload["user_id"] != testUserAccessUserID {
-				t.Errorf("expected user_id %s, got %v", testUserAccessUserID, payload["user_id"])
-			}
-			if payload["role_id"] != testUserAccessRoleID {
-				t.Errorf("expected role_id %s, got %v", testUserAccessRoleID, payload["role_id"])
-			}
+			assertCreateUserAccessRequest(t, req)
 			return &http.Response{
 				StatusCode: 201,
 				Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"id":"` + testUserAccessID + `"}}`)),

@@ -555,6 +555,29 @@ func appendReasonJustificationAction(actions []api_client.AutomationV2Action, ac
 	})
 }
 
+func appendEmailAction(actions []api_client.AutomationV2Action, tmpl *automationV2EmailTemplateModel) []api_client.AutomationV2Action {
+	if tmpl == nil {
+		return actions
+	}
+	data := map[string]interface{}{}
+	if emails := stringListToSlice(tmpl.EmailAddresses); len(emails) > 0 {
+		data["email"] = emails
+	}
+	if tags := stringListToSlice(tmpl.AssetTagKeys); len(tags) > 0 {
+		data["asset_tag_keys"] = tags
+	}
+	if tags := stringListToSlice(tmpl.CustomTagKeys); len(tags) > 0 {
+		data["custom_tag_keys"] = tags
+	}
+	if !tmpl.MultiAlerts.IsNull() && !tmpl.MultiAlerts.IsUnknown() {
+		data["multi_alerts"] = tmpl.MultiAlerts.ValueBool()
+	}
+	return append(actions, api_client.AutomationV2Action{
+		Type: api_client.AutomationEmailID,
+		Data: data,
+	})
+}
+
 func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.APIClient) ([]api_client.AutomationV2Action, error) {
 	var actions []api_client.AutomationV2Action
 
@@ -651,25 +674,7 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 		})
 	}
 
-	if plan.EmailTemplate != nil {
-		data := map[string]interface{}{}
-		if emails := stringListToSlice(plan.EmailTemplate.EmailAddresses); len(emails) > 0 {
-			data["email"] = emails
-		}
-		if tags := stringListToSlice(plan.EmailTemplate.AssetTagKeys); len(tags) > 0 {
-			data["asset_tag_keys"] = tags
-		}
-		if tags := stringListToSlice(plan.EmailTemplate.CustomTagKeys); len(tags) > 0 {
-			data["custom_tag_keys"] = tags
-		}
-		if !plan.EmailTemplate.MultiAlerts.IsNull() && !plan.EmailTemplate.MultiAlerts.IsUnknown() {
-			data["multi_alerts"] = plan.EmailTemplate.MultiAlerts.ValueBool()
-		}
-		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationEmailID,
-			Data: data,
-		})
-	}
+	actions = appendEmailAction(actions, plan.EmailTemplate)
 
 	if plan.RemediationTemplate != nil {
 		actions = append(actions, api_client.AutomationV2Action{
