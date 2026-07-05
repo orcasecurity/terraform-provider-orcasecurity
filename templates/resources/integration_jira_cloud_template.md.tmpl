@@ -38,7 +38,7 @@ with `service_name = "jira"`. Updates go to
 * `issue_type_id` — (Required, String) Jira issue type ID for the main ticket.
 * `subtask_issue_type_id` — (Optional, String) Jira issue type ID for sub-task
   tickets.
-* `mapping_json` — (Optional, String) JSON-encoded `mapping` object. Each key is
+* `mapping_json` — (Required, String) JSON-encoded `mapping` object. Each key is
   a Jira field name; each value is a list of `{ "orca": "<alert_field>" }` or
   `{ "value": "<literal>" }` entries. Multiple entries are concatenated when
   the Jira field accepts a single value.

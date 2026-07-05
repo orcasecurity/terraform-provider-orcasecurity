@@ -61,10 +61,10 @@ resource "orcasecurity_integration_monday_template" "demo" {
 * `resource_id` — (Required, String) UUID of the Monday resource that carries the
   credentials. Find it in the Orca UI under Settings → Integrations → Monday.com.
 * `board_id` — (Required, String) Monday board ID Orca creates items in.
-* `workspace_id` — (Optional, String) Monday workspace ID that owns the board.
+* `workspace_id` — (Required, String) Monday workspace ID that owns the board.
 * `group_id` — (Optional, String) Monday group (section) ID within the board
   where new items are created.
-* `mapping_json` — (Optional, String) JSON-encoded `mapping` object. Each key is
+* `mapping_json` — (Required, String) JSON-encoded `mapping` object. Each key is
   a Monday column ID; values are lists of `{ "orca": "<alert_field>" }`, a
   `{ "custom": "<literal>" }` object, a `{ "value": "<literal>" }` object, or a
   list of `{ "value": { "id": ..., "kind": ... } }` entries for people columns.

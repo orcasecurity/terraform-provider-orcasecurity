@@ -10,10 +10,10 @@ const MondayServiceName = "monday"
 // payload. The mapping fields are kept as json.RawMessage so the provider preserves the
 // customer's arbitrary structure verbatim (Orca validates server-side).
 type MondayTemplateConfig struct {
-	WorkspaceID         string          `json:"workspace_id,omitempty"`
+	WorkspaceID         string          `json:"workspace_id"`
 	BoardID             string          `json:"board_id,omitempty"`
 	GroupID             string          `json:"group_id,omitempty"`
-	Mapping             json.RawMessage `json:"mapping,omitempty"`
+	Mapping             json.RawMessage `json:"mapping"`
 	AlertStatusMapping  json.RawMessage `json:"alert_status_mapping,omitempty"`
 	TicketStatusMapping json.RawMessage `json:"ticket_status_mapping,omitempty"`
 }

@@ -60,8 +60,9 @@ func variantAttributes() map[string]schema.Attribute {
 			Description: "Jira issue type ID for sub-task tickets.",
 		},
 		"mapping_json": schema.StringAttribute{
-			Optional:    true,
+			Required:    true,
 			Description: "JSON-encoded `mapping` object. Each key is a Jira field name; each value is a list of `{ \"orca\": \"<alert_field>\" }` or `{ \"value\": \"<literal>\" }` entries. Multiple entries are concatenated when the Jira field accepts a single value.",
+			Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 		},
 		"alert_status_mapping_json": schema.StringAttribute{
 			Optional:    true,

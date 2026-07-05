@@ -17,7 +17,7 @@ type JiraCloudTemplateConfig struct {
 	ProjectID                  string          `json:"project_id,omitempty"`
 	IssueTypeID                string          `json:"issue_type_id,omitempty"`
 	SubtaskIssueTypeID         string          `json:"subtask_issue_type_id,omitempty"`
-	Mapping                    json.RawMessage `json:"mapping,omitempty"`
+	Mapping                    json.RawMessage `json:"mapping"`
 	AlertStatusMapping         json.RawMessage `json:"alert_status_mapping,omitempty"`
 	TicketStatusMapping        json.RawMessage `json:"ticket_status_mapping,omitempty"`
 	SubtaskAlertStatusMapping  json.RawMessage `json:"subtask_alert_status_mapping,omitempty"`

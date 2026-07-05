@@ -43,16 +43,18 @@ func variantAttributes() map[string]schema.Attribute {
 			Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 		},
 		"workspace_id": schema.StringAttribute{
-			Optional:    true,
+			Required:    true,
 			Description: "Monday workspace ID that owns the board.",
+			Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 		},
 		"group_id": schema.StringAttribute{
 			Optional:    true,
 			Description: "Monday group (section) ID within the board where new items are created.",
 		},
 		"mapping_json": schema.StringAttribute{
-			Optional:    true,
+			Required:    true,
 			Description: "JSON-encoded `mapping` object. Each key is a Monday column ID; values are lists of `{ \"orca\": \"<alert_field>\" }`, a `{ \"custom\": \"<literal>\" }` object, a `{ \"value\": \"<literal>\" }` object, or a list of `{ \"value\": { \"id\": ..., \"kind\": ... } }` entries for people columns.",
+			Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 		},
 		"alert_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
