@@ -7,7 +7,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -445,11 +444,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Optional:    true,
 				Description: "Email settings. Provide at least one recipient mode: `email`, `asset_tag_keys`, or `custom_tag_keys`.",
 				Validators: []validator.Object{
-					objectvalidator.AtLeastOneOf(
-						path.MatchRelative().AtName("email"),
-						path.MatchRelative().AtName("asset_tag_keys"),
-						path.MatchRelative().AtName("custom_tag_keys"),
-					),
+					AtLeastOneChildSet("email", "asset_tag_keys", "custom_tag_keys"),
 				},
 				Attributes: map[string]schema.Attribute{
 					"email": schema.ListAttribute{
