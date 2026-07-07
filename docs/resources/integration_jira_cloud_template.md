@@ -36,24 +36,14 @@ resource "orcasecurity_integration_jira_cloud_template" "demo" {
   issue_type_id         = "10001"
   subtask_issue_type_id = "10003"
 
-  # Field mapping — keys are Jira field names; each value is a list of
-  # `{ orca = "<alert_field>" }` (pull from the Orca alert) or
-  # `{ value = "<literal>" }` (static). Multiple entries are concatenated when the Jira
-  # field accepts a single value.
+  # Field mapping — keys are Jira field names; each value is a list where a bare string
+  # pulls an Orca alert field and `{ value = "<literal>" }` is a static value. Multiple
+  # entries are concatenated when the Jira field accepts a single value.
   mapping_json = jsonencode({
-    summary = [
-      { orca = "alert_name" },
-      { orca = "alert_id" },
-    ]
+    summary = ["alert_name", "alert_id"]
     description = [
-      { orca = "details" },
-      { orca = "alert_ui_link" },
-      { orca = "recommendation" },
-      { orca = "asset_details" },
-      { orca = "account_name" },
-      { orca = "findings" },
-      { orca = "cloud_account_id" },
-      { orca = "source" },
+      "details", "alert_ui_link", "recommendation", "asset_details",
+      "account_name", "findings", "cloud_account_id", "source",
     ]
   })
 
@@ -110,9 +100,10 @@ output "jira_cloud_template_id" {
 * `subtask_issue_type_id` — (Optional, String) Jira issue type ID for sub-task
   tickets.
 * `mapping_json` — (Required, String) JSON-encoded `mapping` object. Each key is
-  a Jira field name; each value is a list of `{ "orca": "<alert_field>" }` or
-  `{ "value": "<literal>" }` entries. Multiple entries are concatenated when
-  the Jira field accepts a single value.
+  a Jira field name; each value is a list where a **bare string** pulls an Orca alert
+  field (shorthand for `{ "orca": "<field>" }`) and `{ "value": "<literal>" }` is a
+  static value. Multiple entries are concatenated when the Jira field accepts a single
+  value.
 * `alert_status_mapping_json` — (Optional, String) JSON-encoded
   `alert_status_mapping`. Maps Orca alert statuses to Jira workflow status IDs,
   e.g. `{"in_progress": "10001"}`.

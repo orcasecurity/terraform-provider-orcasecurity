@@ -41,6 +41,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy_catalog_controls"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
+	"terraform-provider-orcasecurity/orcasecurity/slack"
 	"terraform-provider-orcasecurity/orcasecurity/snyk"
 	"terraform-provider-orcasecurity/orcasecurity/splunk"
 	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
@@ -260,6 +261,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		opsgenie.NewOpsgenieResource,
 		pagerduty.NewPagerDutyResource,
 		s3_bucket.NewS3BucketResource,
+		slack.NewSlackResource,
 		snyk.NewSnykResource,
 		splunk.NewSplunkResource,
 		terraform_cloud.NewTerraformCloudResource,

@@ -33,9 +33,12 @@ resource "orcasecurity_integration_monday_template" "demo" {
   board_id      = "1827821929"
   group_id      = "topics"
 
+  # List values: a bare string pulls an Orca alert field; an object is a literal
+  # (`{ value = ... }`, `{ custom = ... }`, or a person assignment). Non-list values pass
+  # through as-is.
   mapping_json = jsonencode({
-    long_text_mkn8v2sp = [{ orca = "alert_id" }, { orca = "asset_name" }]
-    text               = [{ orca = "asset_category" }, { orca = "source" }]
+    long_text_mkn8v2sp = ["alert_id", "asset_name"]
+    text               = ["asset_category", "source"]
     numbers_mkn8zhtt   = { custom = "5" }
     person             = [{ value = { id = "66396150", kind = "person" } }]
     status_14          = { value = "0" }
@@ -65,9 +68,11 @@ resource "orcasecurity_integration_monday_template" "demo" {
 * `group_id` — (Optional, String) Monday group (section) ID within the board
   where new items are created.
 * `mapping_json` — (Required, String) JSON-encoded `mapping` object. Each key is
-  a Monday column ID; values are lists of `{ "orca": "<alert_field>" }`, a
-  `{ "custom": "<literal>" }` object, a `{ "value": "<literal>" }` object, or a
-  list of `{ "value": { "id": ..., "kind": ... } }` entries for people columns.
+  a Monday column ID whose value is a list. In a list, a **bare string** pulls an
+  Orca alert field (shorthand for `{ "orca": "<field>" }`), and an object is a
+  literal — `{ "custom": "<literal>" }`, `{ "value": "<literal>" }`, or
+  `{ "value": { "id": ..., "kind": ... } }` for people columns. Non-list values
+  (e.g. `{ "value": "0" }`) pass through unchanged.
 * `alert_status_mapping_json` — (Optional, String) JSON-encoded
   `alert_status_mapping`. Maps Orca alert statuses to Monday status-column
   values, e.g. `{"snoozed": "1"}`.

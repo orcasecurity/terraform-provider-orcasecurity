@@ -78,9 +78,10 @@ func TestEncodeMappings_EmptyAPIKeepsNullPlan(t *testing.T) {
 	}
 }
 
-// A compact, key-sorted mapping must survive decode -> encode unchanged.
+// A compact, key-sorted mapping must survive decode -> encode unchanged. Orca field
+// references use the bare-string shorthand; literal objects (person) pass through.
 func TestDecodeEncodeRoundTrip(t *testing.T) {
-	orig := `{"long_text_mkn8v2sp":[{"orca":"alert_id"}],"person":[{"value":{"id":"66396150","kind":"person"}}]}`
+	orig := `{"long_text_mkn8v2sp":["alert_id"],"person":[{"value":{"id":"66396150","kind":"person"}}]}`
 	s := &state{MappingJSON: types.StringValue(orig)}
 	var cfg api_client.MondayTemplateConfig
 	var diags diag.Diagnostics

@@ -93,10 +93,13 @@ func variantAttributes() map[string]schema.Attribute {
 	}
 }
 
-// decodeMappings pulls the five JSON-string fields off the plan into the API config.
+// decodeMappings pulls the five JSON-string fields off the plan into the API config. The
+// field `mapping` uses the bare-string orca shorthand; the status maps are plain JSON.
 func decodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *diag.Diagnostics) {
+	mapping, d := common.DecodeOrcaMappingField(s.MappingJSON, "mapping_json")
+	diags.Append(d...)
+	cfg.Mapping = mapping
 	common.DecodeJSONFields([]common.JSONFieldDecode{
-		{Src: s.MappingJSON, Field: "mapping_json", Dst: &cfg.Mapping},
 		{Src: s.AlertStatusMappingJSON, Field: "alert_status_mapping_json", Dst: &cfg.AlertStatusMapping},
 		{Src: s.TicketStatusMappingJSON, Field: "ticket_status_mapping_json", Dst: &cfg.TicketStatusMapping},
 		{Src: s.SubtaskAlertStatusMappingJSON, Field: "subtask_alert_status_mapping_json", Dst: &cfg.SubtaskAlertStatusMapping},
@@ -105,10 +108,12 @@ func decodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *di
 }
 
 // encodeMappings writes the five JSON config fields from the API response back onto state,
-// preserving each field's planned whitespace shape via EncodeJSONField.
+// preserving each field's planned whitespace shape. `mapping` is collapsed back to shorthand.
 func encodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *diag.Diagnostics) {
+	mapping, d := common.EncodeOrcaMappingField(cfg.Mapping, s.MappingJSON)
+	diags.Append(d...)
+	s.MappingJSON = mapping
 	common.EncodeJSONFields([]common.JSONFieldEncode{
-		{Raw: cfg.Mapping, Dst: &s.MappingJSON},
 		{Raw: cfg.AlertStatusMapping, Dst: &s.AlertStatusMappingJSON},
 		{Raw: cfg.TicketStatusMapping, Dst: &s.TicketStatusMappingJSON},
 		{Raw: cfg.SubtaskAlertStatusMapping, Dst: &s.SubtaskAlertStatusMappingJSON},

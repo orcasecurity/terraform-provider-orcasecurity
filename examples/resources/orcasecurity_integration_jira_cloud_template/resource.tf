@@ -10,24 +10,14 @@ resource "orcasecurity_integration_jira_cloud_template" "demo" {
   issue_type_id         = "10001"
   subtask_issue_type_id = "10003"
 
-  # Field mapping — keys are Jira field names; each value is a list of
-  # `{ orca = "<alert_field>" }` (pull from the Orca alert) or
-  # `{ value = "<literal>" }` (static). Multiple entries are concatenated when the Jira
-  # field accepts a single value.
+  # Field mapping — keys are Jira field names; each value is a list where a bare string
+  # pulls an Orca alert field and `{ value = "<literal>" }` is a static value. Multiple
+  # entries are concatenated when the Jira field accepts a single value.
   mapping_json = jsonencode({
-    summary = [
-      { orca = "alert_name" },
-      { orca = "alert_id" },
-    ]
+    summary = ["alert_name", "alert_id"]
     description = [
-      { orca = "details" },
-      { orca = "alert_ui_link" },
-      { orca = "recommendation" },
-      { orca = "asset_details" },
-      { orca = "account_name" },
-      { orca = "findings" },
-      { orca = "cloud_account_id" },
-      { orca = "source" },
+      "details", "alert_ui_link", "recommendation", "asset_details",
+      "account_name", "findings", "cloud_account_id", "source",
     ]
   })
 

@@ -36,9 +36,11 @@ with `service_name = "monday"`. Updates go to
 * `group_id` — (Optional, String) Monday group (section) ID within the board
   where new items are created.
 * `mapping_json` — (Required, String) JSON-encoded `mapping` object. Each key is
-  a Monday column ID; values are lists of `{ "orca": "<alert_field>" }`, a
-  `{ "custom": "<literal>" }` object, a `{ "value": "<literal>" }` object, or a
-  list of `{ "value": { "id": ..., "kind": ... } }` entries for people columns.
+  a Monday column ID whose value is a list. In a list, a **bare string** pulls an
+  Orca alert field (shorthand for `{ "orca": "<field>" }`), and an object is a
+  literal — `{ "custom": "<literal>" }`, `{ "value": "<literal>" }`, or
+  `{ "value": { "id": ..., "kind": ... } }` for people columns. Non-list values
+  (e.g. `{ "value": "0" }`) pass through unchanged.
 * `alert_status_mapping_json` — (Optional, String) JSON-encoded
   `alert_status_mapping`. Maps Orca alert statuses to Monday status-column
   values, e.g. `{"snoozed": "1"}`.

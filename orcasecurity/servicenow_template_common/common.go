@@ -140,7 +140,7 @@ func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state, diags
 	}
 	// JSON-field round-trip uses the EncodeJSONField helper so plans don't drift on
 	// whitespace differences between the API response and the user's HCL.
-	mapping, mDiags := common.EncodeJSONField(api.Config.Mapping, s.MappingJSON)
+	mapping, mDiags := common.EncodeOrcaMappingField(api.Config.Mapping, s.MappingJSON)
 	diags.Append(mDiags...)
 	s.MappingJSON = mapping
 	onClose, ocDiags := common.EncodeJSONField(api.Config.OnCloseAlertMapping, s.OnCloseAlertMappingJSON)
@@ -177,7 +177,7 @@ func NewResource(opts Options) resource.Resource {
 				AllowMapping:             &allowMapping,
 			}
 
-			mapping, mDiags := common.DecodeJSONField(s.MappingJSON, "mapping_json")
+			mapping, mDiags := common.DecodeOrcaMappingField(s.MappingJSON, "mapping_json")
 			diags.Append(mDiags...)
 			cfg.Mapping = mapping
 

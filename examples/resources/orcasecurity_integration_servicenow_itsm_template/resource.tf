@@ -19,11 +19,13 @@ resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
   resolution_note   = "Resolved by @someone"
   reopen_status     = "7"
 
+  # List values: a bare string pulls an Orca alert field; `{ value = "<literal>" }` is a
+  # static value.
   mapping_json = jsonencode({
     category        = [{ value = "software" }]
-    u_risk_name     = [{ orca = "alert_name" }]
+    u_risk_name     = ["alert_name"]
     u_subscription  = []
-    business_impact = [{ orca = "details" }]
+    business_impact = ["details"]
   })
 
   is_enabled = true

@@ -7,9 +7,12 @@ resource "orcasecurity_integration_monday_template" "demo" {
   board_id      = "1827821929"
   group_id      = "topics"
 
+  # List values: a bare string pulls an Orca alert field; an object is a literal
+  # (`{ value = ... }`, `{ custom = ... }`, or a person assignment). Non-list values pass
+  # through as-is.
   mapping_json = jsonencode({
-    long_text_mkn8v2sp = [{ orca = "alert_id" }, { orca = "asset_name" }]
-    text               = [{ orca = "asset_category" }, { orca = "source" }]
+    long_text_mkn8v2sp = ["alert_id", "asset_name"]
+    text               = ["asset_category", "source"]
     numbers_mkn8zhtt   = { custom = "5" }
     person             = [{ value = { id = "66396150", kind = "person" } }]
     status_14          = { value = "0" }

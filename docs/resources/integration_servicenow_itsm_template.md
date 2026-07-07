@@ -48,11 +48,13 @@ resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
   resolution_note   = "Resolved by @someone"
   reopen_status     = "7"
 
+  # List values: a bare string pulls an Orca alert field; `{ value = "<literal>" }` is a
+  # static value.
   mapping_json = jsonencode({
     category        = [{ value = "software" }]
-    u_risk_name     = [{ orca = "alert_name" }]
+    u_risk_name     = ["alert_name"]
     u_subscription  = []
-    business_impact = [{ orca = "details" }]
+    business_impact = ["details"]
   })
 
   is_enabled = true
@@ -81,9 +83,9 @@ resource "orcasecurity_integration_servicenow_itsm_template" "demo" {
 * `reopen_status` — (Optional, String) Incident state code Orca moves a ticket to
   when re-opening it.
 * `mapping_json` — (Optional, String) JSON-encoded `mapping` object. Each key is a
-  ServiceNow field name and the value is a list of `{ "orca": "<alert_field>" }`
-  (pull a value from the Orca alert) or `{ "value": "<literal>" }` (a static
-  value). Use `jsonencode({...})` to keep the HCL readable.
+  ServiceNow field name and the value is a list where a **bare string** pulls an Orca
+  alert field (shorthand for `{ "orca": "<field>" }`) and `{ "value": "<literal>" }`
+  is a static value. Use `jsonencode({...})` to keep the HCL readable.
 * `on_close_alert_mapping_json` — (Optional, String) JSON-encoded
   `on_close_alert_mapping` object used when an Orca-driven close event syncs back
   to ServiceNow.
