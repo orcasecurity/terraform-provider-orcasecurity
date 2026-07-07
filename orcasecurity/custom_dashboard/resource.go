@@ -3,6 +3,7 @@ package custom_dashboard
 import (
 	"context"
 	"fmt"
+	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"time"
 
@@ -136,6 +137,17 @@ func (r *customDashboardResource) Schema(ctx context.Context, req resource.Schem
 	}
 }
 
+// stripWidgetHash removes the unique instance suffix the backend appends to a widget id
+// (e.g. "iam-remediation#1753297944386-4113" -> "iam-remediation"). The Orca UI's Terraform
+// export writes the canonical base id (see removeUniqueHash in the UI), so state must be
+// normalized the same way or every import shows a spurious diff on widgets_config[].id.
+func stripWidgetHash(id string) string {
+	if i := strings.IndexByte(id, '#'); i >= 0 {
+		return id[:i]
+	}
+	return id
+}
+
 // sizeToAPI converts Terraform size (sm, md, lg, xl) to Orca API size (s, m, l, xl).
 func sizeToAPI(size string) string {
 	switch size {
@@ -188,7 +200,9 @@ func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, i
 	slotsByID := make(map[string]map[string]interface{}, len(instanceWidgets))
 	for _, w := range instanceWidgets {
 		if w.Slots != nil {
-			slotsByID[w.ID] = w.Slots
+			// key by the base id so a plan carrying the canonical (hash-stripped) id
+			// still finds the existing instance's slots.
+			slotsByID[stripWidgetHash(w.ID)] = w.Slots
 		}
 	}
 
@@ -196,7 +210,7 @@ func generateWidgetsConfigForUpdate(plan *customDashboardExtraParametersModel, i
 	for _, item := range plan.WidgetsConfig {
 		id := item.ID.ValueString()
 		slots := map[string]interface{}{}
-		if s, ok := slotsByID[id]; ok {
+		if s, ok := slotsByID[stripWidgetHash(id)]; ok {
 			slots = s
 		}
 		out = append(out, api_client.WidgetConfig{
@@ -339,7 +353,7 @@ func (r *customDashboardResource) Read(ctx context.Context, req resource.ReadReq
 
 	for _, item := range instance.ExtraParameters.WidgetsConfig {
 		widgetSettings = append(widgetSettings, customDashboardWidgetConfigModel{
-			ID:   types.StringValue(item.ID),
+			ID:   types.StringValue(stripWidgetHash(item.ID)),
 			Size: types.StringValue(sizeFromAPI(item.Size)),
 		})
 	}
@@ -434,7 +448,7 @@ func (r *customDashboardResource) Update(ctx context.Context, req resource.Updat
 	var updateWidgets []customDashboardWidgetConfigModel
 	for _, item := range instance.ExtraParameters.WidgetsConfig {
 		updateWidgets = append(updateWidgets, customDashboardWidgetConfigModel{
-			ID:   types.StringValue(item.ID),
+			ID:   types.StringValue(stripWidgetHash(item.ID)),
 			Size: types.StringValue(sizeFromAPI(item.Size)),
 		})
 	}

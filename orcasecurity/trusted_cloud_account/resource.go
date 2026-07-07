@@ -162,7 +162,7 @@ func (r *trustedCloudAccountResource) Read(ctx context.Context, req resource.Rea
 		return
 	}
 
-	exists, err := r.apiClient.DoesTrustedCloudAccountExist(strconv.Itoa(int(state.ID.ValueInt64())))
+	account, err := r.apiClient.GetTrustedCloudAccount(strconv.Itoa(int(state.ID.ValueInt64())))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading cloud account",
@@ -171,11 +171,17 @@ func (r *trustedCloudAccountResource) Read(ctx context.Context, req resource.Rea
 		return
 	}
 
-	if !exists {
+	if account == nil {
 		tflog.Warn(ctx, fmt.Sprintf("Cloud account %s is missing on the remote side.", strconv.Itoa(int(state.ID.ValueInt64()))))
 		resp.State.RemoveResource(ctx)
 		return
 	}
+
+	// Reconcile state with the API so out-of-band changes are detected.
+	state.Name = types.StringValue(account.Name)
+	state.Description = types.StringValue(account.Description)
+	state.CloudProvider = types.StringValue(account.CloudProvider)
+	state.CloudAccountID = types.StringValue(account.CloudAccountID)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

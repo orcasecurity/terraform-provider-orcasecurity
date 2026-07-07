@@ -30,6 +30,41 @@ var (
 
 const scoreChangeJustificationDescription = "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted."
 
+// emptyStringToNullModifier normalizes an empty config string to null at plan
+// time. The API treats reason/justification empty strings as omitted (see
+// setOptionalString) and never returns them, so state holds null. Without this,
+// a config with `reason = ""` (e.g. UI-exported HCL) perpetually diffs null vs "".
+type emptyStringToNullModifier struct{}
+
+func (emptyStringToNullModifier) Description(_ context.Context) string {
+	return "treats an empty string as null so it matches the omitted value stored in state"
+}
+
+func (m emptyStringToNullModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (emptyStringToNullModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if req.ConfigValue.ValueString() == "" {
+		resp.PlanValue = types.StringNull()
+	}
+}
+
+// omitEmptyOptionalStringAttr builds an Optional string attribute whose empty
+// value is treated as omitted (normalized to null), matching the API behavior.
+func omitEmptyOptionalStringAttr(description string) schema.StringAttribute {
+	return schema.StringAttribute{
+		Optional:    true,
+		Description: description,
+		PlanModifiers: []planmodifier.String{
+			emptyStringToNullModifier{},
+		},
+	}
+}
+
 type automationV2Resource struct {
 	apiClient *api_client.APIClient
 }
@@ -329,42 +364,24 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Optional:    true,
 				Description: "Details regarding dismissed alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are being dismissed. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted.",
-					},
+					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are being dismissed. Optional; empty string is treated as omitted."),
+					"justification": omitEmptyOptionalStringAttr("More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted."),
 				},
 			},
 			"alert_score_decrease_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding decreasing the score for the selected alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are having their score decreased. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: scoreChangeJustificationDescription,
-					},
+					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are having their score decreased. Optional; empty string is treated as omitted."),
+					"justification": omitEmptyOptionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"alert_score_increase_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding increasing the score for the selected alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are having their score increased. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: scoreChangeJustificationDescription,
-					},
+					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are having their score increased. Optional; empty string is treated as omitted."),
+					"justification": omitEmptyOptionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"alert_score_specify_details": schema.SingleNestedAttribute{
@@ -375,14 +392,8 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 						Required:    true,
 						Description: "New score to be assigned to the selected alerts.",
 					},
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are having their score changed. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: scoreChangeJustificationDescription,
-					},
+					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are having their score changed. Optional; empty string is treated as omitted."),
+					"justification": omitEmptyOptionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"snooze_template": schema.SingleNestedAttribute{
@@ -396,14 +407,8 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 							int64validator.Between(1, 365),
 						},
 					},
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "Reason for snoozing. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "Justification for snoozing. Optional; empty string is treated as omitted.",
-					},
+					"reason":        omitEmptyOptionalStringAttr("Reason for snoozing. Optional; empty string is treated as omitted."),
+					"justification": omitEmptyOptionalStringAttr("Justification for snoozing. Optional; empty string is treated as omitted."),
 				},
 			},
 
@@ -694,6 +699,235 @@ func stringListToSlice(l types.List) []string {
 	return out
 }
 
+// --- Read-side helpers: reconstruct model from the API instance on import ---
+
+func dataString(data map[string]interface{}, key string) types.String {
+	if v, ok := data[key]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			return types.StringValue(s)
+		}
+	}
+	return types.StringNull()
+}
+
+func dataInt64(data map[string]interface{}, key string) types.Int64 {
+	if v, ok := data[key]; ok {
+		if f, ok := v.(float64); ok {
+			return types.Int64Value(int64(f))
+		}
+	}
+	return types.Int64Null()
+}
+
+func dataFloat64(data map[string]interface{}, key string) types.Float64 {
+	if v, ok := data[key]; ok {
+		if f, ok := v.(float64); ok {
+			return types.Float64Value(f)
+		}
+	}
+	return types.Float64Null()
+}
+
+func dataBool(data map[string]interface{}, key string) types.Bool {
+	v, ok := data[key]
+	if !ok {
+		return types.BoolNull()
+	}
+	switch t := v.(type) {
+	case bool:
+		return types.BoolValue(t)
+	case float64: // JSON numbers decode to float64; treat non-zero as true
+		return types.BoolValue(t != 0)
+	case string:
+		return types.BoolValue(t == "true" || t == "1")
+	}
+	return types.BoolNull()
+}
+
+func dataStringList(ctx context.Context, data map[string]interface{}, key string) types.List {
+	raw, ok := data[key].([]interface{})
+	if !ok || len(raw) == 0 {
+		return types.ListNull(types.StringType)
+	}
+	out := make([]string, 0, len(raw))
+	for _, r := range raw {
+		if s, ok := r.(string); ok {
+			out = append(out, s)
+		}
+	}
+	l, diags := types.ListValueFrom(ctx, types.StringType, out)
+	if diags.HasError() {
+		return types.ListNull(types.StringType)
+	}
+	return l
+}
+
+func extConfigTmpl(a api_client.AutomationV2Action) *automationV2ExternalConfigTemplateModel {
+	id := ""
+	if a.ExternalConfig != nil {
+		id = *a.ExternalConfig
+	}
+	return &automationV2ExternalConfigTemplateModel{ExternalConfigID: types.StringValue(id)}
+}
+
+func extConfigWithParentTmpl(a api_client.AutomationV2Action) *automationV2ExternalConfigWithParentTemplateModel {
+	id := ""
+	if a.ExternalConfig != nil {
+		id = *a.ExternalConfig
+	}
+	return &automationV2ExternalConfigWithParentTemplateModel{
+		ExternalConfigID: types.StringValue(id),
+		ParentIssueID:    dataString(a.Data, "parent_id"),
+	}
+}
+
+// reconstructV2StateFromAPI rebuilds the filter, business units and every action
+// template on the model from the API instance. Used on import, where there is no
+// prior state to round-trip.
+func reconstructV2StateFromAPI(ctx context.Context, state *automationV2ResourceModel, instance *api_client.AutomationV2) error {
+	sonarJSON, err := json.Marshal(instance.Filter.SonarQuery)
+	if err != nil {
+		return fmt.Errorf("could not marshal sonar_query: %w", err)
+	}
+	state.Filter = &automationV2FilterModel{SonarQuery: types.StringValue(string(sonarJSON))}
+
+	// apply_on_existing is a create-only (POST) flag that the API does not return.
+	// Leaving it null after import makes it resolve to false on the next plan,
+	// which — because it is RequiresReplace — forces a spurious destroy/create.
+	// An already-existing (imported) automation is equivalent to false.
+	state.ApplyOnExisting = types.BoolValue(false)
+
+	if len(instance.BusinessUnits) > 0 {
+		bu, diags := types.ListValueFrom(ctx, types.StringType, instance.BusinessUnits)
+		if diags.HasError() {
+			return fmt.Errorf("could not convert business_units")
+		}
+		state.BusinessUnits = bu
+	} else {
+		state.BusinessUnits = types.ListNull(types.StringType)
+	}
+
+	for _, a := range instance.Actions {
+		switch a.Type {
+		case api_client.AutomationAlertDismissalID:
+			state.AlertDismissalTemplate = &automationV2AlertDismissalTemplateModel{
+				Reason:        dataString(a.Data, "reason"),
+				Justification: dataString(a.Data, "justification"),
+			}
+		case api_client.AutomationAlertScoreChangeID:
+			switch {
+			case func() bool { _, ok := a.Data["decrease_orca_score"]; return ok }():
+				state.AlertScoreDecreaseTemplate = &automationV2AlertScoreDecreaseTemplateModel{
+					Reason:        dataString(a.Data, "reason"),
+					Justification: dataString(a.Data, "justification"),
+				}
+			case func() bool { _, ok := a.Data["increase_orca_score"]; return ok }():
+				state.AlertScoreIncreaseTemplate = &automationV2AlertScoreIncreaseTemplateModel{
+					Reason:        dataString(a.Data, "reason"),
+					Justification: dataString(a.Data, "justification"),
+				}
+			default:
+				state.AlertScoreSpecifyTemplate = &automationV2AlertScoreSpecifyTemplateModel{
+					NewScore:      dataFloat64(a.Data, "change_orca_score"),
+					Reason:        dataString(a.Data, "reason"),
+					Justification: dataString(a.Data, "justification"),
+				}
+			}
+		case api_client.AutomationSnoozeID:
+			state.SnoozeTemplate = &automationV2SnoozeTemplateModel{
+				Days:          dataInt64(a.Data, "days"),
+				Reason:        dataString(a.Data, "reason"),
+				Justification: dataString(a.Data, "justification"),
+			}
+		case api_client.AutomationEmailID:
+			state.EmailTemplate = &automationV2EmailTemplateModel{
+				EmailAddresses: dataStringList(ctx, a.Data, "email"),
+				MultiAlerts:    dataBool(a.Data, "multi_alerts"),
+				AssetTagKeys:   dataStringList(ctx, a.Data, "asset_tag_keys"),
+				CustomTagKeys:  dataStringList(ctx, a.Data, "custom_tag_keys"),
+			}
+		case api_client.AutomationRemediationID:
+			state.RemediationTemplate = &automationV2RemediationTemplateModel{
+				RemediationAction: dataString(a.Data, "remediation_action"),
+			}
+		case api_client.AutomationSiemID:
+			token := ""
+			if a.SiemToken != nil {
+				token = *a.SiemToken
+			}
+			state.ApiTokenTemplate = &automationV2ExternalConfigTemplateModel{
+				ExternalConfigID: types.StringValue(token),
+			}
+		case api_client.AutomationDatadogID:
+			id := ""
+			if a.ExternalConfig != nil {
+				id = *a.ExternalConfig
+			}
+			state.DatadogTemplate = &automationV2DatadogTemplateModel{
+				ExternalConfigID: types.StringValue(id),
+				Type:             dataString(a.Data, "type"),
+			}
+		case api_client.AutomationAzureDevopsID:
+			state.AzureDevopsTemplate = extConfigWithParentTmpl(a)
+		case api_client.AutomationJiraID:
+			state.JiraCloudTemplate = extConfigWithParentTmpl(a)
+		case api_client.AutomationJiraServerID:
+			state.JiraServerTemplate = extConfigWithParentTmpl(a)
+		case api_client.AutomationSlackID:
+			state.SlackTemplate = extConfigTmpl(a)
+		case api_client.AutomationPagerDutyID:
+			state.PagerDutyTemplate = extConfigTmpl(a)
+		case api_client.AutomationOpsgenieID:
+			state.OpsgenieTemplate = extConfigTmpl(a)
+		case api_client.AutomationSumoLogicID:
+			state.SumoLogicTemplate = extConfigTmpl(a)
+		case api_client.AutomationAzureSentinelID:
+			state.AzureSentinelTemplate = extConfigTmpl(a)
+		case api_client.AutomationSplunkID:
+			state.SplunkTemplate = extConfigTmpl(a)
+		case api_client.AutomationWebhookID:
+			state.WebhookTemplate = extConfigTmpl(a)
+		case api_client.AutomationGcpPubSubID:
+			state.GcpPubSubTemplate = extConfigTmpl(a)
+		case api_client.AutomationTorqID:
+			state.TorqTemplate = extConfigTmpl(a)
+		case api_client.AutomationMsTeamsID:
+			state.MsTeamsTemplate = extConfigTmpl(a)
+		case api_client.AutomationServiceNowIncidentsID:
+			state.ServiceNowIncidentsTemplate = extConfigTmpl(a)
+		case api_client.AutomationServiceNowSIIncidentsID:
+			state.ServiceNowSIIncidentsTemplate = extConfigTmpl(a)
+		case api_client.AutomationAwsSecurityLakeID:
+			state.AwsSecurityLakeTemplate = extConfigTmpl(a)
+		case api_client.AutomationSnowflakeID:
+			state.SnowflakeTemplate = extConfigTmpl(a)
+		case api_client.AutomationChronicleID:
+			state.ChronicleTemplate = extConfigTmpl(a)
+		case api_client.AutomationCriblID:
+			state.CriblTemplate = extConfigTmpl(a)
+		case api_client.AutomationTinesID:
+			state.TinesTemplate = extConfigTmpl(a)
+		case api_client.AutomationAwsSqsID:
+			state.AwsSqsTemplate = extConfigTmpl(a)
+		case api_client.AutomationAwsSnsID:
+			state.AwsSnsTemplate = extConfigTmpl(a)
+		case api_client.AutomationOpusID:
+			state.OpusTemplate = extConfigTmpl(a)
+		case api_client.AutomationCoralogixID:
+			state.CoralogixTemplate = extConfigTmpl(a)
+		case api_client.AutomationAWSSecurityHubID:
+			state.AwsSecurityHubTemplate = extConfigTmpl(a)
+		case api_client.AutomationMondayID:
+			state.MondayTemplate = extConfigTmpl(a)
+		case api_client.AutomationLinearID:
+			state.LinearTemplate = extConfigTmpl(a)
+		case api_client.AutomationPantherID:
+			state.PantherTemplate = extConfigTmpl(a)
+		}
+	}
+	return nil
+}
+
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan automationV2ResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -834,6 +1068,21 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 		state.EndTime = types.StringValue(instance.EndTime)
 	} else {
 		state.EndTime = types.StringNull()
+	}
+
+	// On import there is no prior state for the filter or action templates
+	// (filter is Required, so a nil filter means this Read follows an import).
+	// Rebuild them from the API so `terraform plan` is clean. On a normal
+	// refresh the prior state already round-trips the user's exact JSON/template
+	// shape, so it is left untouched to avoid spurious diffs.
+	if state.Filter == nil {
+		if err := reconstructV2StateFromAPI(ctx, &state, instance); err != nil {
+			resp.Diagnostics.AddError(
+				"Error reading Automation V2",
+				fmt.Sprintf("Could not reconstruct state for ID %s: %s", state.ID.ValueString(), err.Error()),
+			)
+			return
+		}
 	}
 
 	diags = resp.State.Set(ctx, &state)

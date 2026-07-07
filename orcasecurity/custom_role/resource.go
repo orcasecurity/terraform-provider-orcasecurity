@@ -195,6 +195,13 @@ func (r *customRoleResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.ID = types.StringValue(instance.ID)
 	state.Description = types.StringValue(instance.Description)
 	state.Name = types.StringValue(instance.Name)
+
+	permissionGroups, pgDiags := types.SetValueFrom(ctx, types.StringType, instance.PermissionGroups)
+	resp.Diagnostics.Append(pgDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.PermissionGroups = permissionGroups
 	/*state.CreatedBy.ID = types.StringValue(instance.CreatedBy.ID)
 	state.CreatedBy.FirstName = types.StringValue(instance.CreatedBy.FirstName)
 	state.CreatedBy.LastName = types.StringValue(instance.CreatedBy.LastName)*/

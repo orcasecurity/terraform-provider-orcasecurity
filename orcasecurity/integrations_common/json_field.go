@@ -42,12 +42,36 @@ func EncodeJSONField(raw json.RawMessage, planned types.String) (types.String, d
 		diags.AddError("Invalid JSON from API", err.Error())
 		return planned, diags
 	}
+	// The API may return an empty object/array/null to mean "no mapping set".
+	// Treat that the same as an absent value so an unset (null) attribute does
+	// not diff against a state of "{}". An explicit planned empty value is
+	// preserved.
+	if isEmptyJSONValue(generic) {
+		if planned.IsNull() || planned.IsUnknown() {
+			return types.StringNull(), diags
+		}
+		return planned, diags
+	}
 	encoded, err := json.Marshal(generic)
 	if err != nil {
 		diags.AddError("Could not re-marshal JSON from API", err.Error())
 		return planned, diags
 	}
 	return types.StringValue(string(encoded)), diags
+}
+
+// isEmptyJSONValue reports whether a decoded JSON value carries no content:
+// null, an empty object, or an empty array.
+func isEmptyJSONValue(v interface{}) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case map[string]interface{}:
+		return len(t) == 0
+	case []interface{}:
+		return len(t) == 0
+	}
+	return false
 }
 
 // JSONFieldDecode describes one (Terraform String -> API RawMessage) mapping: Src is the

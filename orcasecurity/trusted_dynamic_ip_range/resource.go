@@ -3,7 +3,6 @@ package trusted_dynamic_ip_range
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -46,17 +45,12 @@ func (r *trustedDynamicIpRangeResource) Configure(_ context.Context, req resourc
 }
 
 func (r *trustedDynamicIpRangeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	id, err := strconv.ParseInt(req.ID, 10, 64)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error importing trusted dynamic ip range",
-			"Could not convert ID to int64: "+err.Error(),
-		)
-		return
-	}
-
-	// Set all attributes in state
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
+	// The import ID is the org_id. Derive the synthetic resource id and set
+	// org_id so the subsequent Read (which keys off org_id) can reconcile the
+	// enabled toggle from the API.
+	orgID := req.ID
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("org_id"), orgID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), fmt.Sprintf("toggle_setting_%s", orgID))...)
 }
 
 func (r *trustedDynamicIpRangeResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {

@@ -283,6 +283,27 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	state.ContextScore = types.BoolValue(instance.ContextScore)
 	state.OrcaScore = types.Float64Value(instance.OrcaScore)
 
+	// Prefer the rule_json already in state to avoid churn from JSON key
+	// reordering on normal refresh. On import there is no prior state, so
+	// derive it from the API response instead.
+	ruleJsonString := state.RuleJson.ValueString()
+	if ruleJsonString == "" && len(instance.RuleJson) > 0 {
+		ruleJsonBytes, err := json.Marshal(instance.RuleJson)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error reading Alert",
+				fmt.Sprintf("Could not marshal rule_json for ID %s: %s", state.ID.ValueString(), err.Error()),
+			)
+			return
+		}
+		ruleJsonString = string(ruleJsonBytes)
+	}
+	if ruleJsonString != "" {
+		state.RuleJson = types.StringValue(ruleJsonString)
+	} else {
+		state.RuleJson = types.StringNull()
+	}
+
 	if instance.RemediationText.Text != "" {
 		state.RemediationText = &remediationTextStateModel{
 			Enable: types.BoolValue(instance.RemediationText.Enable),

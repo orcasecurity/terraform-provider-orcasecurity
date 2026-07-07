@@ -44,6 +44,16 @@ func NewShiftLeftProjectResource() resource.Resource {
 	return &shiftLeftProjectResource{}
 }
 
+// optionalString maps an API string into a nullable state value: an empty
+// string (attribute not set / not returned) becomes null so it matches an
+// unset Optional attribute and does not produce a spurious plan diff.
+func optionalString(v string) types.String {
+	if v == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(v)
+}
+
 func (r *shiftLeftProjectResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_shift_left_project"
 }
@@ -167,7 +177,6 @@ func (r *shiftLeftProjectResource) Read(ctx context.Context, req resource.ReadRe
 	}
 
 	exists, err := r.apiClient.DoesShiftLeftProjectExist(state.ID.ValueString())
-	tflog.Error(ctx, state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Shift Left project",
@@ -190,8 +199,17 @@ func (r *shiftLeftProjectResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	tflog.Error(ctx, instance.ID)
+	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
+	state.Description = types.StringValue(instance.Description)
+	state.Key = types.StringValue(instance.Key)
+	state.DefaultPolicies = types.BoolValue(instance.DefaultPolicies)
+	state.SupportCodeComments = optionalString(instance.SupportCodeComments)
+	state.SupportCveExceptions = optionalString(instance.SupportCveExceptions)
+	state.SupportSecretDetectionSuppresion = optionalString(instance.SupportSecretDetectionSuppresion)
+	state.GitDefaultBaselineBranch = optionalString(instance.GitDefaultBaselineBranch)
+	state.PolicyIds = instance.PolicyIds
+	state.ExceptionIds = instance.ExceptionIds
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
