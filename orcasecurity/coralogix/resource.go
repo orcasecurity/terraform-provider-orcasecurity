@@ -12,7 +12,7 @@ import (
 
 func NewCoralogixResource() resource.Resource {
 	return webhook_variant_common.NewResource(webhook_variant_common.Options{
-		TypeNameSuffix:    "_integration_coralogix",
+		TypeNameSuffix:    "_integration_coralogix_template",
 		UIName:            "Coralogix integration",
 		Description:       "Manage a Coralogix integration in Orca. Orca stores Coralogix as a webhook variant — under the hood this resource creates an external service config of `service_name = \"webhook\"` with `type = \"coralogix\"`.",
 		URLDescription:    "Coralogix ingest URL Orca posts events to (for example, `https://coralogix.us`).",

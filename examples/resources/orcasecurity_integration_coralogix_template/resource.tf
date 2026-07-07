@@ -1,5 +1,5 @@
 # Coralogix integration
-resource "orcasecurity_integration_coralogix" "example" {
+resource "orcasecurity_integration_coralogix_template" "example" {
   template_name = "coralogix_name"
   webhook_url   = "https://coralogix.us"
   api_key       = var.coralogix_api_key

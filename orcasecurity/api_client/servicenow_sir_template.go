@@ -40,10 +40,11 @@ func (client *APIClient) DeleteServiceNowSIRTemplate(templateName string) error 
 	return DeleteExternalServiceConfig(client, ServiceNowITSMServiceName, templateName)
 }
 
-// ServiceNowSIRSchemaField is a single field exposed by Orca's SIR schema endpoint. Customers
-// use this to discover which ServiceNow fields they can include in “mapping_json“ on the
-// SIR template resource.
-type ServiceNowSIRSchemaField struct {
+// ServiceNowSchemaField is a single field exposed by Orca's ServiceNow schema endpoint.
+// Customers use this to discover which ServiceNow fields they can include in “mapping_json“
+// on the SIR/ITSM template resources. SIR and ITSM resolve to different ServiceNow tables
+// (sn_si_incident vs incident) and therefore return different field sets.
+type ServiceNowSchemaField struct {
 	Element      string `json:"element"`
 	Label        string `json:"label"`
 	Type         string `json:"type"`
@@ -52,21 +53,23 @@ type ServiceNowSIRSchemaField struct {
 	Choice       string `json:"choice"`
 }
 
-type serviceNowSIRSchemaResponse struct {
-	Status string                     `json:"status"`
-	Data   []ServiceNowSIRSchemaField `json:"data"`
+type serviceNowSchemaResponse struct {
+	Status string                  `json:"status"`
+	Data   []ServiceNowSchemaField `json:"data"`
 }
 
-// GetServiceNowSIRSchema lists every mappable field on the ServiceNow SIR table for a given
-// resource. Mirrors GET /api/resources/{resource_id}/service_now/sir/schema.
-func (client *APIClient) GetServiceNowSIRSchema(resourceID string) ([]ServiceNowSIRSchemaField, error) {
-	resp, err := client.Get(fmt.Sprintf("/api/resources/%s/service_now/sir/schema", url.PathEscape(resourceID)))
+// GetServiceNowSchema lists every mappable field on a ServiceNow table for a given resource.
+// snType selects the table variant ("sir" → sn_si_incident, "itsm" → incident). SIR and ITSM
+// share the same credentials resource but map to different tables, so their field sets differ.
+// Mirrors GET /api/resources/{resource_id}/service_now/{sn_type}/schema.
+func (client *APIClient) GetServiceNowSchema(resourceID, snType string) ([]ServiceNowSchemaField, error) {
+	resp, err := client.Get(fmt.Sprintf("/api/resources/%s/service_now/%s/schema", url.PathEscape(resourceID), snType))
 	if err != nil {
 		return nil, err
 	}
-	response := serviceNowSIRSchemaResponse{}
+	response := serviceNowSchemaResponse{}
 	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode ServiceNow SIR schema response: %w", err)
+		return nil, fmt.Errorf("failed to decode ServiceNow schema response: %w", err)
 	}
 	return response.Data, nil
 }

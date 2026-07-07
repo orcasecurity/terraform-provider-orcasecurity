@@ -1,8 +1,8 @@
-# Torq integration
-resource "orcasecurity_integration_torq" "example" {
-  template_name = "torq_name"
-  webhook_url   = "https://trigger-url.com"
-  api_key       = var.torq_api_key
+# Tines integration
+resource "orcasecurity_integration_tines_template" "example" {
+  template_name = "tines_name"
+  webhook_url   = "https://your-tenant.tines.com/webhook/<path>/<secret>"
+  api_key       = var.tines_api_key
   is_enabled    = true
   is_default    = true
 

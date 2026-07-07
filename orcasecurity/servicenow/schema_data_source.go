@@ -1,4 +1,4 @@
-package servicenow_sir_template
+package servicenow
 
 import (
 	"context"
@@ -32,16 +32,17 @@ type schemaFieldModel struct {
 
 type schemaDataSourceModel struct {
 	ResourceID types.String       `tfsdk:"resource_id"`
+	Type       types.String       `tfsdk:"type"`
 	Fields     []schemaFieldModel `tfsdk:"fields"`
 	Elements   types.List         `tfsdk:"elements"`
 }
 
-func NewServiceNowSIRSchemaDataSource() datasource.DataSource {
+func NewServiceNowSchemaDataSource() datasource.DataSource {
 	return &schemaDataSource{}
 }
 
 func (ds *schemaDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_integration_servicenow_sir_schema"
+	resp.TypeName = req.ProviderTypeName + "_integration_servicenow_schema"
 }
 
 func (ds *schemaDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -53,13 +54,20 @@ func (ds *schemaDataSource) Configure(_ context.Context, req datasource.Configur
 
 func (ds *schemaDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Look up the ServiceNow SIR field schema for a credentials resource. Use the returned `elements` list to discover which keys are valid in `mapping_json` on `orcasecurity_integration_servicenow_sir_template`. Backs the same call the UI makes to GET /api/resources/{resource_id}/service_now/sir/schema.",
+		Description: "Look up the ServiceNow field schema for a credentials resource. SIR and ITSM templates share the same `orcasecurity_integration_servicenow_resource` but map to different ServiceNow tables (`sn_si_incident` vs `incident`), so pick the variant with `type`. Use the returned `elements` list to discover which keys are valid in `mapping_json` on the matching template resource. Backs GET /api/resources/{resource_id}/service_now/{type}/schema.",
 		Attributes: map[string]schema.Attribute{
 			"resource_id": schema.StringAttribute{
 				Required:    true,
-				Description: "ID of the ServiceNow SIR credentials resource (an `orcasecurity_integration_servicenow_sir` resource ID).",
+				Description: "ID of the ServiceNow credentials resource (an `orcasecurity_integration_servicenow_resource` resource ID).",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"type": schema.StringAttribute{
+				Required:    true,
+				Description: "Which ServiceNow table schema to read: `sir` (Security Incident Response, `sn_si_incident`) or `itsm` (IT Service Management, `incident`).",
+				Validators: []validator.String{
+					stringvalidator.OneOf("sir", "itsm"),
 				},
 			},
 			"elements": schema.ListAttribute{
@@ -92,11 +100,12 @@ func (ds *schemaDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	fields, err := ds.apiClient.GetServiceNowSIRSchema(state.ResourceID.ValueString())
+	snType := state.Type.ValueString()
+	fields, err := ds.apiClient.GetServiceNowSchema(state.ResourceID.ValueString(), snType)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading ServiceNow SIR schema",
-			fmt.Sprintf("Could not read SIR schema for resource %s: %s", state.ResourceID.ValueString(), err.Error()),
+			"Error reading ServiceNow schema",
+			fmt.Sprintf("Could not read %s schema for resource %s: %s", snType, state.ResourceID.ValueString(), err.Error()),
 		)
 		return
 	}

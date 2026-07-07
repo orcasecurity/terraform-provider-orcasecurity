@@ -23,8 +23,8 @@ with `service_name = "sn_incidents"` and `config.type = "SIR"`. Updates go to
 `PUT /api/external_service/config/sn_incidents?template=<template_name>`.
 
 To discover the field names you can use inside `mapping_json`, query the
-[`orcasecurity_integration_servicenow_sir_schema`](../data-sources/integration_servicenow_sir_schema.md)
-data source — it hits the same schema endpoint the Orca UI uses
+[`orcasecurity_integration_servicenow_schema`](../data-sources/integration_servicenow_schema.md)
+data source with `type = "sir"` — it hits the same schema endpoint the Orca UI uses
 (`GET /api/resources/{resource_id}/service_now/sir/schema`).
 
 ## Example Usage

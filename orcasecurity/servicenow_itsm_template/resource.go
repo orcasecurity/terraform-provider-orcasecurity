@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-const itsmDescription = "Manage a ServiceNow ITSM template in Orca. Creates an external service config of `service_name = \"sn_incidents\"` with `config.type = \"ITSM\"` and links it to the credentials side of the integration (an `orcasecurity_integration_servicenow` resource). Templates carry the per-ticket settings — field mapping, resolution codes, reopen behaviour."
+const itsmDescription = "Manage a ServiceNow ITSM template in Orca. Creates an external service config of `service_name = \"sn_incidents\"` with `config.type = \"ITSM\"` and links it to the credentials side of the integration (an `orcasecurity_integration_servicenow` resource). Templates carry the per-ticket settings — field mapping, resolution codes, reopen behaviour. Inspect the available ITSM fields with the `orcasecurity_integration_servicenow_schema` data source (`type = \"itsm\"`)."
 
 func NewServiceNowITSMTemplateResource() resource.Resource {
 	return servicenow_template_common.NewResource(servicenow_template_common.Options{

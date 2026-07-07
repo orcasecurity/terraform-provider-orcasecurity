@@ -7,12 +7,13 @@ resource "orcasecurity_integration_servicenow_resource" "creds" {
 }
 
 # Optional — discover the available SIR fields so you know what's valid in mapping_json.
-data "orcasecurity_integration_servicenow_sir_schema" "fields" {
+data "orcasecurity_integration_servicenow_schema" "fields" {
   resource_id = orcasecurity_integration_servicenow_resource.creds.id
+  type        = "sir"
 }
 
 output "sir_field_names" {
-  value = data.orcasecurity_integration_servicenow_sir_schema.fields.elements
+  value = data.orcasecurity_integration_servicenow_schema.fields.elements
 }
 
 resource "orcasecurity_integration_servicenow_sir_template" "demo" {

@@ -1,5 +1,5 @@
 # Webhook integration
-resource "orcasecurity_integration_webhook" "example" {
+resource "orcasecurity_integration_webhook_template" "example" {
   template_name = "webhook_name"
   is_enabled    = true
   is_default    = true

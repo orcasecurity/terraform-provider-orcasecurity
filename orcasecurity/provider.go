@@ -48,6 +48,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/splunk"
 	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/terraform_cloud"
+	"terraform-provider-orcasecurity/orcasecurity/tines"
 	"terraform-provider-orcasecurity/orcasecurity/torq"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
@@ -232,7 +233,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		monday_resource.NewMondayDataSource,
 		s3_bucket.NewS3BucketPolicyDataSource,
 		servicenow.NewServiceNowDataSource,
-		servicenow_sir_template.NewServiceNowSIRSchemaDataSource,
+		servicenow.NewServiceNowSchemaDataSource,
 		webhook.NewWebhookDataSource,
 		organizations.NewOrganizationDataSource,
 		user_preferences.NewUserPreferencesDataSource,
@@ -270,6 +271,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		snyk.NewSnykResource,
 		splunk.NewSplunkResource,
 		terraform_cloud.NewTerraformCloudResource,
+		tines.NewTinesResource,
 		torq.NewTorqResource,
 		webhook.NewWebhookResource,
 		zscaler.NewZscalerResource,

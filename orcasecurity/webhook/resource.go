@@ -36,7 +36,7 @@ type state struct {
 
 func NewWebhookResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.WebhookExternalServiceConfig]{
-		TypeNameSuffix:        "_integration_webhook",
+		TypeNameSuffix:        "_integration_webhook_template",
 		UIName:                "Webhook integration",
 		Description:           "Manage a Webhook integration in Orca. Creates an external service config of `service_name = \"webhook\"` so automations can fire HTTP callbacks to a customer-controlled endpoint.",
 		SupportsBusinessUnits: true,

@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-const sirDescription = "Manage a ServiceNow SIR (Security Incident Response) template in Orca. Same shape as the ITSM template — the only difference at the API level is `config.type = \"SIR\"`. Inspect the available SIR fields with the `orcasecurity_integration_servicenow_sir_schema` data source."
+const sirDescription = "Manage a ServiceNow SIR (Security Incident Response) template in Orca. Same shape as the ITSM template — the only difference at the API level is `config.type = \"SIR\"`. Inspect the available SIR fields with the `orcasecurity_integration_servicenow_schema` data source (`type = \"sir\"`)."
 
 func NewServiceNowSIRTemplateResource() resource.Resource {
 	return servicenow_template_common.NewResource(servicenow_template_common.Options{

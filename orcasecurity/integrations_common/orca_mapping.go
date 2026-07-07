@@ -30,8 +30,11 @@ func asJSONArray(raw json.RawMessage) ([]json.RawMessage, bool) {
 	return arr, true
 }
 
-// expandOrcaShorthand rewrites bare JSON string list elements into `{"orca": "<string>"}`.
-func expandOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
+// mapSectionArrays applies transform to every element of every list-valued section, leaving
+// non-list sections untouched. It centralises the nested walk shared by the expand/collapse
+// helpers so each only has to describe the per-element rewrite. transform returns the element
+// to keep (unchanged when it doesn't apply).
+func mapSectionArrays(raw json.RawMessage, transform func(json.RawMessage) (json.RawMessage, error)) (json.RawMessage, error) {
 	var sections map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &sections); err != nil {
 		return nil, err
@@ -42,15 +45,11 @@ func expandOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
 			continue
 		}
 		for i, elem := range arr {
-			var s string
-			if json.Unmarshal(elem, &s) != nil {
-				continue // not a bare string — leave literal objects untouched
-			}
-			wrapped, err := json.Marshal(map[string]string{"orca": s})
+			out, err := transform(elem)
 			if err != nil {
 				return nil, err
 			}
-			arr[i] = wrapped
+			arr[i] = out
 		}
 		merged, err := json.Marshal(arr)
 		if err != nil {
@@ -61,43 +60,42 @@ func expandOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(sections)
 }
 
+// expandOrcaElement rewrites a bare JSON string into `{"orca": "<string>"}`. Any other shape
+// (literal object, etc.) is returned unchanged.
+func expandOrcaElement(elem json.RawMessage) (json.RawMessage, error) {
+	var s string
+	if json.Unmarshal(elem, &s) != nil {
+		return elem, nil // not a bare string — leave literal objects untouched
+	}
+	return json.Marshal(map[string]string{"orca": s})
+}
+
+// collapseOrcaElement rewrites `{"orca": "<string>"}` back into a bare string. Any other shape
+// (literal object, multi-key, non-string orca value, already-bare string) is returned unchanged.
+func collapseOrcaElement(elem json.RawMessage) (json.RawMessage, error) {
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(elem, &obj) != nil {
+		return elem, nil // not an object (already a bare string, etc.)
+	}
+	orcaRaw, ok := obj["orca"]
+	if !ok || len(obj) != 1 {
+		return elem, nil // literal ({"value": ...}) or multi-key — keep as object
+	}
+	var s string
+	if json.Unmarshal(orcaRaw, &s) != nil {
+		return elem, nil // orca value is not a plain string — keep as object
+	}
+	return json.Marshal(s)
+}
+
+// expandOrcaShorthand rewrites bare JSON string list elements into `{"orca": "<string>"}`.
+func expandOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
+	return mapSectionArrays(raw, expandOrcaElement)
+}
+
 // collapseOrcaShorthand rewrites `{"orca": "<string>"}` list elements back into bare strings.
 func collapseOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
-	var sections map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &sections); err != nil {
-		return nil, err
-	}
-	for key, val := range sections {
-		arr, ok := asJSONArray(val)
-		if !ok {
-			continue
-		}
-		for i, elem := range arr {
-			var obj map[string]json.RawMessage
-			if json.Unmarshal(elem, &obj) != nil {
-				continue // not an object (already a bare string, etc.)
-			}
-			orcaRaw, ok := obj["orca"]
-			if !ok || len(obj) != 1 {
-				continue // literal ({"value": ...}) or multi-key — keep as object
-			}
-			var s string
-			if json.Unmarshal(orcaRaw, &s) != nil {
-				continue // orca value is not a plain string — keep as object
-			}
-			bare, err := json.Marshal(s)
-			if err != nil {
-				return nil, err
-			}
-			arr[i] = bare
-		}
-		merged, err := json.Marshal(arr)
-		if err != nil {
-			return nil, err
-		}
-		sections[key] = merged
-	}
-	return json.Marshal(sections)
+	return mapSectionArrays(raw, collapseOrcaElement)
 }
 
 // DecodeOrcaMappingField decodes a mapping_json state string and expands the bare-string
