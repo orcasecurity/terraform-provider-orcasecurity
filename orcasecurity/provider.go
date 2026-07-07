@@ -25,8 +25,10 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
 	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/group_access"
+	"terraform-provider-orcasecurity/orcasecurity/jira_cloud_resource"
 	"terraform-provider-orcasecurity/orcasecurity/jira_cloud_template"
 	"terraform-provider-orcasecurity/orcasecurity/jira_template"
+	"terraform-provider-orcasecurity/orcasecurity/monday_resource"
 	"terraform-provider-orcasecurity/orcasecurity/monday_template"
 	"terraform-provider-orcasecurity/orcasecurity/opsgenie"
 	"terraform-provider-orcasecurity/orcasecurity/organizations"
@@ -226,6 +228,8 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 	return []func() datasource.DataSource{
 		azure_devops_template.NewAzureDevopsTemplateDataSource,
 		jira_template.NewJiraTemplateDataSource,
+		jira_cloud_resource.NewJiraCloudDataSource,
+		monday_resource.NewMondayDataSource,
 		s3_bucket.NewS3BucketPolicyDataSource,
 		servicenow.NewServiceNowDataSource,
 		servicenow_sir_template.NewServiceNowSIRSchemaDataSource,
@@ -262,6 +266,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		pagerduty.NewPagerDutyResource,
 		s3_bucket.NewS3BucketResource,
 		slack.NewSlackResource,
+		monday_resource.NewMondayResource,
 		snyk.NewSnykResource,
 		splunk.NewSplunkResource,
 		terraform_cloud.NewTerraformCloudResource,
