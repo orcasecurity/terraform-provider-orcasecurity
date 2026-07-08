@@ -7,52 +7,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-// EmptyListToNullModifier normalizes an empty config list to null at plan time.
-// The API stores/returns an absent body_fields as empty, which Read maps to null,
-// so a config with `body_fields = []` (e.g. UI-exported HCL) would otherwise
-// perpetually diff null vs [].
-type EmptyListToNullModifier struct{}
-
-func (EmptyListToNullModifier) Description(_ context.Context) string {
-	return "treats an empty list as null so it matches the omitted value stored in state"
-}
-
-func (m EmptyListToNullModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (EmptyListToNullModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	if len(req.ConfigValue.Elements()) == 0 {
-		resp.PlanValue = types.ListNull(req.ConfigValue.ElementType(ctx))
-	}
-}
-
-// EmptyMapToNullModifier is the map analogue of EmptyListToNullModifier for custom_headers.
-type EmptyMapToNullModifier struct{}
-
-func (EmptyMapToNullModifier) Description(_ context.Context) string {
-	return "treats an empty map as null so it matches the omitted value stored in state"
-}
-
-func (m EmptyMapToNullModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (EmptyMapToNullModifier) PlanModifyMap(ctx context.Context, req planmodifier.MapRequest, resp *planmodifier.MapResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	if len(req.ConfigValue.Elements()) == 0 {
-		resp.PlanValue = types.MapNull(req.ConfigValue.ElementType(ctx))
-	}
-}
 
 func CustomHeaderObjectType() types.ObjectType {
 	return types.ObjectType{AttrTypes: map[string]attr.Type{

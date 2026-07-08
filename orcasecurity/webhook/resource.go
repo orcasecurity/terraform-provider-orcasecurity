@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -64,17 +63,11 @@ func NewWebhookResource() resource.Resource {
 						Optional:    true,
 						ElementType: types.StringType,
 						Description: "Optional list of Orca alert fields to include in the webhook request body. Leave unset to send the default payload.",
-						PlanModifiers: []planmodifier.List{
-							EmptyListToNullModifier{},
-						},
 					},
 					"custom_headers": schema.MapAttribute{
 						Optional:    true,
 						ElementType: CustomHeaderListType(),
 						Description: "Optional custom HTTP headers, keyed by header name. Each value is a list of `{ custom = \"<value>\" }` objects so a single header can carry multiple values.",
-						PlanModifiers: []planmodifier.Map{
-							EmptyMapToNullModifier{},
-						},
 					},
 				},
 			},
