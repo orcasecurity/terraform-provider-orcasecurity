@@ -813,10 +813,44 @@ func reconstructV2StateFromAPI(ctx context.Context, state *automationV2ResourceM
 	return nil
 }
 
-// applyV2ActionToState maps a single API action onto the matching template
+// extConfigTemplateSetters maps action types whose state field is a plain
+// external-config template to the setter for that field. Keeping these out of
+// applyV2ActionToState's switch keeps its branch count below SonarQube's limit.
+var extConfigTemplateSetters = map[int32]func(*automationV2ResourceModel, *automationV2ExternalConfigTemplateModel){
+	api_client.AutomationSlackID:                 func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.SlackTemplate = t },
+	api_client.AutomationPagerDutyID:             func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.PagerDutyTemplate = t },
+	api_client.AutomationOpsgenieID:              func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.OpsgenieTemplate = t },
+	api_client.AutomationSumoLogicID:             func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.SumoLogicTemplate = t },
+	api_client.AutomationAzureSentinelID:         func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AzureSentinelTemplate = t },
+	api_client.AutomationSplunkID:                func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.SplunkTemplate = t },
+	api_client.AutomationWebhookID:               func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.WebhookTemplate = t },
+	api_client.AutomationGcpPubSubID:             func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.GcpPubSubTemplate = t },
+	api_client.AutomationTorqID:                  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.TorqTemplate = t },
+	api_client.AutomationMsTeamsID:               func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.MsTeamsTemplate = t },
+	api_client.AutomationServiceNowIncidentsID:   func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.ServiceNowIncidentsTemplate = t },
+	api_client.AutomationServiceNowSIIncidentsID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.ServiceNowSIIncidentsTemplate = t },
+	api_client.AutomationAwsSecurityLakeID:       func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AwsSecurityLakeTemplate = t },
+	api_client.AutomationSnowflakeID:             func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.SnowflakeTemplate = t },
+	api_client.AutomationChronicleID:             func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.ChronicleTemplate = t },
+	api_client.AutomationCriblID:                 func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.CriblTemplate = t },
+	api_client.AutomationTinesID:                 func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.TinesTemplate = t },
+	api_client.AutomationAwsSqsID:                func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AwsSqsTemplate = t },
+	api_client.AutomationAwsSnsID:                func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AwsSnsTemplate = t },
+	api_client.AutomationOpusID:                  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.OpusTemplate = t },
+	api_client.AutomationCoralogixID:             func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.CoralogixTemplate = t },
+	api_client.AutomationAWSSecurityHubID:        func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AwsSecurityHubTemplate = t },
+	api_client.AutomationMondayID:                func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.MondayTemplate = t },
+	api_client.AutomationLinearID:                func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.LinearTemplate = t },
+	api_client.AutomationPantherID:               func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.PantherTemplate = t },
+}
+
 // field of the model. Split out of reconstructV2StateFromAPI to keep that
 // function's cognitive complexity low.
 func applyV2ActionToState(ctx context.Context, state *automationV2ResourceModel, a api_client.AutomationV2Action) {
+	if set, ok := extConfigTemplateSetters[a.Type]; ok {
+		set(state, extConfigTmpl(a))
+		return
+	}
 	switch a.Type {
 	case api_client.AutomationAlertDismissalID:
 		state.AlertDismissalTemplate = &automationV2AlertDismissalTemplateModel{
@@ -865,56 +899,6 @@ func applyV2ActionToState(ctx context.Context, state *automationV2ResourceModel,
 		state.JiraCloudTemplate = extConfigWithParentTmpl(a)
 	case api_client.AutomationJiraServerID:
 		state.JiraServerTemplate = extConfigWithParentTmpl(a)
-	case api_client.AutomationSlackID:
-		state.SlackTemplate = extConfigTmpl(a)
-	case api_client.AutomationPagerDutyID:
-		state.PagerDutyTemplate = extConfigTmpl(a)
-	case api_client.AutomationOpsgenieID:
-		state.OpsgenieTemplate = extConfigTmpl(a)
-	case api_client.AutomationSumoLogicID:
-		state.SumoLogicTemplate = extConfigTmpl(a)
-	case api_client.AutomationAzureSentinelID:
-		state.AzureSentinelTemplate = extConfigTmpl(a)
-	case api_client.AutomationSplunkID:
-		state.SplunkTemplate = extConfigTmpl(a)
-	case api_client.AutomationWebhookID:
-		state.WebhookTemplate = extConfigTmpl(a)
-	case api_client.AutomationGcpPubSubID:
-		state.GcpPubSubTemplate = extConfigTmpl(a)
-	case api_client.AutomationTorqID:
-		state.TorqTemplate = extConfigTmpl(a)
-	case api_client.AutomationMsTeamsID:
-		state.MsTeamsTemplate = extConfigTmpl(a)
-	case api_client.AutomationServiceNowIncidentsID:
-		state.ServiceNowIncidentsTemplate = extConfigTmpl(a)
-	case api_client.AutomationServiceNowSIIncidentsID:
-		state.ServiceNowSIIncidentsTemplate = extConfigTmpl(a)
-	case api_client.AutomationAwsSecurityLakeID:
-		state.AwsSecurityLakeTemplate = extConfigTmpl(a)
-	case api_client.AutomationSnowflakeID:
-		state.SnowflakeTemplate = extConfigTmpl(a)
-	case api_client.AutomationChronicleID:
-		state.ChronicleTemplate = extConfigTmpl(a)
-	case api_client.AutomationCriblID:
-		state.CriblTemplate = extConfigTmpl(a)
-	case api_client.AutomationTinesID:
-		state.TinesTemplate = extConfigTmpl(a)
-	case api_client.AutomationAwsSqsID:
-		state.AwsSqsTemplate = extConfigTmpl(a)
-	case api_client.AutomationAwsSnsID:
-		state.AwsSnsTemplate = extConfigTmpl(a)
-	case api_client.AutomationOpusID:
-		state.OpusTemplate = extConfigTmpl(a)
-	case api_client.AutomationCoralogixID:
-		state.CoralogixTemplate = extConfigTmpl(a)
-	case api_client.AutomationAWSSecurityHubID:
-		state.AwsSecurityHubTemplate = extConfigTmpl(a)
-	case api_client.AutomationMondayID:
-		state.MondayTemplate = extConfigTmpl(a)
-	case api_client.AutomationLinearID:
-		state.LinearTemplate = extConfigTmpl(a)
-	case api_client.AutomationPantherID:
-		state.PantherTemplate = extConfigTmpl(a)
 	}
 }
 
