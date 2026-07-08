@@ -15,6 +15,28 @@ with `service_name = "webhook"`. Orca posts alert events to the configured
 `webhook_url`. The companion data source `orcasecurity_webhook` can read
 existing webhooks for use as inputs to automations.
 
+## Supported integration types
+
+This single resource manages **every webhook-delivered integration** in Orca.
+Several integrations that appear as distinct tiles in the Orca UI are stored by
+the platform as webhook variants — they share one `service_name = "webhook"`
+config and differ only by the `type` discriminator. Pick the target with the
+`type` argument:
+
+| `type`      | Orca UI integration | Notes |
+|-------------|---------------------|-------|
+| `common`    | Generic Webhook     | Any customer-controlled HTTP endpoint. |
+| `torq`      | Torq                | Torq trigger webhook URL. |
+| `tines`     | Tines               | Tines inbound webhook URL. |
+| `opus`      | Opus                | Opus webhook URL. |
+| `coralogix` | Coralogix           | Coralogix ingest URL. |
+| `panther`   | Panther             | Panther HTTP source URL. |
+
+All variants take the same arguments (`webhook_url`, `api_key`, `body_fields`,
+`custom_headers`) — there is no separate resource per vendor. To integrate with
+Torq, Tines, Opus, Coralogix, or Panther, use this resource with the matching
+`type`.
+
 ## Example Usage
 
 ### Basic example
@@ -39,6 +61,23 @@ resource "orcasecurity_integration_webhook_template" "from_vault" {
 }
 ```
 
+### Vendor variant (Torq, Tines, Opus, Coralogix, Panther)
+
+Vendor integrations use the same resource — just set `type` to the vendor and
+point `webhook_url` at the vendor endpoint:
+
+```terraform
+resource "orcasecurity_integration_webhook_template" "torq" {
+  template_name = "torq-alerts"
+
+  config = {
+    webhook_url = "https://hooks.torq.io/v1/webhooks/xxxxxxxx"
+    type        = "torq"
+    api_key     = var.torq_api_key
+  }
+}
+```
+
 ## Argument Reference
 
 * `template_name` — (Required, String) Identifier for the integration as shown
@@ -53,8 +92,9 @@ resource "orcasecurity_integration_webhook_template" "from_vault" {
   available to all business units the caller can access.
 * `config` — (Required, Block) Webhook configuration:
     * `webhook_url` — (Required, String) Destination URL Orca posts events to.
-    * `type` — (Required, String) Webhook variant. One of `common`, `torq`,
-      `tines`, `opus`, `coralogix`, `panther`.
+    * `type` — (Required, String) Which webhook-delivered integration to
+      manage. One of `common`, `torq`, `tines`, `opus`, `coralogix`,
+      `panther` — see [Supported integration types](#supported-integration-types).
     * `api_key` — (Optional, String, Sensitive) Optional API key sent with
       each webhook request.
     * `body_fields` — (Optional, List of String) Optional list of Orca alert

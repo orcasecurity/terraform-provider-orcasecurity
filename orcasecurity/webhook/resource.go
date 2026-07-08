@@ -5,7 +5,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
-	wvc "terraform-provider-orcasecurity/orcasecurity/webhook_variant_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -66,15 +65,15 @@ func NewWebhookResource() resource.Resource {
 						ElementType: types.StringType,
 						Description: "Optional list of Orca alert fields to include in the webhook request body. Leave unset to send the default payload.",
 						PlanModifiers: []planmodifier.List{
-							wvc.EmptyListToNullModifier{},
+							EmptyListToNullModifier{},
 						},
 					},
 					"custom_headers": schema.MapAttribute{
 						Optional:    true,
-						ElementType: wvc.CustomHeaderListType(),
+						ElementType: CustomHeaderListType(),
 						Description: "Optional custom HTTP headers, keyed by header name. Each value is a list of `{ custom = \"<value>\" }` objects so a single header can carry multiple values.",
 						PlanModifiers: []planmodifier.Map{
-							wvc.EmptyMapToNullModifier{},
+							EmptyMapToNullModifier{},
 						},
 					},
 				},
@@ -99,7 +98,7 @@ func NewWebhookResource() resource.Resource {
 					diags.Append(s.Config.BodyFields.ElementsAs(ctx, &fields, false)...)
 					payload.Config.BodyFields = fields
 				}
-				headers, headerDiags := wvc.CustomHeadersToAPI(ctx, s.Config.CustomHeaders)
+				headers, headerDiags := CustomHeadersToAPI(ctx, s.Config.CustomHeaders)
 				diags.Append(headerDiags...)
 				payload.Config.CustomHeaders = headers
 			}
@@ -107,8 +106,8 @@ func NewWebhookResource() resource.Resource {
 			return payload
 		},
 		// Create/Update touch only top-level fields so the planned (sensitive) config survives the
-		// Plugin Framework's consistency check — shared with the webhook variants.
-		Extract: wvc.ExtractTopLevel,
+		// Plugin Framework's consistency check.
+		Extract: ExtractTopLevel,
 		// Read refreshes the whole config so the next plan detects drift. api_key is intentionally
 		// not overwritten from API echoes — the user-supplied secret already lives in state.
 		ExtractOnRead: extractFull,
@@ -135,11 +134,11 @@ func extractFull(api *api_client.WebhookExternalServiceConfig, st cc.State, diag
 			s.Config.APIKey = types.StringNull()
 		}
 	}
-	bodyFields, bfDiags := wvc.BodyFieldsFromAPI(context.Background(), api.Config.BodyFields, s.Config.BodyFields)
+	bodyFields, bfDiags := BodyFieldsFromAPI(context.Background(), api.Config.BodyFields, s.Config.BodyFields)
 	diags.Append(bfDiags...)
 	s.Config.BodyFields = bodyFields
-	headers, headerDiags := wvc.CustomHeadersFromAPI(api.Config.CustomHeaders, s.Config.CustomHeaders)
+	headers, headerDiags := CustomHeadersFromAPI(api.Config.CustomHeaders, s.Config.CustomHeaders)
 	diags.Append(headerDiags...)
 	s.Config.CustomHeaders = headers
-	return wvc.ExtractTopLevel(api, st, diags)
+	return ExtractTopLevel(api, st, diags)
 }

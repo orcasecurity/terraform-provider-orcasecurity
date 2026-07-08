@@ -14,7 +14,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/azure_sentinel"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
 	"terraform-provider-orcasecurity/orcasecurity/cloudflare"
-	"terraform-provider-orcasecurity/orcasecurity/coralogix"
 	"terraform-provider-orcasecurity/orcasecurity/custom_compliance_framework"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
@@ -48,8 +47,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/splunk"
 	"terraform-provider-orcasecurity/orcasecurity/system_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/terraform_cloud"
-	"terraform-provider-orcasecurity/orcasecurity/tines"
-	"terraform-provider-orcasecurity/orcasecurity/torq"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
 	"terraform-provider-orcasecurity/orcasecurity/user_access"
@@ -260,7 +257,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		akamai.NewAkamaiResource,
 		azure_sentinel.NewAzureSentinelResource,
 		cloudflare.NewCloudflareResource,
-		coralogix.NewCoralogixResource,
 		jira_cloud_template.NewJiraCloudTemplateResource,
 		monday_template.NewMondayTemplateResource,
 		opsgenie.NewOpsgenieResource,
@@ -271,8 +267,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		snyk.NewSnykResource,
 		splunk.NewSplunkResource,
 		terraform_cloud.NewTerraformCloudResource,
-		tines.NewTinesResource,
-		torq.NewTorqResource,
 		webhook.NewWebhookResource,
 		zscaler.NewZscalerResource,
 		custom_widget.NewCustomWidgetResource,
