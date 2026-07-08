@@ -26,6 +26,8 @@ var (
 	_ resource.ResourceWithConfigValidators = &customDiscoveryAlertResource{}
 )
 
+const errReadingAlert = "Error reading Alert"
+
 type customDiscoveryAlertResource struct {
 	apiClient *api_client.APIClient
 }
@@ -253,7 +255,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	exists, err := r.apiClient.DoesCustomDiscoveryAlertExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading Alert",
+			errReadingAlert,
 			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -268,7 +270,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	instance, err := r.apiClient.GetCustomDiscoveryAlert(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading Alert",
+			errReadingAlert,
 			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -291,7 +293,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 		ruleJsonBytes, err := json.Marshal(instance.RuleJson)
 		if err != nil {
 			resp.Diagnostics.AddError(
-				"Error reading Alert",
+				errReadingAlert,
 				fmt.Sprintf("Could not marshal rule_json for ID %s: %s", state.ID.ValueString(), err.Error()),
 			)
 			return

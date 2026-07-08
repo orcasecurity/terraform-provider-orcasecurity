@@ -24,6 +24,8 @@ var (
 	_ resource.ResourceWithImportState = &discoveryViewResource{}
 )
 
+const errReadingDiscoveryView = "Error reading discovery view"
+
 type discoveryViewResource struct {
 	apiClient *api_client.APIClient
 }
@@ -58,16 +60,16 @@ type discoveryQueryResourceModel struct {
 }
 
 type discoveryViewResourceModel struct {
-	ID                types.String                `tfsdk:"id"`
-	Name              types.String                `tfsdk:"name"`
+	ID                types.String                 `tfsdk:"id"`
+	Name              types.String                 `tfsdk:"name"`
 	FilterData        *discoveryQueryResourceModel `tfsdk:"filter_data"`
-	ExtraParameters   map[string]interface{}      `tfsdk:"extra_params"`
-	Columns           types.List                  `tfsdk:"columns"`
-	Sort              types.String                `tfsdk:"sort"`
-	GroupBy           types.List                  `tfsdk:"group_by"`
-	GroupBy2          []groupByEntryModel         `tfsdk:"group_by_2"`
-	OrganizationLevel types.Bool                  `tfsdk:"organization_level"`
-	ViewType          types.String                `tfsdk:"view_type"`
+	ExtraParameters   map[string]interface{}       `tfsdk:"extra_params"`
+	Columns           types.List                   `tfsdk:"columns"`
+	Sort              types.String                 `tfsdk:"sort"`
+	GroupBy           types.List                   `tfsdk:"group_by"`
+	GroupBy2          []groupByEntryModel          `tfsdk:"group_by_2"`
+	OrganizationLevel types.Bool                   `tfsdk:"organization_level"`
+	ViewType          types.String                 `tfsdk:"view_type"`
 }
 
 type groupByEntryModel struct {
@@ -555,7 +557,7 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	exists, err := r.apiClient.DoesDiscoveryViewExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading discovery view",
+			errReadingDiscoveryView,
 			fmt.Sprintf("Could not read discovery view ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -570,7 +572,7 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	instance, err := r.apiClient.GetDiscoveryView(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading discovery view",
+			errReadingDiscoveryView,
 			fmt.Sprintf("Could not read discovery view ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -581,6 +583,21 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
+	populateDiscoveryViewState(ctx, &state, instance, resp)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// populateDiscoveryViewState maps the API instance onto the model. Split out of
+// Read to keep that function's cognitive complexity low.
+func populateDiscoveryViewState(ctx context.Context, state *discoveryViewResourceModel, instance *api_client.DiscoveryView, resp *resource.ReadResponse) {
 	// Prefer the query already in state to avoid churn from JSON key
 	// reordering on normal refresh. On import there is no prior state, so
 	// derive the query from the API response instead.
@@ -592,7 +609,7 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 		queryBytes, err := json.Marshal(instance.FilterData.Data)
 		if err != nil {
 			resp.Diagnostics.AddError(
-				"Error reading discovery view",
+				errReadingDiscoveryView,
 				fmt.Sprintf("Could not marshal filter_data query for ID %s: %s", state.ID.ValueString(), err.Error()),
 			)
 			return
@@ -622,11 +639,15 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 		state.Sort = types.StringNull()
 	}
 
+	applyGroupByToState(ctx, state, instance, resp)
+}
+
+// applyGroupByToState decides which group-by attribute to populate. It
+// preserves the user's chosen attribute when possible: if state already used
+// the legacy `group_by` and the data still fits that shape (no per-group sort),
+// keep `group_by`. Otherwise use `group_by_2`.
+func applyGroupByToState(ctx context.Context, state *discoveryViewResourceModel, instance *api_client.DiscoveryView, resp *resource.ReadResponse) {
 	groupBy := extractGroupBy(instance.ExtraParameters)
-	// Decide which attribute to populate. Preserve the user's chosen attribute
-	// when possible: if state already used the legacy `group_by` and the data
-	// still fits that shape (no per-group sort), keep `group_by`. Otherwise use
-	// `group_by_2`.
 	legacyGroupByInUse := !state.GroupBy.IsNull() && !state.GroupBy.IsUnknown()
 	switch {
 	case len(groupBy) == 0:
@@ -640,12 +661,6 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	default:
 		state.GroupBy = types.ListNull(types.StringType)
 		state.GroupBy2 = apiGroupByToModel(groupBy)
-	}
-
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
 	}
 }
 

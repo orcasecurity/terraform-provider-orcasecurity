@@ -808,124 +808,137 @@ func reconstructV2StateFromAPI(ctx context.Context, state *automationV2ResourceM
 	}
 
 	for _, a := range instance.Actions {
-		switch a.Type {
-		case api_client.AutomationAlertDismissalID:
-			state.AlertDismissalTemplate = &automationV2AlertDismissalTemplateModel{
-				Reason:        dataString(a.Data, "reason"),
-				Justification: dataString(a.Data, "justification"),
-			}
-		case api_client.AutomationAlertScoreChangeID:
-			switch {
-			case func() bool { _, ok := a.Data["decrease_orca_score"]; return ok }():
-				state.AlertScoreDecreaseTemplate = &automationV2AlertScoreDecreaseTemplateModel{
-					Reason:        dataString(a.Data, "reason"),
-					Justification: dataString(a.Data, "justification"),
-				}
-			case func() bool { _, ok := a.Data["increase_orca_score"]; return ok }():
-				state.AlertScoreIncreaseTemplate = &automationV2AlertScoreIncreaseTemplateModel{
-					Reason:        dataString(a.Data, "reason"),
-					Justification: dataString(a.Data, "justification"),
-				}
-			default:
-				state.AlertScoreSpecifyTemplate = &automationV2AlertScoreSpecifyTemplateModel{
-					NewScore:      dataFloat64(a.Data, "change_orca_score"),
-					Reason:        dataString(a.Data, "reason"),
-					Justification: dataString(a.Data, "justification"),
-				}
-			}
-		case api_client.AutomationSnoozeID:
-			state.SnoozeTemplate = &automationV2SnoozeTemplateModel{
-				Days:          dataInt64(a.Data, "days"),
-				Reason:        dataString(a.Data, "reason"),
-				Justification: dataString(a.Data, "justification"),
-			}
-		case api_client.AutomationEmailID:
-			state.EmailTemplate = &automationV2EmailTemplateModel{
-				EmailAddresses: dataStringList(ctx, a.Data, "email"),
-				MultiAlerts:    dataBool(a.Data, "multi_alerts"),
-				AssetTagKeys:   dataStringList(ctx, a.Data, "asset_tag_keys"),
-				CustomTagKeys:  dataStringList(ctx, a.Data, "custom_tag_keys"),
-			}
-		case api_client.AutomationRemediationID:
-			state.RemediationTemplate = &automationV2RemediationTemplateModel{
-				RemediationAction: dataString(a.Data, "remediation_action"),
-			}
-		case api_client.AutomationSiemID:
-			token := ""
-			if a.SiemToken != nil {
-				token = *a.SiemToken
-			}
-			state.ApiTokenTemplate = &automationV2ExternalConfigTemplateModel{
-				ExternalConfigID: types.StringValue(token),
-			}
-		case api_client.AutomationDatadogID:
-			id := ""
-			if a.ExternalConfig != nil {
-				id = *a.ExternalConfig
-			}
-			state.DatadogTemplate = &automationV2DatadogTemplateModel{
-				ExternalConfigID: types.StringValue(id),
-				Type:             dataString(a.Data, "type"),
-			}
-		case api_client.AutomationAzureDevopsID:
-			state.AzureDevopsTemplate = extConfigWithParentTmpl(a)
-		case api_client.AutomationJiraID:
-			state.JiraCloudTemplate = extConfigWithParentTmpl(a)
-		case api_client.AutomationJiraServerID:
-			state.JiraServerTemplate = extConfigWithParentTmpl(a)
-		case api_client.AutomationSlackID:
-			state.SlackTemplate = extConfigTmpl(a)
-		case api_client.AutomationPagerDutyID:
-			state.PagerDutyTemplate = extConfigTmpl(a)
-		case api_client.AutomationOpsgenieID:
-			state.OpsgenieTemplate = extConfigTmpl(a)
-		case api_client.AutomationSumoLogicID:
-			state.SumoLogicTemplate = extConfigTmpl(a)
-		case api_client.AutomationAzureSentinelID:
-			state.AzureSentinelTemplate = extConfigTmpl(a)
-		case api_client.AutomationSplunkID:
-			state.SplunkTemplate = extConfigTmpl(a)
-		case api_client.AutomationWebhookID:
-			state.WebhookTemplate = extConfigTmpl(a)
-		case api_client.AutomationGcpPubSubID:
-			state.GcpPubSubTemplate = extConfigTmpl(a)
-		case api_client.AutomationTorqID:
-			state.TorqTemplate = extConfigTmpl(a)
-		case api_client.AutomationMsTeamsID:
-			state.MsTeamsTemplate = extConfigTmpl(a)
-		case api_client.AutomationServiceNowIncidentsID:
-			state.ServiceNowIncidentsTemplate = extConfigTmpl(a)
-		case api_client.AutomationServiceNowSIIncidentsID:
-			state.ServiceNowSIIncidentsTemplate = extConfigTmpl(a)
-		case api_client.AutomationAwsSecurityLakeID:
-			state.AwsSecurityLakeTemplate = extConfigTmpl(a)
-		case api_client.AutomationSnowflakeID:
-			state.SnowflakeTemplate = extConfigTmpl(a)
-		case api_client.AutomationChronicleID:
-			state.ChronicleTemplate = extConfigTmpl(a)
-		case api_client.AutomationCriblID:
-			state.CriblTemplate = extConfigTmpl(a)
-		case api_client.AutomationTinesID:
-			state.TinesTemplate = extConfigTmpl(a)
-		case api_client.AutomationAwsSqsID:
-			state.AwsSqsTemplate = extConfigTmpl(a)
-		case api_client.AutomationAwsSnsID:
-			state.AwsSnsTemplate = extConfigTmpl(a)
-		case api_client.AutomationOpusID:
-			state.OpusTemplate = extConfigTmpl(a)
-		case api_client.AutomationCoralogixID:
-			state.CoralogixTemplate = extConfigTmpl(a)
-		case api_client.AutomationAWSSecurityHubID:
-			state.AwsSecurityHubTemplate = extConfigTmpl(a)
-		case api_client.AutomationMondayID:
-			state.MondayTemplate = extConfigTmpl(a)
-		case api_client.AutomationLinearID:
-			state.LinearTemplate = extConfigTmpl(a)
-		case api_client.AutomationPantherID:
-			state.PantherTemplate = extConfigTmpl(a)
-		}
+		applyV2ActionToState(ctx, state, a)
 	}
 	return nil
+}
+
+// applyV2ActionToState maps a single API action onto the matching template
+// field of the model. Split out of reconstructV2StateFromAPI to keep that
+// function's cognitive complexity low.
+func applyV2ActionToState(ctx context.Context, state *automationV2ResourceModel, a api_client.AutomationV2Action) {
+	switch a.Type {
+	case api_client.AutomationAlertDismissalID:
+		state.AlertDismissalTemplate = &automationV2AlertDismissalTemplateModel{
+			Reason:        dataString(a.Data, "reason"),
+			Justification: dataString(a.Data, "justification"),
+		}
+	case api_client.AutomationAlertScoreChangeID:
+		applyV2AlertScoreChangeToState(state, a)
+	case api_client.AutomationSnoozeID:
+		state.SnoozeTemplate = &automationV2SnoozeTemplateModel{
+			Days:          dataInt64(a.Data, "days"),
+			Reason:        dataString(a.Data, "reason"),
+			Justification: dataString(a.Data, "justification"),
+		}
+	case api_client.AutomationEmailID:
+		state.EmailTemplate = &automationV2EmailTemplateModel{
+			EmailAddresses: dataStringList(ctx, a.Data, "email"),
+			MultiAlerts:    dataBool(a.Data, "multi_alerts"),
+			AssetTagKeys:   dataStringList(ctx, a.Data, "asset_tag_keys"),
+			CustomTagKeys:  dataStringList(ctx, a.Data, "custom_tag_keys"),
+		}
+	case api_client.AutomationRemediationID:
+		state.RemediationTemplate = &automationV2RemediationTemplateModel{
+			RemediationAction: dataString(a.Data, "remediation_action"),
+		}
+	case api_client.AutomationSiemID:
+		token := ""
+		if a.SiemToken != nil {
+			token = *a.SiemToken
+		}
+		state.ApiTokenTemplate = &automationV2ExternalConfigTemplateModel{
+			ExternalConfigID: types.StringValue(token),
+		}
+	case api_client.AutomationDatadogID:
+		id := ""
+		if a.ExternalConfig != nil {
+			id = *a.ExternalConfig
+		}
+		state.DatadogTemplate = &automationV2DatadogTemplateModel{
+			ExternalConfigID: types.StringValue(id),
+			Type:             dataString(a.Data, "type"),
+		}
+	case api_client.AutomationAzureDevopsID:
+		state.AzureDevopsTemplate = extConfigWithParentTmpl(a)
+	case api_client.AutomationJiraID:
+		state.JiraCloudTemplate = extConfigWithParentTmpl(a)
+	case api_client.AutomationJiraServerID:
+		state.JiraServerTemplate = extConfigWithParentTmpl(a)
+	case api_client.AutomationSlackID:
+		state.SlackTemplate = extConfigTmpl(a)
+	case api_client.AutomationPagerDutyID:
+		state.PagerDutyTemplate = extConfigTmpl(a)
+	case api_client.AutomationOpsgenieID:
+		state.OpsgenieTemplate = extConfigTmpl(a)
+	case api_client.AutomationSumoLogicID:
+		state.SumoLogicTemplate = extConfigTmpl(a)
+	case api_client.AutomationAzureSentinelID:
+		state.AzureSentinelTemplate = extConfigTmpl(a)
+	case api_client.AutomationSplunkID:
+		state.SplunkTemplate = extConfigTmpl(a)
+	case api_client.AutomationWebhookID:
+		state.WebhookTemplate = extConfigTmpl(a)
+	case api_client.AutomationGcpPubSubID:
+		state.GcpPubSubTemplate = extConfigTmpl(a)
+	case api_client.AutomationTorqID:
+		state.TorqTemplate = extConfigTmpl(a)
+	case api_client.AutomationMsTeamsID:
+		state.MsTeamsTemplate = extConfigTmpl(a)
+	case api_client.AutomationServiceNowIncidentsID:
+		state.ServiceNowIncidentsTemplate = extConfigTmpl(a)
+	case api_client.AutomationServiceNowSIIncidentsID:
+		state.ServiceNowSIIncidentsTemplate = extConfigTmpl(a)
+	case api_client.AutomationAwsSecurityLakeID:
+		state.AwsSecurityLakeTemplate = extConfigTmpl(a)
+	case api_client.AutomationSnowflakeID:
+		state.SnowflakeTemplate = extConfigTmpl(a)
+	case api_client.AutomationChronicleID:
+		state.ChronicleTemplate = extConfigTmpl(a)
+	case api_client.AutomationCriblID:
+		state.CriblTemplate = extConfigTmpl(a)
+	case api_client.AutomationTinesID:
+		state.TinesTemplate = extConfigTmpl(a)
+	case api_client.AutomationAwsSqsID:
+		state.AwsSqsTemplate = extConfigTmpl(a)
+	case api_client.AutomationAwsSnsID:
+		state.AwsSnsTemplate = extConfigTmpl(a)
+	case api_client.AutomationOpusID:
+		state.OpusTemplate = extConfigTmpl(a)
+	case api_client.AutomationCoralogixID:
+		state.CoralogixTemplate = extConfigTmpl(a)
+	case api_client.AutomationAWSSecurityHubID:
+		state.AwsSecurityHubTemplate = extConfigTmpl(a)
+	case api_client.AutomationMondayID:
+		state.MondayTemplate = extConfigTmpl(a)
+	case api_client.AutomationLinearID:
+		state.LinearTemplate = extConfigTmpl(a)
+	case api_client.AutomationPantherID:
+		state.PantherTemplate = extConfigTmpl(a)
+	}
+}
+
+// applyV2AlertScoreChangeToState maps an alert-score-change action onto the
+// matching decrease/increase/specify template field of the model.
+func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_client.AutomationV2Action) {
+	switch {
+	case func() bool { _, ok := a.Data["decrease_orca_score"]; return ok }():
+		state.AlertScoreDecreaseTemplate = &automationV2AlertScoreDecreaseTemplateModel{
+			Reason:        dataString(a.Data, "reason"),
+			Justification: dataString(a.Data, "justification"),
+		}
+	case func() bool { _, ok := a.Data["increase_orca_score"]; return ok }():
+		state.AlertScoreIncreaseTemplate = &automationV2AlertScoreIncreaseTemplateModel{
+			Reason:        dataString(a.Data, "reason"),
+			Justification: dataString(a.Data, "justification"),
+		}
+	default:
+		state.AlertScoreSpecifyTemplate = &automationV2AlertScoreSpecifyTemplateModel{
+			NewScore:      dataFloat64(a.Data, "change_orca_score"),
+			Reason:        dataString(a.Data, "reason"),
+			Justification: dataString(a.Data, "justification"),
+		}
+	}
 }
 
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
