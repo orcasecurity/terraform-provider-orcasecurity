@@ -147,7 +147,7 @@ func NewSlackResource() resource.Resource {
 			cfg := api_client.SlackConfig{
 				WorkspaceID: s.WorkspaceID.ValueString(),
 				Channels:    channels,
-				ShowActions: s.ShowActions.ValueBool(),
+				ShowActions: s.ShowActions.ValueBoolPointer(),
 			}
 			decodeMapping(ctx, s, &cfg, diags)
 			return api_client.SlackTemplate{
@@ -166,7 +166,13 @@ func NewSlackResource() resource.Resource {
 			channels, d := common.OptionalListMatchPlan(context.Background(), s.Channels, o.Config.Channels)
 			diags.Append(d...)
 			s.Channels = channels
-			s.ShowActions = types.BoolValue(o.Config.ShowActions)
+			// Orca omits show_actions from stored config in some cases (e.g. UI-created
+			// templates); a missing value means true, matching the UI (`?? true`).
+			if o.Config.ShowActions != nil {
+				s.ShowActions = types.BoolValue(*o.Config.ShowActions)
+			} else {
+				s.ShowActions = types.BoolValue(true)
+			}
 			encodeMapping(context.Background(), s, &o.Config, diags)
 			return cc.APIObject{
 				ID:            o.ID,
