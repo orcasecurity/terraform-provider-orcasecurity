@@ -30,38 +30,17 @@ var (
 
 const scoreChangeJustificationDescription = "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted."
 
-// emptyStringToNullModifier normalizes an empty config string to null at plan
-// time. The API treats reason/justification empty strings as omitted (see
-// setOptionalString) and never returns them, so state holds null. Without this,
-// a config with `reason = ""` (e.g. UI-exported HCL) perpetually diffs null vs "".
-type emptyStringToNullModifier struct{}
-
-func (emptyStringToNullModifier) Description(_ context.Context) string {
-	return "treats an empty string as null so it matches the omitted value stored in state"
-}
-
-func (m emptyStringToNullModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (emptyStringToNullModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	if req.ConfigValue.ValueString() == "" {
-		resp.PlanValue = types.StringNull()
-	}
-}
-
-// omitEmptyOptionalStringAttr builds an Optional string attribute whose empty
-// value is treated as omitted (normalized to null), matching the API behavior.
-func omitEmptyOptionalStringAttr(description string) schema.StringAttribute {
+// optionalStringAttr builds a plain Optional string attribute. Empty string is
+// treated as omitted at the API layer (setOptionalString drops it), so the API
+// never returns it; on a normal refresh the prior state value is preserved
+// untouched, so `reason = ""` round-trips cleanly. We must NOT use a plan
+// modifier to normalize "" to null here: the Plugin Framework rejects any
+// planned value that differs from config on an Optional (non-Computed)
+// attribute ("planned value ... does not match config value").
+func optionalStringAttr(description string) schema.StringAttribute {
 	return schema.StringAttribute{
 		Optional:    true,
 		Description: description,
-		PlanModifiers: []planmodifier.String{
-			emptyStringToNullModifier{},
-		},
 	}
 }
 
@@ -364,24 +343,24 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Optional:    true,
 				Description: "Details regarding dismissed alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are being dismissed. Optional; empty string is treated as omitted."),
-					"justification": omitEmptyOptionalStringAttr("More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted."),
+					"reason":        optionalStringAttr("The reason these alerts are being dismissed. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr("More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted."),
 				},
 			},
 			"alert_score_decrease_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding decreasing the score for the selected alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are having their score decreased. Optional; empty string is treated as omitted."),
-					"justification": omitEmptyOptionalStringAttr(scoreChangeJustificationDescription),
+					"reason":        optionalStringAttr("The reason these alerts are having their score decreased. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"alert_score_increase_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding increasing the score for the selected alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are having their score increased. Optional; empty string is treated as omitted."),
-					"justification": omitEmptyOptionalStringAttr(scoreChangeJustificationDescription),
+					"reason":        optionalStringAttr("The reason these alerts are having their score increased. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"alert_score_specify_details": schema.SingleNestedAttribute{
@@ -392,8 +371,8 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 						Required:    true,
 						Description: "New score to be assigned to the selected alerts.",
 					},
-					"reason":        omitEmptyOptionalStringAttr("The reason these alerts are having their score changed. Optional; empty string is treated as omitted."),
-					"justification": omitEmptyOptionalStringAttr(scoreChangeJustificationDescription),
+					"reason":        optionalStringAttr("The reason these alerts are having their score changed. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"snooze_template": schema.SingleNestedAttribute{
@@ -407,8 +386,8 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 							int64validator.Between(1, 365),
 						},
 					},
-					"reason":        omitEmptyOptionalStringAttr("Reason for snoozing. Optional; empty string is treated as omitted."),
-					"justification": omitEmptyOptionalStringAttr("Justification for snoozing. Optional; empty string is treated as omitted."),
+					"reason":        optionalStringAttr("Reason for snoozing. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr("Justification for snoozing. Optional; empty string is treated as omitted."),
 				},
 			},
 
