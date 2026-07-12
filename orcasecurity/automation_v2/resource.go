@@ -992,7 +992,13 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		createReq.EndTime = plan.EndTime.ValueString()
 	}
 
-	instance, err := r.apiClient.CreateAutomationV2(createReq, plan.ApplyOnExisting.ValueBool())
+	// apply_on_existing is Optional+Computed and create-only (the API never returns it). When
+	// the user omits it there is no prior state for UseStateForUnknown to resolve, so the plan
+	// value is unknown. Resolve it to the value actually sent (false when null/unknown) and
+	// write it back below, otherwise the saved state keeps an unknown value and Terraform errors
+	// "invalid result object after apply".
+	applyOnExisting := plan.ApplyOnExisting.ValueBool()
+	instance, err := r.apiClient.CreateAutomationV2(createReq, applyOnExisting)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Automation V2",
@@ -1011,6 +1017,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
+	plan.ApplyOnExisting = types.BoolValue(applyOnExisting)
 
 	normalizedStatus := instance.Status
 	if normalizedStatus == "success" {
