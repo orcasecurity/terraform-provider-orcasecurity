@@ -73,14 +73,31 @@ func TestDecodeOrcaMappingField_ExpandsShorthand(t *testing.T) {
 
 // On read we store the API value verbatim (no collapse); semantic equality reconciles it with
 // whatever shorthand the user wrote.
-func TestEncodeOrcaMappingField_StoresApiValue(t *testing.T) {
+func TestEncodeOrcaMappingField_CollapsesOrcaShorthand(t *testing.T) {
+	// On import (planned is null) the API's {"orca": ...} wire form collapses to the bare-string
+	// shorthand so state matches a shorthand config — plan-time comparison does not run semantic
+	// equality, so a verbatim wire value would perpetually diff.
 	api := []byte(`{"summary":[{"orca":"alert_name"}]}`)
 	out, diags := EncodeOrcaMappingField(api, NewOrcaMappingNull())
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
-	if out.ValueString() != `{"summary":[{"orca":"alert_name"}]}` {
-		t.Errorf("expected API value stored verbatim, got %q", out.ValueString())
+	if out.ValueString() != `{"summary":["alert_name"]}` {
+		t.Errorf("expected orca shorthand collapsed, got %q", out.ValueString())
+	}
+}
+
+func TestEncodeOrcaMappingField_PreservesLiteralEntries(t *testing.T) {
+	// Non-orca entries (custom/value literals) pass through untouched.
+	api := []byte(`{"summary":[{"custom":"x"}],"status":[{"value":"1"}]}`)
+	out, diags := EncodeOrcaMappingField(api, NewOrcaMappingNull())
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	eq, _ := NewOrcaMappingValue(`{"summary":[{"custom":"x"}],"status":[{"value":"1"}]}`).
+		StringSemanticEquals(context.Background(), out)
+	if !eq {
+		t.Errorf("expected literal entries preserved, got %q", out.ValueString())
 	}
 }
 

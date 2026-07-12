@@ -12,11 +12,14 @@ import (
 // JSON object whose values are lists of entries. The common entry is a "pull this Orca alert
 // field" reference, which the API represents verbatim as `{"orca": "<field>"}`. Writing that
 // wrapper for every field is noisy in HCL, so users may write a bare string (`"<field>"`)
-// instead: the provider expands it to `{"orca": "<field>"}` on the way to the API. Plans stay
-// stable in the other direction via the OrcaMappingType semantic-equality check (see
-// orca_mapping_type.go), which treats the bare string and the `{"orca": ...}` object as equal —
-// so there is no collapse-on-read. Literal entries such as `{"value": "<literal>"}` or
-// `{"custom": ...}` — and any non-list value — pass through untouched.
+// instead: the provider expands it to `{"orca": "<field>"}` on the way to the API. On read the
+// provider collapses the API's `{"orca": ...}` wire form back to the bare-string shorthand so
+// imported state matches a shorthand config (plan-time comparison does not run semantic equality
+// — see EncodeOrcaMappingField). During a normal refresh, OrcaMappingType's semantic-equality
+// check (see orca_mapping_type.go) then reconciles that collapsed value with whichever form the
+// user wrote in HCL (bare string or explicit `{"orca": ...}` object) and keeps their form.
+// Literal entries such as `{"value": "<literal>"}` or `{"custom": ...}` — and any non-list value
+// — pass through untouched.
 
 // asJSONArray reports whether raw is a JSON array and, if so, returns its elements.
 func asJSONArray(raw json.RawMessage) ([]json.RawMessage, bool) {
@@ -76,6 +79,32 @@ func expandOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
 	return mapSectionArrays(raw, expandOrcaElement)
 }
 
+// collapseOrcaElement rewrites a single-key `{"orca": "<string>"}` object into the bare string
+// `"<string>"`. Any other shape — a multi-key object, `{"custom": ...}`, `{"value": ...}`, a
+// non-string orca value, or a bare string — is returned unchanged.
+func collapseOrcaElement(elem json.RawMessage) (json.RawMessage, error) {
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(elem, &obj) != nil || len(obj) != 1 {
+		return elem, nil // not a single-key object
+	}
+	orcaRaw, ok := obj["orca"]
+	if !ok {
+		return elem, nil // single-key object but not "orca"
+	}
+	var s string
+	if json.Unmarshal(orcaRaw, &s) != nil {
+		return elem, nil // orca value is not a bare string
+	}
+	return json.Marshal(s)
+}
+
+// collapseOrcaShorthand rewrites `{"orca": "<string>"}` list elements back into the bare-string
+// shorthand. It is the inverse of expandOrcaShorthand for the orca case and the canonical form
+// the provider stores on read.
+func collapseOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
+	return mapSectionArrays(raw, collapseOrcaElement)
+}
+
 // DecodeOrcaMappingField decodes a mapping_json state string and expands the bare-string
 // shorthand into the API's `{"orca": ...}` wire form. Behaves like DecodeJSONField otherwise.
 func DecodeOrcaMappingField(s jsonStringValue, fieldName string) (json.RawMessage, diag.Diagnostics) {
@@ -91,11 +120,16 @@ func DecodeOrcaMappingField(s jsonStringValue, fieldName string) (json.RawMessag
 	return expanded, diags
 }
 
-// EncodeOrcaMappingField stores the API's mapping value on state verbatim. No collapse is needed:
-// OrcaMappingType's semantic equality (see orca_mapping_type.go) treats the API's `{"orca": ...}`
-// wire form as equal to the user's bare-string shorthand, so the framework keeps the user's HCL
-// form in state and no diff appears. An empty API value maps back to a null/planned value so an
-// unset attribute does not diff against `{}`.
+// EncodeOrcaMappingField stores the API's mapping value on state, collapsing the API's
+// `{"orca": ...}` wire form back to the bare-string shorthand — the documented and UI-exported
+// canonical form. Collapsing is required because plan-time comparison does NOT run
+// OrcaMappingType's semantic equality (the framework only applies it on Read/Create/Update). So
+// on import — where there is no planned HCL value for semantic equality to preserve — a verbatim
+// wire value would show a perpetual diff against a shorthand config. On a normal refresh, Read's
+// semantic-equality pass then reconciles this collapsed value with the user's actual HCL form
+// (bare string or explicit object) and keeps their form, so collapsing causes no diff there.
+// An empty API value maps back to a null/planned value so an unset attribute does not diff
+// against `{}`.
 func EncodeOrcaMappingField(raw json.RawMessage, planned OrcaMapping) (OrcaMapping, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(raw) == 0 {
@@ -114,6 +148,9 @@ func EncodeOrcaMappingField(raw json.RawMessage, planned OrcaMapping) (OrcaMappi
 			return NewOrcaMappingNull(), diags
 		}
 		return planned, diags
+	}
+	if collapsed, err := collapseOrcaShorthand(raw); err == nil {
+		raw = collapsed
 	}
 	return NewOrcaMappingValue(string(raw)), diags
 }
