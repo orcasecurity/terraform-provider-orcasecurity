@@ -69,9 +69,22 @@ func TestEncodeJSONField(t *testing.T) {
 		}
 	})
 
-	t.Run("valid raw stored verbatim (semantic equality handles formatting)", func(t *testing.T) {
-		raw := json.RawMessage(`{ "a" : 1 }`)
+	t.Run("null planned (import) canonicalizes to compact key-sorted json", func(t *testing.T) {
+		// Matches HCL jsonencode / Go json.Marshal output so imported state does not diff
+		// against a jsonencode(...) config (plan-time comparison skips semantic equality).
+		raw := json.RawMessage(`{ "open" : "10000", "closed" : "10002" }`)
 		got, diags := EncodeJSONField(raw, jsontypes.NewNormalizedNull())
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if got.ValueString() != `{"closed":"10002","open":"10000"}` {
+			t.Errorf("expected compact key-sorted json, got %q", got.ValueString())
+		}
+	})
+
+	t.Run("planned value: raw stored verbatim (semantic equality handles formatting)", func(t *testing.T) {
+		raw := json.RawMessage(`{ "a" : 1 }`)
+		got, diags := EncodeJSONField(raw, jsontypes.NewNormalizedValue(`{"a":1}`))
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}

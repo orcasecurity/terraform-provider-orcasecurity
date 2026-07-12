@@ -35,11 +35,16 @@ func DecodeJSONField(s jsonStringValue, fieldName string) (json.RawMessage, diag
 }
 
 // EncodeJSONField turns the json.RawMessage returned by the API into a jsontypes.Normalized for
-// state. The value is stored verbatim — jsontypes.Normalized's semantic equality ignores
-// whitespace and object key order, so plans don't drift on cosmetic differences, and the
-// framework keeps the user's planned form in state when the two are semantically equal. Storing
-// the raw bytes (rather than re-marshalling) also preserves number fidelity. Empty / nil API
-// values preserve the user's planned shape (null stays null; an explicit empty value stays).
+// state. On a normal refresh (planned is set) the value is stored verbatim — jsontypes.Normalized's
+// semantic equality ignores whitespace and object key order, so the framework keeps the user's
+// planned form in state and plans don't drift on cosmetic differences. Storing the raw bytes there
+// also preserves number fidelity. On import (planned is null/unknown) there is no planned form for
+// semantic equality to preserve, and plan-time comparison does NOT run semantic equality, so a
+// verbatim value with the API's own whitespace/key-order would show a perpetual cosmetic diff
+// against a `jsonencode(...)` config. In that case the value is re-marshalled to the compact,
+// key-sorted form that HCL jsonencode (and Go's json.Marshal) produce, so imported state matches
+// the config byte-for-byte. Empty / nil API values preserve the user's planned shape (null stays
+// null; an explicit empty value stays).
 func EncodeJSONField(raw json.RawMessage, planned jsontypes.Normalized) (jsontypes.Normalized, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(raw) == 0 {
@@ -62,6 +67,11 @@ func EncodeJSONField(raw json.RawMessage, planned jsontypes.Normalized) (jsontyp
 			return jsontypes.NewNormalizedNull(), diags
 		}
 		return planned, diags
+	}
+	if planned.IsNull() || planned.IsUnknown() {
+		if canonical, err := json.Marshal(generic); err == nil {
+			return jsontypes.NewNormalizedValue(string(canonical)), diags
+		}
 	}
 	return jsontypes.NewNormalizedValue(string(raw)), diags
 }
