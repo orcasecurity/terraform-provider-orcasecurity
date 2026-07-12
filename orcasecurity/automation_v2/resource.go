@@ -30,6 +30,20 @@ var (
 
 const scoreChangeJustificationDescription = "More detailed reasoning as to why these alerts are having their score changed. Optional; empty string is treated as omitted."
 
+// optionalStringAttr builds a plain Optional string attribute. Empty string is
+// treated as omitted at the API layer (setOptionalString drops it), so the API
+// never returns it; on a normal refresh the prior state value is preserved
+// untouched, so `reason = ""` round-trips cleanly. We must NOT use a plan
+// modifier to normalize "" to null here: the Plugin Framework rejects any
+// planned value that differs from config on an Optional (non-Computed)
+// attribute ("planned value ... does not match config value").
+func optionalStringAttr(description string) schema.StringAttribute {
+	return schema.StringAttribute{
+		Optional:    true,
+		Description: description,
+	}
+}
+
 type automationV2Resource struct {
 	apiClient *api_client.APIClient
 }
@@ -71,6 +85,12 @@ type automationV2ExternalConfigWithParentTemplateModel struct {
 type automationV2EmailTemplateModel struct {
 	EmailAddresses types.List `tfsdk:"email"`
 	MultiAlerts    types.Bool `tfsdk:"multi_alerts"`
+	AssetTagKeys   types.List `tfsdk:"asset_tag_keys"`
+	CustomTagKeys  types.List `tfsdk:"custom_tag_keys"`
+}
+
+type automationV2RemediationTemplateModel struct {
+	RemediationAction types.String `tfsdk:"remediation_action"`
 }
 
 type automationV2DatadogTemplateModel struct {
@@ -103,8 +123,11 @@ type automationV2ResourceModel struct {
 
 	EmailTemplate *automationV2EmailTemplateModel `tfsdk:"email_template"`
 
+	RemediationTemplate *automationV2RemediationTemplateModel `tfsdk:"remediation_template"`
+
 	SumoLogicTemplate     *automationV2ExternalConfigTemplateModel `tfsdk:"sumo_logic_template"`
 	AzureSentinelTemplate *automationV2ExternalConfigTemplateModel `tfsdk:"azure_sentinel_template"`
+	ApiTokenTemplate      *automationV2ExternalConfigTemplateModel `tfsdk:"api_token_template"`
 
 	JiraCloudTemplate   *automationV2ExternalConfigWithParentTemplateModel `tfsdk:"jira_cloud_template"`
 	JiraServerTemplate  *automationV2ExternalConfigWithParentTemplateModel `tfsdk:"jira_server_template"`
@@ -168,6 +191,7 @@ func (r *automationV2Resource) ConfigValidators(_ context.Context) []resource.Co
 			path.MatchRoot("ms_teams_template"),
 			path.MatchRoot("sumo_logic_template"),
 			path.MatchRoot("azure_sentinel_template"),
+			path.MatchRoot("api_token_template"),
 			path.MatchRoot("splunk_template"),
 			path.MatchRoot("aws_security_hub_template"),
 			path.MatchRoot("chronicle_template"),
@@ -191,6 +215,7 @@ func (r *automationV2Resource) ConfigValidators(_ context.Context) []resource.Co
 			path.MatchRoot("torq_template"),
 			path.MatchRoot("opus_template"),
 			path.MatchRoot("panther_template"),
+			path.MatchRoot("remediation_template"),
 		),
 	}
 }
@@ -318,42 +343,24 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Optional:    true,
 				Description: "Details regarding dismissed alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are being dismissed. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted.",
-					},
+					"reason":        optionalStringAttr("The reason these alerts are being dismissed. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr("More detailed reasoning as to why these alerts are being dismissed. Optional; empty string is treated as omitted."),
 				},
 			},
 			"alert_score_decrease_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding decreasing the score for the selected alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are having their score decreased. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: scoreChangeJustificationDescription,
-					},
+					"reason":        optionalStringAttr("The reason these alerts are having their score decreased. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"alert_score_increase_details": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Details regarding increasing the score for the selected alerts.",
 				Attributes: map[string]schema.Attribute{
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are having their score increased. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: scoreChangeJustificationDescription,
-					},
+					"reason":        optionalStringAttr("The reason these alerts are having their score increased. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"alert_score_specify_details": schema.SingleNestedAttribute{
@@ -364,14 +371,8 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 						Required:    true,
 						Description: "New score to be assigned to the selected alerts.",
 					},
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "The reason these alerts are having their score changed. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: scoreChangeJustificationDescription,
-					},
+					"reason":        optionalStringAttr("The reason these alerts are having their score changed. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr(scoreChangeJustificationDescription),
 				},
 			},
 			"snooze_template": schema.SingleNestedAttribute{
@@ -385,14 +386,8 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 							int64validator.Between(1, 365),
 						},
 					},
-					"reason": schema.StringAttribute{
-						Optional:    true,
-						Description: "Reason for snoozing. Optional; empty string is treated as omitted.",
-					},
-					"justification": schema.StringAttribute{
-						Optional:    true,
-						Description: "Justification for snoozing. Optional; empty string is treated as omitted.",
-					},
+					"reason":        optionalStringAttr("Reason for snoozing. Optional; empty string is treated as omitted."),
+					"justification": optionalStringAttr("Justification for snoozing. Optional; empty string is treated as omitted."),
 				},
 			},
 
@@ -422,6 +417,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 
 			"sumo_logic_template":     createExternalConfigTemplateSchema("Sumo Logic"),
 			"azure_sentinel_template": createExternalConfigTemplateSchema("Azure Sentinel"),
+			"api_token_template":      createExternalConfigTemplateSchema("API Token"),
 
 			"azure_devops_template": createExternalConfigWithParentTemplateSchema("Azure DevOps", "Automatically nest under parent issue."),
 			"jira_cloud_template":   createExternalConfigWithParentTemplateSchema("Jira Cloud", "Automatically nest under this parent issue."),
@@ -430,16 +426,39 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 			"slack_template": createExternalConfigTemplateSchema("Slack"),
 			"email_template": schema.SingleNestedAttribute{
 				Optional:    true,
-				Description: "Email settings.",
+				Description: "Email settings. Provide at least one recipient mode: `email`, `asset_tag_keys`, or `custom_tag_keys`.",
+				Validators: []validator.Object{
+					AtLeastOneChildSet("email", "asset_tag_keys", "custom_tag_keys"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"email": schema.ListAttribute{
 						ElementType: types.StringType,
-						Required:    true,
-						Description: "Email addresses to send the alerts to",
+						Optional:    true,
+						Description: "Email addresses to send the alerts to.",
 					},
 					"multi_alerts": schema.BoolAttribute{
-						Required:    true,
+						Optional:    true,
 						Description: "`true` means multiple alerts will be aggregated into 1 email. `false` means the email recipients will receive 1 email per alert.",
+					},
+					"asset_tag_keys": schema.ListAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+						Description: "Asset tag keys whose values are used to derive the email recipients (\"email by tag\").",
+					},
+					"custom_tag_keys": schema.ListAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+						Description: "Custom tag keys whose values are used to derive the email recipients.",
+					},
+				},
+			},
+			"remediation_template": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Remediation (Auto Remediate) settings.",
+				Attributes: map[string]schema.Attribute{
+					"remediation_action": schema.StringAttribute{
+						Required:    true,
+						Description: "The remediation action ID to run (e.g. `AWS-S3-004`).",
 					},
 				},
 			},
@@ -512,6 +531,29 @@ func appendReasonJustificationAction(actions []api_client.AutomationV2Action, ac
 	return append(actions, api_client.AutomationV2Action{
 		Type: actionType,
 		Data: payload,
+	})
+}
+
+func appendEmailAction(actions []api_client.AutomationV2Action, tmpl *automationV2EmailTemplateModel) []api_client.AutomationV2Action {
+	if tmpl == nil {
+		return actions
+	}
+	data := map[string]interface{}{}
+	if emails := stringListToSlice(tmpl.EmailAddresses); len(emails) > 0 {
+		data["email"] = emails
+	}
+	if tags := stringListToSlice(tmpl.AssetTagKeys); len(tags) > 0 {
+		data["asset_tag_keys"] = tags
+	}
+	if tags := stringListToSlice(tmpl.CustomTagKeys); len(tags) > 0 {
+		data["custom_tag_keys"] = tags
+	}
+	if !tmpl.MultiAlerts.IsNull() && !tmpl.MultiAlerts.IsUnknown() {
+		data["multi_alerts"] = tmpl.MultiAlerts.ValueBool()
+	}
+	return append(actions, api_client.AutomationV2Action{
+		Type: api_client.AutomationEmailID,
+		Data: data,
 	})
 }
 
@@ -593,6 +635,15 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 		actions = appendExternalConfigWithParentAction(actions, b.tmpl, b.actionType)
 	}
 
+	if plan.ApiTokenTemplate != nil {
+		token := plan.ApiTokenTemplate.ExternalConfigID.ValueString()
+		actions = append(actions, api_client.AutomationV2Action{
+			Type:      api_client.AutomationSiemID,
+			Data:      map[string]interface{}{},
+			SiemToken: &token,
+		})
+	}
+
 	if plan.DatadogTemplate != nil {
 		externalConfigID := plan.DatadogTemplate.ExternalConfigID.ValueString()
 		actions = append(actions, api_client.AutomationV2Action{
@@ -602,19 +653,294 @@ func generateV2Actions(plan *automationV2ResourceModel, apiClient *api_client.AP
 		})
 	}
 
-	if plan.EmailTemplate != nil {
-		var emailAddresses []string
-		_ = plan.EmailTemplate.EmailAddresses.ElementsAs(context.Background(), &emailAddresses, false)
+	actions = appendEmailAction(actions, plan.EmailTemplate)
+
+	if plan.RemediationTemplate != nil {
 		actions = append(actions, api_client.AutomationV2Action{
-			Type: api_client.AutomationEmailID,
+			Type: api_client.AutomationRemediationID,
 			Data: map[string]interface{}{
-				"email":        emailAddresses,
-				"multi_alerts": plan.EmailTemplate.MultiAlerts.ValueBool(),
+				"remediation_action": plan.RemediationTemplate.RemediationAction.ValueString(),
 			},
 		})
 	}
 
 	return actions, nil
+}
+
+// stringListToSlice converts a Terraform string list into a Go slice, returning
+// nil for null/unknown lists.
+func stringListToSlice(l types.List) []string {
+	if l.IsNull() || l.IsUnknown() {
+		return nil
+	}
+	var out []string
+	_ = l.ElementsAs(context.Background(), &out, false)
+	return out
+}
+
+// --- Read-side helpers: reconstruct model from the API instance on import ---
+
+func dataString(data map[string]interface{}, key string) types.String {
+	if v, ok := data[key]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			return types.StringValue(s)
+		}
+	}
+	return types.StringNull()
+}
+
+// dataStringOrEmpty behaves like dataString but returns an empty string (not null)
+// when the key is absent or the value is empty. Used only on the import-reconstruct
+// path for reason/justification, whose documented "omitted" form is the empty string
+// ("" is treated as omitted at the API layer, e.g. UI-exported HCL writes reason = "").
+// The API never returns these once omitted, so a plain dataString would import them as
+// null and perpetually diff against a `reason = ""` config. Returning "" makes imported
+// state match that canonical form; a config that omits the field instead converges after
+// one apply (setOptionalString drops the empty value again).
+func dataStringOrEmpty(data map[string]interface{}, key string) types.String {
+	if v, ok := data[key]; ok {
+		if s, ok := v.(string); ok {
+			return types.StringValue(s)
+		}
+	}
+	return types.StringValue("")
+}
+
+func dataInt64(data map[string]interface{}, key string) types.Int64 {
+	if v, ok := data[key]; ok {
+		if f, ok := v.(float64); ok {
+			return types.Int64Value(int64(f))
+		}
+	}
+	return types.Int64Null()
+}
+
+func dataFloat64(data map[string]interface{}, key string) types.Float64 {
+	if v, ok := data[key]; ok {
+		if f, ok := v.(float64); ok {
+			return types.Float64Value(f)
+		}
+	}
+	return types.Float64Null()
+}
+
+func dataBool(data map[string]interface{}, key string) types.Bool {
+	v, ok := data[key]
+	if !ok {
+		return types.BoolNull()
+	}
+	switch t := v.(type) {
+	case bool:
+		return types.BoolValue(t)
+	case float64: // JSON numbers decode to float64; treat non-zero as true
+		return types.BoolValue(t != 0)
+	case string:
+		return types.BoolValue(t == "true" || t == "1")
+	}
+	return types.BoolNull()
+}
+
+func dataStringList(ctx context.Context, data map[string]interface{}, key string) types.List {
+	raw, ok := data[key].([]interface{})
+	if !ok || len(raw) == 0 {
+		return types.ListNull(types.StringType)
+	}
+	out := make([]string, 0, len(raw))
+	for _, r := range raw {
+		if s, ok := r.(string); ok {
+			out = append(out, s)
+		}
+	}
+	l, diags := types.ListValueFrom(ctx, types.StringType, out)
+	if diags.HasError() {
+		return types.ListNull(types.StringType)
+	}
+	return l
+}
+
+func extConfigTmpl(a api_client.AutomationV2Action) *automationV2ExternalConfigTemplateModel {
+	id := ""
+	if a.ExternalConfig != nil {
+		id = *a.ExternalConfig
+	}
+	return &automationV2ExternalConfigTemplateModel{ExternalConfigID: types.StringValue(id)}
+}
+
+func extConfigWithParentTmpl(a api_client.AutomationV2Action) *automationV2ExternalConfigWithParentTemplateModel {
+	id := ""
+	if a.ExternalConfig != nil {
+		id = *a.ExternalConfig
+	}
+	return &automationV2ExternalConfigWithParentTemplateModel{
+		ExternalConfigID: types.StringValue(id),
+		ParentIssueID:    dataString(a.Data, "parent_id"),
+	}
+}
+
+// reconstructV2StateFromAPI rebuilds the filter, business units and every action
+// template on the model from the API instance. Used on import, where there is no
+// prior state to round-trip.
+func reconstructV2StateFromAPI(ctx context.Context, state *automationV2ResourceModel, instance *api_client.AutomationV2) error {
+	sonarJSON, err := json.Marshal(instance.Filter.SonarQuery)
+	if err != nil {
+		return fmt.Errorf("could not marshal sonar_query: %w", err)
+	}
+	state.Filter = &automationV2FilterModel{SonarQuery: types.StringValue(string(sonarJSON))}
+
+	// apply_on_existing is a create-only (POST) flag that the API does not return.
+	// Leaving it null after import makes it resolve to false on the next plan,
+	// which — because it is RequiresReplace — forces a spurious destroy/create.
+	// An already-existing (imported) automation is equivalent to false.
+	state.ApplyOnExisting = types.BoolValue(false)
+
+	if len(instance.BusinessUnits) > 0 {
+		bu, diags := types.ListValueFrom(ctx, types.StringType, instance.BusinessUnits)
+		if diags.HasError() {
+			return fmt.Errorf("could not convert business_units")
+		}
+		state.BusinessUnits = bu
+	} else {
+		state.BusinessUnits = types.ListNull(types.StringType)
+	}
+
+	for _, a := range instance.Actions {
+		applyV2ActionToState(ctx, state, a)
+	}
+	return nil
+}
+
+// extConfigTemplateSetters maps action types whose state field is a plain
+// external-config template to the setter for that field. Keeping these out of
+// applyV2ActionToState's switch keeps its branch count below SonarQube's limit.
+var extConfigTemplateSetters = map[int32]func(*automationV2ResourceModel, *automationV2ExternalConfigTemplateModel){
+	api_client.AutomationSlackID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.SlackTemplate = t },
+	api_client.AutomationPagerDutyID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.PagerDutyTemplate = t
+	},
+	api_client.AutomationOpsgenieID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.OpsgenieTemplate = t },
+	api_client.AutomationSumoLogicID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.SumoLogicTemplate = t
+	},
+	api_client.AutomationAzureSentinelID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.AzureSentinelTemplate = t
+	},
+	api_client.AutomationSplunkID:  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.SplunkTemplate = t },
+	api_client.AutomationWebhookID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.WebhookTemplate = t },
+	api_client.AutomationGcpPubSubID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.GcpPubSubTemplate = t
+	},
+	api_client.AutomationTorqID:    func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.TorqTemplate = t },
+	api_client.AutomationMsTeamsID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.MsTeamsTemplate = t },
+	api_client.AutomationServiceNowIncidentsID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.ServiceNowIncidentsTemplate = t
+	},
+	api_client.AutomationServiceNowSIIncidentsID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.ServiceNowSIIncidentsTemplate = t
+	},
+	api_client.AutomationAwsSecurityLakeID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.AwsSecurityLakeTemplate = t
+	},
+	api_client.AutomationSnowflakeID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.SnowflakeTemplate = t
+	},
+	api_client.AutomationChronicleID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.ChronicleTemplate = t
+	},
+	api_client.AutomationCriblID:  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.CriblTemplate = t },
+	api_client.AutomationTinesID:  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.TinesTemplate = t },
+	api_client.AutomationAwsSqsID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AwsSqsTemplate = t },
+	api_client.AutomationAwsSnsID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.AwsSnsTemplate = t },
+	api_client.AutomationOpusID:   func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.OpusTemplate = t },
+	api_client.AutomationCoralogixID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.CoralogixTemplate = t
+	},
+	api_client.AutomationAWSSecurityHubID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) {
+		s.AwsSecurityHubTemplate = t
+	},
+	api_client.AutomationMondayID:  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.MondayTemplate = t },
+	api_client.AutomationLinearID:  func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.LinearTemplate = t },
+	api_client.AutomationPantherID: func(s *automationV2ResourceModel, t *automationV2ExternalConfigTemplateModel) { s.PantherTemplate = t },
+}
+
+// field of the model. Split out of reconstructV2StateFromAPI to keep that
+// function's cognitive complexity low.
+func applyV2ActionToState(ctx context.Context, state *automationV2ResourceModel, a api_client.AutomationV2Action) {
+	if set, ok := extConfigTemplateSetters[a.Type]; ok {
+		set(state, extConfigTmpl(a))
+		return
+	}
+	switch a.Type {
+	case api_client.AutomationAlertDismissalID:
+		state.AlertDismissalTemplate = &automationV2AlertDismissalTemplateModel{
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
+		}
+	case api_client.AutomationAlertScoreChangeID:
+		applyV2AlertScoreChangeToState(state, a)
+	case api_client.AutomationSnoozeID:
+		state.SnoozeTemplate = &automationV2SnoozeTemplateModel{
+			Days:          dataInt64(a.Data, "days"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
+		}
+	case api_client.AutomationEmailID:
+		state.EmailTemplate = &automationV2EmailTemplateModel{
+			EmailAddresses: dataStringList(ctx, a.Data, "email"),
+			MultiAlerts:    dataBool(a.Data, "multi_alerts"),
+			AssetTagKeys:   dataStringList(ctx, a.Data, "asset_tag_keys"),
+			CustomTagKeys:  dataStringList(ctx, a.Data, "custom_tag_keys"),
+		}
+	case api_client.AutomationRemediationID:
+		state.RemediationTemplate = &automationV2RemediationTemplateModel{
+			RemediationAction: dataString(a.Data, "remediation_action"),
+		}
+	case api_client.AutomationSiemID:
+		token := ""
+		if a.SiemToken != nil {
+			token = *a.SiemToken
+		}
+		state.ApiTokenTemplate = &automationV2ExternalConfigTemplateModel{
+			ExternalConfigID: types.StringValue(token),
+		}
+	case api_client.AutomationDatadogID:
+		id := ""
+		if a.ExternalConfig != nil {
+			id = *a.ExternalConfig
+		}
+		state.DatadogTemplate = &automationV2DatadogTemplateModel{
+			ExternalConfigID: types.StringValue(id),
+			Type:             dataString(a.Data, "type"),
+		}
+	case api_client.AutomationAzureDevopsID:
+		state.AzureDevopsTemplate = extConfigWithParentTmpl(a)
+	case api_client.AutomationJiraID:
+		state.JiraCloudTemplate = extConfigWithParentTmpl(a)
+	case api_client.AutomationJiraServerID:
+		state.JiraServerTemplate = extConfigWithParentTmpl(a)
+	}
+}
+
+// applyV2AlertScoreChangeToState maps an alert-score-change action onto the
+// matching decrease/increase/specify template field of the model.
+func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_client.AutomationV2Action) {
+	switch {
+	case func() bool { _, ok := a.Data["decrease_orca_score"]; return ok }():
+		state.AlertScoreDecreaseTemplate = &automationV2AlertScoreDecreaseTemplateModel{
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
+		}
+	case func() bool { _, ok := a.Data["increase_orca_score"]; return ok }():
+		state.AlertScoreIncreaseTemplate = &automationV2AlertScoreIncreaseTemplateModel{
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
+		}
+	default:
+		state.AlertScoreSpecifyTemplate = &automationV2AlertScoreSpecifyTemplateModel{
+			NewScore:      dataFloat64(a.Data, "change_orca_score"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
+		}
+	}
 }
 
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -757,6 +1083,21 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 		state.EndTime = types.StringValue(instance.EndTime)
 	} else {
 		state.EndTime = types.StringNull()
+	}
+
+	// On import there is no prior state for the filter or action templates
+	// (filter is Required, so a nil filter means this Read follows an import).
+	// Rebuild them from the API so `terraform plan` is clean. On a normal
+	// refresh the prior state already round-trips the user's exact JSON/template
+	// shape, so it is left untouched to avoid spurious diffs.
+	if state.Filter == nil {
+		if err := reconstructV2StateFromAPI(ctx, &state, instance); err != nil {
+			resp.Diagnostics.AddError(
+				"Error reading Automation V2",
+				fmt.Sprintf("Could not reconstruct state for ID %s: %s", state.ID.ValueString(), err.Error()),
+			)
+			return
+		}
 	}
 
 	diags = resp.State.Set(ctx, &state)

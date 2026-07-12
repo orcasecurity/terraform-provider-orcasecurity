@@ -66,9 +66,11 @@ resource "orcasecurity_scheduled_report" "weekly_alerts" {
     "CloudAccount.Name", "CreatedAt", "LastSeen", "AlertId",
   ]
 
+  # Compression is set via the typed attribute; other extras go in `config`.
+  compression = ".zip"
+
   config = jsonencode({
-    buIds            = []
-    compression_type = ".zip"
+    buIds = []
   })
 }
 
@@ -120,7 +122,8 @@ resource "orcasecurity_scheduled_report" "daily_assets" {
 - `azure_blob_container` (String) Name of the connected Azure Blob Storage container. Required when `share_to_azure_blob` is `true`.
 - `bucket` (String) Name of the connected S3 bucket template. Required when `share_to_bucket` is `true`.
 - `columns` (List of String) Columns to include in the exported report. If omitted, default columns are used.
-- `config` (String) Extra report configuration as a JSON-encoded string, e.g. compliance framework or compression settings.
+- `compression` (String) Compression applied to the generated report file. Valid values are: `[.zip .gz .tar.gz]`. Maps to `compression_type` inside the report `config`.
+- `config` (String) Extra report configuration as a JSON-encoded string, e.g. compliance framework or compression settings. Prefer the typed `compression` attribute over setting `compression_type` here.
 - `custom_email_content` (String) Custom body for report delivery emails.
 - `custom_email_subject` (String) Custom subject for report delivery emails.
 - `dsl_filter` (String) Filter applied to the report data, as a JSON-encoded string. Required for `alerts` and `compliance` report types. Structure: `{"filter": [{"field": "...", "includes": [...]}]}`.

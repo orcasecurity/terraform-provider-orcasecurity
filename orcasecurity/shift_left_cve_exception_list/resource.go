@@ -260,6 +260,41 @@ func (r *shiftLeftCveExceptionListResource) Read(ctx context.Context, req resour
 
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
+	if instance.Description != "" {
+		state.Description = types.StringValue(instance.Description)
+	} else {
+		state.Description = types.StringNull()
+	}
+	state.Disabled = types.BoolValue(instance.Disabled)
+
+	var vulnerabilities []Vulnerability
+	for _, item := range instance.Vulnerabilities {
+		vuln := Vulnerability{
+			CVEID:       types.StringValue(item.CVEID),
+			Description: types.StringValue(item.Description),
+			Disabled:    types.BoolValue(item.Disabled),
+		}
+		if item.Expiration != "" {
+			vuln.Expiration = types.StringValue(item.Expiration)
+		} else {
+			vuln.Expiration = types.StringNull()
+		}
+		for _, url := range item.RepositoryURLs {
+			vuln.RepositoryURLs = append(vuln.RepositoryURLs, types.StringValue(url))
+		}
+		vulnerabilities = append(vulnerabilities, vuln)
+	}
+	state.Vulnerabilities = vulnerabilities
+
+	var projects []Project
+	for _, item := range instance.Projects {
+		projects = append(projects, Project{
+			ProjectID:   types.StringValue(item.ProjectID),
+			ProjectName: types.StringValue(item.ProjectName),
+			ProjectKey:  types.StringValue(item.ProjectKey),
+		})
+	}
+	state.Projects = projects
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

@@ -46,6 +46,11 @@ var reportRecurrences = []string{
 	"daily", "weekly", "monthly", "quarterly", "once",
 }
 
+// reportCompressionTypes mirrors the backend ReportCompressionType enum.
+var reportCompressionTypes = []string{
+	".zip", ".gz", ".tar.gz",
+}
+
 var reportStatusToInt = map[string]int{
 	"created":  api_client.ScheduledReportStatusCreated,
 	"active":   api_client.ScheduledReportStatusActive,
@@ -90,6 +95,7 @@ type scheduledReportResourceModel struct {
 	SonarQueryParams types.String `tfsdk:"sonar_query_params"`
 	QueryFilters     types.String `tfsdk:"query_filters"`
 	Config           types.String `tfsdk:"config"`
+	Compression      types.String `tfsdk:"compression"`
 	S3Path           types.String `tfsdk:"s3_path"`
 
 	RecipientsEmails   types.List   `tfsdk:"recipients_emails"`
@@ -219,8 +225,17 @@ func (r *scheduledReportResource) Schema(ctx context.Context, req resource.Schem
 				Optional:    true,
 			},
 			"config": schema.StringAttribute{
-				Description: "Extra report configuration as a JSON-encoded string, e.g. compliance framework or compression settings.",
-				Optional:    true,
+				Description: "Extra report configuration as a JSON-encoded string, e.g. compliance framework or compression settings. " +
+					"Prefer the typed `compression` attribute over setting `compression_type` here.",
+				Optional: true,
+			},
+			"compression": schema.StringAttribute{
+				Description: fmt.Sprintf("Compression applied to the generated report file. Valid values are: `%v`. "+
+					"Maps to `compression_type` inside the report `config`.", reportCompressionTypes),
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.OneOf(reportCompressionTypes...),
+				},
 			},
 			"s3_path": schema.StringAttribute{
 				Description: "Custom S3 path for the generated reports.",
@@ -362,10 +377,47 @@ func stringOrNull(apiValue string, state types.String) types.String {
 	return types.StringValue(apiValue)
 }
 
+// popCompressionType splits the "compression_type" key out of a report config
+// map so it can be surfaced through the typed `compression` attribute. It
+// returns a copy of the config without that key plus the extracted value. When
+// the key is absent or empty, the original map is returned unchanged and
+// compression is "".
+func popCompressionType(config map[string]interface{}) (rest map[string]interface{}, compression string) {
+	ct, ok := config["compression_type"].(string)
+	if !ok || ct == "" {
+		return config, ""
+	}
+	rest = make(map[string]interface{}, len(config))
+	for k, v := range config {
+		if k == "compression_type" {
+			continue
+		}
+		rest[k] = v
+	}
+	return rest, ct
+}
+
 func (r *scheduledReportResource) buildAPIPayload(ctx context.Context, plan *scheduledReportResourceModel) (*api_client.ScheduledReport, []string) {
 	jsonDiags := jsonDiagnostics{}
 
 	status := reportStatusToInt[plan.Status.ValueString()]
+
+	// The typed `compression` attribute is a convenience mirror of
+	// config.compression_type. When set, it is merged into the config map and
+	// takes precedence; a conflicting value spelled out in `config` is rejected.
+	configMap := jsonAttributeToMap(plan.Config, "config", &jsonDiags)
+	if !plan.Compression.IsNull() && !plan.Compression.IsUnknown() && plan.Compression.ValueString() != "" {
+		compression := plan.Compression.ValueString()
+		if configMap == nil {
+			configMap = map[string]interface{}{}
+		}
+		if existing, ok := configMap["compression_type"]; ok && existing != compression {
+			jsonDiags.errors = append(jsonDiags.errors,
+				fmt.Sprintf("attribute \"compression\" (%q) conflicts with compression_type (%v) set in \"config\"; set only one", compression, existing))
+		}
+		configMap["compression_type"] = compression
+	}
+
 	payload := api_client.ScheduledReport{
 		Name:            plan.Name.ValueString(),
 		Type:            plan.Type.ValueString(),
@@ -380,7 +432,7 @@ func (r *scheduledReportResource) buildAPIPayload(ctx context.Context, plan *sch
 		SonarQuery:       plan.SonarQuery.ValueString(),
 		SonarQueryParams: jsonAttributeToMap(plan.SonarQueryParams, "sonar_query_params", &jsonDiags),
 		QueryFilters:     jsonAttributeToMap(plan.QueryFilters, "query_filters", &jsonDiags),
-		Config:           jsonAttributeToMap(plan.Config, "config", &jsonDiags),
+		Config:           configMap,
 		S3Path:           plan.S3Path.ValueString(),
 
 		RecipientsEmails:   stringList(ctx, plan.RecipientsEmails),
@@ -497,7 +549,14 @@ func (r *scheduledReportResource) Read(ctx context.Context, req resource.ReadReq
 	state.DSLFilter = refreshJSONAttribute(state.DSLFilter, instance.DSLFilter, &resp.Diagnostics)
 	state.SonarQueryParams = refreshJSONAttribute(state.SonarQueryParams, instance.SonarQueryParams, &resp.Diagnostics)
 	state.QueryFilters = refreshJSONAttribute(state.QueryFilters, instance.QueryFilters, &resp.Diagnostics)
-	state.Config = refreshJSONAttribute(state.Config, instance.Config, &resp.Diagnostics)
+
+	// compression_type is surfaced through the typed `compression` attribute, so
+	// keep it out of the free-form `config` string to avoid two sources of truth.
+	apiConfig, apiCompression := popCompressionType(instance.Config)
+	state.Config = refreshJSONAttribute(state.Config, apiConfig, &resp.Diagnostics)
+	if state.Compression.IsNull() && apiCompression != "" {
+		state.Compression = types.StringValue(apiCompression)
+	}
 	if state.SonarQuery.IsNull() && instance.SonarQuery != "" {
 		state.SonarQuery = types.StringValue(instance.SonarQuery)
 	}

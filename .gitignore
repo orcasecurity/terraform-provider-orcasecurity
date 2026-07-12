@@ -43,3 +43,6 @@ terraform
 .gpg
 demo
 
+
+# Local superpowers plan/spec docs — never commit
+docs/superpowers/

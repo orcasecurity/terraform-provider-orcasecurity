@@ -24,6 +24,8 @@ var (
 	_ resource.ResourceWithImportState = &discoveryViewResource{}
 )
 
+const errReadingDiscoveryView = "Error reading discovery view"
+
 type discoveryViewResource struct {
 	apiClient *api_client.APIClient
 }
@@ -58,16 +60,16 @@ type discoveryQueryResourceModel struct {
 }
 
 type discoveryViewResourceModel struct {
-	ID                types.String                `tfsdk:"id"`
-	Name              types.String                `tfsdk:"name"`
-	FilterData        discoveryQueryResourceModel `tfsdk:"filter_data"`
-	ExtraParameters   map[string]interface{}      `tfsdk:"extra_params"`
-	Columns           types.List                  `tfsdk:"columns"`
-	Sort              types.String                `tfsdk:"sort"`
-	GroupBy           types.List                  `tfsdk:"group_by"`
-	GroupBy2          []groupByEntryModel         `tfsdk:"group_by_2"`
-	OrganizationLevel types.Bool                  `tfsdk:"organization_level"`
-	ViewType          types.String                `tfsdk:"view_type"`
+	ID                types.String                 `tfsdk:"id"`
+	Name              types.String                 `tfsdk:"name"`
+	FilterData        *discoveryQueryResourceModel `tfsdk:"filter_data"`
+	ExtraParameters   map[string]interface{}       `tfsdk:"extra_params"`
+	Columns           types.List                   `tfsdk:"columns"`
+	Sort              types.String                 `tfsdk:"sort"`
+	GroupBy           types.List                   `tfsdk:"group_by"`
+	GroupBy2          []groupByEntryModel          `tfsdk:"group_by_2"`
+	OrganizationLevel types.Bool                   `tfsdk:"organization_level"`
+	ViewType          types.String                 `tfsdk:"view_type"`
 }
 
 type groupByEntryModel struct {
@@ -272,22 +274,60 @@ func planGroupByEntries(ctx context.Context, plan discoveryViewResourceModel) []
 }
 
 // extractColumns pulls the ordered column list out of an API extra_params
-// object (extra_params.columns2.keys), ignoring the UI-only fields like hash
-// and collapsedKeys.
+// object. Newer (v2-migrated) views store the display columns under
+// extra_params.columns2.keys; older / UI-migrated views instead carry the full
+// column catalog under extra_params.table_config.columns with the hidden ones
+// listed in table_config.hiddenKeys. We prefer columns2 and fall back to
+// table_config so imported views round-trip cleanly either way.
 func extractColumns(extraParams map[string]interface{}) []string {
-	columnsConfig, ok := extraParams[extraParamsColumnsKey].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	rawKeys, ok := columnsConfig["keys"].([]interface{})
-	if !ok {
-		return nil
-	}
-	keys := make([]string, 0, len(rawKeys))
-	for _, rawKey := range rawKeys {
-		if key, ok := rawKey.(string); ok {
-			keys = append(keys, key)
+	if columnsConfig, ok := extraParams[extraParamsColumnsKey].(map[string]interface{}); ok {
+		if rawKeys, ok := columnsConfig["keys"].([]interface{}); ok {
+			keys := make([]string, 0, len(rawKeys))
+			for _, rawKey := range rawKeys {
+				if key, ok := rawKey.(string); ok {
+					keys = append(keys, key)
+				}
+			}
+			if len(keys) > 0 {
+				return keys
+			}
 		}
+	}
+	return extractTableConfigColumns(extraParams)
+}
+
+// extractTableConfigColumns returns the visible column keys from the legacy
+// table_config shape: every table_config.columns[].key that is not listed in
+// table_config.hiddenKeys, preserving order. This mirrors the visible-column
+// set the Orca UI exports to HCL.
+func extractTableConfigColumns(extraParams map[string]interface{}) []string {
+	tableConfig, ok := extraParams["table_config"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	rawColumns, ok := tableConfig["columns"].([]interface{})
+	if !ok {
+		return nil
+	}
+	hidden := map[string]bool{}
+	if rawHidden, ok := tableConfig["hiddenKeys"].([]interface{}); ok {
+		for _, h := range rawHidden {
+			if key, ok := h.(string); ok {
+				hidden[key] = true
+			}
+		}
+	}
+	keys := make([]string, 0, len(rawColumns))
+	for _, rawColumn := range rawColumns {
+		column, ok := rawColumn.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key, ok := column["key"].(string)
+		if !ok || key == "" || hidden[key] {
+			continue
+		}
+		keys = append(keys, key)
 	}
 	return keys
 }
@@ -517,7 +557,7 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	exists, err := r.apiClient.DoesDiscoveryViewExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading discovery view",
+			errReadingDiscoveryView,
 			fmt.Sprintf("Could not read discovery view ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -532,7 +572,7 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	instance, err := r.apiClient.GetDiscoveryView(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading discovery view",
+			errReadingDiscoveryView,
 			fmt.Sprintf("Could not read discovery view ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -543,14 +583,46 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	queryString := state.FilterData.Data.ValueString()
+	populateDiscoveryViewState(ctx, &state, instance, resp)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// populateDiscoveryViewState maps the API instance onto the model. Split out of
+// Read to keep that function's cognitive complexity low.
+func populateDiscoveryViewState(ctx context.Context, state *discoveryViewResourceModel, instance *api_client.DiscoveryView, resp *resource.ReadResponse) {
+	// Prefer the query already in state to avoid churn from JSON key
+	// reordering on normal refresh. On import there is no prior state, so
+	// derive the query from the API response instead.
+	queryString := ""
+	if state.FilterData != nil {
+		queryString = state.FilterData.Data.ValueString()
+	}
+	if queryString == "" && len(instance.FilterData.Data) > 0 {
+		queryBytes, err := json.Marshal(instance.FilterData.Data)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				errReadingDiscoveryView,
+				fmt.Sprintf("Could not marshal filter_data query for ID %s: %s", state.ID.ValueString(), err.Error()),
+			)
+			return
+		}
+		queryString = string(queryBytes)
+	}
 
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
 	state.OrganizationLevel = types.BoolValue(instance.OrganizationLevel)
 	state.ViewType = types.StringValue(instance.ViewType)
 	state.ExtraParameters = make(map[string]interface{})
-	state.FilterData = discoveryQueryResourceModel{Data: types.StringValue(queryString)}
+	state.FilterData = &discoveryQueryResourceModel{Data: types.StringValue(queryString)}
 
 	columns := extractColumns(instance.ExtraParameters)
 	if len(columns) > 0 {
@@ -567,11 +639,15 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 		state.Sort = types.StringNull()
 	}
 
+	applyGroupByToState(ctx, state, instance, resp)
+}
+
+// applyGroupByToState decides which group-by attribute to populate. It
+// preserves the user's chosen attribute when possible: if state already used
+// the legacy `group_by` and the data still fits that shape (no per-group sort),
+// keep `group_by`. Otherwise use `group_by_2`.
+func applyGroupByToState(ctx context.Context, state *discoveryViewResourceModel, instance *api_client.DiscoveryView, resp *resource.ReadResponse) {
 	groupBy := extractGroupBy(instance.ExtraParameters)
-	// Decide which attribute to populate. Preserve the user's chosen attribute
-	// when possible: if state already used the legacy `group_by` and the data
-	// still fits that shape (no per-group sort), keep `group_by`. Otherwise use
-	// `group_by_2`.
 	legacyGroupByInUse := !state.GroupBy.IsNull() && !state.GroupBy.IsUnknown()
 	switch {
 	case len(groupBy) == 0:
@@ -585,12 +661,6 @@ func (r *discoveryViewResource) Read(ctx context.Context, req resource.ReadReque
 	default:
 		state.GroupBy = types.ListNull(types.StringType)
 		state.GroupBy2 = apiGroupByToModel(groupBy)
-	}
-
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
 	}
 }
 

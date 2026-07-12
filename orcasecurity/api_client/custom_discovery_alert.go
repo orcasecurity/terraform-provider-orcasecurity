@@ -27,9 +27,11 @@ type CustomDiscoveryAlert struct {
 }
 
 type CustomDiscoveryAlertComplianceFramework struct {
-	Name     string `json:"compliance_framework"`
-	Section  string `json:"category"`
-	Priority string `json:"priority"`
+	Name           string `json:"compliance_framework"`
+	Category       string `json:"category"`
+	SubCategory    string `json:"sub_category,omitempty"`
+	SubSubCategory string `json:"sub_sub_category,omitempty"`
+	Priority       string `json:"priority"`
 }
 
 type CustomDiscoveryAlertRemediationText struct {

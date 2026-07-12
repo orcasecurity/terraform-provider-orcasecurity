@@ -28,8 +28,9 @@ var (
 )
 
 const (
-	errReadingCustomWidget = "Error reading custom widget"
-	tfTypeAlertTable       = "alert-table"
+	errReadingCustomWidget  = "Error reading custom widget"
+	errCreatingCustomWidget = "Error creating widget"
+	tfTypeAlertTable        = "alert-table"
 )
 
 type customWidgetResource struct {
@@ -175,12 +176,20 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						},
 					},
 					"subtitle": schema.StringAttribute{
-						Description: "Custom widget subtitle that will be presented in the UI.",
-						Required:    true,
+						Description: "Custom widget subtitle that will be presented in the UI. Server-owned: some widget types (e.g. donut/PIE_CHART_SINGLE) do not persist it, so it is Computed and reflects whatever the API returns.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"description": schema.StringAttribute{
-						Description: "Custom widget description (the text that appears in the info bubble).",
-						Required:    true,
+						Description: "Custom widget description (the text that appears in the info bubble). Server-owned: some widget types (e.g. donut/PIE_CHART_SINGLE) do not persist it, so it is Computed and reflects whatever the API returns.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"widget_extra_params": schema.SingleNestedAttribute{
 						Description: "Extra params block (`extraParams` in API). Used by `comparison` (PIE_CHART_MULTI) widgets to hold field, default_mapper, and values_format.",
@@ -241,12 +250,8 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 									},
 									"group_by_list": schema.ListAttribute{
 										ElementType: types.StringType,
-										Description: "How to group the returned results. Do not use this option with the table-type widget",
+										Description: "How to group the returned results. Do not use this option with the table-type widget.",
 										Optional:    true,
-										Computed:    true,
-										PlanModifiers: []planmodifier.List{
-											listplanmodifier.UseStateForUnknown(),
-										},
 									},
 									"limit": schema.Int64Attribute{
 										Description: "Number of items returned in query.",
@@ -651,7 +656,7 @@ func singleParamsToState(ctx context.Context, s api_client.CustomWidgetExtraPara
 	return &requestParamsModel{
 		Query:            types.StringValue(string(queryJSON)),
 		GroupBy:          stringSliceToTypesStrings(params.GroupBy),
-		GroupByList:      stringSliceToTypesStrings(params.GroupByList),
+		GroupByList:      nilIfEmptyStrings(params.GroupByList),
 		Limit:            types.Int64Value(params.Limit),
 		StartAtIndex:     types.Int64Value(sai),
 		EnablePagination: types.BoolValue(ep),
@@ -689,6 +694,13 @@ func stringSliceToTypesStrings(ss []string) []types.String {
 	return out
 }
 
+func nilIfEmptyStrings(ss []string) []types.String {
+	if len(ss) == 0 {
+		return nil
+	}
+	return stringSliceToTypesStrings(ss)
+}
+
 func columnsFromAPI(ctx context.Context, columns []string) (types.List, error) {
 	if len(columns) == 0 {
 		return types.ListNull(types.StringType), nil
@@ -720,10 +732,23 @@ func diagError(diags diag.Diagnostics) error {
 	return fmt.Errorf("%s: %s", e.Summary(), e.Detail())
 }
 
+// nullIfEmpty maps an empty API string to a null Terraform value. Used for the server-owned
+// subtitle/description display fields: some widget types (e.g. donut/PIE_CHART_SINGLE) never
+// persist them, so GET returns null/"". Mapping "" to null (rather than an empty string) lets a
+// config that omits these Computed attributes import cleanly instead of diffing null vs "".
+func nullIfEmpty(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(s)
+}
+
 // instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
 func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
 	ep := instance.ExtraParameters
-	settings := customWidgetExtraParametersSettingsModel{}
+	settings := customWidgetExtraParametersSettingsModel{
+		Columns: types.ListNull(types.StringType),
+	}
 	if len(ep.Settings) > 0 {
 		var err error
 		settings, err = apiSettingsToStateSettings(ctx, ep.Settings[0])
@@ -744,8 +769,8 @@ func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (cu
 			Size:              types.StringValue(ep.Size),
 			IsNew:             types.BoolValue(ep.IsNew),
 			Title:             types.StringValue(ep.Title),
-			Subtitle:          types.StringValue(ep.Subtitle),
-			Description:       types.StringValue(ep.Description),
+			Subtitle:          nullIfEmpty(ep.Subtitle),
+			Description:       nullIfEmpty(ep.Description),
 			WidgetExtraParams: widgetExtraParamsToState(ep.ExtraParams),
 			Settings:          settings,
 		},
@@ -773,18 +798,31 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 	instance, err := r.apiClient.CreateCustomWidget(createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating widget",
+			errCreatingCustomWidget,
 			"Could not create widget, unexpected error: "+err.Error(),
 		)
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
-	plan.ViewType = types.StringValue("customs_widgets")
-	plan.ExtraParameters.Category = types.StringValue("Custom")
-	plan.ExtraParameters.Title = plan.Name
+	created, err := r.apiClient.GetCustomWidget(instance.ID)
+	if err != nil || created == nil {
+		resp.Diagnostics.AddError(
+			errCreatingCustomWidget,
+			fmt.Sprintf("Widget created but could not be read back (ID: %s): %v", instance.ID, err),
+		)
+		return
+	}
 
-	diags = resp.State.Set(ctx, plan)
+	state, err := instanceToState(ctx, created)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			errCreatingCustomWidget,
+			"Could not convert widget state: "+err.Error(),
+		)
+		return
+	}
+
+	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -26,6 +26,8 @@ var (
 	_ resource.ResourceWithConfigValidators = &customDiscoveryAlertResource{}
 )
 
+const errReadingAlert = "Error reading Alert"
+
 type customDiscoveryAlertResource struct {
 	apiClient *api_client.APIClient
 }
@@ -156,7 +158,7 @@ func (r *customDiscoveryAlertResource) Schema(_ context.Context, req resource.Sc
 						},
 						"section": schema.StringAttribute{
 							Required:    true,
-							Description: "Custom framework section.",
+							Description: "Custom framework section. For nested sections, join the levels with `/` (e.g. `Identify/Risk Assessment/Vulnerabilities in assets are identified`); up to three levels are supported.",
 						},
 						"priority": schema.StringAttribute{
 							Required:    true,
@@ -253,7 +255,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	exists, err := r.apiClient.DoesCustomDiscoveryAlertExist(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading Alert",
+			errReadingAlert,
 			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -268,7 +270,7 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	instance, err := r.apiClient.GetCustomDiscoveryAlert(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading Alert",
+			errReadingAlert,
 			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
@@ -283,6 +285,27 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 	state.ContextScore = types.BoolValue(instance.ContextScore)
 	state.OrcaScore = types.Float64Value(instance.OrcaScore)
 
+	// Prefer the rule_json already in state to avoid churn from JSON key
+	// reordering on normal refresh. On import there is no prior state, so
+	// derive it from the API response instead.
+	ruleJsonString := state.RuleJson.ValueString()
+	if ruleJsonString == "" && len(instance.RuleJson) > 0 {
+		ruleJsonBytes, err := json.Marshal(instance.RuleJson)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				errReadingAlert,
+				fmt.Sprintf("Could not marshal rule_json for ID %s: %s", state.ID.ValueString(), err.Error()),
+			)
+			return
+		}
+		ruleJsonString = string(ruleJsonBytes)
+	}
+	if ruleJsonString != "" {
+		state.RuleJson = types.StringValue(ruleJsonString)
+	} else {
+		state.RuleJson = types.StringNull()
+	}
+
 	if instance.RemediationText.Text != "" {
 		state.RemediationText = &remediationTextStateModel{
 			Enable: types.BoolValue(instance.RemediationText.Enable),
@@ -290,15 +313,16 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 		}
 	}
 
-	/*var frameworks []frameworkStateModel
+	var frameworks []frameworkStateModel
 	for _, frameworkData := range instance.ComplianceFrameworks {
 		frameworks = append(frameworks, frameworkStateModel{
-			Name:     types.StringValue(frameworkData.Name),
-			Section:  types.StringValue(frameworkData.Section),
+			Name: types.StringValue(frameworkData.Name),
+			Section: types.StringValue(api_client.JoinComplianceSection(
+				frameworkData.Category, frameworkData.SubCategory, frameworkData.SubSubCategory)),
 			Priority: types.StringValue(frameworkData.Priority),
 		})
 	}
-	state.Frameworks = frameworks*/
+	state.Frameworks = frameworks
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -418,10 +442,13 @@ func validateCategory(client *api_client.APIClient, category string) error {
 func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomDiscoveryAlertComplianceFramework {
 	var frameworksReq []api_client.CustomDiscoveryAlertComplianceFramework
 	for _, frameworkState := range frameworks {
+		category, subCategory, subSubCategory := api_client.SplitComplianceSection(frameworkState.Section.ValueString())
 		frameworksReq = append(frameworksReq, api_client.CustomDiscoveryAlertComplianceFramework{
-			Name:     frameworkState.Name.ValueString(),
-			Section:  frameworkState.Section.ValueString(),
-			Priority: frameworkState.Priority.ValueString(),
+			Name:           frameworkState.Name.ValueString(),
+			Category:       category,
+			SubCategory:    subCategory,
+			SubSubCategory: subSubCategory,
+			Priority:       frameworkState.Priority.ValueString(),
 		})
 	}
 	return frameworksReq
