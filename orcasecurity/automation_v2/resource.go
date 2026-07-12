@@ -689,6 +689,23 @@ func dataString(data map[string]interface{}, key string) types.String {
 	return types.StringNull()
 }
 
+// dataStringOrEmpty behaves like dataString but returns an empty string (not null)
+// when the key is absent or the value is empty. Used only on the import-reconstruct
+// path for reason/justification, whose documented "omitted" form is the empty string
+// ("" is treated as omitted at the API layer, e.g. UI-exported HCL writes reason = "").
+// The API never returns these once omitted, so a plain dataString would import them as
+// null and perpetually diff against a `reason = ""` config. Returning "" makes imported
+// state match that canonical form; a config that omits the field instead converges after
+// one apply (setOptionalString drops the empty value again).
+func dataStringOrEmpty(data map[string]interface{}, key string) types.String {
+	if v, ok := data[key]; ok {
+		if s, ok := v.(string); ok {
+			return types.StringValue(s)
+		}
+	}
+	return types.StringValue("")
+}
+
 func dataInt64(data map[string]interface{}, key string) types.Int64 {
 	if v, ok := data[key]; ok {
 		if f, ok := v.(float64); ok {
@@ -855,16 +872,16 @@ func applyV2ActionToState(ctx context.Context, state *automationV2ResourceModel,
 	switch a.Type {
 	case api_client.AutomationAlertDismissalID:
 		state.AlertDismissalTemplate = &automationV2AlertDismissalTemplateModel{
-			Reason:        dataString(a.Data, "reason"),
-			Justification: dataString(a.Data, "justification"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
 		}
 	case api_client.AutomationAlertScoreChangeID:
 		applyV2AlertScoreChangeToState(state, a)
 	case api_client.AutomationSnoozeID:
 		state.SnoozeTemplate = &automationV2SnoozeTemplateModel{
 			Days:          dataInt64(a.Data, "days"),
-			Reason:        dataString(a.Data, "reason"),
-			Justification: dataString(a.Data, "justification"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
 		}
 	case api_client.AutomationEmailID:
 		state.EmailTemplate = &automationV2EmailTemplateModel{
@@ -909,19 +926,19 @@ func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_clie
 	switch {
 	case func() bool { _, ok := a.Data["decrease_orca_score"]; return ok }():
 		state.AlertScoreDecreaseTemplate = &automationV2AlertScoreDecreaseTemplateModel{
-			Reason:        dataString(a.Data, "reason"),
-			Justification: dataString(a.Data, "justification"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
 		}
 	case func() bool { _, ok := a.Data["increase_orca_score"]; return ok }():
 		state.AlertScoreIncreaseTemplate = &automationV2AlertScoreIncreaseTemplateModel{
-			Reason:        dataString(a.Data, "reason"),
-			Justification: dataString(a.Data, "justification"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
 		}
 	default:
 		state.AlertScoreSpecifyTemplate = &automationV2AlertScoreSpecifyTemplateModel{
 			NewScore:      dataFloat64(a.Data, "change_orca_score"),
-			Reason:        dataString(a.Data, "reason"),
-			Justification: dataString(a.Data, "justification"),
+			Reason:        dataStringOrEmpty(a.Data, "reason"),
+			Justification: dataStringOrEmpty(a.Data, "justification"),
 		}
 	}
 }

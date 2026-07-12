@@ -140,6 +140,40 @@ func TestAppendReasonJustificationAction_EmptyValuesSkipped(t *testing.T) {
 	}
 }
 
+func TestDataStringOrEmpty(t *testing.T) {
+	// Absent key -> "" (not null), so imported reason/justification match a
+	// `reason = ""` config instead of perpetually diffing null vs "".
+	if got := dataStringOrEmpty(map[string]interface{}{}, "reason"); got.ValueString() != "" || got.IsNull() {
+		t.Errorf("absent key: expected empty string, got %#v", got)
+	}
+	// Present value passes through.
+	if got := dataStringOrEmpty(map[string]interface{}{"reason": "why"}, "reason"); got.ValueString() != "why" {
+		t.Errorf("present key: expected %q, got %q", "why", got.ValueString())
+	}
+	// Explicit empty value stays empty (not null).
+	if got := dataStringOrEmpty(map[string]interface{}{"reason": ""}, "reason"); got.ValueString() != "" || got.IsNull() {
+		t.Errorf("empty value: expected empty string, got %#v", got)
+	}
+}
+
+func TestApplyV2AlertScoreChangeToState_SpecifyImportsEmptyReason(t *testing.T) {
+	state := &automationV2ResourceModel{}
+	applyV2AlertScoreChangeToState(state, api_client.AutomationV2Action{
+		Type: api_client.AutomationAlertScoreChangeID,
+		Data: map[string]interface{}{"change_orca_score": float64(1.5)},
+	})
+	tmpl := state.AlertScoreSpecifyTemplate
+	if tmpl == nil {
+		t.Fatal("expected AlertScoreSpecifyTemplate to be set")
+	}
+	if tmpl.Reason.IsNull() || tmpl.Reason.ValueString() != "" {
+		t.Errorf("expected empty reason on import, got %#v", tmpl.Reason)
+	}
+	if tmpl.Justification.IsNull() || tmpl.Justification.ValueString() != "" {
+		t.Errorf("expected empty justification on import, got %#v", tmpl.Justification)
+	}
+}
+
 func TestGenerateV2Actions_EmailAddresses(t *testing.T) {
 	plan := &automationV2ResourceModel{
 		EmailTemplate: &automationV2EmailTemplateModel{
