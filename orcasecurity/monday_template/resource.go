@@ -6,6 +6,7 @@ import (
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,13 +22,13 @@ import (
 // needs. resource_id maps to the envelope's top-level "resource".
 type state struct {
 	cc.CommonFieldsWithBU
-	ResourceID              types.String `tfsdk:"resource_id"`
-	WorkspaceID             types.String `tfsdk:"workspace_id"`
-	BoardID                 types.String `tfsdk:"board_id"`
-	GroupID                 types.String `tfsdk:"group_id"`
-	MappingJSON             types.String `tfsdk:"mapping_json"`
-	AlertStatusMappingJSON  types.String `tfsdk:"alert_status_mapping_json"`
-	TicketStatusMappingJSON types.String `tfsdk:"ticket_status_mapping_json"`
+	ResourceID              types.String         `tfsdk:"resource_id"`
+	WorkspaceID             types.String         `tfsdk:"workspace_id"`
+	BoardID                 types.String         `tfsdk:"board_id"`
+	GroupID                 types.String         `tfsdk:"group_id"`
+	MappingJSON             common.OrcaMapping   `tfsdk:"mapping_json"`
+	AlertStatusMappingJSON  jsontypes.Normalized `tfsdk:"alert_status_mapping_json"`
+	TicketStatusMappingJSON jsontypes.Normalized `tfsdk:"ticket_status_mapping_json"`
 }
 
 func variantAttributes() map[string]schema.Attribute {
@@ -53,15 +54,18 @@ func variantAttributes() map[string]schema.Attribute {
 		},
 		"mapping_json": schema.StringAttribute{
 			Required:    true,
+			CustomType:  common.OrcaMappingType{},
 			Description: "JSON-encoded `mapping` object. Each key is a Monday column ID; values are lists of `{ \"orca\": \"<alert_field>\" }`, a `{ \"custom\": \"<literal>\" }` object, a `{ \"value\": \"<literal>\" }` object, or a list of `{ \"value\": { \"id\": ..., \"kind\": ... } }` entries for people columns.",
 			Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 		},
 		"alert_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `alert_status_mapping` — maps Orca alert statuses to Monday status column values (for example, `{\"snoozed\": \"1\"}`).",
 		},
 		"ticket_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `ticket_status_mapping` — maps Monday status column values back to Orca alert state changes (for example, `{\"2\": {\"status\": \"dismissed\"}}`).",
 		},
 		// Override the base business_units attribute: Orca only accepts this value at create time
@@ -89,8 +93,9 @@ func decodeMappings(s *state, cfg *api_client.MondayTemplateConfig, diags *diag.
 	}, diags)
 }
 
-// encodeMappings writes the three JSON config fields from the API response back onto state,
-// preserving each field's planned whitespace shape. `mapping` is collapsed back to shorthand.
+// encodeMappings writes the three JSON config fields from the API response back onto state
+// verbatim. The mapping types' semantic equality absorbs whitespace/key-order and the orca
+// shorthand, so the framework keeps the user's HCL form and no diff appears.
 func encodeMappings(s *state, cfg *api_client.MondayTemplateConfig, diags *diag.Diagnostics) {
 	mapping, d := common.EncodeOrcaMappingField(cfg.Mapping, s.MappingJSON)
 	diags.Append(d...)

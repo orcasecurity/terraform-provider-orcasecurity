@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -48,7 +49,7 @@ func TestDecodeJSONField(t *testing.T) {
 
 func TestEncodeJSONField(t *testing.T) {
 	t.Run("empty raw with null planned stays null", func(t *testing.T) {
-		got, diags := EncodeJSONField(nil, types.StringNull())
+		got, diags := EncodeJSONField(nil, jsontypes.NewNormalizedNull())
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
@@ -58,7 +59,7 @@ func TestEncodeJSONField(t *testing.T) {
 	})
 
 	t.Run("empty raw with planned value preserves planned", func(t *testing.T) {
-		planned := types.StringValue(`{"old":1}`)
+		planned := jsontypes.NewNormalizedValue(`{"old":1}`)
 		got, diags := EncodeJSONField(nil, planned)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -68,20 +69,20 @@ func TestEncodeJSONField(t *testing.T) {
 		}
 	})
 
-	t.Run("valid raw re-marshals to compact json", func(t *testing.T) {
+	t.Run("valid raw stored verbatim (semantic equality handles formatting)", func(t *testing.T) {
 		raw := json.RawMessage(`{ "a" : 1 }`)
-		got, diags := EncodeJSONField(raw, types.StringNull())
+		got, diags := EncodeJSONField(raw, jsontypes.NewNormalizedNull())
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if got.ValueString() != `{"a":1}` {
-			t.Errorf("expected compact json, got %q", got.ValueString())
+		if got.ValueString() != `{ "a" : 1 }` {
+			t.Errorf("expected raw stored verbatim, got %q", got.ValueString())
 		}
 	})
 
 	t.Run("malformed raw surfaces diagnostic", func(t *testing.T) {
 		raw := json.RawMessage(`{not-json`)
-		_, diags := EncodeJSONField(raw, types.StringNull())
+		_, diags := EncodeJSONField(raw, jsontypes.NewNormalizedNull())
 		if !diags.HasError() {
 			t.Error("expected error diagnostic for malformed json from API")
 		}

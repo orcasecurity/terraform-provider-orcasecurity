@@ -6,6 +6,7 @@ import (
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,16 +22,16 @@ import (
 // needs.
 type state struct {
 	cc.CommonFieldsWithBU
-	ResourceID                     types.String `tfsdk:"resource_id"`
-	ResourceURL                    types.String `tfsdk:"resource_url"`
-	ProjectID                      types.String `tfsdk:"project_id"`
-	IssueTypeID                    types.String `tfsdk:"issue_type_id"`
-	SubtaskIssueTypeID             types.String `tfsdk:"subtask_issue_type_id"`
-	MappingJSON                    types.String `tfsdk:"mapping_json"`
-	AlertStatusMappingJSON         types.String `tfsdk:"alert_status_mapping_json"`
-	TicketStatusMappingJSON        types.String `tfsdk:"ticket_status_mapping_json"`
-	SubtaskAlertStatusMappingJSON  types.String `tfsdk:"subtask_alert_status_mapping_json"`
-	SubtaskTicketStatusMappingJSON types.String `tfsdk:"subtask_ticket_status_mapping_json"`
+	ResourceID                     types.String         `tfsdk:"resource_id"`
+	ResourceURL                    types.String         `tfsdk:"resource_url"`
+	ProjectID                      types.String         `tfsdk:"project_id"`
+	IssueTypeID                    types.String         `tfsdk:"issue_type_id"`
+	SubtaskIssueTypeID             types.String         `tfsdk:"subtask_issue_type_id"`
+	MappingJSON                    common.OrcaMapping   `tfsdk:"mapping_json"`
+	AlertStatusMappingJSON         jsontypes.Normalized `tfsdk:"alert_status_mapping_json"`
+	TicketStatusMappingJSON        jsontypes.Normalized `tfsdk:"ticket_status_mapping_json"`
+	SubtaskAlertStatusMappingJSON  jsontypes.Normalized `tfsdk:"subtask_alert_status_mapping_json"`
+	SubtaskTicketStatusMappingJSON jsontypes.Normalized `tfsdk:"subtask_ticket_status_mapping_json"`
 }
 
 func variantAttributes() map[string]schema.Attribute {
@@ -61,23 +62,28 @@ func variantAttributes() map[string]schema.Attribute {
 		},
 		"mapping_json": schema.StringAttribute{
 			Required:    true,
+			CustomType:  common.OrcaMappingType{},
 			Description: "JSON-encoded `mapping` object. Each key is a Jira field name; each value is a list of `{ \"orca\": \"<alert_field>\" }` or `{ \"value\": \"<literal>\" }` entries. Multiple entries are concatenated when the Jira field accepts a single value.",
 			Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 		},
 		"alert_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `alert_status_mapping` — maps Orca alert statuses to Jira workflow status IDs (for example, `{\"in_progress\": \"10001\"}`).",
 		},
 		"ticket_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `ticket_status_mapping` — maps Jira workflow status IDs back to Orca alert state changes (for example, `{\"10000\": {\"status\": \"snoozed\", \"snooze_days\": 1}}`).",
 		},
 		"subtask_alert_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `subtask_alert_status_mapping` — same shape as `alert_status_mapping_json`, applied to sub-task tickets.",
 		},
 		"subtask_ticket_status_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `subtask_ticket_status_mapping` — same shape as `ticket_status_mapping_json`, applied to sub-task tickets.",
 		},
 		// Override the base business_units attribute: Orca only accepts this value at create time
@@ -107,8 +113,9 @@ func decodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *di
 	}, diags)
 }
 
-// encodeMappings writes the five JSON config fields from the API response back onto state,
-// preserving each field's planned whitespace shape. `mapping` is collapsed back to shorthand.
+// encodeMappings writes the five JSON config fields from the API response back onto state
+// verbatim. The mapping types' semantic equality absorbs whitespace/key-order and the orca
+// shorthand, so the framework keeps the user's HCL form and no diff appears.
 func encodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *diag.Diagnostics) {
 	mapping, d := common.EncodeOrcaMappingField(cfg.Mapping, s.MappingJSON)
 	diags.Append(d...)

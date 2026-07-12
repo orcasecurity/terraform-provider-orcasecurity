@@ -4,15 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// jsonStringValue is any framework string value that carries JSON: types.String,
+// jsontypes.Normalized, or OrcaMapping. Decoding only needs the null/unknown state and the raw
+// string, so accepting the interface lets the same helper serve every mapping attribute type.
+type jsonStringValue interface {
+	IsNull() bool
+	IsUnknown() bool
+	ValueString() string
+}
 
 // DecodeJSONField turns a Terraform String holding JSON into json.RawMessage suitable for the
 // API payload. Null / unknown / empty string all map to nil so json.Marshal with
 // “omitempty“ skips the field. Any non-empty value is validated as JSON to surface bad
 // input at plan time instead of an opaque 400 from Orca.
-func DecodeJSONField(s types.String, fieldName string) (json.RawMessage, diag.Diagnostics) {
+func DecodeJSONField(s jsonStringValue, fieldName string) (json.RawMessage, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if s.IsNull() || s.IsUnknown() || s.ValueString() == "" {
 		return nil, diags
@@ -25,15 +34,17 @@ func DecodeJSONField(s types.String, fieldName string) (json.RawMessage, diag.Di
 	return raw, diags
 }
 
-// EncodeJSONField turns the json.RawMessage returned by the API into a Terraform String for
-// state. The output is re-marshalled to compact JSON so plans don't drift on whitespace
-// differences between the API response and the user's HCL. Empty / nil API values preserve
-// the user's planned shape (null stays null; an explicit empty string stays empty).
-func EncodeJSONField(raw json.RawMessage, planned types.String) (types.String, diag.Diagnostics) {
+// EncodeJSONField turns the json.RawMessage returned by the API into a jsontypes.Normalized for
+// state. The value is stored verbatim — jsontypes.Normalized's semantic equality ignores
+// whitespace and object key order, so plans don't drift on cosmetic differences, and the
+// framework keeps the user's planned form in state when the two are semantically equal. Storing
+// the raw bytes (rather than re-marshalling) also preserves number fidelity. Empty / nil API
+// values preserve the user's planned shape (null stays null; an explicit empty value stays).
+func EncodeJSONField(raw json.RawMessage, planned jsontypes.Normalized) (jsontypes.Normalized, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(raw) == 0 {
 		if planned.IsNull() || planned.IsUnknown() {
-			return types.StringNull(), diags
+			return jsontypes.NewNormalizedNull(), diags
 		}
 		return planned, diags
 	}
@@ -48,16 +59,11 @@ func EncodeJSONField(raw json.RawMessage, planned types.String) (types.String, d
 	// preserved.
 	if isEmptyJSONValue(generic) {
 		if planned.IsNull() || planned.IsUnknown() {
-			return types.StringNull(), diags
+			return jsontypes.NewNormalizedNull(), diags
 		}
 		return planned, diags
 	}
-	encoded, err := json.Marshal(generic)
-	if err != nil {
-		diags.AddError("Could not re-marshal JSON from API", err.Error())
-		return planned, diags
-	}
-	return types.StringValue(string(encoded)), diags
+	return jsontypes.NewNormalizedValue(string(raw)), diags
 }
 
 // isEmptyJSONValue reports whether a decoded JSON value carries no content:
@@ -78,7 +84,7 @@ func isEmptyJSONValue(v interface{}) bool {
 // planned Terraform value, Field names the attribute for error messages, and Dst points at the
 // API config field to fill in.
 type JSONFieldDecode struct {
-	Src   types.String
+	Src   jsonStringValue
 	Field string
 	Dst   *json.RawMessage
 }
@@ -98,7 +104,7 @@ func DecodeJSONFields(fields []JSONFieldDecode, diags *diag.Diagnostics) {
 // value and Dst points at the Terraform state field, which also supplies the planned shape.
 type JSONFieldEncode struct {
 	Raw json.RawMessage
-	Dst *types.String
+	Dst *jsontypes.Normalized
 }
 
 // EncodeJSONFields runs EncodeJSONField over each mapping, appending any diagnostics and writing

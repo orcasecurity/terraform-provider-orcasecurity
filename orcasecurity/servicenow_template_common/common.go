@@ -11,6 +11,7 @@ import (
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -22,18 +23,18 @@ import (
 // is_enabled / is_default plus the GetCommon/SetCommon glue the generic spec needs.
 type state struct {
 	cc.CommonFields
-	ResourceID               types.String `tfsdk:"resource_id"`
-	InstanceName             types.String `tfsdk:"instance_name"`
-	BaseURL                  types.String `tfsdk:"base_url"`
-	Username                 types.String `tfsdk:"username"`
-	ResolutionStatus         types.String `tfsdk:"resolution_status"`
-	ResolutionCode           types.String `tfsdk:"resolution_code"`
-	ResolutionNote           types.String `tfsdk:"resolution_note"`
-	ReopenStatus             types.String `tfsdk:"reopen_status"`
-	MappingJSON              types.String `tfsdk:"mapping_json"`
-	OnCloseAlertMappingJSON  types.String `tfsdk:"on_close_alert_mapping_json"`
-	AllowReopenAndResolution types.Bool   `tfsdk:"allow_reopen_and_resolution"`
-	AllowMapping             types.Bool   `tfsdk:"allow_mapping"`
+	ResourceID               types.String         `tfsdk:"resource_id"`
+	InstanceName             types.String         `tfsdk:"instance_name"`
+	BaseURL                  types.String         `tfsdk:"base_url"`
+	Username                 types.String         `tfsdk:"username"`
+	ResolutionStatus         types.String         `tfsdk:"resolution_status"`
+	ResolutionCode           types.String         `tfsdk:"resolution_code"`
+	ResolutionNote           types.String         `tfsdk:"resolution_note"`
+	ReopenStatus             types.String         `tfsdk:"reopen_status"`
+	MappingJSON              common.OrcaMapping   `tfsdk:"mapping_json"`
+	OnCloseAlertMappingJSON  jsontypes.Normalized `tfsdk:"on_close_alert_mapping_json"`
+	AllowReopenAndResolution types.Bool           `tfsdk:"allow_reopen_and_resolution"`
+	AllowMapping             types.Bool           `tfsdk:"allow_mapping"`
 }
 
 // Options is what each variant package supplies. ConfigType pins the sn_incidents config.type
@@ -86,10 +87,12 @@ func variantAttributes() map[string]schema.Attribute {
 		},
 		"mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  common.OrcaMappingType{},
 			Description: "JSON-encoded `mapping` object describing how Orca alert fields map to ServiceNow fields. Each key is a ServiceNow field; values are lists of `{ \"orca\": \"<alert_field>\" }` or `{ \"value\": \"<literal>\" }` entries.",
 		},
 		"on_close_alert_mapping_json": schema.StringAttribute{
 			Optional:    true,
+			CustomType:  jsontypes.NormalizedType{},
 			Description: "JSON-encoded `on_close_alert_mapping` object used when an Orca-driven close event syncs back to ServiceNow.",
 		},
 		"allow_reopen_and_resolution": schema.BoolAttribute{
@@ -138,8 +141,8 @@ func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state, diags
 	if api.Config.AllowMapping != nil {
 		s.AllowMapping = types.BoolValue(*api.Config.AllowMapping)
 	}
-	// JSON-field round-trip uses the EncodeJSONField helper so plans don't drift on
-	// whitespace differences between the API response and the user's HCL.
+	// JSON fields are stored verbatim; the mapping types' semantic equality keeps plans stable
+	// across whitespace/key-order and the orca shorthand (see integrations_common).
 	mapping, mDiags := common.EncodeOrcaMappingField(api.Config.Mapping, s.MappingJSON)
 	diags.Append(mDiags...)
 	s.MappingJSON = mapping

@@ -6,16 +6,17 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // The Orca field-mapping config for template integrations (jira, sn_incidents, monday, …) is a
 // JSON object whose values are lists of entries. The common entry is a "pull this Orca alert
 // field" reference, which the API represents verbatim as `{"orca": "<field>"}`. Writing that
-// wrapper for every field is noisy in HCL, so these helpers let users write a bare string
-// (`"<field>"`) instead: the provider expands it to `{"orca": "<field>"}` on the way to the API
-// and collapses it back to a bare string on read, so plans don't drift. Literal entries such as
-// `{"value": "<literal>"}` or `{"custom": ...}` — and any non-list value — pass through untouched.
+// wrapper for every field is noisy in HCL, so users may write a bare string (`"<field>"`)
+// instead: the provider expands it to `{"orca": "<field>"}` on the way to the API. Plans stay
+// stable in the other direction via the OrcaMappingType semantic-equality check (see
+// orca_mapping_type.go), which treats the bare string and the `{"orca": ...}` object as equal —
+// so there is no collapse-on-read. Literal entries such as `{"value": "<literal>"}` or
+// `{"custom": ...}` — and any non-list value — pass through untouched.
 
 // asJSONArray reports whether raw is a JSON array and, if so, returns its elements.
 func asJSONArray(raw json.RawMessage) ([]json.RawMessage, bool) {
@@ -70,37 +71,14 @@ func expandOrcaElement(elem json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(map[string]string{"orca": s})
 }
 
-// collapseOrcaElement rewrites `{"orca": "<string>"}` back into a bare string. Any other shape
-// (literal object, multi-key, non-string orca value, already-bare string) is returned unchanged.
-func collapseOrcaElement(elem json.RawMessage) (json.RawMessage, error) {
-	var obj map[string]json.RawMessage
-	if json.Unmarshal(elem, &obj) != nil {
-		return elem, nil // not an object (already a bare string, etc.)
-	}
-	orcaRaw, ok := obj["orca"]
-	if !ok || len(obj) != 1 {
-		return elem, nil // literal ({"value": ...}) or multi-key — keep as object
-	}
-	var s string
-	if json.Unmarshal(orcaRaw, &s) != nil {
-		return elem, nil // orca value is not a plain string — keep as object
-	}
-	return json.Marshal(s)
-}
-
 // expandOrcaShorthand rewrites bare JSON string list elements into `{"orca": "<string>"}`.
 func expandOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
 	return mapSectionArrays(raw, expandOrcaElement)
 }
 
-// collapseOrcaShorthand rewrites `{"orca": "<string>"}` list elements back into bare strings.
-func collapseOrcaShorthand(raw json.RawMessage) (json.RawMessage, error) {
-	return mapSectionArrays(raw, collapseOrcaElement)
-}
-
 // DecodeOrcaMappingField decodes a mapping_json state string and expands the bare-string
 // shorthand into the API's `{"orca": ...}` wire form. Behaves like DecodeJSONField otherwise.
-func DecodeOrcaMappingField(s types.String, fieldName string) (json.RawMessage, diag.Diagnostics) {
+func DecodeOrcaMappingField(s jsonStringValue, fieldName string) (json.RawMessage, diag.Diagnostics) {
 	raw, diags := DecodeJSONField(s, fieldName)
 	if diags.HasError() || len(raw) == 0 {
 		return raw, diags
@@ -113,17 +91,29 @@ func DecodeOrcaMappingField(s types.String, fieldName string) (json.RawMessage, 
 	return expanded, diags
 }
 
-// EncodeOrcaMappingField collapses the API's `{"orca": ...}` wire form back into the bare-string
-// shorthand, then normalizes to compact JSON for state. Behaves like EncodeJSONField otherwise.
-func EncodeOrcaMappingField(raw json.RawMessage, planned types.String) (types.String, diag.Diagnostics) {
+// EncodeOrcaMappingField stores the API's mapping value on state verbatim. No collapse is needed:
+// OrcaMappingType's semantic equality (see orca_mapping_type.go) treats the API's `{"orca": ...}`
+// wire form as equal to the user's bare-string shorthand, so the framework keeps the user's HCL
+// form in state and no diff appears. An empty API value maps back to a null/planned value so an
+// unset attribute does not diff against `{}`.
+func EncodeOrcaMappingField(raw json.RawMessage, planned OrcaMapping) (OrcaMapping, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(raw) == 0 {
-		return EncodeJSONField(raw, planned)
+		if planned.IsNull() || planned.IsUnknown() {
+			return NewOrcaMappingNull(), diags
+		}
+		return planned, diags
 	}
-	collapsed, err := collapseOrcaShorthand(raw)
-	if err != nil {
+	var generic interface{}
+	if err := json.Unmarshal(raw, &generic); err != nil {
 		diags.AddError("Invalid mapping from API", err.Error())
 		return planned, diags
 	}
-	return EncodeJSONField(collapsed, planned)
+	if isEmptyJSONValue(generic) {
+		if planned.IsNull() || planned.IsUnknown() {
+			return NewOrcaMappingNull(), diags
+		}
+		return planned, diags
+	}
+	return NewOrcaMappingValue(string(raw)), diags
 }
