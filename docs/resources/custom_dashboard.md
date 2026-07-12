@@ -50,7 +50,7 @@ Each widget has a `size` in `widgets_config`. Values correspond to dashboard wid
 | `sm` | Small (S)     | One-third         | One-third      |
 | `md` | Medium (M)    | Two-thirds        | Two-thirds     |
 | `lg` | Large (L)     | Entire width      | Three-quarters |
-| `xl` | Ex-Large (XL) | N/A               | Entire width   |
+| `xl` | Extra-Large (XL) | N/A               | Entire width   |
 
 Legacy Dashboard Builder (V1) supports `sm`, `md`, `lg`. The new Dashboard Builder (V2) adds `xl`.
 
