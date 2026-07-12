@@ -992,7 +992,8 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		createReq.EndTime = plan.EndTime.ValueString()
 	}
 
-	instance, err := r.apiClient.CreateAutomationV2(createReq, plan.ApplyOnExisting.ValueBool())
+	applyOnExisting := plan.ApplyOnExisting.ValueBool()
+	instance, err := r.apiClient.CreateAutomationV2(createReq, applyOnExisting)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Automation V2",
@@ -1011,6 +1012,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
+	plan.ApplyOnExisting = types.BoolValue(applyOnExisting)
 
 	normalizedStatus := instance.Status
 	if normalizedStatus == "success" {
