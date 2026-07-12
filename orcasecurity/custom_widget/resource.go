@@ -176,12 +176,20 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						},
 					},
 					"subtitle": schema.StringAttribute{
-						Description: "Custom widget subtitle that will be presented in the UI.",
-						Required:    true,
+						Description: "Custom widget subtitle that will be presented in the UI. Server-owned: some widget types (e.g. donut/PIE_CHART_SINGLE) do not persist it, so it is Computed and reflects whatever the API returns.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"description": schema.StringAttribute{
-						Description: "Custom widget description (the text that appears in the info bubble).",
-						Required:    true,
+						Description: "Custom widget description (the text that appears in the info bubble). Server-owned: some widget types (e.g. donut/PIE_CHART_SINGLE) do not persist it, so it is Computed and reflects whatever the API returns.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"widget_extra_params": schema.SingleNestedAttribute{
 						Description: "Extra params block (`extraParams` in API). Used by `comparison` (PIE_CHART_MULTI) widgets to hold field, default_mapper, and values_format.",
@@ -724,6 +732,17 @@ func diagError(diags diag.Diagnostics) error {
 	return fmt.Errorf("%s: %s", e.Summary(), e.Detail())
 }
 
+// nullIfEmpty maps an empty API string to a null Terraform value. Used for the server-owned
+// subtitle/description display fields: some widget types (e.g. donut/PIE_CHART_SINGLE) never
+// persist them, so GET returns null/"". Mapping "" to null (rather than an empty string) lets a
+// config that omits these Computed attributes import cleanly instead of diffing null vs "".
+func nullIfEmpty(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(s)
+}
+
 // instanceToState maps API CustomWidget to Terraform state model. Used by Read (including import).
 func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (customWidgetResourceModel, error) {
 	ep := instance.ExtraParameters
@@ -750,8 +769,8 @@ func instanceToState(ctx context.Context, instance *api_client.CustomWidget) (cu
 			Size:              types.StringValue(ep.Size),
 			IsNew:             types.BoolValue(ep.IsNew),
 			Title:             types.StringValue(ep.Title),
-			Subtitle:          types.StringValue(ep.Subtitle),
-			Description:       types.StringValue(ep.Description),
+			Subtitle:          nullIfEmpty(ep.Subtitle),
+			Description:       nullIfEmpty(ep.Description),
 			WidgetExtraParams: widgetExtraParamsToState(ep.ExtraParams),
 			Settings:          settings,
 		},
