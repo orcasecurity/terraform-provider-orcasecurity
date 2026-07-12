@@ -45,12 +45,12 @@ Use these IDs in `widgets_config` when adding Orca built-in widgets to a dashboa
 
 Each widget has a `size` in `widgets_config`. Values correspond to dashboard width:
 
-| Value | Label        | Width (Legacy/V1) | Width (V2)     |
-|-------|--------------|-------------------|----------------|
-| `sm` | Small (S)     | One-third         | One-third      |
-| `md` | Medium (M)    | Two-thirds        | Two-thirds     |
-| `lg` | Large (L)     | Entire width      | Three-quarters |
-| `xl` | Ex-Large (XL) | N/A               | Entire width   |
+| Value | Label            | Width (Legacy/V1) | Width (V2)     |
+|-------|------------------|-------------------|----------------|
+| `sm`  | Small (S)        | One-third         | One-third      |
+| `md`  | Medium (M)       | Two-thirds        | Two-thirds     |
+| `lg`  | Large (L)        | Entire width      | Three-quarters |
+| `xl`  | Extra-Large (XL) | N/A               | Entire width   |
 
 Legacy Dashboard Builder (V1) supports `sm`, `md`, `lg`. The new Dashboard Builder (V2) adds `xl`.
 
