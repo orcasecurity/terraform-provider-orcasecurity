@@ -245,6 +245,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		admission_controller.NewAdmissionControllerControlResource,
+		admission_controller.NewAdmissionControllerPolicyResource,
 		automation.NewAutomationResource,
 		automation_v2.NewAutomationV2Resource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
