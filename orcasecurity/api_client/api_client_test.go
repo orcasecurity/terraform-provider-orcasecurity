@@ -14,6 +14,19 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req), nil
 }
 
+// assertMethodPath checks the request method and path. Extracted so callers
+// keep these assertions out of the RoundTripFunc closure (where each branch
+// would count double toward cognitive complexity due to nesting).
+func assertMethodPath(t *testing.T, req *http.Request, method, path string) {
+	t.Helper()
+	if req.Method != method {
+		t.Errorf("expected %s, got %s", method, req.Method)
+	}
+	if req.URL.Path != path {
+		t.Errorf("unexpected path: %s", req.URL.Path)
+	}
+}
+
 func TestAPIResponse_StatusCode(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{

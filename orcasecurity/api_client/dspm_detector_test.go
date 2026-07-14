@@ -10,12 +10,7 @@ import (
 
 func TestGetDSPMDetector(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "GET" {
-			t.Errorf("expected GET, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_detector/det-1" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "GET", "/api/scan_configuration/dspm_detector/det-1")
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"id":"det-1","organization":"org-1","title":"My Detector","details":"desc","category":"PII","sub_category":"Personal","is_disabled":false,"is_custom":true,"properties":{"conditions":[{"source":"content","operator":"match","value":"[0-9]{9}"}],"detection_types":["text","db"],"sensitivity":"high","significance":"major","keywords":["ssn"],"text_threshold":3}}}`)),
@@ -30,6 +25,12 @@ func TestGetDSPMDetector(t *testing.T) {
 	if detector == nil || detector.ID != "det-1" {
 		t.Fatalf("expected detector det-1, got %+v", detector)
 	}
+	assertDetectorFields(t, detector)
+}
+
+// assertDetectorFields checks the decoded detector returned by GetDSPMDetector.
+func assertDetectorFields(t *testing.T, detector *DSPMDetector) {
+	t.Helper()
 	if detector.OrganizationID != "org-1" || detector.Title != "My Detector" || detector.Category != "PII" {
 		t.Errorf("unexpected fields: %+v", detector)
 	}

@@ -16,39 +16,7 @@ func TestCreateDataDetectionRule_UsesPUTOnCollection(t *testing.T) {
 		if req.URL.Path != "/api/scan_configuration/rules" {
 			t.Errorf("unexpected path: %s", req.URL.Path)
 		}
-		body, _ := io.ReadAll(req.Body)
-		var payload map[string]interface{}
-		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("invalid request body: %v", err)
-		}
-		if payload["rule_name"] != "tf rule" {
-			t.Errorf("expected rule_name, got %v", payload["rule_name"])
-		}
-		if payload["feature"] != "DSPM Scanning" {
-			t.Errorf("expected feature, got %v", payload["feature"])
-		}
-		if payload["action"] != "scan" {
-			t.Errorf("expected action, got %v", payload["action"])
-		}
-		if payload["is_enabled_rule"] != false {
-			t.Errorf("expected is_enabled_rule=false, got %v", payload["is_enabled_rule"])
-		}
-		if _, present := payload["rule_priority"]; present {
-			t.Errorf("rule_priority must be omitted when nil so the server auto-assigns, got %v", payload["rule_priority"])
-		}
-		for _, key := range []string{"selector_cloud_accounts", "selector_business_units", "tags", "policies"} {
-			if _, present := payload[key]; !present {
-				t.Errorf("%s must always be serialized (bulk update is partial): %s", key, string(body))
-			}
-		}
-		tags, _ := payload["tags"].([]interface{})
-		if len(tags) != 1 {
-			t.Fatalf("expected one tag selector, got %v", payload["tags"])
-		}
-		tag, _ := tags[0].(map[string]interface{})
-		if keys, _ := tag["keys"].([]interface{}); len(keys) != 1 || keys[0] != "*" {
-			t.Errorf("expected tag keys [*], got %v", tag["keys"])
-		}
+		assertCreateRulePayload(t, req)
 		return &http.Response{
 			StatusCode: 201,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"rule_id":"rule-9"}}`)),
@@ -173,30 +141,7 @@ func TestUpdateDataDetectionRule_UsesBulkRules(t *testing.T) {
 		if req.URL.Path != "/api/scan_configuration/bulk_rules" {
 			t.Errorf("unexpected path: %s", req.URL.Path)
 		}
-		body, _ := io.ReadAll(req.Body)
-		var payload struct {
-			RulesToUpdate []map[string]interface{} `json:"rules_to_update"`
-		}
-		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("invalid request body: %v", err)
-		}
-		if len(payload.RulesToUpdate) != 1 {
-			t.Fatalf("expected exactly one rule in rules_to_update, got %d", len(payload.RulesToUpdate))
-		}
-		rule := payload.RulesToUpdate[0]
-		if rule["rule_id"] != "rule-9" {
-			t.Errorf("expected rule_id in bulk payload, got %v", rule["rule_id"])
-		}
-		if rule["rule_name"] != "tf rule renamed" {
-			t.Errorf("expected rule_name, got %v", rule["rule_name"])
-		}
-		// bulk update is partial: keys absent from the payload keep their
-		// remote value, so every mutable list must always be present
-		for _, key := range []string{"selector_cloud_accounts", "selector_business_units", "tags", "policies"} {
-			if _, present := rule[key]; !present {
-				t.Errorf("%s must always be serialized in bulk updates: %v", key, rule)
-			}
-		}
+		assertBulkUpdatePayload(t, req)
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{}}`)),
@@ -237,5 +182,72 @@ func TestDeleteDataDetectionRule(t *testing.T) {
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
 	if err := client.DeleteDataDetectionRule("rule-9"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// assertCreateRulePayload validates the body PUT to the rules collection.
+func assertCreateRulePayload(t *testing.T, req *http.Request) {
+	t.Helper()
+	body, _ := io.ReadAll(req.Body)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("invalid request body: %v", err)
+	}
+	if payload["rule_name"] != "tf rule" {
+		t.Errorf("expected rule_name, got %v", payload["rule_name"])
+	}
+	if payload["feature"] != "DSPM Scanning" {
+		t.Errorf("expected feature, got %v", payload["feature"])
+	}
+	if payload["action"] != "scan" {
+		t.Errorf("expected action, got %v", payload["action"])
+	}
+	if payload["is_enabled_rule"] != false {
+		t.Errorf("expected is_enabled_rule=false, got %v", payload["is_enabled_rule"])
+	}
+	if _, present := payload["rule_priority"]; present {
+		t.Errorf("rule_priority must be omitted when nil so the server auto-assigns, got %v", payload["rule_priority"])
+	}
+	for _, key := range []string{"selector_cloud_accounts", "selector_business_units", "tags", "policies"} {
+		if _, present := payload[key]; !present {
+			t.Errorf("%s must always be serialized (bulk update is partial): %s", key, string(body))
+		}
+	}
+	tags, _ := payload["tags"].([]interface{})
+	if len(tags) != 1 {
+		t.Fatalf("expected one tag selector, got %v", payload["tags"])
+	}
+	tag, _ := tags[0].(map[string]interface{})
+	if keys, _ := tag["keys"].([]interface{}); len(keys) != 1 || keys[0] != "*" {
+		t.Errorf("expected tag keys [*], got %v", tag["keys"])
+	}
+}
+
+// assertBulkUpdatePayload validates the body POSTed to /bulk_rules.
+func assertBulkUpdatePayload(t *testing.T, req *http.Request) {
+	t.Helper()
+	body, _ := io.ReadAll(req.Body)
+	var payload struct {
+		RulesToUpdate []map[string]interface{} `json:"rules_to_update"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("invalid request body: %v", err)
+	}
+	if len(payload.RulesToUpdate) != 1 {
+		t.Fatalf("expected exactly one rule in rules_to_update, got %d", len(payload.RulesToUpdate))
+	}
+	rule := payload.RulesToUpdate[0]
+	if rule["rule_id"] != "rule-9" {
+		t.Errorf("expected rule_id in bulk payload, got %v", rule["rule_id"])
+	}
+	if rule["rule_name"] != "tf rule renamed" {
+		t.Errorf("expected rule_name, got %v", rule["rule_name"])
+	}
+	// bulk update is partial: keys absent from the payload keep their
+	// remote value, so every mutable list must always be present
+	for _, key := range []string{"selector_cloud_accounts", "selector_business_units", "tags", "policies"} {
+		if _, present := rule[key]; !present {
+			t.Errorf("%s must always be serialized in bulk updates: %v", key, rule)
+		}
 	}
 }

@@ -67,28 +67,7 @@ func TestCreateDSPMPolicy(t *testing.T) {
 		if req.URL.Path != "/api/scan_configuration/dspm_policies" {
 			t.Errorf("unexpected path: %s", req.URL.Path)
 		}
-		body, _ := io.ReadAll(req.Body)
-		var payload map[string]interface{}
-		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("invalid request body: %v", err)
-		}
-		if payload["policy_name"] != "PII policy" {
-			t.Errorf("expected policy_name, got %v", payload["policy_name"])
-		}
-		// tags must serialize as a JSON array (never null) — server model expects a list
-		if _, ok := payload["tags"].([]interface{}); !ok {
-			t.Errorf("expected tags to be a JSON array, got %T (%v)", payload["tags"], payload["tags"])
-		}
-		if _, ok := payload["advanced_settings"].(map[string]interface{}); !ok {
-			t.Errorf("expected advanced_settings to be a JSON object, got %T", payload["advanced_settings"])
-		}
-		doc, ok := payload["policy_document"].(map[string]interface{})
-		if !ok {
-			t.Fatalf("expected policy_document object, got %T", payload["policy_document"])
-		}
-		if _, ok := doc["selector_detectors"].([]interface{}); !ok {
-			t.Errorf("expected selector_detectors array, got %v", doc["selector_detectors"])
-		}
+		assertCreatePolicyPayload(t, req)
 		return &http.Response{
 			StatusCode: 201,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"policy_id":"pol-1","organization":"org-1","policy_name":"PII policy","policy_description":"desc","feature":"DSPM Scanning","tags":[],"is_default_policy":false,"policy_document":{"selector_detectors":["*"]}}}`)),
@@ -193,5 +172,32 @@ func TestPolicyTags_MarshalAsArray(t *testing.T) {
 	}
 	if !strings.Contains(string(payload), `"tags":[]`) {
 		t.Errorf("tags must serialize as [], got: %s", string(payload))
+	}
+}
+
+// assertCreatePolicyPayload validates the body POSTed to create a DSPM policy.
+func assertCreatePolicyPayload(t *testing.T, req *http.Request) {
+	t.Helper()
+	body, _ := io.ReadAll(req.Body)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("invalid request body: %v", err)
+	}
+	if payload["policy_name"] != "PII policy" {
+		t.Errorf("expected policy_name, got %v", payload["policy_name"])
+	}
+	// tags must serialize as a JSON array (never null) — server model expects a list
+	if _, ok := payload["tags"].([]interface{}); !ok {
+		t.Errorf("expected tags to be a JSON array, got %T (%v)", payload["tags"], payload["tags"])
+	}
+	if _, ok := payload["advanced_settings"].(map[string]interface{}); !ok {
+		t.Errorf("expected advanced_settings to be a JSON object, got %T", payload["advanced_settings"])
+	}
+	doc, ok := payload["policy_document"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected policy_document object, got %T", payload["policy_document"])
+	}
+	if _, ok := doc["selector_detectors"].([]interface{}); !ok {
+		t.Errorf("expected selector_detectors array, got %v", doc["selector_detectors"])
 	}
 }
