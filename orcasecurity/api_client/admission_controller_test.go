@@ -165,6 +165,83 @@ func TestDeleteAdmissionControllerControl(t *testing.T) {
 	}
 }
 
+func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":[
+				{"id":"ctrl-1","name":"first","template_id":"tpl-1",
+				 "cluster_scope":{"kinds":[{"apiGroups":[""],"kinds":["Pod"],"versions":[""]}]}},
+				{"id":"ctrl-2","name":"second","template_id":"tpl-1",
+				 "cluster_scope":{"kinds":[{"apiGroups":[""],"kinds":["Pod"],"versions":[""]}]}}]}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	control, err := client.GetAdmissionControllerControl("ctrl-1")
+	if err == nil {
+		t.Fatalf("expected error for multiple matches, got control %+v", control)
+	}
+	if control != nil {
+		t.Errorf("expected nil control on multiple matches, got %+v", control)
+	}
+	if !strings.Contains(err.Error(), "got 2") {
+		t.Errorf("expected error to report match count, got: %v", err)
+	}
+}
+
+// Pins the current omitempty serialization contract: empty slices in
+// cluster_scope kinds and unset optional fields (description, input_parameters)
+// are dropped from the request body rather than sent as []/null. The resource
+// layer built on top of this client must account for that.
+func TestCreateAdmissionControllerControl_OmitsEmptyOptionalFields(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		body, _ := io.ReadAll(req.Body)
+		var payload map[string]interface{}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("payload not JSON: %v", err)
+		}
+		if _, has := payload["description"]; has {
+			t.Errorf("nil description must be omitted from payload: %s", body)
+		}
+		if _, has := payload["input_parameters"]; has {
+			t.Errorf("nil input_parameters must be omitted from payload: %s", body)
+		}
+		scope := payload["cluster_scope"].(map[string]interface{})
+		kind := scope["kinds"].([]interface{})[0].(map[string]interface{})
+		if _, has := kind["apiGroups"]; has {
+			t.Errorf("empty apiGroups must be omitted from payload: %s", body)
+		}
+		if _, has := kind["versions"]; has {
+			t.Errorf("empty versions must be omitted from payload: %s", body)
+		}
+		if kinds := kind["kinds"].([]interface{}); len(kinds) != 1 || kinds[0] != "Pod" {
+			t.Errorf("unexpected kinds: %s", body)
+		}
+		return &http.Response{
+			StatusCode: 201,
+			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
+				"id":"ctrl-new","name":"minimal control","template_id":"tpl-1","template_name":"k8sallowedrepos",
+				"cluster_scope":{"kinds":[{"kinds":["Pod"]}]}}}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	control, err := client.CreateAdmissionControllerControl(AdmissionControllerControl{
+		Name:       "minimal control",
+		TemplateID: "tpl-1",
+		ClusterScope: AdmissionControllerClusterScope{Kinds: []AdmissionControllerClusterScopeKind{
+			{APIGroups: []string{}, Kinds: []string{"Pod"}, Versions: []string{}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if control.ID != "ctrl-new" {
+		t.Errorf("expected ctrl-new, got %s", control.ID)
+	}
+}
+
 func TestGetAdmissionControllerPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.URL.Path != "/api/admission_controller/policies/pol-1" {
