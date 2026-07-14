@@ -246,6 +246,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 	return []func() resource.Resource{
 		admission_controller.NewAdmissionControllerControlResource,
 		admission_controller.NewAdmissionControllerPolicyResource,
+		admission_controller.NewAdmissionControllerPolicyAssignmentResource,
 		automation.NewAutomationResource,
 		automation_v2.NewAutomationV2Resource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
