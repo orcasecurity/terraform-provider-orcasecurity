@@ -127,7 +127,7 @@ resource "orcasecurity_data_detection_rule" "exclude_development" {
 ### Required
 
 - `name` (String) Rule name. Must be unique within the organization.
-- `policies` (List of String) DSPM policy IDs (UUIDs) attached to the rule. At least one policy is required, matching the Orca UI (the API itself does not enforce this). Only valid when `feature` is `DSPM Scanning`.
+- `policies` (Set of String) DSPM policy IDs (UUIDs) attached to the rule. At least one policy is required, matching the Orca UI (the API itself does not enforce this). Only valid when `feature` is `DSPM Scanning`.
 
 ### Optional
 
@@ -135,8 +135,8 @@ resource "orcasecurity_data_detection_rule" "exclude_development" {
 - `enabled` (Boolean) Whether the rule is enabled. Defaults to `false` (matches the Orca UI default for new rules).
 - `feature` (String) Scan feature. Defaults to `DSPM Scanning`.
 - `priority` (Number) Rule priority (unique per organization). If omitted, the server auto-assigns the next free priority.
-- `selector_business_units` (List of String) Business unit IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
-- `selector_cloud_accounts` (List of String) Cloud account IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
+- `selector_business_units` (Set of String) Business unit IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
+- `selector_cloud_accounts` (Set of String) Cloud account IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
 - `tags` (Attributes List) Asset tag selectors that scope the rule. Each selector matches assets whose tag key is in `keys` (`["*"]` for any key) and whose tag value is in `values`. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set. (see [below for nested schema](#nestedatt--tags))
 
 ### Read-Only

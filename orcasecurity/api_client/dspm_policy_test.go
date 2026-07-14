@@ -10,12 +10,7 @@ import (
 
 func TestGetDSPMPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "GET" {
-			t.Errorf("expected GET, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_policies/pol-1" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "GET", "/api/scan_configuration/dspm_policies/pol-1")
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"policy_id":"pol-1","organization":"org-1","policy_name":"PII policy","policy_description":"desc","feature":"DSPM Scanning","tags":["team:sec"],"is_default_policy":false,"advanced_settings":{},"policy_document":{"selector_detectors":["AUS_TAX_NUMBER","det-1"],"selector_categories":["PII"],"selector_regions":[],"selector_industries":[],"selector_tags":[],"selector_countries":[]}}}`)),
@@ -61,12 +56,7 @@ func TestGetDSPMPolicy_NotFound(t *testing.T) {
 
 func TestCreateDSPMPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "POST" {
-			t.Errorf("expected POST, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_policies" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "POST", "/api/scan_configuration/dspm_policies")
 		assertCreatePolicyPayload(t, req)
 		return &http.Response{
 			StatusCode: 201,
@@ -93,12 +83,7 @@ func TestCreateDSPMPolicy(t *testing.T) {
 
 func TestUpdateDSPMPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "PUT" {
-			t.Errorf("expected PUT, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_policies/pol-1" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "PUT", "/api/scan_configuration/dspm_policies/pol-1")
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"policy_id":"pol-1","organization":"org-1","policy_name":"Renamed","policy_description":"desc","feature":"DSPM Scanning","tags":[],"is_default_policy":false,"policy_document":{"selector_detectors":["*"]}}}`)),
@@ -124,12 +109,7 @@ func TestUpdateDSPMPolicy(t *testing.T) {
 
 func TestDeleteDSPMPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "DELETE" {
-			t.Errorf("expected DELETE, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_policies/pol-1" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "DELETE", "/api/scan_configuration/dspm_policies/pol-1")
 		return &http.Response{
 			StatusCode: 204,
 			Body:       io.NopCloser(strings.NewReader(``)),

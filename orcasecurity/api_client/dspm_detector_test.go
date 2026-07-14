@@ -68,12 +68,7 @@ func TestGetDSPMDetector_NotFound(t *testing.T) {
 
 func TestCreateDSPMDetector(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "POST" {
-			t.Errorf("expected POST, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_detector" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "POST", "/api/scan_configuration/dspm_detector")
 		body, _ := io.ReadAll(req.Body)
 		var payload map[string]interface{}
 		if err := json.Unmarshal(body, &payload); err != nil {
@@ -118,12 +113,8 @@ func TestCreateDSPMDetector(t *testing.T) {
 
 func TestUpdateDSPMDetector(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "PUT" {
-			t.Errorf("expected PUT, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_detector/det-1" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "PUT", "/api/scan_configuration/dspm_detector/det-1")
+		assertUpdateDetectorOmitsUnsetProperties(t, req)
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"id":"det-1","organization":"org-1","title":"Renamed","details":"desc","category":"PII","sub_category":"Personal","is_disabled":true,"is_custom":true,"properties":{"conditions":[{"source":"content","operator":"match","value":"[0-9]{9}"}],"detection_types":["text"]}}}`)),
@@ -140,14 +131,29 @@ func TestUpdateDSPMDetector(t *testing.T) {
 	}
 }
 
+// assertUpdateDetectorOmitsUnsetProperties pins the detector PUT contract:
+// the endpoint is full-replacement, so an optional property omitted from the
+// payload is CLEARED server-side. Nulled optional attributes must therefore
+// be absent from the JSON (omitempty), not sent as null/zero.
+func assertUpdateDetectorOmitsUnsetProperties(t *testing.T, req *http.Request) {
+	t.Helper()
+	body, _ := io.ReadAll(req.Body)
+	var payload struct {
+		Properties map[string]interface{} `json:"properties"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("invalid request body: %v", err)
+	}
+	for _, key := range []string{"keywords", "exclude_keywords", "stop_wildcards", "sensitivity", "significance", "text_threshold", "db_threshold", "ocr_threshold", "ai_threshold", "detection_types"} {
+		if _, present := payload.Properties[key]; present {
+			t.Errorf("%s must be omitted when unset (PUT is full-replacement; omitted means cleared): %s", key, string(body))
+		}
+	}
+}
+
 func TestDeleteDSPMDetector(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "DELETE" {
-			t.Errorf("expected DELETE, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/dspm_detector/det-1" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "DELETE", "/api/scan_configuration/dspm_detector/det-1")
 		return &http.Response{
 			StatusCode: 204,
 			Body:       io.NopCloser(strings.NewReader(``)),
@@ -162,9 +168,7 @@ func TestDeleteDSPMDetector(t *testing.T) {
 
 func TestListDSPMDetectors(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.URL.Path != "/api/scan_configuration/dspm_detector" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "GET", "/api/scan_configuration/dspm_detector")
 		query := req.URL.Query()
 		if query.Get("title") != "My Detector" {
 			t.Errorf("expected title query param, got %q", query.Get("title"))

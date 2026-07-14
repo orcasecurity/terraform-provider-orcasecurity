@@ -3,12 +3,12 @@
 page_title: "orcasecurity_dspm_policy Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (is_default_policy = true) cannot be updated or deleted; importing one makes every change fail with a 400 error.
+  Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (is_default_policy = true) cannot be updated or deleted; importing one makes every change fail with a 400 error. The server also rejects a policy whose document matches an existing policy in the organization — even under a different name — with Policy with the same document already exists.
 ---
 
 # orcasecurity_dspm_policy (Resource)
 
-Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (`is_default_policy = true`) cannot be updated or deleted; importing one makes every change fail with a 400 error.
+Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (`is_default_policy = true`) cannot be updated or deleted; importing one makes every change fail with a 400 error. The server also rejects a policy whose `document` matches an existing policy in the organization — even under a different name — with `Policy with the same document already exists`.
 
 ## Example Usage
 
@@ -60,15 +60,15 @@ resource "orcasecurity_dspm_policy" "pii_eu" {
 
 Required:
 
-- `detectors` (List of String) Sensitive data identifier IDs this policy covers. Accepts built-in catalog IDs (e.g. `AUS_TAX_NUMBER`), custom identifier UUIDs, or `*` for all.
+- `detectors` (Set of String) Sensitive data identifier IDs this policy covers. Accepts built-in catalog IDs (e.g. `AUS_TAX_NUMBER`), custom identifier UUIDs, or `*` for all.
 
 Optional:
 
-- `categories` (List of String) Data categories. Valid values are `PII`, `PHI`, `PCI`, `SECRET`, and `OTHER`.
-- `countries` (List of String) Country selectors. Must be one of the Orca catalog countries (e.g. `United States`, `Germany`) or `*`.
-- `industries` (List of String) Industry selectors. Must be one of the Orca catalog industries (e.g. `Healthcare`, `Financial Services`) or `*`.
-- `regions` (List of String) Region selectors. Valid values are `*`, `Europe`, `North America`, `APAC`, `LATAM`, and `MEA`.
-- `tags` (List of String) Asset tag selectors.
+- `categories` (Set of String) Data categories. Valid values are `PII`, `PHI`, `PCI`, `SECRET`, and `OTHER`.
+- `countries` (Set of String) Country selectors. Must be one of the Orca catalog countries (e.g. `United States`, `Germany`) or `*`.
+- `industries` (Set of String) Industry selectors. Must be one of the Orca catalog industries (e.g. `Healthcare`, `Financial Services`) or `*`.
+- `regions` (Set of String) Region selectors. Valid values are `*`, `Europe`, `North America`, `APAC`, `LATAM`, and `MEA`.
+- `tags` (Set of String) Asset tag selectors.
 
 ## Import
 

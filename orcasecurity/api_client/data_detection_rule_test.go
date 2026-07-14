@@ -10,12 +10,8 @@ import (
 
 func TestCreateDataDetectionRule_UsesPUTOnCollection(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "PUT" {
-			t.Errorf("rule create must be PUT on the collection, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/rules" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		// rule create is PUT on the collection — not a mistake
+		assertMethodPath(t, req, "PUT", "/api/scan_configuration/rules")
 		assertCreateRulePayload(t, req)
 		return &http.Response{
 			StatusCode: 201,
@@ -59,12 +55,7 @@ func TestCreateDataDetectionRule_MissingRuleID(t *testing.T) {
 
 func TestGetDataDetectionRule_Envelope(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "GET" {
-			t.Errorf("expected GET, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/rules/rule-9" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "GET", "/api/scan_configuration/rules/rule-9")
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"rule_id":"rule-9","organization":"org-1","rule_name":"tf rule","feature":"DSPM Scanning","action":"scan","rule_priority":7,"is_enabled_rule":true,"is_default_rule":false,"tags":[{"keys":["*"],"values":["tf-managed"]}],"policies":["pol-1"],"selector_cloud_accounts":[],"selector_business_units":[]}}`)),
@@ -110,12 +101,8 @@ func TestGetDataDetectionRule_NotFound(t *testing.T) {
 
 func TestUpdateDataDetectionRule_UsesBulkRules(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "POST" {
-			t.Errorf("rule update must be POST /bulk_rules, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/bulk_rules" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		// rule update goes through the bulk endpoint — there is no PUT /rules/<id>
+		assertMethodPath(t, req, "POST", "/api/scan_configuration/bulk_rules")
 		assertBulkUpdatePayload(t, req)
 		return &http.Response{
 			StatusCode: 200,
@@ -142,12 +129,7 @@ func TestUpdateDataDetectionRule_UsesBulkRules(t *testing.T) {
 
 func TestDeleteDataDetectionRule(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "DELETE" {
-			t.Errorf("expected DELETE, got %s", req.Method)
-		}
-		if req.URL.Path != "/api/scan_configuration/rules/rule-9" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
+		assertMethodPath(t, req, "DELETE", "/api/scan_configuration/rules/rule-9")
 		return &http.Response{
 			StatusCode: 204,
 			Body:       io.NopCloser(strings.NewReader(``)),

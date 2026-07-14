@@ -61,6 +61,19 @@ type DSPMPolicy struct {
 	IsDefaultPolicy  bool                   `json:"is_default_policy,omitempty"`
 }
 
+// readDSPMPolicyData decodes the response envelope strictly: a payload that
+// does not carry a policy id is a decode-shape mismatch, not a valid policy.
+func readDSPMPolicyData(resp *APIResponse) (*DSPMPolicy, error) {
+	policy, err := readData[DSPMPolicy](resp)
+	if err != nil {
+		return nil, err
+	}
+	if policy.ID == "" {
+		return nil, fmt.Errorf("dspm policy: could not decode response: %s", string(resp.Body()))
+	}
+	return policy, nil
+}
+
 // GetDSPMPolicy retrieves one policy. Returns (nil, nil) on 404 so the
 // resource Read can RemoveResource on remote drift.
 func (client *APIClient) GetDSPMPolicy(id string) (*DSPMPolicy, error) {
@@ -71,15 +84,7 @@ func (client *APIClient) GetDSPMPolicy(id string) (*DSPMPolicy, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data DSPMPolicy `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readDSPMPolicyData(resp)
 }
 
 func (client *APIClient) CreateDSPMPolicy(data DSPMPolicy) (*DSPMPolicy, error) {
@@ -87,15 +92,7 @@ func (client *APIClient) CreateDSPMPolicy(data DSPMPolicy) (*DSPMPolicy, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data DSPMPolicy `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readDSPMPolicyData(resp)
 }
 
 func (client *APIClient) UpdateDSPMPolicy(id string, data DSPMPolicy) (*DSPMPolicy, error) {
@@ -103,15 +100,7 @@ func (client *APIClient) UpdateDSPMPolicy(id string, data DSPMPolicy) (*DSPMPoli
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data DSPMPolicy `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readDSPMPolicyData(resp)
 }
 
 func (client *APIClient) DeleteDSPMPolicy(id string) error {

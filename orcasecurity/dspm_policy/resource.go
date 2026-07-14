@@ -6,7 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -29,13 +29,16 @@ type dspmPolicyResource struct {
 	apiClient *api_client.APIClient
 }
 
+// The document selectors are Sets, not Lists: the server sorts every list
+// inside policy_document on save, so an order-sensitive List would produce a
+// perpetual plan diff for any config not already in server-sorted order.
 type documentModel struct {
-	Detectors  types.List `tfsdk:"detectors"`
-	Categories types.List `tfsdk:"categories"`
-	Regions    types.List `tfsdk:"regions"`
-	Industries types.List `tfsdk:"industries"`
-	Tags       types.List `tfsdk:"tags"`
-	Countries  types.List `tfsdk:"countries"`
+	Detectors  types.Set `tfsdk:"detectors"`
+	Categories types.Set `tfsdk:"categories"`
+	Regions    types.Set `tfsdk:"regions"`
+	Industries types.Set `tfsdk:"industries"`
+	Tags       types.Set `tfsdk:"tags"`
+	Countries  types.Set `tfsdk:"countries"`
 }
 
 type stateModel struct {
@@ -70,7 +73,7 @@ func (r *dspmPolicyResource) ImportState(ctx context.Context, req resource.Impor
 
 func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (`is_default_policy = true`) cannot be updated or deleted; importing one makes every change fail with a 400 error.",
+		Description: "Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (`is_default_policy = true`) cannot be updated or deleted; importing one makes every change fail with a 400 error. The server also rejects a policy whose `document` matches an existing policy in the organization — even under a different name — with `Policy with the same document already exists`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -116,43 +119,43 @@ func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaReques
 				Description: "Policy selector document.",
 				Required:    true,
 				Attributes: map[string]schema.Attribute{
-					"detectors": schema.ListAttribute{
+					"detectors": schema.SetAttribute{
 						Description: "Sensitive data identifier IDs this policy covers. Accepts built-in catalog IDs (e.g. `AUS_TAX_NUMBER`), custom identifier UUIDs, or `*` for all.",
 						Required:    true,
 						ElementType: types.StringType,
-						Validators: []validator.List{
-							listvalidator.SizeAtLeast(1),
+						Validators: []validator.Set{
+							setvalidator.SizeAtLeast(1),
 						},
 					},
-					"categories": schema.ListAttribute{
+					"categories": schema.SetAttribute{
 						Description: "Data categories. Valid values are `PII`, `PHI`, `PCI`, `SECRET`, and `OTHER`.",
 						Optional:    true,
 						ElementType: types.StringType,
-						Validators: []validator.List{
-							listvalidator.ValueStringsAre(stringvalidator.OneOf("PII", "PHI", "PCI", "SECRET", "OTHER")),
+						Validators: []validator.Set{
+							setvalidator.ValueStringsAre(stringvalidator.OneOf("PII", "PHI", "PCI", "SECRET", "OTHER")),
 						},
 					},
-					"regions": schema.ListAttribute{
+					"regions": schema.SetAttribute{
 						Description: "Region selectors. Valid values are `*`, `Europe`, `North America`, `APAC`, `LATAM`, and `MEA`.",
 						Optional:    true,
 						ElementType: types.StringType,
-						Validators: []validator.List{
-							listvalidator.ValueStringsAre(stringvalidator.OneOf(
+						Validators: []validator.Set{
+							setvalidator.ValueStringsAre(stringvalidator.OneOf(
 								"*", "Europe", "North America", "APAC", "LATAM", "MEA",
 							)),
 						},
 					},
-					"industries": schema.ListAttribute{
+					"industries": schema.SetAttribute{
 						Description: "Industry selectors. Must be one of the Orca catalog industries (e.g. `Healthcare`, `Financial Services`) or `*`.",
 						Optional:    true,
 						ElementType: types.StringType,
 					},
-					"tags": schema.ListAttribute{
+					"tags": schema.SetAttribute{
 						Description: "Asset tag selectors.",
 						Optional:    true,
 						ElementType: types.StringType,
 					},
-					"countries": schema.ListAttribute{
+					"countries": schema.SetAttribute{
 						Description: "Country selectors. Must be one of the Orca catalog countries (e.g. `United States`, `Germany`) or `*`.",
 						Optional:    true,
 						ElementType: types.StringType,
@@ -177,12 +180,12 @@ func generatePolicyPayload(ctx context.Context, plan stateModel) api_client.DSPM
 		// advanced_settings is not exposed in the schema (MVP); the server expects {}
 		AdvancedSettings: map[string]interface{}{},
 		Document: api_client.DSPMPolicyDocument{
-			SelectorDetectors:  tfconv.StringListToAPI(ctx, plan.Document.Detectors),
-			SelectorCategories: tfconv.StringListToAPI(ctx, plan.Document.Categories),
-			SelectorRegions:    tfconv.StringListToAPI(ctx, plan.Document.Regions),
-			SelectorIndustries: tfconv.StringListToAPI(ctx, plan.Document.Industries),
-			SelectorTags:       tfconv.StringListToAPI(ctx, plan.Document.Tags),
-			SelectorCountries:  tfconv.StringListToAPI(ctx, plan.Document.Countries),
+			SelectorDetectors:  tfconv.StringSetToAPI(ctx, plan.Document.Detectors),
+			SelectorCategories: tfconv.StringSetToAPI(ctx, plan.Document.Categories),
+			SelectorRegions:    tfconv.StringSetToAPI(ctx, plan.Document.Regions),
+			SelectorIndustries: tfconv.StringSetToAPI(ctx, plan.Document.Industries),
+			SelectorTags:       tfconv.StringSetToAPI(ctx, plan.Document.Tags),
+			SelectorCountries:  tfconv.StringSetToAPI(ctx, plan.Document.Countries),
 		},
 	}
 }
@@ -241,17 +244,17 @@ func (r *dspmPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 
 	tags, d := tfconv.StringListFromAPIPreserveNull(ctx, state.Tags, instance.Tags)
 	resp.Diagnostics.Append(d...)
-	detectors, d := types.ListValueFrom(ctx, types.StringType, instance.Document.SelectorDetectors)
+	detectors, d := types.SetValueFrom(ctx, types.StringType, instance.Document.SelectorDetectors)
 	resp.Diagnostics.Append(d...)
-	categories, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Categories, instance.Document.SelectorCategories)
+	categories, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Categories, instance.Document.SelectorCategories)
 	resp.Diagnostics.Append(d...)
-	regions, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Regions, instance.Document.SelectorRegions)
+	regions, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Regions, instance.Document.SelectorRegions)
 	resp.Diagnostics.Append(d...)
-	industries, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Industries, instance.Document.SelectorIndustries)
+	industries, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Industries, instance.Document.SelectorIndustries)
 	resp.Diagnostics.Append(d...)
-	documentTags, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Tags, instance.Document.SelectorTags)
+	documentTags, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Tags, instance.Document.SelectorTags)
 	resp.Diagnostics.Append(d...)
-	countries, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Countries, instance.Document.SelectorCountries)
+	countries, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Countries, instance.Document.SelectorCountries)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return

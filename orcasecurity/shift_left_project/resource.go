@@ -231,6 +231,16 @@ func (r *shiftLeftProjectResource) Read(ctx context.Context, req resource.ReadRe
 	}
 }
 
+// attachedPolicyIDs collects the ids of the policies the API reports as
+// attached to the project.
+func attachedPolicyIDs(current *api_client.ShiftLeftProject) []string {
+	ids := make([]string, 0, len(current.Policies))
+	for _, p := range current.Policies {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
+
 func (r *shiftLeftProjectResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan shiftLeftProjectResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -261,11 +271,7 @@ func (r *shiftLeftProjectResource) Update(ctx context.Context, req resource.Upda
 			)
 			return
 		}
-		if current != nil {
-			for _, p := range current.Policies {
-				policyIds = append(policyIds, p.ID)
-			}
-		}
+		policyIds = attachedPolicyIDs(current)
 	}
 
 	updateReq := api_client.ShiftLeftProject{

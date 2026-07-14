@@ -52,17 +52,14 @@ func (client *APIClient) GetDataDetectionRule(id string) (*DataDetectionRule, er
 		return nil, err
 	}
 
-	type responseType struct {
-		Data DataDetectionRule `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
+	rule, err := readData[DataDetectionRule](resp)
+	if err != nil {
 		return nil, err
 	}
-	if response.Data.ID == "" {
+	if rule.ID == "" {
 		return nil, fmt.Errorf("rule retrieve: could not decode response: %s", string(resp.Body()))
 	}
-	return &response.Data, nil
+	return rule, nil
 }
 
 // CreateDataDetectionRule creates a rule via PUT on the collection
@@ -73,19 +70,17 @@ func (client *APIClient) CreateDataDetectionRule(data DataDetectionRule) (string
 		return "", err
 	}
 
-	type responseType struct {
-		Data struct {
-			RuleID string `json:"rule_id"`
-		} `json:"data"`
+	type createResult struct {
+		RuleID string `json:"rule_id"`
 	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
+	result, err := readData[createResult](resp)
+	if err != nil {
 		return "", err
 	}
-	if response.Data.RuleID == "" {
+	if result.RuleID == "" {
 		return "", fmt.Errorf("rule create: missing rule_id in response: %s", string(resp.Body()))
 	}
-	return response.Data.RuleID, nil
+	return result.RuleID, nil
 }
 
 // UpdateDataDetectionRule updates a rule via POST /bulk_rules.

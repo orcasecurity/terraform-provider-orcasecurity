@@ -6,8 +6,8 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -38,6 +38,8 @@ type tagModel struct {
 	Values types.List `tfsdk:"values"`
 }
 
+// The string selectors are Sets, not Lists: the server treats them as
+// unordered id collections, so element order must not produce a plan diff.
 type stateModel struct {
 	ID                    types.String `tfsdk:"id"`
 	OrganizationID        types.String `tfsdk:"organization_id"`
@@ -46,9 +48,9 @@ type stateModel struct {
 	Enabled               types.Bool   `tfsdk:"enabled"`
 	Action                types.String `tfsdk:"action"`
 	Feature               types.String `tfsdk:"feature"`
-	Policies              types.List   `tfsdk:"policies"`
-	SelectorCloudAccounts types.List   `tfsdk:"selector_cloud_accounts"`
-	SelectorBusinessUnits types.List   `tfsdk:"selector_business_units"`
+	Policies              types.Set    `tfsdk:"policies"`
+	SelectorCloudAccounts types.Set    `tfsdk:"selector_cloud_accounts"`
+	SelectorBusinessUnits types.Set    `tfsdk:"selector_business_units"`
 	Tags                  []tagModel   `tfsdk:"tags"`
 	IsDefaultRule         types.Bool   `tfsdk:"is_default_rule"`
 }
@@ -136,20 +138,20 @@ func (r *dataDetectionRuleResource) Schema(_ context.Context, req resource.Schem
 				Computed:    true,
 				Default:     stringdefault.StaticString("DSPM Scanning"),
 			},
-			"policies": schema.ListAttribute{
+			"policies": schema.SetAttribute{
 				Description: "DSPM policy IDs (UUIDs) attached to the rule. At least one policy is required, matching the Orca UI (the API itself does not enforce this). Only valid when `feature` is `DSPM Scanning`.",
 				Required:    true,
 				ElementType: types.StringType,
-				Validators: []validator.List{
-					listvalidator.SizeAtLeast(1),
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 				},
 			},
-			"selector_cloud_accounts": schema.ListAttribute{
+			"selector_cloud_accounts": schema.SetAttribute{
 				Description: "Cloud account IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.",
 				Optional:    true,
 				ElementType: types.StringType,
 			},
-			"selector_business_units": schema.ListAttribute{
+			"selector_business_units": schema.SetAttribute{
 				Description: "Business unit IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.",
 				Optional:    true,
 				ElementType: types.StringType,
@@ -220,10 +222,10 @@ func generateRulePayload(ctx context.Context, plan stateModel) api_client.DataDe
 		Action:                plan.Action.ValueString(),
 		Priority:              tfconv.Int64ToAPIPtr(plan.Priority),
 		Enabled:               plan.Enabled.ValueBool(),
-		SelectorCloudAccounts: tfconv.StringListToAPINonNull(ctx, plan.SelectorCloudAccounts),
-		SelectorBusinessUnits: tfconv.StringListToAPINonNull(ctx, plan.SelectorBusinessUnits),
+		SelectorCloudAccounts: tfconv.StringSetToAPINonNull(ctx, plan.SelectorCloudAccounts),
+		SelectorBusinessUnits: tfconv.StringSetToAPINonNull(ctx, plan.SelectorBusinessUnits),
 		Tags:                  tagsToAPI(ctx, plan.Tags),
-		Policies:              tfconv.StringListToAPINonNull(ctx, plan.Policies),
+		Policies:              tfconv.StringSetToAPINonNull(ctx, plan.Policies),
 	}
 }
 
@@ -291,11 +293,11 @@ func (r *dataDetectionRuleResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	policies, d := tfconv.StringListFromAPIPreserveNull(ctx, state.Policies, instance.Policies)
+	policies, d := tfconv.StringSetFromAPIPreserveNull(ctx, state.Policies, instance.Policies)
 	resp.Diagnostics.Append(d...)
-	cloudAccounts, d := tfconv.StringListFromAPIPreserveNull(ctx, state.SelectorCloudAccounts, instance.SelectorCloudAccounts)
+	cloudAccounts, d := tfconv.StringSetFromAPIPreserveNull(ctx, state.SelectorCloudAccounts, instance.SelectorCloudAccounts)
 	resp.Diagnostics.Append(d...)
-	businessUnits, d := tfconv.StringListFromAPIPreserveNull(ctx, state.SelectorBusinessUnits, instance.SelectorBusinessUnits)
+	businessUnits, d := tfconv.StringSetFromAPIPreserveNull(ctx, state.SelectorBusinessUnits, instance.SelectorBusinessUnits)
 	resp.Diagnostics.Append(d...)
 	tags, d := tagsFromAPI(ctx, state.Tags, instance.Tags)
 	resp.Diagnostics.Append(d...)

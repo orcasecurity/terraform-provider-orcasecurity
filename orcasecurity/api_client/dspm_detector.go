@@ -50,6 +50,19 @@ type DSPMDetectorListFilters struct {
 	SubCategory string
 }
 
+// readDSPMDetectorData decodes the response envelope strictly: a payload that
+// does not carry a detector id is a decode-shape mismatch, not a valid detector.
+func readDSPMDetectorData(resp *APIResponse) (*DSPMDetector, error) {
+	detector, err := readData[DSPMDetector](resp)
+	if err != nil {
+		return nil, err
+	}
+	if detector.ID == "" {
+		return nil, fmt.Errorf("dspm detector: could not decode response: %s", string(resp.Body()))
+	}
+	return detector, nil
+}
+
 // GetDSPMDetector retrieves one detector. Returns (nil, nil) on 404 so the
 // resource Read can RemoveResource on remote drift.
 func (client *APIClient) GetDSPMDetector(id string) (*DSPMDetector, error) {
@@ -60,15 +73,7 @@ func (client *APIClient) GetDSPMDetector(id string) (*DSPMDetector, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data DSPMDetector `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readDSPMDetectorData(resp)
 }
 
 // ListDSPMDetectors lists detectors, optionally filtered by title/category/sub_category.
@@ -92,15 +97,11 @@ func (client *APIClient) ListDSPMDetectors(filters DSPMDetectorListFilters) ([]D
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data []DSPMDetector `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
+	detectors, err := readData[[]DSPMDetector](resp)
+	if err != nil {
 		return nil, err
 	}
-	return response.Data, nil
+	return *detectors, nil
 }
 
 func (client *APIClient) CreateDSPMDetector(data DSPMDetector) (*DSPMDetector, error) {
@@ -108,15 +109,7 @@ func (client *APIClient) CreateDSPMDetector(data DSPMDetector) (*DSPMDetector, e
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data DSPMDetector `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readDSPMDetectorData(resp)
 }
 
 func (client *APIClient) UpdateDSPMDetector(id string, data DSPMDetector) (*DSPMDetector, error) {
@@ -124,15 +117,7 @@ func (client *APIClient) UpdateDSPMDetector(id string, data DSPMDetector) (*DSPM
 	if err != nil {
 		return nil, err
 	}
-
-	type responseType struct {
-		Data DSPMDetector `json:"data"`
-	}
-	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readDSPMDetectorData(resp)
 }
 
 func (client *APIClient) DeleteDSPMDetector(id string) error {

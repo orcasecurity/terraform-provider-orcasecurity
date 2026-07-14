@@ -43,14 +43,12 @@ func hasBuiltinPolicy(policies []ShiftLeftProjectPolicy) bool {
 	return false
 }
 
+// GetShiftLeftProject returns the project or an error — never (nil, nil):
+// the underlying client errors on any non-OK response, including 404.
 func (client *APIClient) GetShiftLeftProject(id string) (*ShiftLeftProject, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/shiftleft/projects/%s/", id))
 	if err != nil {
 		return nil, err
-	}
-
-	if !resp.IsOk() {
-		return nil, nil
 	}
 
 	response := ShiftLeftProject{}

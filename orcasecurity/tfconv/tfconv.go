@@ -35,10 +35,50 @@ func StringListToAPINonNull(ctx context.Context, list types.List) []string {
 // When the API returns empty and the prior state was null (attribute not
 // configured), null is preserved to avoid a perpetual null-vs-[] diff.
 func StringListFromAPIPreserveNull(ctx context.Context, prior types.List, values []string) (types.List, diag.Diagnostics) {
-	if len(values) == 0 && prior.IsNull() {
-		return types.ListNull(types.StringType), nil
+	if len(values) == 0 {
+		if prior.IsNull() {
+			return types.ListNull(types.StringType), nil
+		}
+		// a nil slice would convert to a null list; the attribute was
+		// configured, so state must hold an empty list, not null
+		values = []string{}
 	}
 	return types.ListValueFrom(ctx, types.StringType, values)
+}
+
+// StringSetToAPI converts a types.Set of strings to a Go slice.
+// Null and unknown sets become nil (omitted from the JSON payload).
+func StringSetToAPI(ctx context.Context, set types.Set) []string {
+	if set.IsNull() || set.IsUnknown() {
+		return nil
+	}
+	var out []string
+	_ = set.ElementsAs(ctx, &out, false)
+	return out
+}
+
+// StringSetToAPINonNull is StringSetToAPI but never returns nil: a null,
+// unknown, or empty set becomes []string{}. See StringListToAPINonNull.
+func StringSetToAPINonNull(ctx context.Context, set types.Set) []string {
+	if out := StringSetToAPI(ctx, set); out != nil {
+		return out
+	}
+	return []string{}
+}
+
+// StringSetFromAPIPreserveNull maps an API string slice back to a set in
+// state, preserving null when the API returns empty and the prior state was
+// null. See StringListFromAPIPreserveNull.
+func StringSetFromAPIPreserveNull(ctx context.Context, prior types.Set, values []string) (types.Set, diag.Diagnostics) {
+	if len(values) == 0 {
+		if prior.IsNull() {
+			return types.SetNull(types.StringType), nil
+		}
+		// a nil slice would convert to a null set; the attribute was
+		// configured, so state must hold an empty set, not null
+		values = []string{}
+	}
+	return types.SetValueFrom(ctx, types.StringType, values)
 }
 
 // StringOrNull maps optional API strings: empty string becomes null.

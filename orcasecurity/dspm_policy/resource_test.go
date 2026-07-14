@@ -29,8 +29,8 @@ resource "orcasecurity_dspm_policy" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "description", "test description"),
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "feature", "DSPM Scanning"),
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.detectors.#", "1"),
-					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.detectors.0", "*"),
-					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.categories.0", "PII"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_dspm_policy.test", "document.detectors.*", "*"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_dspm_policy.test", "document.categories.*", "PII"),
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "is_default_policy", "false"),
 					resource.TestCheckResourceAttrSet("orcasecurity_dspm_policy.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_dspm_policy.test", "organization_id"),
@@ -58,9 +58,52 @@ resource "orcasecurity_dspm_policy" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "name", "tf-acc-dspm-policy-renamed"),
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "tags.0", "team:security"),
-					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.regions.0", "Europe"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_dspm_policy.test", "document.regions.*", "Europe"),
 					resource.TestCheckNoResourceAttr("orcasecurity_dspm_policy.test", "document.categories"),
 				),
+			},
+			// multi-element document, deliberately NOT in server-sorted order:
+			// the server sorts every policy_document list on save, so this step
+			// guards against a perpetual plan diff on order-sensitive attributes
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_dspm_policy" "test" {
+  name        = "tf-acc-dspm-policy-renamed"
+  description = "test description updated"
+  tags        = ["team:security"]
+  document = {
+    detectors  = ["AUS_TAX_NUMBER", "AUSTRIA_TIN"]
+    categories = ["PII", "PCI"]
+    regions    = ["North America", "Europe"]
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.detectors.#", "2"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_dspm_policy.test", "document.detectors.*", "AUS_TAX_NUMBER"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_dspm_policy.test", "document.detectors.*", "AUSTRIA_TIN"),
+					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.categories.#", "2"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_dspm_policy.test", "document.categories.*", "PCI"),
+					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.regions.#", "2"),
+				),
+			},
+			// same config again: plan must be empty even though the server
+			// stores the lists sorted
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_dspm_policy" "test" {
+  name        = "tf-acc-dspm-policy-renamed"
+  description = "test description updated"
+  tags        = ["team:security"]
+  document = {
+    detectors  = ["AUS_TAX_NUMBER", "AUSTRIA_TIN"]
+    categories = ["PII", "PCI"]
+    regions    = ["North America", "Europe"]
+  }
+}
+`,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
 			},
 		},
 	})
