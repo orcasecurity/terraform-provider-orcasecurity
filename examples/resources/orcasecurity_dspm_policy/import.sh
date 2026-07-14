@@ -1,1 +1,1 @@
-terraform import orcasecurity_sensitive_data_identifier.example IDENTIFIER_ID
+terraform import orcasecurity_dspm_policy.example POLICY_ID

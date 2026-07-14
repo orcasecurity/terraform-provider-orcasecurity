@@ -108,31 +108,6 @@ func TestGetDataDetectionRule_NotFound(t *testing.T) {
 	}
 }
 
-func TestListDataDetectionRules_BareArray(t *testing.T) {
-	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.URL.Path != "/api/scan_configuration/rules" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
-		// NOTE: the list endpoint returns a bare JSON array — no {status,data} envelope.
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(`[{"rule_id":"rule-1","rule_name":"a","feature":"DSPM Scanning","action":"scan","is_enabled_rule":true},{"rule_id":"rule-2","rule_name":"b","feature":"Malware Scanning","action":"scan","is_enabled_rule":false}]`)),
-		}
-	})}
-
-	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	rules, err := client.ListDataDetectionRules()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(rules) != 2 {
-		t.Fatalf("expected 2 rules, got %d", len(rules))
-	}
-	if rules[0].ID != "rule-1" || rules[1].Feature != "Malware Scanning" {
-		t.Errorf("unexpected rules: %+v", rules)
-	}
-}
-
 func TestUpdateDataDetectionRule_UsesBulkRules(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "POST" {

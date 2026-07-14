@@ -23,7 +23,6 @@ type DataDetectionRuleTag struct {
 //     Bulk update is PARTIAL: keys absent from the payload keep their remote
 //     value. The list fields below therefore have no omitempty — callers must
 //     set them non-nil so clearing a list actually clears it server-side.
-//   - list:   GET /rules returns a bare JSON array (no envelope)
 //   - there is NO PUT/PATCH on /rules/<rule_id>
 type DataDetectionRule struct {
 	ID                    string                 `json:"rule_id,omitempty"`
@@ -64,21 +63,6 @@ func (client *APIClient) GetDataDetectionRule(id string) (*DataDetectionRule, er
 		return nil, fmt.Errorf("rule retrieve: could not decode response: %s", string(resp.Body()))
 	}
 	return &response.Data, nil
-}
-
-// ListDataDetectionRules lists all scan configuration rules.
-// NOTE: the endpoint returns a bare JSON array, not the {status,data} envelope.
-func (client *APIClient) ListDataDetectionRules() ([]DataDetectionRule, error) {
-	resp, err := client.Get(scanConfigRulesBasePath)
-	if err != nil {
-		return nil, err
-	}
-
-	rules := []DataDetectionRule{}
-	if err := resp.ReadJSON(&rules); err != nil {
-		return nil, err
-	}
-	return rules, nil
 }
 
 // CreateDataDetectionRule creates a rule via PUT on the collection
