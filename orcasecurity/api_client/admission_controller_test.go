@@ -190,6 +190,35 @@ func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 	}
 }
 
+// assertControlEmptyOptionalFieldsPayload verifies the serialization of unset
+// optional control fields: description present as explicit null, nil
+// input_parameters omitted, empty apiGroups/versions inside cluster_scope
+// kinds omitted.
+func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
+	t.Helper()
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("payload not JSON: %v", err)
+	}
+	if desc, has := payload["description"]; !has || desc != nil {
+		t.Errorf("nil description must be sent as explicit null: %s", body)
+	}
+	if _, has := payload["input_parameters"]; has {
+		t.Errorf("nil input_parameters must be omitted from payload: %s", body)
+	}
+	scope := payload["cluster_scope"].(map[string]interface{})
+	kind := scope["kinds"].([]interface{})[0].(map[string]interface{})
+	if _, has := kind["apiGroups"]; has {
+		t.Errorf("empty apiGroups must be omitted from payload: %s", body)
+	}
+	if _, has := kind["versions"]; has {
+		t.Errorf("empty versions must be omitted from payload: %s", body)
+	}
+	if kinds := kind["kinds"].([]interface{}); len(kinds) != 1 || kinds[0] != "Pod" {
+		t.Errorf("unexpected kinds: %s", body)
+	}
+}
+
 // Pins the serialization contract for optional fields. The API's PUT routes
 // are full-replace, but an omitted key *retains* the remote value while an
 // explicit null/[] clears it — so description must always be present (null
@@ -198,27 +227,7 @@ func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 func TestCreateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		body, _ := io.ReadAll(req.Body)
-		var payload map[string]interface{}
-		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("payload not JSON: %v", err)
-		}
-		if desc, has := payload["description"]; !has || desc != nil {
-			t.Errorf("nil description must be sent as explicit null: %s", body)
-		}
-		if _, has := payload["input_parameters"]; has {
-			t.Errorf("nil input_parameters must be omitted from payload: %s", body)
-		}
-		scope := payload["cluster_scope"].(map[string]interface{})
-		kind := scope["kinds"].([]interface{})[0].(map[string]interface{})
-		if _, has := kind["apiGroups"]; has {
-			t.Errorf("empty apiGroups must be omitted from payload: %s", body)
-		}
-		if _, has := kind["versions"]; has {
-			t.Errorf("empty versions must be omitted from payload: %s", body)
-		}
-		if kinds := kind["kinds"].([]interface{}); len(kinds) != 1 || kinds[0] != "Pod" {
-			t.Errorf("unexpected kinds: %s", body)
-		}
+		assertControlEmptyOptionalFieldsPayload(t, body)
 		return &http.Response{
 			StatusCode: 201,
 			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
