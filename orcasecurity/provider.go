@@ -244,6 +244,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 // Resources defines the resources implemented in the provider.
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		admission_controller.NewAdmissionControllerControlResource,
 		automation.NewAutomationResource,
 		automation_v2.NewAutomationV2Resource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
