@@ -136,6 +136,33 @@ resource "orcasecurity_admission_controller_policy_assignment" "clusters" {
 	})
 }
 
+// A scope value that is unknown at plan time (derived from another resource's
+// computed attribute) must not fail validation: ValidateConfig has to defer to
+// apply instead of treating unknown as absent.
+func TestAccAdmissionControllerPolicyAssignmentResource_UnknownScope(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + `
+resource "orcasecurity_admission_controller_policy_assignment" "unknown_scope" {
+  name = "tf-acc-assignment-unknown"
+  # Unknown until the policy is created: exercises the ValidateConfig
+  # unknown-value deferral (evaluates to true at apply time).
+  full_organization = length(orcasecurity_admission_controller_policy.for_assignment.id) > 0
+  policy_ids        = [orcasecurity_admission_controller_policy.for_assignment.id]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("orcasecurity_admission_controller_policy_assignment.unknown_scope", "id"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.unknown_scope", "full_organization", "true"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccAdmissionControllerPolicyAssignmentResource_RequiresScope(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },

@@ -26,11 +26,14 @@ type AdmissionControllerControl struct {
 	Name string `json:"name"`
 	// Description is always sent: the PUT endpoints are full-replace, but an
 	// omitted key *retains* the remote value while an explicit null clears it.
-	Description     *string                         `json:"description"`
-	TemplateID      string                          `json:"template_id"`
-	TemplateName    string                          `json:"template_name,omitempty"`
-	ClusterScope    AdmissionControllerClusterScope `json:"cluster_scope"`
-	InputParameters json.RawMessage                 `json:"input_parameters,omitempty"`
+	Description  *string                         `json:"description"`
+	TemplateID   string                          `json:"template_id"`
+	TemplateName string                          `json:"template_name,omitempty"`
+	ClusterScope AdmissionControllerClusterScope `json:"cluster_scope"`
+	// InputParameters is always sent ({} when unset, see Create/Update): an
+	// omitted key retains the remote value on PUT, which would silently undo
+	// a user clearing the attribute.
+	InputParameters json.RawMessage `json:"input_parameters"`
 }
 
 type admissionControllerControlAPIResponse struct {
@@ -65,8 +68,18 @@ func (client *APIClient) GetAdmissionControllerControl(id string) (*AdmissionCon
 	return &response.Data[0], nil
 }
 
+// normalizeAdmissionControllerControl defaults unset input_parameters to {}
+// so the key is always serialized (nil would marshal as null, and dropping
+// the key would retain the remote value on PUT).
+func normalizeAdmissionControllerControl(data *AdmissionControllerControl) {
+	if data.InputParameters == nil {
+		data.InputParameters = json.RawMessage(`{}`)
+	}
+}
+
 func (client *APIClient) CreateAdmissionControllerControl(data AdmissionControllerControl) (*AdmissionControllerControl, error) {
 	data.ID = ""
+	normalizeAdmissionControllerControl(&data)
 	resp, err := client.Post("/api/admission_controller/controls", data)
 	if err != nil {
 		return nil, err
@@ -80,6 +93,7 @@ func (client *APIClient) CreateAdmissionControllerControl(data AdmissionControll
 }
 
 func (client *APIClient) UpdateAdmissionControllerControl(data AdmissionControllerControl) (*AdmissionControllerControl, error) {
+	normalizeAdmissionControllerControl(&data)
 	resp, err := client.Put(fmt.Sprintf("/api/admission_controller/controls/%s", data.ID), data)
 	if err != nil {
 		return nil, err

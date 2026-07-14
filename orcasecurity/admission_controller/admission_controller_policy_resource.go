@@ -139,7 +139,7 @@ func policyPayloadFromPlan(ctx context.Context, plan policyResourceModel, diagno
 func populatePolicyState(ctx context.Context, state *policyResourceModel, instance *api_client.AdmissionControllerPolicy, diagnostics *diag.Diagnostics) {
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
-	state.Description = stringFromAPI(state.Description, instance.Description)
+	state.Description = integrations_common.OptionalStringMatchPlan(state.Description, instance.Description)
 	state.IsActive = types.BoolValue(instance.IsActive)
 	state.EnforcementAction = types.StringValue(instance.EnforcementAction)
 

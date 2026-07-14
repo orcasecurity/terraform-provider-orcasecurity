@@ -192,8 +192,8 @@ func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 
 // assertControlEmptyOptionalFieldsPayload verifies the serialization of unset
 // optional control fields: description present as explicit null, nil
-// input_parameters omitted, empty apiGroups/versions inside cluster_scope
-// kinds omitted.
+// input_parameters sent as explicit {}, empty apiGroups/versions inside
+// cluster_scope kinds omitted.
 func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
 	t.Helper()
 	var payload map[string]interface{}
@@ -203,8 +203,10 @@ func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
 	if desc, has := payload["description"]; !has || desc != nil {
 		t.Errorf("nil description must be sent as explicit null: %s", body)
 	}
-	if _, has := payload["input_parameters"]; has {
-		t.Errorf("nil input_parameters must be omitted from payload: %s", body)
+	if params, has := payload["input_parameters"]; !has {
+		t.Errorf("nil input_parameters must be sent as {}, not omitted (PUT omit retains the remote value): %s", body)
+	} else if obj, ok := params.(map[string]interface{}); !ok || len(obj) != 0 {
+		t.Errorf("nil input_parameters must be sent as {}: %s", body)
 	}
 	scope := payload["cluster_scope"].(map[string]interface{})
 	kind := scope["kinds"].([]interface{})[0].(map[string]interface{})
@@ -221,9 +223,10 @@ func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
 
 // Pins the serialization contract for optional fields. The API's PUT routes
 // are full-replace, but an omitted key *retains* the remote value while an
-// explicit null/[] clears it — so description must always be present (null
-// when unset). Empty apiGroups/versions inside cluster_scope kinds and a nil
-// input_parameters are still omitted.
+// explicit null/{}/[] clears it — so description (null when unset) and
+// input_parameters ({} when unset) must always be present. Empty
+// apiGroups/versions inside cluster_scope kinds are still omitted: the
+// backend replaces cluster_scope wholesale, so nested keys don't retain.
 func TestCreateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		body, _ := io.ReadAll(req.Body)
@@ -249,6 +252,37 @@ func TestCreateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
 	}
 	if control.ID != "ctrl-new" {
 		t.Errorf("expected ctrl-new, got %s", control.ID)
+	}
+}
+
+// Same contract on the update path: clearing input_parameters relies on the
+// client sending {} — an omitted key would silently retain the remote value.
+func TestUpdateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != "PUT" || req.URL.Path != "/api/admission_controller/controls/ctrl-1" {
+			t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
+		}
+		body, _ := io.ReadAll(req.Body)
+		assertControlEmptyOptionalFieldsPayload(t, body)
+		return &http.Response{
+			StatusCode: 200,
+			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
+				"id":"ctrl-1","name":"minimal control","template_id":"tpl-1","template_name":"k8sallowedrepos",
+				"cluster_scope":{"kinds":[{"kinds":["Pod"]}]}}}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	_, err := client.UpdateAdmissionControllerControl(AdmissionControllerControl{
+		ID:         "ctrl-1",
+		Name:       "minimal control",
+		TemplateID: "tpl-1",
+		ClusterScope: AdmissionControllerClusterScope{Kinds: []AdmissionControllerClusterScopeKind{
+			{APIGroups: []string{}, Kinds: []string{"Pod"}, Versions: []string{}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

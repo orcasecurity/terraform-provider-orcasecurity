@@ -91,6 +91,84 @@ resource "orcasecurity_admission_controller_policy" "test" {
 	})
 }
 
+// Exercises controls set membership changes: create with two controls, then
+// drop one. All other policy tests use exactly one control, so this is the
+// only coverage of an actual set add/remove against the API.
+func TestAccAdmissionControllerPolicyResource_RemoveControl(t *testing.T) {
+	const twoControlsConfig = `
+data "orcasecurity_admission_controller_template" "repos_multi" {
+  name = "k8sallowedrepos"
+}
+
+data "orcasecurity_admission_controller_template" "tty_multi" {
+  name = "k8sdisallowinteractivetty"
+}
+
+resource "orcasecurity_admission_controller_control" "multi_a" {
+  name        = "tf-acc-policy-multi-control-a"
+  template_id = data.orcasecurity_admission_controller_template.repos_multi.id
+  cluster_scope = {
+    kinds = [
+      {
+        kinds      = ["Pod"]
+        api_groups = [""]
+        versions   = [""]
+      }
+    ]
+  }
+  input_parameters = jsonencode({ repos = ["docker.io/library"] })
+}
+
+resource "orcasecurity_admission_controller_control" "multi_b" {
+  name        = "tf-acc-policy-multi-control-b"
+  template_id = data.orcasecurity_admission_controller_template.tty_multi.id
+  cluster_scope = {
+    kinds = [
+      {
+        kinds      = ["Pod"]
+        api_groups = [""]
+        versions   = [""]
+      }
+    ]
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + twoControlsConfig + `
+resource "orcasecurity_admission_controller_policy" "multi" {
+  name = "tf-acc-policy-multi"
+  controls = [
+    orcasecurity_admission_controller_control.multi_a.id,
+    orcasecurity_admission_controller_control.multi_b.id,
+  ]
+}
+`,
+				Check: resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy.multi", "controls.#", "2"),
+			},
+			// Remove one control; the other must stay attached.
+			{
+				Config: orcasecurity.TestProviderConfig + twoControlsConfig + `
+resource "orcasecurity_admission_controller_policy" "multi" {
+  name     = "tf-acc-policy-multi"
+  controls = [orcasecurity_admission_controller_control.multi_a.id]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy.multi", "controls.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair(
+						"orcasecurity_admission_controller_policy.multi", "controls.*",
+						"orcasecurity_admission_controller_control.multi_a", "id",
+					),
+				),
+			},
+		},
+	})
+}
+
 // The most common update — change a field without renaming — is rejected by
 // the backend's PUT route: its name-uniqueness check does not exclude the
 // policy itself ("Policy with name 'X' already exists."). The client works

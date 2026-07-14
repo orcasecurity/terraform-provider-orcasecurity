@@ -180,11 +180,9 @@ func controlPayloadFromPlan(ctx context.Context, plan controlResourceModel, diag
 		}
 	}
 
+	// Unset input_parameters stays nil: the client serializes it as {}.
 	raw, diags := integrations_common.DecodeJSONField(plan.InputParameters, "input_parameters")
 	diagnostics.Append(diags...)
-	if raw == nil {
-		raw = []byte(`{}`)
-	}
 	payload.InputParameters = raw
 	return payload
 }
@@ -194,7 +192,7 @@ func controlPayloadFromPlan(ctx context.Context, plan controlResourceModel, diag
 func populateControlState(ctx context.Context, state *controlResourceModel, instance *api_client.AdmissionControllerControl, diagnostics *diag.Diagnostics) {
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
-	state.Description = stringFromAPI(state.Description, instance.Description)
+	state.Description = integrations_common.OptionalStringMatchPlan(state.Description, instance.Description)
 	state.TemplateID = types.StringValue(instance.TemplateID)
 	state.TemplateName = types.StringValue(instance.TemplateName)
 

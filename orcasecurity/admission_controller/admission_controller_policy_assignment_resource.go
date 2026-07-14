@@ -73,9 +73,17 @@ func (r *policyAssignmentResource) ValidateConfig(ctx context.Context, req resou
 		return
 	}
 
-	fullOrganization := !config.FullOrganization.IsNull() && !config.FullOrganization.IsUnknown() && config.FullOrganization.ValueBool()
-	hasClusters := !config.Clusters.IsNull() && !config.Clusters.IsUnknown() && len(config.Clusters.Elements()) > 0
-	hasCloudAccounts := !config.CloudAccounts.IsNull() && !config.CloudAccounts.IsUnknown() && len(config.CloudAccounts.Elements()) > 0
+	// An unknown value (e.g. derived from another resource's computed
+	// attribute) may become a valid scope at apply time, so validation must
+	// be deferred, not failed. resourcevalidator.AtLeastOneOf can't replace
+	// this check: full_organization = false must count as absent.
+	if config.FullOrganization.IsUnknown() || config.Clusters.IsUnknown() || config.CloudAccounts.IsUnknown() {
+		return
+	}
+
+	fullOrganization := !config.FullOrganization.IsNull() && config.FullOrganization.ValueBool()
+	hasClusters := !config.Clusters.IsNull() && len(config.Clusters.Elements()) > 0
+	hasCloudAccounts := !config.CloudAccounts.IsNull() && len(config.CloudAccounts.Elements()) > 0
 
 	if !fullOrganization && !hasClusters && !hasCloudAccounts {
 		resp.Diagnostics.AddError(
@@ -163,7 +171,7 @@ func policyAssignmentPayloadFromPlan(ctx context.Context, plan policyAssignmentR
 func populatePolicyAssignmentState(ctx context.Context, state *policyAssignmentResourceModel, instance *api_client.AdmissionControllerScope, diagnostics *diag.Diagnostics) {
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
-	state.Description = stringFromAPI(state.Description, instance.Description)
+	state.Description = integrations_common.OptionalStringMatchPlan(state.Description, instance.Description)
 	state.FullOrganization = types.BoolValue(instance.FullOrganization)
 
 	clusters, diags := integrations_common.OptionalSetMatchPlan(ctx, state.Clusters, instance.Clusters)
