@@ -60,10 +60,11 @@ resource "orcasecurity_dspm_policy" "for_rule" {
 }
 
 resource "orcasecurity_data_detection_rule" "test" {
-  name    = "tf-acc-detection-rule-renamed"
-  enabled = true
-  action  = "do_not_scan"
-  tags    = [{ keys = ["*"], values = ["tf-acc", "tf-acc-updated"] }]
+  name     = "tf-acc-detection-rule-renamed"
+  enabled  = true
+  action   = "do_not_scan"
+  policies = [orcasecurity_dspm_policy.for_rule.id]
+  tags     = [{ keys = ["*"], values = ["tf-acc", "tf-acc-updated"] }]
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -86,10 +87,31 @@ func TestAccDataDetectionRuleResource_ScopeRequired(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_data_detection_rule" "invalid" {
-  name = "tf-acc-rule-no-scope"
+  name     = "tf-acc-rule-no-scope"
+  policies = ["00000000-0000-0000-0000-000000000000"]
 }
 `,
 				ExpectError: regexp.MustCompile(`Missing Attribute Configuration`),
+			},
+		},
+	})
+}
+
+// A rule must attach at least one policy, matching the Orca UI (the API does
+// not enforce this, so the provider does).
+func TestAccDataDetectionRuleResource_PoliciesRequired(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_data_detection_rule" "no_policies" {
+  name = "tf-acc-rule-no-policies"
+  tags = [{ keys = ["*"], values = ["tf-acc"] }]
+}
+`,
+				ExpectError: regexp.MustCompile(`The argument "policies" is required`),
 			},
 		},
 	})

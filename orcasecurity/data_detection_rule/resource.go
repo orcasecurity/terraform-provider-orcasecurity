@@ -6,6 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -136,9 +137,12 @@ func (r *dataDetectionRuleResource) Schema(_ context.Context, req resource.Schem
 				Default:     stringdefault.StaticString("DSPM Scanning"),
 			},
 			"policies": schema.ListAttribute{
-				Description: "DSPM policy IDs (UUIDs) attached to the rule. Only valid when `feature` is `DSPM Scanning`.",
-				Optional:    true,
+				Description: "DSPM policy IDs (UUIDs) attached to the rule. At least one policy is required, matching the Orca UI (the API itself does not enforce this). Only valid when `feature` is `DSPM Scanning`.",
+				Required:    true,
 				ElementType: types.StringType,
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+				},
 			},
 			"selector_cloud_accounts": schema.ListAttribute{
 				Description: "Cloud account IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.",
