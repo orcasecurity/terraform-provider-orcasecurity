@@ -101,15 +101,23 @@ func (r *shiftLeftProjectResource) Schema(ctx context.Context, req resource.Sche
 			},
 			"support_code_comments_via_cli": schema.StringAttribute{
 				Description: "Controls whether IaC code comments (for suppressing findings) should be allowed, ignored, or blocked. You can read more about it [here](https://docs.orcasecurity.io/docs/managing-iac-exceptions). Possible values are BLOCK, ALLOW, and IGNORE.",
-				Optional:    true,
+				// Optional + Computed: the server assigns a default (e.g. ALLOW)
+				// when unset, so it must be Computed to avoid a drift to null.
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"support_cve_exceptions_via_cli": schema.StringAttribute{
-				Description: "Control whether CVEs exception management via code should be allowed or blocked. Possible values are BLOCK and ALLOW. ALLOW: an exception file can be passed to the CLI execution in order to suppress issues. BLOCK: the scan will fail when exceptions are defined and specified in the CLI execution.",
-				Optional:    true,
+				Description:   "Control whether CVEs exception management via code should be allowed or blocked. Possible values are BLOCK and ALLOW. ALLOW: an exception file can be passed to the CLI execution in order to suppress issues. BLOCK: the scan will fail when exceptions are defined and specified in the CLI execution.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"support_secret_detection_suppression_via_cli": schema.StringAttribute{
-				Description: "Control whether code comments or exception handling via config file to suppress found secrets should be allowed, ignored, or blocked. Possible values are BLOCK, ALLOW, and IGNORE. If BLOCK is specified, the scan will fail if issues are found that are ignored via code comments or the exception configuration file.",
-				Optional:    true,
+				Description:   "Control whether code comments or exception handling via config file to suppress found secrets should be allowed, ignored, or blocked. Possible values are BLOCK, ALLOW, and IGNORE. If BLOCK is specified, the scan will fail if issues are found that are ignored via code comments or the exception configuration file.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"git_default_baseline_branch": schema.StringAttribute{
 				Description: "By default, the main or master branch is used to capture the baseline. If you need to select a different branch that will serve as your project's/repository's main (protect) branch, specify it here. You can read more [here](https://docs.orcasecurity.io/docs/shift-left-baseline).",
@@ -160,6 +168,11 @@ func (r *shiftLeftProjectResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 	plan.ID = types.StringValue(instance.ID)
+	// support_*_via_cli are Computed: the server assigns defaults when unset, so
+	// populate them from the create response to resolve the planned unknowns.
+	plan.SupportCodeComments = optionalString(instance.SupportCodeComments)
+	plan.SupportCveExceptions = optionalString(instance.SupportCveExceptions)
+	plan.SupportSecretDetectionSuppresion = optionalString(instance.SupportSecretDetectionSuppresion)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -234,6 +247,27 @@ func (r *shiftLeftProjectResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
+	// Unlike create, the update endpoint does not honor default_policies: it
+	// rejects the request unless at least one active policy is attached. When
+	// the user manages policies via default_policies (no explicit policies_ids),
+	// preserve whatever is currently attached by echoing back its policy ids.
+	policyIds := plan.PolicyIds
+	if len(policyIds) == 0 {
+		current, err := r.apiClient.GetShiftLeftProject(plan.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error reading project",
+				"Could not read project ID: "+plan.ID.ValueString()+": "+err.Error(),
+			)
+			return
+		}
+		if current != nil {
+			for _, p := range current.Policies {
+				policyIds = append(policyIds, p.ID)
+			}
+		}
+	}
+
 	updateReq := api_client.ShiftLeftProject{
 		ID:                               plan.ID.ValueString(),
 		Name:                             plan.Name.ValueString(),
@@ -244,7 +278,7 @@ func (r *shiftLeftProjectResource) Update(ctx context.Context, req resource.Upda
 		SupportCveExceptions:             plan.SupportCveExceptions.ValueString(),
 		SupportSecretDetectionSuppresion: plan.SupportSecretDetectionSuppresion.ValueString(),
 		GitDefaultBaselineBranch:         plan.GitDefaultBaselineBranch.ValueString(),
-		PolicyIds:                        plan.PolicyIds,
+		PolicyIds:                        policyIds,
 		ExceptionIds:                     plan.ExceptionIds,
 	}
 
@@ -253,15 +287,6 @@ func (r *shiftLeftProjectResource) Update(ctx context.Context, req resource.Upda
 		resp.Diagnostics.AddError(
 			"Error updating project",
 			"Could not update project, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	_, err = r.apiClient.GetShiftLeftProject(plan.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading project",
-			"Could not read project ID: "+plan.ID.ValueString()+": "+err.Error(),
 		)
 		return
 	}

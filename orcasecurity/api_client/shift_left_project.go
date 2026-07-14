@@ -17,6 +17,30 @@ type ShiftLeftProject struct {
 	GitDefaultBaselineBranch         string   `json:"git_default_baseline_branch,omitempty"`
 	PolicyIds                        []string `json:"policies_ids,omitempty"`
 	ExceptionIds                     []string `json:"exceptions_ids,omitempty"`
+
+	// Policies is the read-only list the API returns describing the attached
+	// policies. The API never echoes the write-only `default_policies` flag, so
+	// it is derived from whether any built-in policy is attached (see
+	// GetShiftLeftProject). omitempty keeps it out of create/update payloads.
+	Policies []ShiftLeftProjectPolicy `json:"policies,omitempty"`
+}
+
+// ShiftLeftProjectPolicy is a single entry of the read-only policies list the
+// API returns for a project. Only the fields the provider needs are modeled.
+type ShiftLeftProjectPolicy struct {
+	ID      string `json:"id"`
+	Builtin bool   `json:"builtin"`
+}
+
+// hasBuiltinPolicy reports whether any attached policy is an Orca built-in,
+// which is how the provider reconstructs the write-only default_policies flag.
+func hasBuiltinPolicy(policies []ShiftLeftProjectPolicy) bool {
+	for _, p := range policies {
+		if p.Builtin {
+			return true
+		}
+	}
+	return false
 }
 
 func (client *APIClient) GetShiftLeftProject(id string) (*ShiftLeftProject, error) {
@@ -34,6 +58,9 @@ func (client *APIClient) GetShiftLeftProject(id string) (*ShiftLeftProject, erro
 	if err != nil {
 		return nil, err
 	}
+	// The API does not return default_policies; reconstruct it from the
+	// presence of built-in policies so Read does not drift to false.
+	response.DefaultPolicies = hasBuiltinPolicy(response.Policies)
 	return &response, nil
 }
 
