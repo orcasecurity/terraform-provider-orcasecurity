@@ -1,0 +1,1 @@
+terraform import orcasecurity_sensitive_data_identifier.example IDENTIFIER_ID
