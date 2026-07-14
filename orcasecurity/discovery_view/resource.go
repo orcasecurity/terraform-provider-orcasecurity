@@ -62,6 +62,7 @@ type discoveryQueryResourceModel struct {
 type discoveryViewResourceModel struct {
 	ID                types.String                 `tfsdk:"id"`
 	Name              types.String                 `tfsdk:"name"`
+	Description       types.String                 `tfsdk:"description"`
 	FilterData        *discoveryQueryResourceModel `tfsdk:"filter_data"`
 	ExtraParameters   map[string]interface{}       `tfsdk:"extra_params"`
 	Columns           types.List                   `tfsdk:"columns"`
@@ -87,9 +88,10 @@ type groupBySortModel struct {
 // groupBy2 holds the grouping columns. Each groupBy2 entry is an object with
 // a required "key" and an optional "sort" (list of {field, direction}).
 const (
-	extraParamsColumnsKey = "columns2"
-	extraParamsSortKey    = "sort2"
-	extraParamsGroupByKey = "groupBy2"
+	extraParamsColumnsKey     = "columns2"
+	extraParamsSortKey        = "sort2"
+	extraParamsGroupByKey     = "groupBy2"
+	extraParamsDescriptionKey = "description"
 )
 
 // groupByAPIEntry mirrors the API shape of a single groupBy2 entry.
@@ -103,10 +105,10 @@ type groupBySortAPIEntry struct {
 	Direction string
 }
 
-// buildExtraParams converts the configured columns, sort and grouping into the
-// extra_params shape the API expects:
-// {"columns2": {"keys": [...]}, "sort2": "...", "groupBy2": [{"key": ..., "sort": [...]}, ...]}.
-func buildExtraParams(columns []string, sort string, groupBy []groupByAPIEntry) map[string]interface{} {
+// buildExtraParams converts the configured columns, sort, grouping and
+// description into the extra_params shape the API expects:
+// {"columns2": {"keys": [...]}, "sort2": "...", "groupBy2": [{"key": ..., "sort": [...]}, ...], "description": "..."}.
+func buildExtraParams(columns []string, sort string, groupBy []groupByAPIEntry, description string) map[string]interface{} {
 	extraParams := map[string]interface{}{}
 	if len(columns) > 0 {
 		extraParams[extraParamsColumnsKey] = map[string]interface{}{
@@ -115,6 +117,9 @@ func buildExtraParams(columns []string, sort string, groupBy []groupByAPIEntry) 
 	}
 	if sort != "" {
 		extraParams[extraParamsSortKey] = sort
+	}
+	if description != "" {
+		extraParams[extraParamsDescriptionKey] = description
 	}
 	if len(groupBy) > 0 {
 		entries := make([]map[string]interface{}, 0, len(groupBy))
@@ -141,6 +146,14 @@ func buildExtraParams(columns []string, sort string, groupBy []groupByAPIEntry) 
 func extractSort(extraParams map[string]interface{}) string {
 	if sort, ok := extraParams[extraParamsSortKey].(string); ok {
 		return sort
+	}
+	return ""
+}
+
+// extractDescription pulls the view description out of an API extra_params object.
+func extractDescription(extraParams map[string]interface{}) string {
+	if description, ok := extraParams[extraParamsDescriptionKey].(string); ok {
+		return description
 	}
 	return ""
 }
@@ -379,6 +392,11 @@ func (r *discoveryViewResource) Schema(ctx context.Context, req resource.SchemaR
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
+			"description": schema.StringAttribute{
+				Description: "Optional free-text description of the discovery view (shown in the Orca UI). " +
+					"Stored under the view's `extra_params.description`.",
+				Optional: true,
+			},
 			"view_type": schema.StringAttribute{
 				Description: "Should be set to 'discovery' for discovery views.",
 				Required:    true,
@@ -505,7 +523,7 @@ func (r *discoveryViewResource) Create(ctx context.Context, req resource.CreateR
 		Name:              plan.Name.ValueString(),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.String()[1 : len(plan.ViewType.String())-1],
-		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), planGroupByEntries(ctx, plan)),
+		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), planGroupByEntries(ctx, plan), plan.Description.ValueString()),
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 
@@ -639,6 +657,12 @@ func populateDiscoveryViewState(ctx context.Context, state *discoveryViewResourc
 		state.Sort = types.StringNull()
 	}
 
+	if description := extractDescription(instance.ExtraParameters); description != "" {
+		state.Description = types.StringValue(description)
+	} else {
+		state.Description = types.StringNull()
+	}
+
 	applyGroupByToState(ctx, state, instance, resp)
 }
 
@@ -690,7 +714,7 @@ func (r *discoveryViewResource) Update(ctx context.Context, req resource.UpdateR
 		Name:              plan.Name.ValueString(),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
 		ViewType:          plan.ViewType.String()[1 : len(plan.ViewType.String())-1],
-		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), planGroupByEntries(ctx, plan)),
+		ExtraParameters:   buildExtraParams(listToStrings(ctx, plan.Columns), plan.Sort.ValueString(), planGroupByEntries(ctx, plan), plan.Description.ValueString()),
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 

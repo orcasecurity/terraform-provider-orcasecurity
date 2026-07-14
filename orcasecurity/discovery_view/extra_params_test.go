@@ -6,14 +6,14 @@ import (
 )
 
 func TestBuildExtraParams_Empty(t *testing.T) {
-	got := buildExtraParams(nil, "", nil)
+	got := buildExtraParams(nil, "", nil, "")
 	if len(got) != 0 {
 		t.Errorf("expected empty extra_params, got %v", got)
 	}
 }
 
 func TestBuildExtraParams_ColumnsOnly(t *testing.T) {
-	got := buildExtraParams([]string{"OrcaScore", "CloudAccount"}, "", nil)
+	got := buildExtraParams([]string{"OrcaScore", "CloudAccount"}, "", nil, "")
 
 	columns, ok := got[extraParamsColumnsKey].(map[string]interface{})
 	if !ok {
@@ -35,6 +35,7 @@ func TestBuildExtraParams_All(t *testing.T) {
 		[]string{"OrcaScore"},
 		"-OrcaScore",
 		[]groupByAPIEntry{{Key: "AlertType"}},
+		"",
 	)
 
 	if got[extraParamsSortKey] != "-OrcaScore" {
@@ -62,6 +63,7 @@ func TestBuildExtraParams_GroupByWithSort(t *testing.T) {
 				},
 			},
 		},
+		"",
 	)
 
 	expected := []map[string]interface{}{
@@ -74,6 +76,38 @@ func TestBuildExtraParams_GroupByWithSort(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got[extraParamsGroupByKey], expected) {
 		t.Errorf("unexpected groupBy2: %v", got[extraParamsGroupByKey])
+	}
+}
+
+func TestBuildExtraParams_Description(t *testing.T) {
+	got := buildExtraParams(nil, "", nil, "my view description")
+	if got[extraParamsDescriptionKey] != "my view description" {
+		t.Errorf("unexpected description: %v", got[extraParamsDescriptionKey])
+	}
+	// empty description must not be serialized
+	if _, exists := buildExtraParams(nil, "", nil, "")[extraParamsDescriptionKey]; exists {
+		t.Error("did not expect description to be set when empty")
+	}
+}
+
+func TestExtractDescription(t *testing.T) {
+	testCases := []struct {
+		name        string
+		extraParams map[string]interface{}
+		expected    string
+	}{
+		{name: "valid description", extraParams: map[string]interface{}{"description": "hello"}, expected: "hello"},
+		{name: "missing description", extraParams: map[string]interface{}{}, expected: ""},
+		{name: "description wrong type", extraParams: map[string]interface{}{"description": 5}, expected: ""},
+		{name: "nil extra_params", extraParams: nil, expected: ""},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := extractDescription(testCase.extraParams); got != testCase.expected {
+				t.Errorf("expected %q, got %q", testCase.expected, got)
+			}
+		})
 	}
 }
 
@@ -206,7 +240,7 @@ func TestExtraParamsRoundTrip(t *testing.T) {
 		},
 	}
 
-	built := buildExtraParams(columns, sort, groupBy)
+	built := buildExtraParams(columns, sort, groupBy, "")
 
 	// Simulate the API echoing the object back through JSON-like decoding,
 	// where arrays come back as []interface{} and objects as map[string]interface{}.
