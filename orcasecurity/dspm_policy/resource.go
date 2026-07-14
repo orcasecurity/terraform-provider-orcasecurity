@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -70,7 +70,7 @@ func (r *dspmPolicyResource) ImportState(ctx context.Context, req resource.Impor
 
 func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
-		Description: "Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context.",
+		Description: "Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (`is_default_policy = true`) cannot be updated or deleted; importing one makes every change fail with a 400 error.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -133,12 +133,17 @@ func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaReques
 						},
 					},
 					"regions": schema.ListAttribute{
-						Description: "Region selectors.",
+						Description: "Region selectors. Valid values are `*`, `Europe`, `North America`, `APAC`, `LATAM`, and `MEA`.",
 						Optional:    true,
 						ElementType: types.StringType,
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(stringvalidator.OneOf(
+								"*", "Europe", "North America", "APAC", "LATAM", "MEA",
+							)),
+						},
 					},
 					"industries": schema.ListAttribute{
-						Description: "Industry selectors.",
+						Description: "Industry selectors. Must be one of the Orca catalog industries (e.g. `Healthcare`, `Financial Services`) or `*`.",
 						Optional:    true,
 						ElementType: types.StringType,
 					},
@@ -148,7 +153,7 @@ func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaReques
 						ElementType: types.StringType,
 					},
 					"countries": schema.ListAttribute{
-						Description: "Country selectors.",
+						Description: "Country selectors. Must be one of the Orca catalog countries (e.g. `United States`, `Germany`) or `*`.",
 						Optional:    true,
 						ElementType: types.StringType,
 					},
@@ -162,48 +167,22 @@ func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaReques
 	}
 }
 
-// stringListToAPI converts a types.List of strings to a Go slice.
-// Null and unknown lists become nil (omitted from the JSON payload).
-func stringListToAPI(ctx context.Context, list types.List) []string {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
-	}
-	var out []string
-	_ = list.ElementsAs(ctx, &out, false)
-	return out
-}
-
-// stringListFromAPIPreserveNull maps an API string slice back to state.
-// When the API returns empty and the prior state was null (attribute not
-// configured), null is preserved to avoid a perpetual null-vs-[] diff.
-func stringListFromAPIPreserveNull(ctx context.Context, prior types.List, values []string) (types.List, diag.Diagnostics) {
-	if len(values) == 0 && prior.IsNull() {
-		return types.ListNull(types.StringType), nil
-	}
-	return types.ListValueFrom(ctx, types.StringType, values)
-}
-
 func generatePolicyPayload(ctx context.Context, plan stateModel) api_client.DSPMPolicy {
-	// tags must serialize as [] (never null) — server model expects a list
-	tags := stringListToAPI(ctx, plan.Tags)
-	if tags == nil {
-		tags = []string{}
-	}
-
 	return api_client.DSPMPolicy{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
 		Feature:     plan.Feature.ValueString(),
-		Tags:        tags,
+		// api_client.PolicyTags serializes nil as [] — the server requires the key present.
+		Tags: tfconv.StringListToAPI(ctx, plan.Tags),
 		// advanced_settings is not exposed in the schema (MVP); the server expects {}
 		AdvancedSettings: map[string]interface{}{},
 		Document: api_client.DSPMPolicyDocument{
-			SelectorDetectors:  stringListToAPI(ctx, plan.Document.Detectors),
-			SelectorCategories: stringListToAPI(ctx, plan.Document.Categories),
-			SelectorRegions:    stringListToAPI(ctx, plan.Document.Regions),
-			SelectorIndustries: stringListToAPI(ctx, plan.Document.Industries),
-			SelectorTags:       stringListToAPI(ctx, plan.Document.Tags),
-			SelectorCountries:  stringListToAPI(ctx, plan.Document.Countries),
+			SelectorDetectors:  tfconv.StringListToAPI(ctx, plan.Document.Detectors),
+			SelectorCategories: tfconv.StringListToAPI(ctx, plan.Document.Categories),
+			SelectorRegions:    tfconv.StringListToAPI(ctx, plan.Document.Regions),
+			SelectorIndustries: tfconv.StringListToAPI(ctx, plan.Document.Industries),
+			SelectorTags:       tfconv.StringListToAPI(ctx, plan.Document.Tags),
+			SelectorCountries:  tfconv.StringListToAPI(ctx, plan.Document.Countries),
 		},
 	}
 }
@@ -260,19 +239,19 @@ func (r *dspmPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 		priorDocument = *state.Document
 	}
 
-	tags, d := stringListFromAPIPreserveNull(ctx, state.Tags, instance.Tags)
+	tags, d := tfconv.StringListFromAPIPreserveNull(ctx, state.Tags, instance.Tags)
 	resp.Diagnostics.Append(d...)
 	detectors, d := types.ListValueFrom(ctx, types.StringType, instance.Document.SelectorDetectors)
 	resp.Diagnostics.Append(d...)
-	categories, d := stringListFromAPIPreserveNull(ctx, priorDocument.Categories, instance.Document.SelectorCategories)
+	categories, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Categories, instance.Document.SelectorCategories)
 	resp.Diagnostics.Append(d...)
-	regions, d := stringListFromAPIPreserveNull(ctx, priorDocument.Regions, instance.Document.SelectorRegions)
+	regions, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Regions, instance.Document.SelectorRegions)
 	resp.Diagnostics.Append(d...)
-	industries, d := stringListFromAPIPreserveNull(ctx, priorDocument.Industries, instance.Document.SelectorIndustries)
+	industries, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Industries, instance.Document.SelectorIndustries)
 	resp.Diagnostics.Append(d...)
-	documentTags, d := stringListFromAPIPreserveNull(ctx, priorDocument.Tags, instance.Document.SelectorTags)
+	documentTags, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Tags, instance.Document.SelectorTags)
 	resp.Diagnostics.Append(d...)
-	countries, d := stringListFromAPIPreserveNull(ctx, priorDocument.Countries, instance.Document.SelectorCountries)
+	countries, d := tfconv.StringListFromAPIPreserveNull(ctx, priorDocument.Countries, instance.Document.SelectorCountries)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return

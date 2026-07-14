@@ -32,9 +32,9 @@ locals {
 
 ### Optional
 
-- `category` (String) Filter by category (`PII`, `PHI`, `PCI`, `SECRET`, `OTHER`).
-- `sub_category` (String) Filter by sub-category.
-- `title` (String) Filter by identifier title.
+- `category` (String) Filter by category (exact match: `PII`, `PHI`, `PCI`, `SECRET`, `OTHER`).
+- `sub_category` (String) Filter by sub-category (exact match).
+- `title` (String) Filter by identifier title (exact match).
 
 ### Read-Only
 

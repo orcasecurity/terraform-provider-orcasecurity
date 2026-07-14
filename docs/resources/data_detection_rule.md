@@ -13,11 +13,14 @@ Provides a DSPM data detection rule (scan configuration rule with feature `DSPM 
 ## Example Usage
 
 ```terraform
-# rule binding a DSPM policy to tagged assets (rules are created disabled by default)
+# rule binding a DSPM policy to tagged assets (rules are created disabled by default).
+# Tag selectors match asset tags by key and value; use keys = ["*"] for any key.
 resource "orcasecurity_data_detection_rule" "tagged_assets" {
   name     = "Scan tagged data stores"
   policies = [orcasecurity_dspm_policy.all_data.id]
-  tags     = ["env:production"]
+  tags = [
+    { keys = ["env"], values = ["production"] }
+  ]
 }
 
 # enabled rule scoped to specific cloud accounts
@@ -46,13 +49,21 @@ resource "orcasecurity_data_detection_rule" "prod_accounts" {
 - `priority` (Number) Rule priority (unique per organization). If omitted, the server auto-assigns the next free priority.
 - `selector_business_units` (List of String) Business unit IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
 - `selector_cloud_accounts` (List of String) Cloud account IDs in scope. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
-- `tags` (List of String) Rule tags (also used for scoping). At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.
+- `tags` (Attributes List) Asset tag selectors that scope the rule. Each selector matches assets whose tag key is in `keys` (`["*"]` for any key) and whose tag value is in `values`. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set. (see [below for nested schema](#nestedatt--tags))
 
 ### Read-Only
 
 - `id` (String) Rule ID.
 - `is_default_rule` (Boolean) Whether this is an Orca-managed default rule. Always false for Terraform-created rules.
 - `organization_id` (String) Orca organization ID.
+
+<a id="nestedatt--tags"></a>
+### Nested Schema for `tags`
+
+Required:
+
+- `keys` (List of String) Tag keys to match. Use `["*"]` to match any key.
+- `values` (List of String) Tag values to match.
 
 ## Import
 

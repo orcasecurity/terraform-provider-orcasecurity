@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -31,6 +32,11 @@ type dataDetectionRuleResource struct {
 	apiClient *api_client.APIClient
 }
 
+type tagModel struct {
+	Keys   types.List `tfsdk:"keys"`
+	Values types.List `tfsdk:"values"`
+}
+
 type stateModel struct {
 	ID                    types.String `tfsdk:"id"`
 	OrganizationID        types.String `tfsdk:"organization_id"`
@@ -42,7 +48,7 @@ type stateModel struct {
 	Policies              types.List   `tfsdk:"policies"`
 	SelectorCloudAccounts types.List   `tfsdk:"selector_cloud_accounts"`
 	SelectorBusinessUnits types.List   `tfsdk:"selector_business_units"`
-	Tags                  types.List   `tfsdk:"tags"`
+	Tags                  []tagModel   `tfsdk:"tags"`
 	IsDefaultRule         types.Bool   `tfsdk:"is_default_rule"`
 }
 
@@ -144,10 +150,23 @@ func (r *dataDetectionRuleResource) Schema(_ context.Context, req resource.Schem
 				Optional:    true,
 				ElementType: types.StringType,
 			},
-			"tags": schema.ListAttribute{
-				Description: "Rule tags (also used for scoping). At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.",
+			"tags": schema.ListNestedAttribute{
+				Description: "Asset tag selectors that scope the rule. Each selector matches assets whose tag key is in `keys` (`[\"*\"]` for any key) and whose tag value is in `values`. At least one of `selector_cloud_accounts`, `selector_business_units`, or `tags` must be set.",
 				Optional:    true,
-				ElementType: types.StringType,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"keys": schema.ListAttribute{
+							Description: "Tag keys to match. Use `[\"*\"]` to match any key.",
+							Required:    true,
+							ElementType: types.StringType,
+						},
+						"values": schema.ListAttribute{
+							Description: "Tag values to match.",
+							Required:    true,
+							ElementType: types.StringType,
+						},
+					},
+				},
 			},
 			"is_default_rule": schema.BoolAttribute{
 				Description: "Whether this is an Orca-managed default rule. Always false for Terraform-created rules.",
@@ -157,40 +176,37 @@ func (r *dataDetectionRuleResource) Schema(_ context.Context, req resource.Schem
 	}
 }
 
-// stringListToAPI converts a types.List of strings to a Go slice.
-// Null and unknown lists become nil (omitted from the JSON payload).
-func stringListToAPI(ctx context.Context, list types.List) []string {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
+func tagsToAPI(ctx context.Context, tags []tagModel) []api_client.DataDetectionRuleTag {
+	out := []api_client.DataDetectionRuleTag{}
+	for _, tag := range tags {
+		out = append(out, api_client.DataDetectionRuleTag{
+			Keys:   tfconv.StringListToAPINonNull(ctx, tag.Keys),
+			Values: tfconv.StringListToAPINonNull(ctx, tag.Values),
+		})
 	}
-	var out []string
-	_ = list.ElementsAs(ctx, &out, false)
 	return out
 }
 
-// stringListFromAPIPreserveNull maps an API string slice back to state.
-// When the API returns empty and the prior state was null (attribute not
-// configured), null is preserved to avoid a perpetual null-vs-[] diff.
-func stringListFromAPIPreserveNull(ctx context.Context, prior types.List, values []string) (types.List, diag.Diagnostics) {
-	if len(values) == 0 && prior.IsNull() {
-		return types.ListNull(types.StringType), nil
+// tagsFromAPI maps rule tags back to state. An empty remote list maps to
+// null when the attribute was not configured (nil prior), mirroring
+// tfconv.StringListFromAPIPreserveNull.
+func tagsFromAPI(ctx context.Context, prior []tagModel, tags []api_client.DataDetectionRuleTag) ([]tagModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if len(tags) == 0 {
+		if prior == nil {
+			return nil, nil
+		}
+		return []tagModel{}, nil
 	}
-	return types.ListValueFrom(ctx, types.StringType, values)
-}
-
-func int64ToAPIPtr(v types.Int64) *int64 {
-	if v.IsNull() || v.IsUnknown() {
-		return nil
+	out := make([]tagModel, 0, len(tags))
+	for _, tag := range tags {
+		keys, d := types.ListValueFrom(ctx, types.StringType, tag.Keys)
+		diags.Append(d...)
+		values, d := types.ListValueFrom(ctx, types.StringType, tag.Values)
+		diags.Append(d...)
+		out = append(out, tagModel{Keys: keys, Values: values})
 	}
-	value := v.ValueInt64()
-	return &value
-}
-
-func int64FromAPIPtr(v *int64) types.Int64 {
-	if v == nil {
-		return types.Int64Null()
-	}
-	return types.Int64Value(*v)
+	return out, diags
 }
 
 func generateRulePayload(ctx context.Context, plan stateModel) api_client.DataDetectionRule {
@@ -198,12 +214,12 @@ func generateRulePayload(ctx context.Context, plan stateModel) api_client.DataDe
 		Name:                  plan.Name.ValueString(),
 		Feature:               plan.Feature.ValueString(),
 		Action:                plan.Action.ValueString(),
-		Priority:              int64ToAPIPtr(plan.Priority),
+		Priority:              tfconv.Int64ToAPIPtr(plan.Priority),
 		Enabled:               plan.Enabled.ValueBool(),
-		SelectorCloudAccounts: stringListToAPI(ctx, plan.SelectorCloudAccounts),
-		SelectorBusinessUnits: stringListToAPI(ctx, plan.SelectorBusinessUnits),
-		Tags:                  stringListToAPI(ctx, plan.Tags),
-		Policies:              stringListToAPI(ctx, plan.Policies),
+		SelectorCloudAccounts: tfconv.StringListToAPINonNull(ctx, plan.SelectorCloudAccounts),
+		SelectorBusinessUnits: tfconv.StringListToAPINonNull(ctx, plan.SelectorBusinessUnits),
+		Tags:                  tagsToAPI(ctx, plan.Tags),
+		Policies:              tfconv.StringListToAPINonNull(ctx, plan.Policies),
 	}
 }
 
@@ -242,7 +258,7 @@ func (r *dataDetectionRuleResource) Create(ctx context.Context, req resource.Cre
 
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
-	plan.Priority = int64FromAPIPtr(instance.Priority)
+	plan.Priority = tfconv.Int64FromAPIPtr(instance.Priority)
 	plan.IsDefaultRule = types.BoolValue(instance.IsDefaultRule)
 
 	diags = resp.State.Set(ctx, plan)
@@ -271,13 +287,13 @@ func (r *dataDetectionRuleResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	policies, d := stringListFromAPIPreserveNull(ctx, state.Policies, instance.Policies)
+	policies, d := tfconv.StringListFromAPIPreserveNull(ctx, state.Policies, instance.Policies)
 	resp.Diagnostics.Append(d...)
-	cloudAccounts, d := stringListFromAPIPreserveNull(ctx, state.SelectorCloudAccounts, instance.SelectorCloudAccounts)
+	cloudAccounts, d := tfconv.StringListFromAPIPreserveNull(ctx, state.SelectorCloudAccounts, instance.SelectorCloudAccounts)
 	resp.Diagnostics.Append(d...)
-	businessUnits, d := stringListFromAPIPreserveNull(ctx, state.SelectorBusinessUnits, instance.SelectorBusinessUnits)
+	businessUnits, d := tfconv.StringListFromAPIPreserveNull(ctx, state.SelectorBusinessUnits, instance.SelectorBusinessUnits)
 	resp.Diagnostics.Append(d...)
-	tags, d := stringListFromAPIPreserveNull(ctx, state.Tags, instance.Tags)
+	tags, d := tagsFromAPI(ctx, state.Tags, instance.Tags)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,7 +302,7 @@ func (r *dataDetectionRuleResource) Read(ctx context.Context, req resource.ReadR
 	state.ID = types.StringValue(instance.ID)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
 	state.Name = types.StringValue(instance.Name)
-	state.Priority = int64FromAPIPtr(instance.Priority)
+	state.Priority = tfconv.Int64FromAPIPtr(instance.Priority)
 	state.Enabled = types.BoolValue(instance.Enabled)
 	state.Action = types.StringValue(instance.Action)
 	state.Feature = types.StringValue(instance.Feature)
@@ -308,14 +324,7 @@ func (r *dataDetectionRuleResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	var state stateModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if state.ID.ValueString() == "" {
+	if plan.ID.ValueString() == "" {
 		resp.Diagnostics.AddError(
 			"ID is null",
 			"Could not update Data Detection Rule, unexpected error: missing ID",
@@ -325,7 +334,7 @@ func (r *dataDetectionRuleResource) Update(ctx context.Context, req resource.Upd
 
 	// non-standard REST: update goes through POST /bulk_rules
 	updateReq := generateRulePayload(ctx, plan)
-	updateReq.ID = state.ID.ValueString()
+	updateReq.ID = plan.ID.ValueString()
 	if err := r.apiClient.UpdateDataDetectionRule(updateReq); err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Data Detection Rule",
@@ -334,7 +343,7 @@ func (r *dataDetectionRuleResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	instance, err := r.apiClient.GetDataDetectionRule(state.ID.ValueString())
+	instance, err := r.apiClient.GetDataDetectionRule(plan.ID.ValueString())
 	if err != nil || instance == nil {
 		message := "rule vanished right after update"
 		if err != nil {
@@ -342,14 +351,14 @@ func (r *dataDetectionRuleResource) Update(ctx context.Context, req resource.Upd
 		}
 		resp.Diagnostics.AddError(
 			"Error refreshing Data Detection Rule",
-			fmt.Sprintf("Could not read Data Detection Rule ID %s after update: %s", state.ID.ValueString(), message),
+			fmt.Sprintf("Could not read Data Detection Rule ID %s after update: %s", plan.ID.ValueString(), message),
 		)
 		return
 	}
 
 	plan.ID = types.StringValue(instance.ID)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
-	plan.Priority = int64FromAPIPtr(instance.Priority)
+	plan.Priority = tfconv.Int64FromAPIPtr(instance.Priority)
 	plan.IsDefaultRule = types.BoolValue(instance.IsDefaultRule)
 
 	diags = resp.State.Set(ctx, &plan)

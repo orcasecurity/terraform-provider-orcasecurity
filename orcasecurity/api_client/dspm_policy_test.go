@@ -162,3 +162,36 @@ func TestDeleteDSPMPolicy(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestGetDSPMPolicy_EmptyDictTags(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		// policies created without tags (e.g. via the UI) carry tags: {} —
+		// the server-side default is an empty dict, not a list
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"policy_id":"pol-1","policy_name":"ui policy","policy_description":"","tags":{},"policy_document":{"selector_detectors":["*"]}}}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	policy, err := client.GetDSPMPolicy("pol-1")
+	if err != nil {
+		t.Fatalf("unexpected error decoding tags:{}: %v", err)
+	}
+	if policy == nil || policy.ID != "pol-1" {
+		t.Fatalf("unexpected policy: %+v", policy)
+	}
+	if len(policy.Tags) != 0 {
+		t.Errorf("expected empty tags, got %+v", policy.Tags)
+	}
+}
+
+func TestPolicyTags_MarshalAsArray(t *testing.T) {
+	payload, err := json.Marshal(DSPMPolicy{Name: "p", Tags: PolicyTags{}, AdvancedSettings: map[string]interface{}{}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(payload), `"tags":[]`) {
+		t.Errorf("tags must serialize as [], got: %s", string(payload))
+	}
+}

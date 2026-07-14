@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -99,7 +100,7 @@ func (r *sensitiveDataIdentifierResource) Schema(_ context.Context, req resource
 				Description: "Orca organization ID.",
 			},
 			"title": schema.StringAttribute{
-				Description: "Identifier title. Must be unique within the organization.",
+				Description: "Identifier title. Must be unique (case-insensitive) within the organization, including against the built-in catalog identifiers.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
@@ -117,7 +118,7 @@ func (r *sensitiveDataIdentifierResource) Schema(_ context.Context, req resource
 				},
 			},
 			"sub_category": schema.StringAttribute{
-				Description: "Free-form sub-category (e.g. `Personal`, `Medical`).",
+				Description: "Data sub-category. Must be one of the Orca catalog sub-categories (e.g. `Phone Number`, `Email Address`, `Patient ID`, `API Keys and Tokens`, `Other`); the server rejects values outside the catalog.",
 				Required:    true,
 			},
 			"enabled": schema.BoolAttribute{
@@ -151,7 +152,7 @@ func (r *sensitiveDataIdentifierResource) Schema(_ context.Context, req resource
 									Default:     stringdefault.StaticString("match"),
 								},
 								"value": schema.StringAttribute{
-									Description: "Regular expression to match.",
+									Description: "Regular expression to match. The server requires the pattern to start and end with a boundary (`\\b`, `^`, `$`, or a non-capturing group) and to contain a named capturing group called `secret`, e.g. `\\b(?P<secret>[0-9]{9})\\b`.",
 									Required:    true,
 								},
 							},
@@ -174,10 +175,10 @@ func (r *sensitiveDataIdentifierResource) Schema(_ context.Context, req resource
 						},
 					},
 					"significance": schema.StringAttribute{
-						Description: "Finding significance. Valid values are `minor`, `moderate`, and `major`.",
+						Description: "Finding significance. Valid values are `Minor`, `Moderate`, and `Major` (capitalized — the server rejects lowercase).",
 						Optional:    true,
 						Validators: []validator.String{
-							stringvalidator.OneOf("minor", "moderate", "major"),
+							stringvalidator.OneOf("Minor", "Moderate", "Major"),
 						},
 					},
 					"keywords": schema.ListAttribute{
@@ -217,50 +218,6 @@ func (r *sensitiveDataIdentifierResource) Schema(_ context.Context, req resource
 	}
 }
 
-// stringListToAPI converts a types.List of strings to a Go slice.
-// Null and unknown lists become nil (omitted from the JSON payload).
-func stringListToAPI(ctx context.Context, list types.List) []string {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
-	}
-	var out []string
-	_ = list.ElementsAs(ctx, &out, false)
-	return out
-}
-
-// stringListFromAPIPreserveNull maps an API string slice back to state.
-// When the API returns empty and the prior state was null (attribute not
-// configured), null is preserved to avoid a perpetual null-vs-[] diff.
-func stringListFromAPIPreserveNull(ctx context.Context, prior types.List, values []string) (types.List, diag.Diagnostics) {
-	if len(values) == 0 && prior.IsNull() {
-		return types.ListNull(types.StringType), nil
-	}
-	return types.ListValueFrom(ctx, types.StringType, values)
-}
-
-// stringOrNull maps optional API strings: empty string becomes null.
-func stringOrNull(v string) types.String {
-	if v == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(v)
-}
-
-func int64ToAPIPtr(v types.Int64) *int64 {
-	if v.IsNull() || v.IsUnknown() {
-		return nil
-	}
-	value := v.ValueInt64()
-	return &value
-}
-
-func int64FromAPIPtr(v *int64) types.Int64 {
-	if v == nil {
-		return types.Int64Null()
-	}
-	return types.Int64Value(*v)
-}
-
 func generateDetectorPayload(ctx context.Context, plan stateModel) api_client.DSPMDetector {
 	var conditions []api_client.DSPMDetectorCondition
 	for _, condition := range plan.Properties.Conditions {
@@ -280,16 +237,16 @@ func generateDetectorPayload(ctx context.Context, plan stateModel) api_client.DS
 		IsCustom:    true,
 		Properties: api_client.DSPMDetectorProperties{
 			Conditions:      conditions,
-			DetectionTypes:  stringListToAPI(ctx, plan.Properties.DetectionTypes),
+			DetectionTypes:  tfconv.StringListToAPI(ctx, plan.Properties.DetectionTypes),
 			Sensitivity:     plan.Properties.Sensitivity.ValueString(),
 			Significance:    plan.Properties.Significance.ValueString(),
-			Keywords:        stringListToAPI(ctx, plan.Properties.Keywords),
-			ExcludeKeywords: stringListToAPI(ctx, plan.Properties.ExcludeKeywords),
-			StopWildcards:   stringListToAPI(ctx, plan.Properties.StopWildcards),
-			TextThreshold:   int64ToAPIPtr(plan.Properties.TextThreshold),
-			DBThreshold:     int64ToAPIPtr(plan.Properties.DBThreshold),
-			OCRThreshold:    int64ToAPIPtr(plan.Properties.OCRThreshold),
-			AIThreshold:     int64ToAPIPtr(plan.Properties.AIThreshold),
+			Keywords:        tfconv.StringListToAPI(ctx, plan.Properties.Keywords),
+			ExcludeKeywords: tfconv.StringListToAPI(ctx, plan.Properties.ExcludeKeywords),
+			StopWildcards:   tfconv.StringListToAPI(ctx, plan.Properties.StopWildcards),
+			TextThreshold:   tfconv.Int64ToAPIPtr(plan.Properties.TextThreshold),
+			DBThreshold:     tfconv.Int64ToAPIPtr(plan.Properties.DBThreshold),
+			OCRThreshold:    tfconv.Int64ToAPIPtr(plan.Properties.OCRThreshold),
+			AIThreshold:     tfconv.Int64ToAPIPtr(plan.Properties.AIThreshold),
 		},
 	}
 }
@@ -374,11 +331,11 @@ func (r *sensitiveDataIdentifierResource) Read(ctx context.Context, req resource
 
 	detectionTypes, d := types.ListValueFrom(ctx, types.StringType, instance.Properties.DetectionTypes)
 	resp.Diagnostics.Append(d...)
-	keywords, d := stringListFromAPIPreserveNull(ctx, prior.Keywords, instance.Properties.Keywords)
+	keywords, d := tfconv.StringListFromAPIPreserveNull(ctx, prior.Keywords, instance.Properties.Keywords)
 	resp.Diagnostics.Append(d...)
-	excludeKeywords, d := stringListFromAPIPreserveNull(ctx, prior.ExcludeKeywords, instance.Properties.ExcludeKeywords)
+	excludeKeywords, d := tfconv.StringListFromAPIPreserveNull(ctx, prior.ExcludeKeywords, instance.Properties.ExcludeKeywords)
 	resp.Diagnostics.Append(d...)
-	stopWildcards, d := stringListFromAPIPreserveNull(ctx, prior.StopWildcards, instance.Properties.StopWildcards)
+	stopWildcards, d := tfconv.StringListFromAPIPreserveNull(ctx, prior.StopWildcards, instance.Properties.StopWildcards)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -394,15 +351,15 @@ func (r *sensitiveDataIdentifierResource) Read(ctx context.Context, req resource
 	state.Properties = &propertiesModel{
 		Conditions:      conditions,
 		DetectionTypes:  detectionTypes,
-		Sensitivity:     stringOrNull(instance.Properties.Sensitivity),
-		Significance:    stringOrNull(instance.Properties.Significance),
+		Sensitivity:     tfconv.StringOrNull(instance.Properties.Sensitivity),
+		Significance:    tfconv.StringOrNull(instance.Properties.Significance),
 		Keywords:        keywords,
 		ExcludeKeywords: excludeKeywords,
 		StopWildcards:   stopWildcards,
-		TextThreshold:   int64FromAPIPtr(instance.Properties.TextThreshold),
-		DBThreshold:     int64FromAPIPtr(instance.Properties.DBThreshold),
-		OCRThreshold:    int64FromAPIPtr(instance.Properties.OCRThreshold),
-		AIThreshold:     int64FromAPIPtr(instance.Properties.AIThreshold),
+		TextThreshold:   tfconv.Int64FromAPIPtr(instance.Properties.TextThreshold),
+		DBThreshold:     tfconv.Int64FromAPIPtr(instance.Properties.DBThreshold),
+		OCRThreshold:    tfconv.Int64FromAPIPtr(instance.Properties.OCRThreshold),
+		AIThreshold:     tfconv.Int64FromAPIPtr(instance.Properties.AIThreshold),
 	}
 
 	diags = resp.State.Set(ctx, &state)

@@ -13,19 +13,22 @@ Provides a custom DSPM sensitive data identifier (detector). Sensitive data iden
 ## Example Usage
 
 ```terraform
-# custom sensitive data identifier matching 9-digit account numbers
+# custom sensitive data identifier matching 9-digit account numbers.
+# The regex must start and end with a boundary and contain a named
+# capturing group called `secret`; sub_category must be a valid Orca
+# catalog sub-category.
 resource "orcasecurity_sensitive_data_identifier" "account_number" {
   title        = "Internal Account Number"
   details      = "Detects internal 9-digit account numbers."
   category     = "PII"
-  sub_category = "Financial"
+  sub_category = "Financial Account Numbers"
   properties = {
     conditions = [
-      { value = "ACC-[0-9]{9}" }
+      { value = "\\b(?P<secret>ACC-[0-9]{9})\\b" }
     ]
     detection_types = ["text", "db"]
     sensitivity     = "high"
-    significance    = "major"
+    significance    = "Major"
     keywords        = ["account", "acct"]
     text_threshold  = 2
   }
@@ -36,11 +39,11 @@ resource "orcasecurity_sensitive_data_identifier" "legacy_token" {
   title        = "Legacy API Token"
   details      = "Detects legacy API token format."
   category     = "SECRET"
-  sub_category = "Credentials"
+  sub_category = "API Keys and Tokens"
   enabled      = false
   properties = {
     conditions = [
-      { value = "legacy_[a-f0-9]{32}" }
+      { value = "\\b(?P<secret>legacy_[a-f0-9]{32})\\b" }
     ]
   }
 }
@@ -54,8 +57,8 @@ resource "orcasecurity_sensitive_data_identifier" "legacy_token" {
 - `category` (String) Data category. Valid values are `PII`, `PHI`, `PCI`, `SECRET`, and `OTHER`.
 - `details` (String) Identifier description.
 - `properties` (Attributes) Detection configuration. (see [below for nested schema](#nestedatt--properties))
-- `sub_category` (String) Free-form sub-category (e.g. `Personal`, `Medical`).
-- `title` (String) Identifier title. Must be unique within the organization.
+- `sub_category` (String) Data sub-category. Must be one of the Orca catalog sub-categories (e.g. `Phone Number`, `Email Address`, `Patient ID`, `API Keys and Tokens`, `Other`); the server rejects values outside the catalog.
+- `title` (String) Identifier title. Must be unique (case-insensitive) within the organization, including against the built-in catalog identifiers.
 
 ### Optional
 
@@ -82,7 +85,7 @@ Optional:
 - `keywords` (List of String) Keywords that boost detection confidence.
 - `ocr_threshold` (Number) Minimum matches for OCR detection.
 - `sensitivity` (String) Data sensitivity. Valid values are `critical`, `high`, `medium`, and `low`.
-- `significance` (String) Finding significance. Valid values are `minor`, `moderate`, and `major`.
+- `significance` (String) Finding significance. Valid values are `Minor`, `Moderate`, and `Major` (capitalized — the server rejects lowercase).
 - `stop_wildcards` (List of String) Path wildcards excluded from scanning.
 - `text_threshold` (Number) Minimum matches for text detection.
 
@@ -91,7 +94,7 @@ Optional:
 
 Required:
 
-- `value` (String) Regular expression to match.
+- `value` (String) Regular expression to match. The server requires the pattern to start and end with a boundary (`\b`, `^`, `$`, or a non-capturing group) and to contain a named capturing group called `secret`, e.g. `\b(?P<secret>[0-9]{9})\b`.
 
 Optional:
 

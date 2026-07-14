@@ -1,8 +1,11 @@
-# rule binding a DSPM policy to tagged assets (rules are created disabled by default)
+# rule binding a DSPM policy to tagged assets (rules are created disabled by default).
+# Tag selectors match asset tags by key and value; use keys = ["*"] for any key.
 resource "orcasecurity_data_detection_rule" "tagged_assets" {
   name     = "Scan tagged data stores"
   policies = [orcasecurity_dspm_policy.all_data.id]
-  tags     = ["env:production"]
+  tags = [
+    { keys = ["env"], values = ["production"] }
+  ]
 }
 
 # enabled rule scoped to specific cloud accounts

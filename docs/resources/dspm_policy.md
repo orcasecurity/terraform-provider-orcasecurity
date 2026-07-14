@@ -3,12 +3,12 @@
 page_title: "orcasecurity_dspm_policy Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context.
+  Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (is_default_policy = true) cannot be updated or deleted; importing one makes every change fail with a 400 error.
 ---
 
 # orcasecurity_dspm_policy (Resource)
 
-Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context.
+Provides a DSPM data protection policy. A policy selects which sensitive data identifiers apply and in which context. Orca-managed default policies (`is_default_policy = true`) cannot be updated or deleted; importing one makes every change fail with a 400 error.
 
 ## Example Usage
 
@@ -30,7 +30,7 @@ resource "orcasecurity_dspm_policy" "pii_eu" {
   document = {
     detectors  = ["PII-Email", orcasecurity_sensitive_data_identifier.account_number.id]
     categories = ["PII"]
-    regions    = ["EU"]
+    regions    = ["Europe"]
   }
 }
 ```
@@ -65,9 +65,9 @@ Required:
 Optional:
 
 - `categories` (List of String) Data categories. Valid values are `PII`, `PHI`, `PCI`, `SECRET`, and `OTHER`.
-- `countries` (List of String) Country selectors.
-- `industries` (List of String) Industry selectors.
-- `regions` (List of String) Region selectors.
+- `countries` (List of String) Country selectors. Must be one of the Orca catalog countries (e.g. `United States`, `Germany`) or `*`.
+- `industries` (List of String) Industry selectors. Must be one of the Orca catalog industries (e.g. `Healthcare`, `Financial Services`) or `*`.
+- `regions` (List of String) Region selectors. Valid values are `*`, `Europe`, `North America`, `APAC`, `LATAM`, and `MEA`.
 - `tags` (List of String) Asset tag selectors.
 
 ## Import

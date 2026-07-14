@@ -51,14 +51,14 @@ resource "orcasecurity_dspm_policy" "test" {
   tags        = ["team:security"]
   document = {
     detectors = ["*"]
-    regions   = ["EU"]
+    regions   = ["Europe"]
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "name", "tf-acc-dspm-policy-renamed"),
 					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "tags.0", "team:security"),
-					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.regions.0", "EU"),
+					resource.TestCheckResourceAttr("orcasecurity_dspm_policy.test", "document.regions.0", "Europe"),
 					resource.TestCheckNoResourceAttr("orcasecurity_dspm_policy.test", "document.categories"),
 				),
 			},

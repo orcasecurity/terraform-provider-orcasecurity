@@ -7,34 +7,43 @@ import (
 const scanConfigRulesBasePath = "/api/scan_configuration/rules"
 const scanConfigBulkRulesPath = "/api/scan_configuration/bulk_rules"
 
+// DataDetectionRuleTag is one tag selector of a rule. Rule tags are
+// key/value selectors matched against asset tags — not plain strings.
+type DataDetectionRuleTag struct {
+	Keys   []string `json:"keys"`
+	Values []string `json:"values"`
+}
+
 // DataDetectionRule is a scan configuration rule (feature "DSPM Scanning")
 // from /api/scan_configuration/rules.
 //
 // The rules endpoint is non-standard REST:
 //   - create: PUT on the collection (/rules), response carries data.rule_id
 //   - update: POST /bulk_rules with {"rules_to_update": [{..., "rule_id": ...}]}
+//     Bulk update is PARTIAL: keys absent from the payload keep their remote
+//     value. The list fields below therefore have no omitempty — callers must
+//     set them non-nil so clearing a list actually clears it server-side.
 //   - list:   GET /rules returns a bare JSON array (no envelope)
 //   - there is NO PUT/PATCH on /rules/<rule_id>
 type DataDetectionRule struct {
-	ID                    string   `json:"rule_id,omitempty"`
-	OrganizationID        string   `json:"organization,omitempty"`
-	Name                  string   `json:"rule_name"`
-	Feature               string   `json:"feature"`
-	Action                string   `json:"action"`
-	Priority              *int64   `json:"rule_priority,omitempty"`
-	Enabled               bool     `json:"is_enabled_rule"`
-	SelectorCloudAccounts []string `json:"selector_cloud_accounts,omitempty"`
-	SelectorBusinessUnits []string `json:"selector_business_units,omitempty"`
-	Tags                  []string `json:"tags,omitempty"`
-	Policies              []string `json:"policies,omitempty"`
-	IsDefaultRule         bool     `json:"is_default_rule,omitempty"`
+	ID                    string                 `json:"rule_id,omitempty"`
+	OrganizationID        string                 `json:"organization,omitempty"`
+	Name                  string                 `json:"rule_name"`
+	Feature               string                 `json:"feature"`
+	Action                string                 `json:"action"`
+	Priority              *int64                 `json:"rule_priority,omitempty"`
+	Enabled               bool                   `json:"is_enabled_rule"`
+	SelectorCloudAccounts []string               `json:"selector_cloud_accounts"`
+	SelectorBusinessUnits []string               `json:"selector_business_units"`
+	Tags                  []DataDetectionRuleTag `json:"tags"`
+	Policies              []string               `json:"policies"`
+	IsDefaultRule         bool                   `json:"is_default_rule,omitempty"`
 }
 
 // GetDataDetectionRule retrieves one rule. Returns (nil, nil) on 404 so the
-// resource Read can RemoveResource on remote drift. The decode is
-// envelope-tolerant: it first tries {status,data} and falls back to a bare
-// object (the rules list endpoint is known to skip the envelope, so retrieve
-// is decoded defensively too).
+// resource Read can RemoveResource on remote drift.
+// NOTE: unlike the list endpoint, retrieve responses carry the {status,data}
+// envelope.
 func (client *APIClient) GetDataDetectionRule(id string) (*DataDetectionRule, error) {
 	resp, err := client.Get(fmt.Sprintf("%s/%s", scanConfigRulesBasePath, id))
 	if resp != nil && resp.StatusCode() == 404 {
@@ -48,18 +57,13 @@ func (client *APIClient) GetDataDetectionRule(id string) (*DataDetectionRule, er
 		Data DataDetectionRule `json:"data"`
 	}
 	response := responseType{}
-	if err := resp.ReadJSON(&response); err == nil && response.Data.ID != "" {
-		return &response.Data, nil
-	}
-
-	rule := DataDetectionRule{}
-	if err := resp.ReadJSON(&rule); err != nil {
+	if err := resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
-	if rule.ID == "" {
+	if response.Data.ID == "" {
 		return nil, fmt.Errorf("rule retrieve: could not decode response: %s", string(resp.Body()))
 	}
-	return &rule, nil
+	return &response.Data, nil
 }
 
 // ListDataDetectionRules lists all scan configuration rules.
@@ -101,7 +105,9 @@ func (client *APIClient) CreateDataDetectionRule(data DataDetectionRule) (string
 }
 
 // UpdateDataDetectionRule updates a rule via POST /bulk_rules.
-// data.ID must carry the rule_id of the rule being updated.
+// data.ID must carry the rule_id of the rule being updated. Because bulk
+// update only touches keys present in the payload, all mutable list fields
+// are always serialized (see DataDetectionRule).
 func (client *APIClient) UpdateDataDetectionRule(data DataDetectionRule) error {
 	if data.ID == "" {
 		return fmt.Errorf("rule update: rule_id is required")

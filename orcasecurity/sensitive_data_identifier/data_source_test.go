@@ -18,10 +18,10 @@ resource "orcasecurity_sensitive_data_identifier" "seed" {
   title        = "tf-acc-ds-seed"
   details      = "seed identifier for data source test"
   category     = "PII"
-  sub_category = "Personal"
+  sub_category = "Phone Number"
   properties = {
     conditions = [
-      { value = "[0-9]{9}" }
+      { value = "\\b(?P<secret>[0-9]{9})\\b" }
     ]
   }
 }

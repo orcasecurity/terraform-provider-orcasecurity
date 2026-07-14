@@ -27,7 +27,7 @@ resource "orcasecurity_dspm_policy" "for_rule" {
 resource "orcasecurity_data_detection_rule" "test" {
   name     = "tf-acc-detection-rule"
   policies = [orcasecurity_dspm_policy.for_rule.id]
-  tags     = ["tf-acc"]
+  tags     = [{ keys = ["*"], values = ["tf-acc"] }]
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -63,14 +63,15 @@ resource "orcasecurity_data_detection_rule" "test" {
   name    = "tf-acc-detection-rule-renamed"
   enabled = true
   action  = "do_not_scan"
-  tags    = ["tf-acc", "tf-acc-updated"]
+  tags    = [{ keys = ["*"], values = ["tf-acc", "tf-acc-updated"] }]
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_data_detection_rule.test", "name", "tf-acc-detection-rule-renamed"),
 					resource.TestCheckResourceAttr("orcasecurity_data_detection_rule.test", "enabled", "true"),
 					resource.TestCheckResourceAttr("orcasecurity_data_detection_rule.test", "action", "do_not_scan"),
-					resource.TestCheckResourceAttr("orcasecurity_data_detection_rule.test", "tags.#", "2"),
+					resource.TestCheckResourceAttr("orcasecurity_data_detection_rule.test", "tags.#", "1"),
+					resource.TestCheckResourceAttr("orcasecurity_data_detection_rule.test", "tags.0.values.#", "2"),
 				),
 			},
 		},
@@ -88,7 +89,7 @@ resource "orcasecurity_data_detection_rule" "invalid" {
   name = "tf-acc-rule-no-scope"
 }
 `,
-				ExpectError: regexp.MustCompile(`At least one attribute out of`),
+				ExpectError: regexp.MustCompile(`Missing Attribute Configuration`),
 			},
 		},
 	})

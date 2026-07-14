@@ -15,6 +15,6 @@ resource "orcasecurity_dspm_policy" "pii_eu" {
   document = {
     detectors  = ["PII-Email", orcasecurity_sensitive_data_identifier.account_number.id]
     categories = ["PII"]
-    regions    = ["EU"]
+    regions    = ["Europe"]
   }
 }

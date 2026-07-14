@@ -47,15 +47,15 @@ func (ds *sensitiveDataIdentifiersDataSource) Schema(_ context.Context, _ dataso
 		Description: "Lists DSPM sensitive data identifiers (built-in and custom) from GET /api/scan_configuration/dspm_detector. Use it to look up built-in identifier IDs (e.g. `AUS_TAX_NUMBER`) for `orcasecurity_dspm_policy.document.detectors`. Pick an id with a for expression, e.g. one([for i in data.orcasecurity_sensitive_data_identifiers.all.identifiers : i.id if i.title == \"Email Address\"]).",
 		Attributes: map[string]schema.Attribute{
 			"title": schema.StringAttribute{
-				Description: "Filter by identifier title.",
+				Description: "Filter by identifier title (exact match).",
 				Optional:    true,
 			},
 			"category": schema.StringAttribute{
-				Description: "Filter by category (`PII`, `PHI`, `PCI`, `SECRET`, `OTHER`).",
+				Description: "Filter by category (exact match: `PII`, `PHI`, `PCI`, `SECRET`, `OTHER`).",
 				Optional:    true,
 			},
 			"sub_category": schema.StringAttribute{
-				Description: "Filter by sub-category.",
+				Description: "Filter by sub-category (exact match).",
 				Optional:    true,
 			},
 			"identifiers": schema.ListNestedAttribute{

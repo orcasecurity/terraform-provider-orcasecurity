@@ -18,7 +18,7 @@ func TestGetDSPMDetector(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: 200,
-			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{"id":"det-1","organization":"org-1","title":"My Detector","details":"desc","category":"PII","sub_category":"Personal","is_disabled":false,"is_custom":true,"properties":{"conditions":[{"source":"content","operator":"match","value":"[0-9]{9}"}],"detection_types":["text","db"],"sensitivity":"high","significance":"major","keywords":["ssn"],"text_threshold":3}}}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"id":"det-1","organization":"org-1","title":"My Detector","details":"desc","category":"PII","sub_category":"Personal","is_disabled":false,"is_custom":true,"properties":{"conditions":[{"source":"content","operator":"match","value":"[0-9]{9}"}],"detection_types":["text","db"],"sensitivity":"high","significance":"major","keywords":["ssn"],"text_threshold":3}}}`)),
 		}
 	})}
 

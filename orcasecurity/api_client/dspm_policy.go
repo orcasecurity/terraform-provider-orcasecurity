@@ -1,10 +1,40 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
 const dspmPolicyBasePath = "/api/scan_configuration/dspm_policies"
+
+// PolicyTags decodes the two shapes the API emits for policy tags:
+// a list of strings (the normal case) and {} — the server-side default for
+// policies created without tags (e.g. via the UI). {} decodes to nil.
+// It always serializes as a JSON array.
+type PolicyTags []string
+
+func (t *PolicyTags) UnmarshalJSON(data []byte) error {
+	var list []string
+	if err := json.Unmarshal(data, &list); err == nil {
+		*t = list
+		return nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &obj); err == nil && len(obj) == 0 {
+		*t = nil
+		return nil
+	}
+	return fmt.Errorf("policy tags: expected a string array or {}, got: %s", string(data))
+}
+
+// MarshalJSON serializes nil as [] so the field is always a JSON array: the
+// server rejects a null value here and expects the key present.
+func (t PolicyTags) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]string(t))
+}
 
 // DSPMPolicyDocument is the selector document of a DSPM data protection policy.
 type DSPMPolicyDocument struct {
@@ -25,7 +55,7 @@ type DSPMPolicy struct {
 	Name             string                 `json:"policy_name"`
 	Description      string                 `json:"policy_description"`
 	Feature          string                 `json:"feature,omitempty"`
-	Tags             []string               `json:"tags"`
+	Tags             PolicyTags             `json:"tags"`
 	Document         DSPMPolicyDocument     `json:"policy_document"`
 	AdvancedSettings map[string]interface{} `json:"advanced_settings"`
 	IsDefaultPolicy  bool                   `json:"is_default_policy,omitempty"`

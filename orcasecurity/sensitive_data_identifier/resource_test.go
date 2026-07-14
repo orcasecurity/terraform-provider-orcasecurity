@@ -19,13 +19,13 @@ resource "orcasecurity_sensitive_data_identifier" "test" {
   title        = "tf-acc-identifier"
   details      = "test details"
   category     = "PII"
-  sub_category = "Personal"
+  sub_category = "Phone Number"
   properties = {
     conditions = [
-      { value = "[0-9]{9}" }
+      { value = "\\b(?P<secret>[0-9]{9})\\b" }
     ]
     sensitivity  = "high"
-    significance = "major"
+    significance = "Major"
     keywords     = ["ssn"]
   }
 }
@@ -36,7 +36,7 @@ resource "orcasecurity_sensitive_data_identifier" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_sensitive_data_identifier.test", "enabled", "true"),
 					resource.TestCheckResourceAttr("orcasecurity_sensitive_data_identifier.test", "properties.conditions.0.source", "content"),
 					resource.TestCheckResourceAttr("orcasecurity_sensitive_data_identifier.test", "properties.conditions.0.operator", "match"),
-					resource.TestCheckResourceAttr("orcasecurity_sensitive_data_identifier.test", "properties.conditions.0.value", "[0-9]{9}"),
+					resource.TestCheckResourceAttr("orcasecurity_sensitive_data_identifier.test", "properties.conditions.0.value", "\\b(?P<secret>[0-9]{9})\\b"),
 					resource.TestCheckResourceAttr("orcasecurity_sensitive_data_identifier.test", "properties.sensitivity", "high"),
 					resource.TestCheckResourceAttrSet("orcasecurity_sensitive_data_identifier.test", "properties.detection_types.#"),
 					resource.TestCheckResourceAttrSet("orcasecurity_sensitive_data_identifier.test", "id"),
@@ -56,15 +56,15 @@ resource "orcasecurity_sensitive_data_identifier" "test" {
   title        = "tf-acc-identifier-renamed"
   details      = "test details updated"
   category     = "PHI"
-  sub_category = "Medical"
+  sub_category = "Patient ID"
   enabled      = false
   properties = {
     conditions = [
-      { value = "[0-9]{10}" }
+      { value = "\\b(?P<secret>[0-9]{10})\\b" }
     ]
     detection_types = ["text"]
     sensitivity     = "medium"
-    significance    = "moderate"
+    significance    = "Moderate"
   }
 }
 `,
