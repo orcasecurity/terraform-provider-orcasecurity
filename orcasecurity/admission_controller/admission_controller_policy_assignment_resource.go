@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -37,9 +39,9 @@ type policyAssignmentResourceModel struct {
 	Name             types.String `tfsdk:"name"`
 	Description      types.String `tfsdk:"description"`
 	FullOrganization types.Bool   `tfsdk:"full_organization"`
-	Clusters         types.List   `tfsdk:"clusters"`
-	CloudAccounts    types.List   `tfsdk:"cloud_accounts"`
-	PolicyIDs        types.List   `tfsdk:"policy_ids"`
+	Clusters         types.Set    `tfsdk:"clusters"`
+	CloudAccounts    types.Set    `tfsdk:"cloud_accounts"`
+	PolicyIDs        types.Set    `tfsdk:"policy_ids"`
 }
 
 func NewAdmissionControllerPolicyAssignmentResource() resource.Resource {
@@ -112,17 +114,17 @@ func (r *policyAssignmentResource) Schema(_ context.Context, _ resource.SchemaRe
 				Default:     booldefault.StaticBool(false),
 				Description: "Apply the attached policies to every cluster in the organization. Defaults to `false`.",
 			},
-			"clusters": schema.ListAttribute{
+			"clusters": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
 				Description: "Kubernetes cluster IDs the policies apply to.",
 			},
-			"cloud_accounts": schema.ListAttribute{
+			"cloud_accounts": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
 				Description: "Cloud account IDs whose clusters the policies apply to.",
 			},
-			"policy_ids": schema.ListAttribute{
+			"policy_ids": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
 				Description: "IDs of `orcasecurity_admission_controller_policy` resources to assign.",
@@ -131,14 +133,21 @@ func (r *policyAssignmentResource) Schema(_ context.Context, _ resource.SchemaRe
 	}
 }
 
-func policyAssignmentPayloadFromPlan(ctx context.Context, plan policyAssignmentResourceModel) api_client.AdmissionControllerScope {
+func policyAssignmentPayloadFromPlan(ctx context.Context, plan policyAssignmentResourceModel, diagnostics *diag.Diagnostics) api_client.AdmissionControllerScope {
+	clusters, diags := integrations_common.StringSliceFromSet(ctx, plan.Clusters)
+	diagnostics.Append(diags...)
+	cloudAccounts, diags := integrations_common.StringSliceFromSet(ctx, plan.CloudAccounts)
+	diagnostics.Append(diags...)
+	policyIDs, diags := integrations_common.StringSliceFromSet(ctx, plan.PolicyIDs)
+	diagnostics.Append(diags...)
+
 	payload := api_client.AdmissionControllerScope{
 		ID:               plan.ID.ValueString(),
 		Name:             plan.Name.ValueString(),
 		FullOrganization: plan.FullOrganization.ValueBool(),
-		Clusters:         stringListToSlice(ctx, plan.Clusters),
-		CloudAccounts:    stringListToSlice(ctx, plan.CloudAccounts),
-		PolicyIDs:        stringListToSlice(ctx, plan.PolicyIDs),
+		Clusters:         clusters,
+		CloudAccounts:    cloudAccounts,
+		PolicyIDs:        policyIDs,
 	}
 	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
 		description := plan.Description.ValueString()
@@ -147,30 +156,31 @@ func policyAssignmentPayloadFromPlan(ctx context.Context, plan policyAssignmentR
 	return payload
 }
 
-// populatePolicyAssignmentState maps an API scope onto the model. policy_ids
-// is write-only in the API: reads return embedded policies[] objects instead,
-// so the IDs are reconstructed from there (keeps imports clean).
-func populatePolicyAssignmentState(ctx context.Context, state *policyAssignmentResourceModel, instance *api_client.AdmissionControllerScope, resp *resource.ReadResponse) {
+// populatePolicyAssignmentState maps an API scope onto the model. state is the
+// plan (Create/Update) or prior state (Read/import). policy_ids is write-only
+// in the API: responses return embedded policies[] objects instead, so the IDs
+// are reconstructed from there (keeps imports clean).
+func populatePolicyAssignmentState(ctx context.Context, state *policyAssignmentResourceModel, instance *api_client.AdmissionControllerScope, diagnostics *diag.Diagnostics) {
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
 	state.Description = stringFromAPI(state.Description, instance.Description)
 	state.FullOrganization = types.BoolValue(instance.FullOrganization)
 
-	clusters, diags := stringListFromAPI(ctx, state.Clusters, instance.Clusters)
-	resp.Diagnostics.Append(diags...)
+	clusters, diags := integrations_common.OptionalSetMatchPlan(ctx, state.Clusters, instance.Clusters)
+	diagnostics.Append(diags...)
 	state.Clusters = clusters
 
-	cloudAccounts, diags := stringListFromAPI(ctx, state.CloudAccounts, instance.CloudAccounts)
-	resp.Diagnostics.Append(diags...)
+	cloudAccounts, diags := integrations_common.OptionalSetMatchPlan(ctx, state.CloudAccounts, instance.CloudAccounts)
+	diagnostics.Append(diags...)
 	state.CloudAccounts = cloudAccounts
 
 	policyIDs := make([]string, 0, len(instance.Policies))
 	for _, policy := range instance.Policies {
 		policyIDs = append(policyIDs, policy.ID)
 	}
-	policyIDsList, diags := stringListFromAPI(ctx, state.PolicyIDs, policyIDs)
-	resp.Diagnostics.Append(diags...)
-	state.PolicyIDs = policyIDsList
+	policyIDsSet, diags := integrations_common.OptionalSetMatchPlan(ctx, state.PolicyIDs, policyIDs)
+	diagnostics.Append(diags...)
+	state.PolicyIDs = policyIDsSet
 }
 
 func (r *policyAssignmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -180,14 +190,21 @@ func (r *policyAssignmentResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	instance, err := r.apiClient.CreateAdmissionControllerScope(policyAssignmentPayloadFromPlan(ctx, plan))
+	payload := policyAssignmentPayloadFromPlan(ctx, plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	instance, err := r.apiClient.CreateAdmissionControllerScope(payload)
 	if err != nil {
 		resp.Diagnostics.AddError(errCreatingAssignment, "Could not create policy assignment, unexpected error: "+err.Error())
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
-	plan.FullOrganization = types.BoolValue(instance.FullOrganization)
+	populatePolicyAssignmentState(ctx, &plan, instance, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -210,7 +227,7 @@ func (r *policyAssignmentResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	populatePolicyAssignmentState(ctx, &state, instance, resp)
+	populatePolicyAssignmentState(ctx, &state, instance, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -224,14 +241,21 @@ func (r *policyAssignmentResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	instance, err := r.apiClient.UpdateAdmissionControllerScope(policyAssignmentPayloadFromPlan(ctx, plan))
+	payload := policyAssignmentPayloadFromPlan(ctx, plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	instance, err := r.apiClient.UpdateAdmissionControllerScope(payload)
 	if err != nil {
 		resp.Diagnostics.AddError(errUpdatingAssignment, "Could not update policy assignment, unexpected error: "+err.Error())
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
-	plan.FullOrganization = types.BoolValue(instance.FullOrganization)
+	populatePolicyAssignmentState(ctx, &plan, instance, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

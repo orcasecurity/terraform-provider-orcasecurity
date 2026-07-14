@@ -154,7 +154,7 @@ func (r *controlResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 }
 
 // controlPayloadFromPlan builds the API payload from the plan.
-func controlPayloadFromPlan(ctx context.Context, plan controlResourceModel) (api_client.AdmissionControllerControl, error) {
+func controlPayloadFromPlan(ctx context.Context, plan controlResourceModel, diagnostics *diag.Diagnostics) api_client.AdmissionControllerControl {
 	payload := api_client.AdmissionControllerControl{
 		ID:         plan.ID.ValueString(),
 		Name:       plan.Name.ValueString(),
@@ -166,23 +166,27 @@ func controlPayloadFromPlan(ctx context.Context, plan controlResourceModel) (api
 	}
 	if plan.ClusterScope != nil {
 		for _, kind := range plan.ClusterScope.Kinds {
+			kinds, diags := integrations_common.StringSliceFromList(ctx, kind.Kinds)
+			diagnostics.Append(diags...)
+			apiGroups, diags := integrations_common.StringSliceFromList(ctx, kind.APIGroups)
+			diagnostics.Append(diags...)
+			versions, diags := integrations_common.StringSliceFromList(ctx, kind.Versions)
+			diagnostics.Append(diags...)
 			payload.ClusterScope.Kinds = append(payload.ClusterScope.Kinds, api_client.AdmissionControllerClusterScopeKind{
-				Kinds:     stringListToSlice(ctx, kind.Kinds),
-				APIGroups: stringListToSlice(ctx, kind.APIGroups),
-				Versions:  stringListToSlice(ctx, kind.Versions),
+				Kinds:     kinds,
+				APIGroups: apiGroups,
+				Versions:  versions,
 			})
 		}
 	}
 
 	raw, diags := integrations_common.DecodeJSONField(plan.InputParameters, "input_parameters")
-	if diags.HasError() {
-		return payload, fmt.Errorf("input_parameters must be a JSON object")
-	}
+	diagnostics.Append(diags...)
 	if raw == nil {
 		raw = []byte(`{}`)
 	}
 	payload.InputParameters = raw
-	return payload, nil
+	return payload
 }
 
 // populateControlState maps an API instance onto the model. prior is the
@@ -202,9 +206,9 @@ func populateControlState(ctx context.Context, state *controlResourceModel, inst
 		}
 		kinds, diags := types.ListValueFrom(ctx, types.StringType, kind.Kinds)
 		diagnostics.Append(diags...)
-		apiGroups, diags := stringListFromAPI(ctx, priorKind.APIGroups, kind.APIGroups)
+		apiGroups, diags := integrations_common.OptionalListMatchPlan(ctx, priorKind.APIGroups, kind.APIGroups)
 		diagnostics.Append(diags...)
-		versions, diags := stringListFromAPI(ctx, priorKind.Versions, kind.Versions)
+		versions, diags := integrations_common.OptionalListMatchPlan(ctx, priorKind.Versions, kind.Versions)
 		diagnostics.Append(diags...)
 		scope.Kinds = append(scope.Kinds, controlClusterScopeKindModel{
 			Kinds:     kinds,
@@ -226,9 +230,8 @@ func (r *controlResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	payload, err := controlPayloadFromPlan(ctx, plan)
-	if err != nil {
-		resp.Diagnostics.AddError(errCreatingControl, err.Error())
+	payload := controlPayloadFromPlan(ctx, plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -278,9 +281,8 @@ func (r *controlResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	payload, err := controlPayloadFromPlan(ctx, plan)
-	if err != nil {
-		resp.Diagnostics.AddError(errUpdatingControl, err.Error())
+	payload := controlPayloadFromPlan(ctx, plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

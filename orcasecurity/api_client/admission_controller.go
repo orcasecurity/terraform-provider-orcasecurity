@@ -22,9 +22,11 @@ type AdmissionControllerClusterScope struct {
 }
 
 type AdmissionControllerControl struct {
-	ID              string                          `json:"id,omitempty"`
-	Name            string                          `json:"name"`
-	Description     *string                         `json:"description,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name"`
+	// Description is always sent: the PUT endpoints are full-replace, but an
+	// omitted key *retains* the remote value while an explicit null clears it.
+	Description     *string                         `json:"description"`
 	TemplateID      string                          `json:"template_id"`
 	TemplateName    string                          `json:"template_name,omitempty"`
 	ClusterScope    AdmissionControllerClusterScope `json:"cluster_scope"`
@@ -99,9 +101,10 @@ func (client *APIClient) DeleteAdmissionControllerControl(id string) error {
 }
 
 type AdmissionControllerPolicy struct {
-	ID          string  `json:"id,omitempty"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name"`
+	// Description is always sent (see AdmissionControllerControl.Description).
+	Description *string `json:"description"`
 	IsActive    bool    `json:"is_active"`
 	// EnforcementAction is "monitor" or "block".
 	EnforcementAction string `json:"enforcement_action"`
@@ -146,8 +149,13 @@ func (client *APIClient) CreateAdmissionControllerPolicy(data AdmissionControlle
 	return &response.Data, nil
 }
 
+// UpdateAdmissionControllerPolicy sends the full payload via PATCH, not PUT:
+// the PUT route's name-uniqueness check does not exclude the policy itself, so
+// any update that keeps the name is rejected with "Policy with name 'X'
+// already exists". PATCH skips that broken check (cross-policy uniqueness is
+// still enforced) and, with every field present, behaves as a full replace.
 func (client *APIClient) UpdateAdmissionControllerPolicy(data AdmissionControllerPolicy) (*AdmissionControllerPolicy, error) {
-	resp, err := client.Put(fmt.Sprintf("/api/admission_controller/policies/%s", data.ID), data)
+	resp, err := client.Patch(fmt.Sprintf("/api/admission_controller/policies/%s", data.ID), data)
 	if err != nil {
 		return nil, err
 	}
@@ -178,14 +186,17 @@ type AdmissionControllerScopePolicy struct {
 // orcasecurity_admission_controller_policy_assignment ("scope" is the API's
 // name for the entity).
 type AdmissionControllerScope struct {
-	ID               string   `json:"id,omitempty"`
-	Name             string   `json:"name"`
-	Description      *string  `json:"description,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name"`
+	// Description is always sent (see AdmissionControllerControl.Description).
+	Description      *string  `json:"description"`
 	CloudAccounts    []string `json:"cloud_accounts"`
 	Clusters         []string `json:"clusters"`
 	FullOrganization bool     `json:"full_organization"`
 	// PolicyIDs is write-only: reads return the embedded Policies instead.
-	PolicyIDs []string                         `json:"policy_ids,omitempty"`
+	// Always sent: on PUT an omitted key retains the attached policies while
+	// an explicit [] detaches them all.
+	PolicyIDs []string                         `json:"policy_ids"`
 	Policies  []AdmissionControllerScopePolicy `json:"policies,omitempty"`
 }
 

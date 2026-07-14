@@ -1,6 +1,8 @@
 package admission_controller_test
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
@@ -44,6 +46,7 @@ func TestAccAdmissionControllerPolicyAssignmentResource(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + `
 resource "orcasecurity_admission_controller_policy_assignment" "test" {
   name              = "tf-acc-assignment-1"
+  description       = "created"
   full_organization = true
   policy_ids        = [orcasecurity_admission_controller_policy.for_assignment.id]
 }
@@ -52,6 +55,7 @@ resource "orcasecurity_admission_controller_policy_assignment" "test" {
 					resource.TestCheckResourceAttrSet("orcasecurity_admission_controller_policy_assignment.test", "id"),
 					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "full_organization", "true"),
 					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "policy_ids.#", "1"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "description", "created"),
 				),
 			},
 			// ImportState
@@ -60,7 +64,7 @@ resource "orcasecurity_admission_controller_policy_assignment" "test" {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// Update: rename + description
+			// Update: rename + change description
 			{
 				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + `
 resource "orcasecurity_admission_controller_policy_assignment" "test" {
@@ -72,7 +76,61 @@ resource "orcasecurity_admission_controller_policy_assignment" "test" {
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "name", "tf-acc-assignment-1-renamed"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "description", "updated"),
 				),
+			},
+			// Clear description and detach all policies: removing the
+			// attributes must clear them remotely and converge (the client
+			// sends explicit null / [] on PUT).
+			{
+				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + `
+resource "orcasecurity_admission_controller_policy_assignment" "test" {
+  name              = "tf-acc-assignment-1-renamed"
+  full_organization = true
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "description"),
+					resource.TestCheckNoResourceAttr("orcasecurity_admission_controller_policy_assignment.test", "policy_ids"),
+				),
+			},
+		},
+	})
+}
+
+// Exercises the clusters scope path (the primary real-world use case, and a
+// different backend validation branch than full_organization). The backend
+// validates that cluster IDs reference existing clusters, so this needs a real
+// cluster ID from the target org: set ORCASECURITY_ACC_CLUSTER_ID to run it.
+func TestAccAdmissionControllerPolicyAssignmentResource_Clusters(t *testing.T) {
+	clusterID := os.Getenv("ORCASECURITY_ACC_CLUSTER_ID")
+	if clusterID == "" {
+		t.Skip("set ORCASECURITY_ACC_CLUSTER_ID to a Kubernetes cluster ID from the target org to run this test")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + fmt.Sprintf(`
+resource "orcasecurity_admission_controller_policy_assignment" "clusters" {
+  name       = "tf-acc-assignment-clusters"
+  clusters   = [%q]
+  policy_ids = [orcasecurity_admission_controller_policy.for_assignment.id]
+}
+`, clusterID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("orcasecurity_admission_controller_policy_assignment.clusters", "id"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.clusters", "full_organization", "false"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.clusters", "clusters.#", "1"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_admission_controller_policy_assignment.clusters", "clusters.*", clusterID),
+				),
+			},
+			{
+				ResourceName:      "orcasecurity_admission_controller_policy_assignment.clusters",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})

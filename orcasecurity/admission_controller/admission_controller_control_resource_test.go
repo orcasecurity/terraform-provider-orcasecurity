@@ -75,6 +75,34 @@ resource "orcasecurity_admission_controller_control" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_admission_controller_control.test", "name", "tf-acc-control-1-renamed"),
 				),
 			},
+			// Clear description without renaming: removing the attribute must
+			// clear it remotely and converge (the client sends an explicit
+			// null on PUT; an omitted key would retain the old value).
+			{
+				Config: orcasecurity.TestProviderConfig + `
+data "orcasecurity_admission_controller_template" "repos" {
+  name = "k8sallowedrepos"
+}
+
+resource "orcasecurity_admission_controller_control" "test" {
+  name        = "tf-acc-control-1-renamed"
+  template_id = data.orcasecurity_admission_controller_template.repos.id
+  cluster_scope = {
+    kinds = [
+      {
+        kinds      = ["Pod"]
+        api_groups = [""]
+        versions   = [""]
+      }
+    ]
+  }
+  input_parameters = jsonencode({ repos = ["docker.io/library", "gcr.io/project"] })
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("orcasecurity_admission_controller_control.test", "description"),
+				),
+			},
 			// Destroy happens automatically at the end of the test.
 		},
 	})

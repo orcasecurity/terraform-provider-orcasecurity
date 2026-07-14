@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -38,7 +41,7 @@ type policyResourceModel struct {
 	Description       types.String `tfsdk:"description"`
 	IsActive          types.Bool   `tfsdk:"is_active"`
 	EnforcementAction types.String `tfsdk:"enforcement_action"`
-	Controls          types.List   `tfsdk:"controls"`
+	Controls          types.Set    `tfsdk:"controls"`
 }
 
 func NewAdmissionControllerPolicyResource() resource.Resource {
@@ -100,22 +103,29 @@ func (r *policyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					stringvalidator.OneOf("monitor", "block"),
 				},
 			},
-			"controls": schema.ListAttribute{
-				Optional:    true,
+			"controls": schema.SetAttribute{
+				Required:    true,
 				ElementType: types.StringType,
-				Description: "IDs of `orcasecurity_admission_controller_control` resources attached to this policy.",
+				Description: "IDs of `orcasecurity_admission_controller_control` resources attached to this policy. " +
+					"The API requires at least one control.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+				},
 			},
 		},
 	}
 }
 
-func policyPayloadFromPlan(ctx context.Context, plan policyResourceModel) api_client.AdmissionControllerPolicy {
+func policyPayloadFromPlan(ctx context.Context, plan policyResourceModel, diagnostics *diag.Diagnostics) api_client.AdmissionControllerPolicy {
+	controls, diags := integrations_common.StringSliceFromSet(ctx, plan.Controls)
+	diagnostics.Append(diags...)
+
 	payload := api_client.AdmissionControllerPolicy{
 		ID:                plan.ID.ValueString(),
 		Name:              plan.Name.ValueString(),
 		IsActive:          plan.IsActive.ValueBool(),
 		EnforcementAction: plan.EnforcementAction.ValueString(),
-		Controls:          stringListToSlice(ctx, plan.Controls),
+		Controls:          controls,
 	}
 	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
 		description := plan.Description.ValueString()
@@ -124,15 +134,17 @@ func policyPayloadFromPlan(ctx context.Context, plan policyResourceModel) api_cl
 	return payload
 }
 
-func populatePolicyState(ctx context.Context, state *policyResourceModel, instance *api_client.AdmissionControllerPolicy, resp *resource.ReadResponse) {
+// populatePolicyState maps an API instance onto the model. state is the plan
+// (Create/Update) or prior state (Read/import).
+func populatePolicyState(ctx context.Context, state *policyResourceModel, instance *api_client.AdmissionControllerPolicy, diagnostics *diag.Diagnostics) {
 	state.ID = types.StringValue(instance.ID)
 	state.Name = types.StringValue(instance.Name)
 	state.Description = stringFromAPI(state.Description, instance.Description)
 	state.IsActive = types.BoolValue(instance.IsActive)
 	state.EnforcementAction = types.StringValue(instance.EnforcementAction)
 
-	controls, diags := stringListFromAPI(ctx, state.Controls, instance.Controls)
-	resp.Diagnostics.Append(diags...)
+	controls, diags := types.SetValueFrom(ctx, types.StringType, instance.Controls)
+	diagnostics.Append(diags...)
 	state.Controls = controls
 }
 
@@ -143,15 +155,21 @@ func (r *policyResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	instance, err := r.apiClient.CreateAdmissionControllerPolicy(policyPayloadFromPlan(ctx, plan))
+	payload := policyPayloadFromPlan(ctx, plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	instance, err := r.apiClient.CreateAdmissionControllerPolicy(payload)
 	if err != nil {
 		resp.Diagnostics.AddError(errCreatingPolicy, "Could not create policy, unexpected error: "+err.Error())
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
-	plan.IsActive = types.BoolValue(instance.IsActive)
-	plan.EnforcementAction = types.StringValue(instance.EnforcementAction)
+	populatePolicyState(ctx, &plan, instance, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -174,7 +192,7 @@ func (r *policyResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	populatePolicyState(ctx, &state, instance, resp)
+	populatePolicyState(ctx, &state, instance, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -188,15 +206,21 @@ func (r *policyResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	instance, err := r.apiClient.UpdateAdmissionControllerPolicy(policyPayloadFromPlan(ctx, plan))
+	payload := policyPayloadFromPlan(ctx, plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	instance, err := r.apiClient.UpdateAdmissionControllerPolicy(payload)
 	if err != nil {
 		resp.Diagnostics.AddError(errUpdatingPolicy, "Could not update policy, unexpected error: "+err.Error())
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
-	plan.IsActive = types.BoolValue(instance.IsActive)
-	plan.EnforcementAction = types.StringValue(instance.EnforcementAction)
+	populatePolicyState(ctx, &plan, instance, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

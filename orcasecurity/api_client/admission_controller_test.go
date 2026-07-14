@@ -190,19 +190,20 @@ func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 	}
 }
 
-// Pins the current omitempty serialization contract: empty slices in
-// cluster_scope kinds and unset optional fields (description, input_parameters)
-// are dropped from the request body rather than sent as []/null. The resource
-// layer built on top of this client must account for that.
-func TestCreateAdmissionControllerControl_OmitsEmptyOptionalFields(t *testing.T) {
+// Pins the serialization contract for optional fields. The API's PUT routes
+// are full-replace, but an omitted key *retains* the remote value while an
+// explicit null/[] clears it — so description must always be present (null
+// when unset). Empty apiGroups/versions inside cluster_scope kinds and a nil
+// input_parameters are still omitted.
+func TestCreateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		body, _ := io.ReadAll(req.Body)
 		var payload map[string]interface{}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("payload not JSON: %v", err)
 		}
-		if _, has := payload["description"]; has {
-			t.Errorf("nil description must be omitted from payload: %s", body)
+		if desc, has := payload["description"]; !has || desc != nil {
+			t.Errorf("nil description must be sent as explicit null: %s", body)
 		}
 		if _, has := payload["input_parameters"]; has {
 			t.Errorf("nil input_parameters must be omitted from payload: %s", body)
@@ -322,7 +323,8 @@ func TestCreateAdmissionControllerPolicy_OmitsScopesKey(t *testing.T) {
 
 func TestUpdateAdmissionControllerPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "PUT" || req.URL.Path != "/api/admission_controller/policies/pol-1" {
+		// PATCH, not PUT: the PUT route rejects a policy's own unchanged name.
+		if req.Method != "PATCH" || req.URL.Path != "/api/admission_controller/policies/pol-1" {
 			t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
 		}
 		return &http.Response{
@@ -432,6 +434,22 @@ func TestUpdateAdmissionControllerScope(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "PUT" || req.URL.Path != "/api/admission_controller/scopes/scope-1" {
 			t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
+		}
+		body, _ := io.ReadAll(req.Body)
+		var payload map[string]interface{}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("payload not JSON: %v", err)
+		}
+		// PUT is full-replace with omitted-key-retains semantics: an empty
+		// policy_ids must be sent as [] (detach all), never dropped, and a nil
+		// description as explicit null (clear).
+		if ids, has := payload["policy_ids"]; !has {
+			t.Errorf("empty policy_ids must be sent as [], not omitted: %s", body)
+		} else if list, ok := ids.([]interface{}); !ok || len(list) != 0 {
+			t.Errorf("unexpected policy_ids: %s", body)
+		}
+		if desc, has := payload["description"]; !has || desc != nil {
+			t.Errorf("nil description must be sent as explicit null: %s", body)
 		}
 		return &http.Response{
 			StatusCode: 200,

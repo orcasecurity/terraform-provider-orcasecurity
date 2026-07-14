@@ -1,6 +1,7 @@
 package admission_controller_test
 
 import (
+	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
 
@@ -24,6 +25,23 @@ data "orcasecurity_admission_controller_template" "test" {
 					resource.TestCheckResourceAttr("data.orcasecurity_admission_controller_template.test", "controller_type", "gatekeeper"),
 					resource.TestCheckResourceAttr("data.orcasecurity_admission_controller_template.test", "supported_kinds.0", "Pod"),
 				),
+			},
+		},
+	})
+}
+
+func TestAccAdmissionControllerTemplateDataSource_NotFound(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + `
+data "orcasecurity_admission_controller_template" "missing" {
+  name = "tf-acc-no-such-template"
+}
+`,
+				ExpectError: regexp.MustCompile(`Admission controller template not found`),
 			},
 		},
 	})
