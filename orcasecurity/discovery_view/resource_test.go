@@ -72,6 +72,56 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 	})
 }
 
+func TestAccDiscoveryViewResource_Description(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create with a description
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_discovery_view" "tf-disco-view-desc" {
+    name               = "orca-disco-view-desc"
+    description        = "initial description"
+    organization_level = true
+    view_type          = "discovery"
+    extra_params       = {}
+    filter_data = {
+        query = jsonencode({ "models" : ["AwsS3Bucket"], "type" : "object_set" })
+    }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-desc", "description", "initial description"),
+				),
+			},
+			// import — description must round-trip from extra_params.description
+			{
+				ResourceName:      "orcasecurity_discovery_view.tf-disco-view-desc",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// update the description
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_discovery_view" "tf-disco-view-desc" {
+    name               = "orca-disco-view-desc"
+    description        = "updated description"
+    organization_level = true
+    view_type          = "discovery"
+    extra_params       = {}
+    filter_data = {
+        query = jsonencode({ "models" : ["AwsS3Bucket"], "type" : "object_set" })
+    }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-desc", "description", "updated description"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccDiscoveryViewResource_UpdateQuery(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,

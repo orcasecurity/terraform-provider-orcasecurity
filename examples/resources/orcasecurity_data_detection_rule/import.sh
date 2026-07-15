@@ -1,0 +1,1 @@
+terraform import orcasecurity_data_detection_rule.example RULE_ID

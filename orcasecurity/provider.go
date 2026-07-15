@@ -22,7 +22,9 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/custom_sonar_alert"
 	"terraform-provider-orcasecurity/orcasecurity/custom_tag_rule"
 	"terraform-provider-orcasecurity/orcasecurity/custom_widget"
+	"terraform-provider-orcasecurity/orcasecurity/data_detection_rule"
 	"terraform-provider-orcasecurity/orcasecurity/discovery_view"
+	"terraform-provider-orcasecurity/orcasecurity/dspm_policy"
 	"terraform-provider-orcasecurity/orcasecurity/group"
 	"terraform-provider-orcasecurity/orcasecurity/group_access"
 	"terraform-provider-orcasecurity/orcasecurity/jira_cloud_resource"
@@ -36,6 +38,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/rbac_role"
 	"terraform-provider-orcasecurity/orcasecurity/s3_bucket"
 	"terraform-provider-orcasecurity/orcasecurity/scheduled_report"
+	"terraform-provider-orcasecurity/orcasecurity/sensitive_data_identifier"
 	"terraform-provider-orcasecurity/orcasecurity/servicenow"
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_itsm_template"
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_sir_template"
@@ -237,6 +240,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		organizations.NewOrganizationDataSource,
 		user_preferences.NewUserPreferencesDataSource,
 		rbac_role.NewRbacRolesDataSource,
+		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 	}
 }
@@ -287,5 +291,8 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		system_sonar_alert.NewSystemSonarAlertResource,
 		trusted_cloud_account.NewTrustedCloudAccountResource,
 		trusted_dynamic_ip_range.NewTrustedDynamicIpRangeResource,
+		sensitive_data_identifier.NewSensitiveDataIdentifierResource,
+		dspm_policy.NewDspmPolicyResource,
+		data_detection_rule.NewDataDetectionRuleResource,
 	}
 }

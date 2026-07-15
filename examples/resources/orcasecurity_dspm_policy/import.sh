@@ -1,0 +1,1 @@
+terraform import orcasecurity_dspm_policy.example POLICY_ID
