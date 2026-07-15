@@ -26,15 +26,9 @@ func TestMapping(t *testing.T) {
 			}
 		},
 		CheckConfig: func(t *testing.T, c api_client.AzureSentinelConfig) {
-			if c.LogType != "OrcaAlerts" {
-				t.Errorf("log_type mismatch: %q", c.LogType)
-			}
-			if c.WorkspaceID != "workspace-123" {
-				t.Errorf("workspace_id mismatch: %q", c.WorkspaceID)
-			}
-			if c.PrimaryKey != "primary-secret" {
-				t.Errorf("primary_key mismatch: %q", c.PrimaryKey)
-			}
+			testutils.AssertEq(t, "log_type", c.LogType, "OrcaAlerts")
+			testutils.AssertEq(t, "workspace_id", c.WorkspaceID, "workspace-123")
+			testutils.AssertEq(t, "primary_key", c.PrimaryKey, "primary-secret")
 		},
 		EchoConfig: api_client.AzureSentinelConfig{LogType: "ReturnedLog", WorkspaceID: "returned-workspace"},
 		EchoState: func() cc.State {
@@ -45,12 +39,8 @@ func TestMapping(t *testing.T) {
 		},
 		CheckEchoed: func(t *testing.T, st cc.State) {
 			s := st.(*state)
-			if s.LogType.ValueString() != "ReturnedLog" {
-				t.Errorf("Extract must echo log_type, got %q", s.LogType.ValueString())
-			}
-			if s.WorkspaceID.ValueString() != "returned-workspace" {
-				t.Errorf("Extract must echo workspace_id, got %q", s.WorkspaceID.ValueString())
-			}
+			testutils.AssertEq(t, "echoed log_type", s.LogType.ValueString(), "ReturnedLog")
+			testutils.AssertEq(t, "echoed workspace_id", s.WorkspaceID.ValueString(), "returned-workspace")
 		},
 		ZeroConfigChecks: []testutils.StateCheck{
 			{
@@ -63,21 +53,15 @@ func TestMapping(t *testing.T) {
 				},
 				Check: func(t *testing.T, st cc.State) {
 					s := st.(*state)
-					if s.LogType.ValueString() != "OrcaAlerts" {
-						t.Errorf("empty API log_type must not clobber planned, got %q", s.LogType.ValueString())
-					}
-					if s.WorkspaceID.ValueString() != "workspace-123" {
-						t.Errorf("empty API workspace_id must not clobber planned, got %q", s.WorkspaceID.ValueString())
-					}
+					testutils.AssertEq(t, "planned log_type", s.LogType.ValueString(), "OrcaAlerts")
+					testutils.AssertEq(t, "planned workspace_id", s.WorkspaceID.ValueString(), "workspace-123")
 				},
 			},
 			{
 				Name:  "sensitive primary key untouched",
 				State: func() cc.State { return &state{PrimaryKey: types.StringValue("planned-primary")} },
 				Check: func(t *testing.T, st cc.State) {
-					if got := st.(*state).PrimaryKey.ValueString(); got != "planned-primary" {
-						t.Errorf("Extract must not overwrite primary_key, got %q", got)
-					}
+					testutils.AssertEq(t, "planned primary_key", st.(*state).PrimaryKey.ValueString(), "planned-primary")
 				},
 			},
 		},

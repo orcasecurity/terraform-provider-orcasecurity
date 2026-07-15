@@ -111,13 +111,7 @@ func (s MappingSuite[C]) checkBuild(t *testing.T) {
 			t.Errorf("enabled/default mismatch: enabled=%v default=%v, want %v/%v",
 				p.IsEnabled, p.IsDefault, round.enabled, round.deflt)
 		}
-		if s.SupportsBusinessUnits {
-			if !SameElements(p.BusinessUnits, suiteBUs) {
-				t.Errorf("business_units mismatch: %v", p.BusinessUnits)
-			}
-		} else if p.BusinessUnits != nil {
-			t.Errorf("variant must not forward business_units, got %v", p.BusinessUnits)
-		}
+		s.assertBUs(t, p.BusinessUnits)
 		s.CheckConfig(t, p.Config)
 	}
 }
@@ -153,16 +147,32 @@ func (s MappingSuite[C]) checkExtract(t *testing.T) {
 		if got.IsEnabled != round.enabled || got.IsDefault != round.deflt {
 			t.Errorf("enabled/default mismatch: %+v, want %v/%v", got, round.enabled, round.deflt)
 		}
-		if s.SupportsBusinessUnits {
-			if !SameElements(got.BusinessUnits, suiteBUs) {
-				t.Errorf("business_units mismatch: %v", got.BusinessUnits)
-			}
-		} else if got.BusinessUnits != nil {
-			t.Errorf("non-BU variant must not carry business_units, got %v", got.BusinessUnits)
-		}
+		s.assertBUs(t, got.BusinessUnits)
 		if s.CheckEchoed != nil {
 			s.CheckEchoed(t, st)
 		}
+	}
+}
+
+// assertBUs checks a payload/object business_units slice against the suite fixture: BU-capable
+// variants must carry it verbatim, non-BU variants must keep it nil.
+func (s MappingSuite[C]) assertBUs(t *testing.T, got []string) {
+	t.Helper()
+	if s.SupportsBusinessUnits {
+		if !SameElements(got, suiteBUs) {
+			t.Errorf("business_units mismatch: %v", got)
+		}
+	} else if got != nil {
+		t.Errorf("non-BU variant must not carry business_units, got %v", got)
+	}
+}
+
+// AssertEq reports an error when got != want, prefixed with the field name. It keeps
+// per-variant suite closures free of if/Errorf boilerplate.
+func AssertEq(t *testing.T, name, got, want string) {
+	t.Helper()
+	if got != want {
+		t.Errorf("%s mismatch: got %q, want %q", name, got, want)
 	}
 }
 
