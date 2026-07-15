@@ -87,39 +87,54 @@ func CheckVariantResource(t *testing.T, spec VariantResourceSpec) {
 	present := []string{"id", "template_name", "is_enabled", "is_default"}
 	present = append(present, spec.Secrets...)
 	present = append(present, spec.PlainRequired...)
-	for _, name := range present {
+	checkAttrsPresent(t, attrs, present)
+	checkAttrsAbsent(t, attrs, spec.Forbidden)
+	checkRequiredStrings(t, attrs, spec.Secrets, true)
+	checkRequiredStrings(t, attrs, spec.PlainRequired, false)
+	checkStateTagCoverage(t, attrs, spec.State)
+}
+
+func checkAttrsPresent(t *testing.T, attrs map[string]schema.Attribute, names []string) {
+	t.Helper()
+	for _, name := range names {
 		if _, ok := attrs[name]; !ok {
 			t.Errorf("expected attribute %q in schema", name)
 		}
 	}
-	for _, name := range spec.Forbidden {
+}
+
+func checkAttrsAbsent(t *testing.T, attrs map[string]schema.Attribute, names []string) {
+	t.Helper()
+	for _, name := range names {
 		if _, ok := attrs[name]; ok {
 			t.Errorf("attribute %q must be absent from this variant's schema", name)
 		}
 	}
+}
 
-	for _, name := range spec.Secrets {
+// checkRequiredStrings asserts each named attribute is a Required string whose Sensitive flag
+// matches wantSensitive.
+func checkRequiredStrings(t *testing.T, attrs map[string]schema.Attribute, names []string, wantSensitive bool) {
+	t.Helper()
+	kind := "non-sensitive"
+	if wantSensitive {
+		kind = "Sensitive"
+	}
+	for _, name := range names {
 		sa, ok := attrs[name].(schema.StringAttribute)
 		if !ok {
 			t.Errorf("%s not a string attribute", name)
 			continue
 		}
-		if !sa.Required || !sa.Sensitive {
-			t.Errorf("%s must be Required and Sensitive, got %#v", name, sa)
+		if !sa.Required || sa.Sensitive != wantSensitive {
+			t.Errorf("%s must be Required and %s, got %#v", name, kind, sa)
 		}
 	}
-	for _, name := range spec.PlainRequired {
-		sa, ok := attrs[name].(schema.StringAttribute)
-		if !ok {
-			t.Errorf("%s not a string attribute", name)
-			continue
-		}
-		if !sa.Required || sa.Sensitive {
-			t.Errorf("%s must be Required and non-sensitive, got %#v", name, sa)
-		}
-	}
+}
 
-	tags := TfsdkTags(spec.State)
+func checkStateTagCoverage(t *testing.T, attrs map[string]schema.Attribute, state interface{}) {
+	t.Helper()
+	tags := TfsdkTags(state)
 	for name := range attrs {
 		if _, ok := tags[name]; !ok {
 			t.Errorf("state struct is missing a tfsdk tag for schema attribute %q", name)

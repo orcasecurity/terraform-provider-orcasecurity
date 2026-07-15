@@ -2,6 +2,7 @@ package servicenow_template_common
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -102,12 +103,14 @@ func TestResourceCreate_BuildPayloadAndExtract(t *testing.T) {
 	var receivedBody string
 	r, sch, closeFn := configuredResource(t, itsmOptions(), func(w http.ResponseWriter, req *http.Request) {
 		if req.Method == http.MethodPost {
-			buf := make([]byte, req.ContentLength)
-			req.Body.Read(buf)
+			buf, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Errorf("failed to read request body: %v", err)
+			}
 			receivedBody = string(buf)
 		}
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":{"id":"tmpl-id","template_name":"tf-tmpl","is_enabled":true,"is_default":false,"resource":"res-1","config":{"type":"ITSM","instance_name":"acme","username":"svc-orca","resolution_status":"6","mapping":{"short_description":[{"orca":"alert_id"}]},"allow_mapping":true,"allow_reopen_and_resolution":true}}}`))
+		_, _ = w.Write([]byte(`{"status":"success","data":{"id":"tmpl-id","template_name":"tf-tmpl","is_enabled":true,"is_default":false,"resource":"res-1","config":{"type":"ITSM","instance_name":"acme","username":"svc-orca","resolution_status":"6","mapping":{"short_description":[{"orca":"alert_id"}]},"allow_mapping":true,"allow_reopen_and_resolution":true}}}`))
 	})
 	defer closeFn()
 
@@ -144,7 +147,7 @@ func TestResourceRead_ExtractPopulatesState(t *testing.T) {
 	r, sch, closeFn := configuredResource(t, itsmOptions(), func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")
 		// GET returns a list envelope filtered by config.type == ITSM.
-		w.Write([]byte(`{"status":"success","data":[{"id":"tmpl-id","template_name":"tf-tmpl","is_enabled":true,"is_default":false,"resource":"res-9","config":{"type":"ITSM","instance_name":"beta","username":"u2","resolution_status":"7"}}]}`))
+		_, _ = w.Write([]byte(`{"status":"success","data":[{"id":"tmpl-id","template_name":"tf-tmpl","is_enabled":true,"is_default":false,"resource":"res-9","config":{"type":"ITSM","instance_name":"beta","username":"u2","resolution_status":"7"}}]}`))
 	})
 	defer closeFn()
 
@@ -168,7 +171,7 @@ func TestResourceRead_ExtractPopulatesState(t *testing.T) {
 func TestResourceRead_NoMatchRemovesResource(t *testing.T) {
 	r, sch, closeFn := configuredResource(t, itsmOptions(), func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":[]}`))
+		_, _ = w.Write([]byte(`{"status":"success","data":[]}`))
 	})
 	defer closeFn()
 
@@ -187,7 +190,7 @@ func TestResourceRead_NoMatchRemovesResource(t *testing.T) {
 func TestResourceDelete_Success(t *testing.T) {
 	r, sch, closeFn := configuredResource(t, itsmOptions(), func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success"}`))
+		_, _ = w.Write([]byte(`{"status":"success"}`))
 	})
 	defer closeFn()
 

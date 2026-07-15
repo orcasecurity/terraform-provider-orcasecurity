@@ -35,7 +35,7 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) *api_client.APIClient
 func jsonOK(body string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}
 }
 
@@ -43,7 +43,7 @@ func jsonOK(body string) http.HandlerFunc {
 func httpError(status int, message string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(status)
-		w.Write([]byte(`{"message":"` + message + `"}`))
+		_, _ = w.Write([]byte(`{"message":"` + message + `"}`))
 	}
 }
 
