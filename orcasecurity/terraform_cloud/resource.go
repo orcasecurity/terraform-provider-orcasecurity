@@ -19,6 +19,25 @@ type state struct {
 	APIURL   types.String `tfsdk:"api_url"`
 }
 
+// buildPayload converts the planned state into the Terraform Cloud API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.TerraformCloudExternalServiceConfig {
+	s := st.(*state)
+	return api_client.TerraformCloudExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config:       api_client.TerraformCloudConfig{APIToken: s.APIToken.ValueString(), APIURL: s.APIURL.ValueString()},
+	}
+}
+
+// extract maps the API envelope back onto state; an empty api_url never clobbers the plan.
+func extract(o *api_client.TerraformCloudExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
+	if o.Config.APIURL != "" {
+		st.(*state).APIURL = types.StringValue(o.Config.APIURL)
+	}
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewTerraformCloudResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.TerraformCloudExternalServiceConfig]{
 		TypeNameSuffix: "_integration_terraform_cloud",
@@ -37,25 +56,12 @@ func NewTerraformCloudResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.TerraformCloudExternalServiceConfig {
-			s := st.(*state)
-			return api_client.TerraformCloudExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config:       api_client.TerraformCloudConfig{APIToken: s.APIToken.ValueString(), APIURL: s.APIURL.ValueString()},
-			}
-		},
-		Extract: func(o *api_client.TerraformCloudExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
-			if o.Config.APIURL != "" {
-				st.(*state).APIURL = types.StringValue(o.Config.APIURL)
-			}
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreateTerraformCloudConfig,
-		Get:    (*api_client.APIClient).GetTerraformCloudConfig,
-		Update: (*api_client.APIClient).UpdateTerraformCloudConfig,
-		Delete: (*api_client.APIClient).DeleteTerraformCloudConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateTerraformCloudConfig,
+		Get:          (*api_client.APIClient).GetTerraformCloudConfig,
+		Update:       (*api_client.APIClient).UpdateTerraformCloudConfig,
+		Delete:       (*api_client.APIClient).DeleteTerraformCloudConfig,
 	})
 }

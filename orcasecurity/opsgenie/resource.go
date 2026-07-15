@@ -19,6 +19,23 @@ type state struct {
 	OpsgenieKey types.String `tfsdk:"opsgenie_key"`
 }
 
+// buildPayload converts the planned state into the Opsgenie API payload.
+func buildPayload(ctx context.Context, st cc.State, diags *diag.Diagnostics) api_client.OpsgenieExternalServiceConfig {
+	s := st.(*state)
+	return api_client.OpsgenieExternalServiceConfig{
+		TemplateName:  s.TemplateName.ValueString(),
+		IsEnabled:     s.IsEnabled.ValueBool(),
+		IsDefault:     s.IsDefault.ValueBool(),
+		Config:        api_client.OpsgenieConfig{OpsgenieKey: s.OpsgenieKey.ValueString()},
+		BusinessUnits: common.BusinessUnitsToAPI(ctx, s.BusinessUnits, diags),
+	}
+}
+
+// extract maps the API envelope back onto state; the key is never returned so state is untouched.
+func extract(o *api_client.OpsgenieExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault, BusinessUnits: o.BusinessUnits}
+}
+
 func NewOpsgenieResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.OpsgenieExternalServiceConfig]{
 		TypeNameSuffix:        "_integration_opsgenie",
@@ -33,23 +50,12 @@ func NewOpsgenieResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(ctx context.Context, st cc.State, diags *diag.Diagnostics) api_client.OpsgenieExternalServiceConfig {
-			s := st.(*state)
-			return api_client.OpsgenieExternalServiceConfig{
-				TemplateName:  s.TemplateName.ValueString(),
-				IsEnabled:     s.IsEnabled.ValueBool(),
-				IsDefault:     s.IsDefault.ValueBool(),
-				Config:        api_client.OpsgenieConfig{OpsgenieKey: s.OpsgenieKey.ValueString()},
-				BusinessUnits: common.BusinessUnitsToAPI(ctx, s.BusinessUnits, diags),
-			}
-		},
-		Extract: func(o *api_client.OpsgenieExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault, BusinessUnits: o.BusinessUnits}
-		},
-		Create: (*api_client.APIClient).CreateOpsgenieConfig,
-		Get:    (*api_client.APIClient).GetOpsgenieConfig,
-		Update: (*api_client.APIClient).UpdateOpsgenieConfig,
-		Delete: (*api_client.APIClient).DeleteOpsgenieConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateOpsgenieConfig,
+		Get:          (*api_client.APIClient).GetOpsgenieConfig,
+		Update:       (*api_client.APIClient).UpdateOpsgenieConfig,
+		Delete:       (*api_client.APIClient).DeleteOpsgenieConfig,
 	})
 }

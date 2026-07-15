@@ -1,142 +1,87 @@
 package azure_sentinel
 
 import (
-	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// BuildPayload must copy template/enabled/default, log_type, workspace_id, the sensitive primary
-// key, and business_units into the API envelope.
-func TestBuildPayload_PopulatesAllFields(t *testing.T) {
-	s := &state{
-		LogType:     types.StringValue("OrcaAlerts"),
-		PrimaryKey:  types.StringValue("primary-secret"),
-		WorkspaceID: types.StringValue("workspace-123"),
-	}
-	s.TemplateName = types.StringValue("tf-acc-test-sentinel")
-	s.IsEnabled = types.BoolValue(true)
-	s.IsDefault = types.BoolValue(false)
-	s.BusinessUnits = testutils.StringSet(t, "bu-1", "bu-2")
-
-	var diags diag.Diagnostics
-	got := buildPayload(context.Background(), s, &diags)
-	if diags.HasError() {
-		t.Fatalf("unexpected diags: %v", diags)
-	}
-	if got.TemplateName != "tf-acc-test-sentinel" {
-		t.Errorf("template_name mismatch: %q", got.TemplateName)
-	}
-	if got.Config.LogType != "OrcaAlerts" {
-		t.Errorf("log_type mismatch: %q", got.Config.LogType)
-	}
-	if got.Config.WorkspaceID != "workspace-123" {
-		t.Errorf("workspace_id mismatch: %q", got.Config.WorkspaceID)
-	}
-	if got.Config.PrimaryKey != "primary-secret" {
-		t.Errorf("primary_key mismatch: %q", got.Config.PrimaryKey)
-	}
-	if !testutils.SameElements(got.BusinessUnits, []string{"bu-1", "bu-2"}) {
-		t.Errorf("business_units mismatch: %v", got.BusinessUnits)
-	}
-}
-
-// A null business_units set must produce a nil slice so `omitempty` drops the field.
-func TestBuildPayload_NullBusinessUnitsOmitted(t *testing.T) {
-	s := &state{
-		LogType:     types.StringValue("OrcaAlerts"),
-		PrimaryKey:  types.StringValue("k"),
-		WorkspaceID: types.StringValue("w"),
-	}
-	s.TemplateName = types.StringValue("tf-acc-test-sentinel")
-	s.BusinessUnits = types.SetNull(types.StringType)
-
-	var diags diag.Diagnostics
-	got := buildPayload(context.Background(), s, &diags)
-	if diags.HasError() {
-		t.Fatalf("unexpected diags: %v", diags)
-	}
-	if got.BusinessUnits != nil {
-		t.Errorf("expected nil business_units, got %v", got.BusinessUnits)
-	}
-}
-
-// Extract must map computed fields, echo log_type and workspace_id, and carry business_units
-// back onto the APIObject.
-func TestExtract_MapsComputedFieldsAndEchoesConfig(t *testing.T) {
-	o := &api_client.AzureSentinelExternalServiceConfig{
-		ID:            "uuid-sentinel",
-		TemplateName:  "tf-acc-test-sentinel",
-		IsEnabled:     true,
-		IsDefault:     true,
-		BusinessUnits: []string{"bu-1"},
-		Config: api_client.AzureSentinelConfig{
-			LogType:     "ReturnedLog",
-			WorkspaceID: "returned-workspace",
+// The shared suite covers the envelope plumbing (including business_units forwarding and null
+// omission); the closures below describe Azure Sentinel's config fields: the primary key is
+// write-only, and the API round-trips log_type and workspace_id.
+func TestMapping(t *testing.T) {
+	testutils.RunMappingSuite(t, testutils.MappingSuite[api_client.AzureSentinelConfig]{
+		BuildPayload:          buildPayload,
+		Extract:               extract,
+		TemplateName:          "tf-acc-test-sentinel",
+		SupportsBusinessUnits: true,
+		FilledState: func() cc.State {
+			return &state{
+				LogType:     types.StringValue("OrcaAlerts"),
+				PrimaryKey:  types.StringValue("primary-secret"),
+				WorkspaceID: types.StringValue("workspace-123"),
+			}
 		},
-	}
-	s := &state{
-		LogType:     types.StringValue("OrcaAlerts"),
-		WorkspaceID: types.StringValue("workspace-123"),
-	}
-	var diags diag.Diagnostics
-	got := extract(o, s, &diags)
-	if diags.HasError() {
-		t.Fatalf("unexpected diags: %v", diags)
-	}
-	if got.ID != "uuid-sentinel" || got.TemplateName != "tf-acc-test-sentinel" {
-		t.Errorf("id/template mismatch: %+v", got)
-	}
-	if !got.IsEnabled || !got.IsDefault {
-		t.Errorf("enabled/default mismatch: %+v", got)
-	}
-	if !testutils.SameElements(got.BusinessUnits, []string{"bu-1"}) {
-		t.Errorf("business_units mismatch: %v", got.BusinessUnits)
-	}
-	if s.LogType.ValueString() != "ReturnedLog" {
-		t.Errorf("Extract must echo log_type, got %q", s.LogType.ValueString())
-	}
-	if s.WorkspaceID.ValueString() != "returned-workspace" {
-		t.Errorf("Extract must echo workspace_id, got %q", s.WorkspaceID.ValueString())
-	}
-}
-
-// When the API returns empty log_type / workspace_id, Extract must keep the planned values so no
-// spurious diff appears.
-func TestExtract_EmptyConfigKeepsPlanned(t *testing.T) {
-	o := &api_client.AzureSentinelExternalServiceConfig{
-		ID:           "uuid",
-		TemplateName: "t",
-		Config:       api_client.AzureSentinelConfig{LogType: "", WorkspaceID: ""},
-	}
-	s := &state{
-		LogType:     types.StringValue("OrcaAlerts"),
-		WorkspaceID: types.StringValue("workspace-123"),
-	}
-	var diags diag.Diagnostics
-	extract(o, s, &diags)
-	if s.LogType.ValueString() != "OrcaAlerts" {
-		t.Errorf("empty API log_type must not clobber planned, got %q", s.LogType.ValueString())
-	}
-	if s.WorkspaceID.ValueString() != "workspace-123" {
-		t.Errorf("empty API workspace_id must not clobber planned, got %q", s.WorkspaceID.ValueString())
-	}
-}
-
-// Extract must not overwrite the planned sensitive primary key (API never returns it).
-func TestExtract_DoesNotTouchSensitiveKey(t *testing.T) {
-	o := &api_client.AzureSentinelExternalServiceConfig{ID: "uuid", TemplateName: "t"}
-	s := &state{PrimaryKey: types.StringValue("planned-primary")}
-	var diags diag.Diagnostics
-	extract(o, s, &diags)
-	if s.PrimaryKey.ValueString() != "planned-primary" {
-		t.Errorf("Extract must not overwrite primary_key, got %q", s.PrimaryKey.ValueString())
-	}
+		CheckConfig: func(t *testing.T, c api_client.AzureSentinelConfig) {
+			if c.LogType != "OrcaAlerts" {
+				t.Errorf("log_type mismatch: %q", c.LogType)
+			}
+			if c.WorkspaceID != "workspace-123" {
+				t.Errorf("workspace_id mismatch: %q", c.WorkspaceID)
+			}
+			if c.PrimaryKey != "primary-secret" {
+				t.Errorf("primary_key mismatch: %q", c.PrimaryKey)
+			}
+		},
+		EchoConfig: api_client.AzureSentinelConfig{LogType: "ReturnedLog", WorkspaceID: "returned-workspace"},
+		EchoState: func() cc.State {
+			return &state{
+				LogType:     types.StringValue("OrcaAlerts"),
+				WorkspaceID: types.StringValue("workspace-123"),
+			}
+		},
+		CheckEchoed: func(t *testing.T, st cc.State) {
+			s := st.(*state)
+			if s.LogType.ValueString() != "ReturnedLog" {
+				t.Errorf("Extract must echo log_type, got %q", s.LogType.ValueString())
+			}
+			if s.WorkspaceID.ValueString() != "returned-workspace" {
+				t.Errorf("Extract must echo workspace_id, got %q", s.WorkspaceID.ValueString())
+			}
+		},
+		ZeroConfigChecks: []testutils.StateCheck{
+			{
+				Name: "empty config keeps planned",
+				State: func() cc.State {
+					return &state{
+						LogType:     types.StringValue("OrcaAlerts"),
+						WorkspaceID: types.StringValue("workspace-123"),
+					}
+				},
+				Check: func(t *testing.T, st cc.State) {
+					s := st.(*state)
+					if s.LogType.ValueString() != "OrcaAlerts" {
+						t.Errorf("empty API log_type must not clobber planned, got %q", s.LogType.ValueString())
+					}
+					if s.WorkspaceID.ValueString() != "workspace-123" {
+						t.Errorf("empty API workspace_id must not clobber planned, got %q", s.WorkspaceID.ValueString())
+					}
+				},
+			},
+			{
+				Name:  "sensitive primary key untouched",
+				State: func() cc.State { return &state{PrimaryKey: types.StringValue("planned-primary")} },
+				Check: func(t *testing.T, st cc.State) {
+					if got := st.(*state).PrimaryKey.ValueString(); got != "planned-primary" {
+						t.Errorf("Extract must not overwrite primary_key, got %q", got)
+					}
+				},
+			},
+		},
+	})
 }
 
 var _ cc.State = &state{}

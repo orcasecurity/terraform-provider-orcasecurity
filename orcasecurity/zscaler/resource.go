@@ -20,6 +20,29 @@ type state struct {
 	ClientSecret types.String `tfsdk:"client_secret"`
 }
 
+// buildPayload converts the planned state into the Zscaler API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.ZscalerExternalServiceConfig {
+	s := st.(*state)
+	return api_client.ZscalerExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config: api_client.ZscalerConfig{
+			VanityDomain: s.VanityDomain.ValueString(),
+			ClientID:     s.ClientID.ValueString(),
+			ClientSecret: s.ClientSecret.ValueString(),
+		},
+	}
+}
+
+// extract maps the API envelope back onto state; an empty vanity_domain never clobbers the plan.
+func extract(o *api_client.ZscalerExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
+	if o.Config.VanityDomain != "" {
+		st.(*state).VanityDomain = types.StringValue(o.Config.VanityDomain)
+	}
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewZscalerResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.ZscalerExternalServiceConfig]{
 		TypeNameSuffix: "_integration_zscaler_zpa",
@@ -44,29 +67,12 @@ func NewZscalerResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.ZscalerExternalServiceConfig {
-			s := st.(*state)
-			return api_client.ZscalerExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config: api_client.ZscalerConfig{
-					VanityDomain: s.VanityDomain.ValueString(),
-					ClientID:     s.ClientID.ValueString(),
-					ClientSecret: s.ClientSecret.ValueString(),
-				},
-			}
-		},
-		Extract: func(o *api_client.ZscalerExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
-			if o.Config.VanityDomain != "" {
-				st.(*state).VanityDomain = types.StringValue(o.Config.VanityDomain)
-			}
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreateZscalerConfig,
-		Get:    (*api_client.APIClient).GetZscalerConfig,
-		Update: (*api_client.APIClient).UpdateZscalerConfig,
-		Delete: (*api_client.APIClient).DeleteZscalerConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateZscalerConfig,
+		Get:          (*api_client.APIClient).GetZscalerConfig,
+		Update:       (*api_client.APIClient).UpdateZscalerConfig,
+		Delete:       (*api_client.APIClient).DeleteZscalerConfig,
 	})
 }

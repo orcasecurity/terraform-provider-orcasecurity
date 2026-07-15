@@ -6,9 +6,6 @@ import (
 	"context"
 	"reflect"
 	"testing"
-	"unsafe"
-
-	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -225,14 +222,4 @@ func SameElements(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-// SpecFromResource pulls the (unexported) Spec back out of a config-integration variant resource
-// so in-package unit tests can exercise the variant's BuildPayload / Extract closures directly.
-// The closures are anonymous and captured privately inside the generic skeleton; reflection +
-// unsafe is the only way to reach them without adding a production-only accessor.
-func SpecFromResource[P any](r resource.Resource) cc.Spec[P] {
-	field := reflect.ValueOf(r).Elem().FieldByName("spec")
-	field = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
-	return field.Interface().(cc.Spec[P])
 }
