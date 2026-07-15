@@ -2,10 +2,14 @@ package api_client
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCreateDataDetectionRule_UsesPUTOnCollection(t *testing.T) {
@@ -35,6 +39,58 @@ func TestCreateDataDetectionRule_UsesPUTOnCollection(t *testing.T) {
 	}
 	if ruleID != "rule-9" {
 		t.Errorf("expected rule-9, got %s", ruleID)
+	}
+}
+
+// The rules endpoint computes the next rule_priority without a lock, so two
+// in-flight creates race into the (organization, rule_priority) unique
+// constraint and the API 500s. The client must serialize rule mutations.
+// Deletes shift the priorities of every remaining rule, so they hold the
+// same lock.
+func TestDataDetectionRuleMutations_AreSerialized(t *testing.T) {
+	var inFlight, maxInFlight int64
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		current := atomic.AddInt64(&inFlight, 1)
+		for {
+			seen := atomic.LoadInt64(&maxInFlight)
+			if current <= seen || atomic.CompareAndSwapInt64(&maxInFlight, seen, current) {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond) // widen the race window
+		atomic.AddInt64(&inFlight, -1)
+		if req.Method == "DELETE" {
+			return &http.Response{
+				StatusCode: 204,
+				Body:       io.NopCloser(strings.NewReader(``)),
+			}
+		}
+		return &http.Response{
+			StatusCode: 201,
+			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"rule_id":"rule-9"}}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	var wg sync.WaitGroup
+	for i := 0; i < 6; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			switch i % 3 {
+			case 0:
+				_, _ = client.CreateDataDetectionRule(DataDetectionRule{Name: fmt.Sprintf("rule %d", i), Feature: "DSPM Scanning", Action: "scan"})
+			case 1:
+				_ = client.UpdateDataDetectionRule(DataDetectionRule{ID: fmt.Sprintf("rule-%d", i), Name: fmt.Sprintf("rule %d", i), Feature: "DSPM Scanning", Action: "scan"})
+			default:
+				_ = client.DeleteDataDetectionRule(fmt.Sprintf("rule-%d", i))
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt64(&maxInFlight); got != 1 {
+		t.Errorf("expected rule mutations to be serialized, saw %d concurrent requests", got)
 	}
 }
 

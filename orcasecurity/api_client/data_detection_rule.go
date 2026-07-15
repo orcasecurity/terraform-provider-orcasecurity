@@ -2,10 +2,20 @@ package api_client
 
 import (
 	"fmt"
+	"sync"
 )
 
 const scanConfigRulesBasePath = "/api/scan_configuration/rules"
 const scanConfigBulkRulesPath = "/api/scan_configuration/bulk_rules"
+
+// The rules endpoint assigns rule_priority as max+1 without locking, and
+// deletes shift the priorities of every remaining rule. Two in-flight
+// mutations therefore race into the (organization, rule_priority) unique
+// constraint and the API responds 500. Terraform applies resources in
+// parallel, so all rule mutations are serialized process-wide (updates
+// too: bulk update carries the rule's own rule_priority, which a
+// concurrent delete can shift underneath it).
+var dataDetectionRuleMutationLock sync.Mutex
 
 // DataDetectionRuleTag is one tag selector of a rule. Rule tags are
 // key/value selectors matched against asset tags — not plain strings.
@@ -65,6 +75,9 @@ func (client *APIClient) GetDataDetectionRule(id string) (*DataDetectionRule, er
 // CreateDataDetectionRule creates a rule via PUT on the collection
 // (this is how the API works — not a mistake) and returns the new rule id.
 func (client *APIClient) CreateDataDetectionRule(data DataDetectionRule) (string, error) {
+	dataDetectionRuleMutationLock.Lock()
+	defer dataDetectionRuleMutationLock.Unlock()
+
 	resp, err := client.Put(scanConfigRulesBasePath, data)
 	if err != nil {
 		return "", err
@@ -91,6 +104,9 @@ func (client *APIClient) UpdateDataDetectionRule(data DataDetectionRule) error {
 	if data.ID == "" {
 		return fmt.Errorf("rule update: rule_id is required")
 	}
+	dataDetectionRuleMutationLock.Lock()
+	defer dataDetectionRuleMutationLock.Unlock()
+
 	payload := struct {
 		RulesToUpdate []DataDetectionRule `json:"rules_to_update"`
 	}{RulesToUpdate: []DataDetectionRule{data}}
@@ -100,6 +116,9 @@ func (client *APIClient) UpdateDataDetectionRule(data DataDetectionRule) error {
 }
 
 func (client *APIClient) DeleteDataDetectionRule(id string) error {
+	dataDetectionRuleMutationLock.Lock()
+	defer dataDetectionRuleMutationLock.Unlock()
+
 	_, err := client.Delete(fmt.Sprintf("%s/%s", scanConfigRulesBasePath, id))
 	return err
 }
