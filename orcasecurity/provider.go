@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/add_users"
+	"terraform-provider-orcasecurity/orcasecurity/admission_controller"
 	"terraform-provider-orcasecurity/orcasecurity/akamai"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
@@ -224,6 +225,7 @@ func (p *orcasecurityProvider) Configure(ctx context.Context, req provider.Confi
 // DataSources defines the data sources implemented in the provider.
 func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		admission_controller.NewAdmissionControllerTemplateDataSource,
 		azure_devops_template.NewAzureDevopsTemplateDataSource,
 		jira_template.NewJiraTemplateDataSource,
 		jira_cloud_resource.NewJiraCloudDataSource,
@@ -242,6 +244,9 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 // Resources defines the resources implemented in the provider.
 func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		admission_controller.NewAdmissionControllerControlResource,
+		admission_controller.NewAdmissionControllerPolicyResource,
+		admission_controller.NewAdmissionControllerPolicyAssignmentResource,
 		automation.NewAutomationResource,
 		automation_v2.NewAutomationV2Resource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
