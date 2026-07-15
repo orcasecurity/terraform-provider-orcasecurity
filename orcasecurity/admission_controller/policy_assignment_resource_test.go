@@ -136,6 +136,89 @@ resource "orcasecurity_admission_controller_policy_assignment" "clusters" {
 	})
 }
 
+// Flips an existing assignment between scope types (full_organization →
+// clusters) in a single update. The PUT is full-replace, so the flip must
+// both attach the cluster and drop full_organization in one request — and
+// converge without drift. Needs a real cluster ID (see the clusters test).
+func TestAccAdmissionControllerPolicyAssignmentResource_ScopeTypeFlip(t *testing.T) {
+	clusterID := os.Getenv("ORCASECURITY_ACC_CLUSTER_ID")
+	if clusterID == "" {
+		t.Skip("set ORCASECURITY_ACC_CLUSTER_ID to a Kubernetes cluster ID from the target org to run this test")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + `
+resource "orcasecurity_admission_controller_policy_assignment" "flip" {
+  name              = "tf-acc-assignment-flip"
+  full_organization = true
+  policy_ids        = [orcasecurity_admission_controller_policy.for_assignment.id]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.flip", "full_organization", "true"),
+					resource.TestCheckNoResourceAttr("orcasecurity_admission_controller_policy_assignment.flip", "clusters"),
+				),
+			},
+			{
+				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + fmt.Sprintf(`
+resource "orcasecurity_admission_controller_policy_assignment" "flip" {
+  name       = "tf-acc-assignment-flip"
+  clusters   = [%q]
+  policy_ids = [orcasecurity_admission_controller_policy.for_assignment.id]
+}
+`, clusterID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.flip", "full_organization", "false"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.flip", "clusters.#", "1"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_admission_controller_policy_assignment.flip", "clusters.*", clusterID),
+				),
+			},
+		},
+	})
+}
+
+// Exercises the cloud_accounts scope path — the third backend validation
+// branch (full_organization and clusters are covered above), with its own
+// serializer queryset: account IDs must reference non-deleted cloud accounts
+// in the target org. Set ORCASECURITY_ACC_CLOUD_ACCOUNT_ID to run it.
+func TestAccAdmissionControllerPolicyAssignmentResource_CloudAccounts(t *testing.T) {
+	cloudAccountID := os.Getenv("ORCASECURITY_ACC_CLOUD_ACCOUNT_ID")
+	if cloudAccountID == "" {
+		t.Skip("set ORCASECURITY_ACC_CLOUD_ACCOUNT_ID to a cloud account ID from the target org to run this test")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + testAccAssignmentPolicyConfig + fmt.Sprintf(`
+resource "orcasecurity_admission_controller_policy_assignment" "cloud_accounts" {
+  name           = "tf-acc-assignment-cloud-accounts"
+  cloud_accounts = [%q]
+  policy_ids     = [orcasecurity_admission_controller_policy.for_assignment.id]
+}
+`, cloudAccountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("orcasecurity_admission_controller_policy_assignment.cloud_accounts", "id"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.cloud_accounts", "full_organization", "false"),
+					resource.TestCheckResourceAttr("orcasecurity_admission_controller_policy_assignment.cloud_accounts", "cloud_accounts.#", "1"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_admission_controller_policy_assignment.cloud_accounts", "cloud_accounts.*", cloudAccountID),
+				),
+			},
+			{
+				ResourceName:      "orcasecurity_admission_controller_policy_assignment.cloud_accounts",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 // A scope value that is unknown at plan time (derived from another resource's
 // computed attribute) must not fail validation: ValidateConfig has to defer to
 // apply instead of treating unknown as absent.

@@ -27,7 +27,7 @@ resource "orcasecurity_admission_controller_policy" "baseline" {
 
 ### Required
 
-- `controls` (Set of String) IDs of `orcasecurity_admission_controller_control` resources attached to this policy. The API requires at least one control.
+- `controls` (Set of String) IDs of `orcasecurity_admission_controller_control` resources attached to this policy. At least one control is required.
 - `name` (String) Policy name (unique within the organization).
 
 ### Optional

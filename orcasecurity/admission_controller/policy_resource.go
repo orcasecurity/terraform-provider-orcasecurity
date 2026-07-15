@@ -107,7 +107,11 @@ func (r *policyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Required:    true,
 				ElementType: types.StringType,
 				Description: "IDs of `orcasecurity_admission_controller_control` resources attached to this policy. " +
-					"The API requires at least one control.",
+					"At least one control is required.",
+				// The API rejects an empty controls list only on create; on the
+				// PATCH update path it silently ignores [] and retains the
+				// attached controls. The validator turns both into a plan-time
+				// error instead of a create-time 400 or a silent no-op.
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
 				},

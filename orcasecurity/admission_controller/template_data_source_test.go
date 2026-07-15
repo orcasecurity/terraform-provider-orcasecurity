@@ -47,6 +47,42 @@ data "orcasecurity_admission_controller_template" "missing" {
 	})
 }
 
+// The two halves of the ExactlyOneOf(name, display_name) config validator:
+// neither and both must fail at plan time.
+func TestAccAdmissionControllerTemplateDataSource_NoSelector(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + `
+data "orcasecurity_admission_controller_template" "invalid" {
+}
+`,
+				ExpectError: regexp.MustCompile(`(?s)Exactly one of.*name.*display_name`),
+			},
+		},
+	})
+}
+
+func TestAccAdmissionControllerTemplateDataSource_BothSelectors(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + `
+data "orcasecurity_admission_controller_template" "invalid" {
+  name         = "k8sallowedrepos"
+  display_name = "Allowed Container Registries"
+}
+`,
+				ExpectError: regexp.MustCompile(`(?s)Exactly one of.*name.*display_name`),
+			},
+		},
+	})
+}
+
 func TestAccAdmissionControllerTemplateDataSource_ByDisplayName(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },

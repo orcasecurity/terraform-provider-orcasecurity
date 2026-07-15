@@ -165,6 +165,26 @@ func TestDeleteAdmissionControllerControl(t *testing.T) {
 	}
 }
 
+// deleteNotFoundResponse mimics the API's 404 on deleting an already-gone
+// resource. The client must treat it as success (idempotent delete), or a
+// resource removed out-of-band would fail the destroy instead of converging.
+func deleteNotFoundResponse(message string) RoundTripFunc {
+	return func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(strings.NewReader(`{"status":"failure","error_code":"not_found","message":"` + message + `"}`)),
+		}
+	}
+}
+
+func TestDeleteAdmissionControllerControl_NotFound(t *testing.T) {
+	httpClient := &http.Client{Transport: deleteNotFoundResponse("No Control matches the given query.")}
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	if err := client.DeleteAdmissionControllerControl("missing"); err != nil {
+		t.Fatalf("expected delete of missing control to be treated as success, got: %v", err)
+	}
+}
+
 func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
@@ -190,11 +210,12 @@ func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 	}
 }
 
-// assertControlEmptyOptionalFieldsPayload verifies the serialization of unset
-// optional control fields: description present as explicit null, nil
-// input_parameters sent as explicit {}, empty apiGroups/versions inside
-// cluster_scope kinds omitted.
-func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
+// assertExplicitNullDescription verifies an unset description is serialized
+// as an explicit null, never dropped: the API's full-replace routes retain
+// the remote value for an omitted key, so dropping it would silently undo a
+// user clearing the attribute. Shared by control, policy and scope payload
+// tests — all three entities carry the same contract.
+func assertExplicitNullDescription(t *testing.T, body []byte) {
 	t.Helper()
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -202,6 +223,19 @@ func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
 	}
 	if desc, has := payload["description"]; !has || desc != nil {
 		t.Errorf("nil description must be sent as explicit null: %s", body)
+	}
+}
+
+// assertControlEmptyOptionalFieldsPayload verifies the serialization of unset
+// optional control fields: description present as explicit null, nil
+// input_parameters sent as explicit {}, empty apiGroups/versions inside
+// cluster_scope kinds omitted.
+func assertControlEmptyOptionalFieldsPayload(t *testing.T, body []byte) {
+	t.Helper()
+	assertExplicitNullDescription(t, body)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("payload not JSON: %v", err)
 	}
 	if params, has := payload["input_parameters"]; !has {
 		t.Errorf("nil input_parameters must be sent as {}, not omitted (PUT omit retains the remote value): %s", body)
@@ -344,6 +378,7 @@ func TestCreateAdmissionControllerPolicy_OmitsScopesKey(t *testing.T) {
 		if payload["enforcement_action"] != "block" {
 			t.Errorf("unexpected enforcement_action: %v", payload["enforcement_action"])
 		}
+		assertExplicitNullDescription(t, body)
 		return &http.Response{
 			StatusCode: 201,
 			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
@@ -370,6 +405,8 @@ func TestUpdateAdmissionControllerPolicy(t *testing.T) {
 		if req.Method != "PATCH" || req.URL.Path != "/api/admission_controller/policies/pol-1" {
 			t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
 		}
+		body, _ := io.ReadAll(req.Body)
+		assertExplicitNullDescription(t, body)
 		return &http.Response{
 			StatusCode: 200,
 			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
@@ -401,6 +438,14 @@ func TestDeleteAdmissionControllerPolicy(t *testing.T) {
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
 	if err := client.DeleteAdmissionControllerPolicy("pol-1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeleteAdmissionControllerPolicy_NotFound(t *testing.T) {
+	httpClient := &http.Client{Transport: deleteNotFoundResponse("No Policy matches the given query.")}
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	if err := client.DeleteAdmissionControllerPolicy("missing"); err != nil {
+		t.Fatalf("expected delete of missing policy to be treated as success, got: %v", err)
 	}
 }
 
@@ -452,6 +497,7 @@ func TestCreateAdmissionControllerScope_SendsPolicyIDs(t *testing.T) {
 		if payload["full_organization"] != true {
 			t.Errorf("expected full_organization true: %s", body)
 		}
+		assertExplicitNullDescription(t, body)
 		return &http.Response{
 			StatusCode: 201,
 			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
@@ -491,9 +537,7 @@ func TestUpdateAdmissionControllerScope(t *testing.T) {
 		} else if list, ok := ids.([]interface{}); !ok || len(list) != 0 {
 			t.Errorf("unexpected policy_ids: %s", body)
 		}
-		if desc, has := payload["description"]; !has || desc != nil {
-			t.Errorf("nil description must be sent as explicit null: %s", body)
-		}
+		assertExplicitNullDescription(t, body)
 		return &http.Response{
 			StatusCode: 200,
 			Body: io.NopCloser(strings.NewReader(`{"status":"success","data":{
@@ -526,6 +570,14 @@ func TestDeleteAdmissionControllerScope(t *testing.T) {
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
 	if err := client.DeleteAdmissionControllerScope("scope-1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeleteAdmissionControllerScope_NotFound(t *testing.T) {
+	httpClient := &http.Client{Transport: deleteNotFoundResponse("No Scope matches the given query.")}
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	if err := client.DeleteAdmissionControllerScope("missing"); err != nil {
+		t.Fatalf("expected delete of missing scope to be treated as success, got: %v", err)
 	}
 }
 

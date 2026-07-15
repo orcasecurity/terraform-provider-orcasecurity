@@ -73,6 +73,12 @@ resource "orcasecurity_admission_controller_control" "test" {
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_admission_controller_control.test", "name", "tf-acc-control-1-renamed"),
+					// The updated JSON must survive the apply+refresh round
+					// trip, not just the rename next to it.
+					resource.TestCheckResourceAttr(
+						"orcasecurity_admission_controller_control.test", "input_parameters",
+						`{"repos":["docker.io/library","gcr.io/project"]}`,
+					),
 				),
 			},
 			// Clear description without renaming: removing the attribute must
