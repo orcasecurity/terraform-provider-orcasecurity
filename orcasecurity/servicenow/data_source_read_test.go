@@ -11,22 +11,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// lookupDataSourceSchema returns the name-lookup data source schema for seeding Config/State.
-func lookupDataSourceSchema(t *testing.T) fwdatasourceschema.Schema {
+// dataSourceSchema drives the given data source's Schema method and returns the schema for
+// seeding Config/State.
+func dataSourceSchema(t *testing.T, ds datasource.DataSource) fwdatasourceschema.Schema {
 	t.Helper()
-	ds := NewServiceNowDataSource().(datasource.DataSourceWithConfigure)
-	resp := &datasource.SchemaResponse{}
-	ds.Schema(context.Background(), datasource.SchemaRequest{}, resp)
-	if resp.Diagnostics.HasError() {
-		t.Fatalf("schema build failed: %v", resp.Diagnostics)
-	}
-	return resp.Schema
-}
-
-// schemaDataSourceSchema returns the schema data source schema.
-func schemaDataSourceSchema(t *testing.T) fwdatasourceschema.Schema {
-	t.Helper()
-	ds := NewServiceNowSchemaDataSource().(datasource.DataSourceWithConfigure)
 	resp := &datasource.SchemaResponse{}
 	ds.Schema(context.Background(), datasource.SchemaRequest{}, resp)
 	if resp.Diagnostics.HasError() {
@@ -46,20 +34,39 @@ func configWith(t *testing.T, sch fwdatasourceschema.Schema, model interface{}) 
 	return tfsdk.Config{Schema: sch, Raw: st.Raw}
 }
 
-// Read on the lookup data source must find the resource by name and populate id/url/username.
-func TestDataSourceRead_Success(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		// ListServiceNowITSMResources shape: {status, data:[...]}
-		w.Write([]byte(`{"status":"success","data":[{"id":"res-1","name":"prod","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}]}`))
-	})
-	defer closeFn()
-
-	sch := lookupDataSourceSchema(t)
-	cfg := configWith(t, sch, &itsmDataSourceModel{Name: types.StringValue("prod")})
-	ds := &itsmDataSource{apiClient: client}
+// readLookup runs a Read on the name-lookup data source against the given backend, configured to
+// look up `name`, and returns the response for assertions.
+func readLookup(t *testing.T, handler http.HandlerFunc, name string) *datasource.ReadResponse {
+	t.Helper()
+	sch := dataSourceSchema(t, NewServiceNowDataSource())
+	cfg := configWith(t, sch, &itsmDataSourceModel{Name: types.StringValue(name)})
+	ds := &itsmDataSource{apiClient: newTestClient(t, handler)}
 	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
 	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	return resp
+}
+
+// readSchemaDS runs a Read on the schema data source against the given backend for the given
+// resource id / schema type and returns the response for assertions.
+func readSchemaDS(t *testing.T, handler http.HandlerFunc, snowType string) *datasource.ReadResponse {
+	t.Helper()
+	sch := dataSourceSchema(t, NewServiceNowSchemaDataSource())
+	cfg := configWith(t, sch, &schemaDataSourceModel{
+		ResourceID: types.StringValue("res-1"),
+		Type:       types.StringValue(snowType),
+		Fields:     []schemaFieldModel{},
+		Elements:   types.ListNull(types.StringType),
+	})
+	ds := &schemaDataSource{apiClient: newTestClient(t, handler)}
+	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
+	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	return resp
+}
+
+// Read on the lookup data source must find the resource by name and populate id/url/username.
+func TestDataSourceRead_Success(t *testing.T) {
+	// ListServiceNowITSMResources shape: {status, data:[...]}
+	resp := readLookup(t, jsonOK(`{"status":"success","data":[{"id":"res-1","name":"prod","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}]}`), "prod")
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected diags: %v", resp.Diagnostics)
 	}
@@ -78,17 +85,7 @@ func TestDataSourceRead_Success(t *testing.T) {
 
 // A name with no matching resource must surface a "not found" error diagnostic.
 func TestDataSourceRead_NotFoundErrors(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":[]}`))
-	})
-	defer closeFn()
-
-	sch := lookupDataSourceSchema(t)
-	cfg := configWith(t, sch, &itsmDataSourceModel{Name: types.StringValue("absent")})
-	ds := &itsmDataSource{apiClient: client}
-	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
-	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	resp := readLookup(t, jsonOK(`{"status":"success","data":[]}`), "absent")
 	if !resp.Diagnostics.HasError() {
 		t.Fatal("expected a not-found error diagnostic")
 	}
@@ -96,17 +93,7 @@ func TestDataSourceRead_NotFoundErrors(t *testing.T) {
 
 // An API failure during lookup must surface an error diagnostic.
 func TestDataSourceRead_APIErrorSurfacesDiag(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message":"boom"}`))
-	})
-	defer closeFn()
-
-	sch := lookupDataSourceSchema(t)
-	cfg := configWith(t, sch, &itsmDataSourceModel{Name: types.StringValue("prod")})
-	ds := &itsmDataSource{apiClient: client}
-	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
-	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	resp := readLookup(t, httpError(http.StatusInternalServerError, "boom"), "prod")
 	if !resp.Diagnostics.HasError() {
 		t.Fatal("expected an error diagnostic on API failure")
 	}
@@ -115,25 +102,10 @@ func TestDataSourceRead_APIErrorSurfacesDiag(t *testing.T) {
 // Read on the schema data source must translate every schema field into a schemaFieldModel and
 // build the flat elements list.
 func TestSchemaDataSourceRead_Success(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":[
-			{"element":"short_description","label":"Short description","type":"string","default_value":"","max_length":"160","choice":"0"},
-			{"element":"urgency","label":"Urgency","type":"integer","default_value":"3","max_length":"40","choice":"3"}
-		]}`))
-	})
-	defer closeFn()
-
-	sch := schemaDataSourceSchema(t)
-	cfg := configWith(t, sch, &schemaDataSourceModel{
-		ResourceID: types.StringValue("res-1"),
-		Type:       types.StringValue("itsm"),
-		Fields:     []schemaFieldModel{},
-		Elements:   types.ListNull(types.StringType),
-	})
-	ds := &schemaDataSource{apiClient: client}
-	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
-	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	resp := readSchemaDS(t, jsonOK(`{"status":"success","data":[
+		{"element":"short_description","label":"Short description","type":"string","default_value":"","max_length":"160","choice":"0"},
+		{"element":"urgency","label":"Urgency","type":"integer","default_value":"3","max_length":"40","choice":"3"}
+	]}`), "itsm")
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected diags: %v", resp.Diagnostics)
 	}
@@ -154,22 +126,7 @@ func TestSchemaDataSourceRead_Success(t *testing.T) {
 
 // An empty schema response must yield empty fields/elements, not an error.
 func TestSchemaDataSourceRead_EmptyResult(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":[]}`))
-	})
-	defer closeFn()
-
-	sch := schemaDataSourceSchema(t)
-	cfg := configWith(t, sch, &schemaDataSourceModel{
-		ResourceID: types.StringValue("res-1"),
-		Type:       types.StringValue("sir"),
-		Fields:     []schemaFieldModel{},
-		Elements:   types.ListNull(types.StringType),
-	})
-	ds := &schemaDataSource{apiClient: client}
-	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
-	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	resp := readSchemaDS(t, jsonOK(`{"status":"success","data":[]}`), "sir")
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected diags: %v", resp.Diagnostics)
 	}
@@ -182,22 +139,7 @@ func TestSchemaDataSourceRead_EmptyResult(t *testing.T) {
 
 // An API failure during schema read must surface an error diagnostic.
 func TestSchemaDataSourceRead_APIErrorSurfacesDiag(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message":"boom"}`))
-	})
-	defer closeFn()
-
-	sch := schemaDataSourceSchema(t)
-	cfg := configWith(t, sch, &schemaDataSourceModel{
-		ResourceID: types.StringValue("res-1"),
-		Type:       types.StringValue("itsm"),
-		Fields:     []schemaFieldModel{},
-		Elements:   types.ListNull(types.StringType),
-	})
-	ds := &schemaDataSource{apiClient: client}
-	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
-	ds.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	resp := readSchemaDS(t, httpError(http.StatusInternalServerError, "boom"), "itsm")
 	if !resp.Diagnostics.HasError() {
 		t.Fatal("expected an error diagnostic on API failure")
 	}

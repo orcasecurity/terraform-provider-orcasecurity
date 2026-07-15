@@ -18,17 +18,40 @@ import (
 // handlers run their full success / not-found / error branches against a controllable HTTP
 // backend without touching the live Orca lab (whose ServiceNow create path validates credentials
 // and rejects fake ones).
-func newTestClient(t *testing.T, handler http.HandlerFunc) (*api_client.APIClient, func()) {
+func newTestClient(t *testing.T, handler http.HandlerFunc) *api_client.APIClient {
 	t.Helper()
 	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
 	endpoint := srv.URL
 	token := "test-token"
 	client, err := api_client.NewAPIClient(&endpoint, &token)
 	if err != nil {
-		srv.Close()
 		t.Fatalf("failed to build api client: %v", err)
 	}
-	return client, srv.Close
+	return client
+}
+
+// jsonOK returns a handler that writes the given success body as JSON.
+func jsonOK(body string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		w.Write([]byte(body))
+	}
+}
+
+// httpError returns a handler that fails every request with the given status.
+func httpError(status int, message string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(status)
+		w.Write([]byte(`{"message":"` + message + `"}`))
+	}
+}
+
+// itsmUnderTest wires a serviceNowITSMResource to an httptest backend and returns it together
+// with the resource schema used to seed tfsdk.State/Plan.
+func itsmUnderTest(t *testing.T, handler http.HandlerFunc) (*serviceNowITSMResource, fwresourceschema.Schema) {
+	t.Helper()
+	return &serviceNowITSMResource{apiClient: newTestClient(t, handler)}, resourceSchema(t)
 }
 
 // resourceSchema returns the managed resource's framework schema, used to seed tfsdk.State/Plan.
@@ -63,17 +86,33 @@ func planWith(t *testing.T, sch fwresourceschema.Schema, model serviceNowITSMRes
 	return p
 }
 
+// minModel returns a fully populated minimal model for tests that only care about the request
+// wiring, not the field values.
+func minModel(id string) serviceNowITSMResourceModel {
+	return serviceNowITSMResourceModel{
+		ID:       types.StringValue(id),
+		Name:     types.StringValue("n"),
+		URL:      types.StringValue("u"),
+		Username: types.StringValue("user"),
+		Password: types.StringValue("p"),
+	}
+}
+
+// prodPlanModel returns the plan used by the Create tests: unknown id, real-looking fields.
+func prodPlanModel() serviceNowITSMResourceModel {
+	return serviceNowITSMResourceModel{
+		ID:       types.StringUnknown(),
+		Name:     types.StringValue("prod"),
+		URL:      types.StringValue("https://acme.service-now.com"),
+		Username: types.StringValue("svc-orca"),
+		Password: types.StringValue("s3cret"),
+	}
+}
+
 // Read must populate name/url/username from the API and preserve the password already in state
 // (the API strips it). This exercises the happy path.
 func TestRead_PopulatesFromAPIAndPreservesPassword(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":{"id":"res-1","name":"prod","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}}`))
-	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
+	r, sch := itsmUnderTest(t, jsonOK(`{"status":"success","data":{"id":"res-1","name":"prod","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}}`))
 	req := resource.ReadRequest{State: stateWith(t, sch, serviceNowITSMResourceModel{
 		ID:       types.StringValue("res-1"),
 		Name:     types.StringValue("stale"),
@@ -108,26 +147,10 @@ func TestRead_PopulatesFromAPIAndPreservesPassword(t *testing.T) {
 // A 404 from the API must remove the resource from state (no error) so Terraform can plan a
 // recreate rather than crash.
 func TestRead_NotFoundRemovesResource(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message":"not found"}`))
-	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
-	req := resource.ReadRequest{State: stateWith(t, sch, serviceNowITSMResourceModel{
-		ID:       types.StringValue("gone"),
-		Name:     types.StringValue("n"),
-		URL:      types.StringValue("u"),
-		Username: types.StringValue("user"),
-		Password: types.StringValue("p"),
-	})}
+	r, sch := itsmUnderTest(t, httpError(http.StatusNotFound, "not found"))
+	req := resource.ReadRequest{State: stateWith(t, sch, minModel("gone"))}
 	// Seed resp.State with the same non-null raw so we can detect removal (Raw becomes null).
-	resp := &resource.ReadResponse{State: stateWith(t, sch, serviceNowITSMResourceModel{
-		ID: types.StringValue("gone"), Name: types.StringValue("n"), URL: types.StringValue("u"),
-		Username: types.StringValue("user"), Password: types.StringValue("p"),
-	})}
+	resp := &resource.ReadResponse{State: stateWith(t, sch, minModel("gone"))}
 	r.Read(context.Background(), req, resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("404 should not error, got: %v", resp.Diagnostics)
@@ -139,18 +162,8 @@ func TestRead_NotFoundRemovesResource(t *testing.T) {
 
 // A non-404 API failure on Read must surface an error diagnostic.
 func TestRead_APIErrorSurfacesDiag(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message":"boom"}`))
-	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
-	req := resource.ReadRequest{State: stateWith(t, sch, serviceNowITSMResourceModel{
-		ID: types.StringValue("x"), Name: types.StringValue("n"), URL: types.StringValue("u"),
-		Username: types.StringValue("user"), Password: types.StringValue("p"),
-	})}
+	r, sch := itsmUnderTest(t, httpError(http.StatusInternalServerError, "boom"))
+	req := resource.ReadRequest{State: stateWith(t, sch, minModel("x"))}
 	resp := &resource.ReadResponse{State: tfsdk.State{Schema: sch}}
 	r.Read(context.Background(), req, resp)
 	if !resp.Diagnostics.HasError() {
@@ -160,24 +173,13 @@ func TestRead_APIErrorSurfacesDiag(t *testing.T) {
 
 // Create must POST the payload and write the API's returned id/name/url/username back to state.
 func TestCreate_Success(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("expected POST, got %s", r.Method)
+	r, sch := itsmUnderTest(t, func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", req.Method)
 		}
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":{"id":"new-id","name":"prod","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}}`))
+		jsonOK(`{"status":"success","data":{"id":"new-id","name":"prod","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}}`)(w, req)
 	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
-	req := resource.CreateRequest{Plan: planWith(t, sch, serviceNowITSMResourceModel{
-		ID:       types.StringUnknown(),
-		Name:     types.StringValue("prod"),
-		URL:      types.StringValue("https://acme.service-now.com"),
-		Username: types.StringValue("svc-orca"),
-		Password: types.StringValue("s3cret"),
-	})}
+	req := resource.CreateRequest{Plan: planWith(t, sch, prodPlanModel())}
 	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
 	r.Create(context.Background(), req, resp)
 	if resp.Diagnostics.HasError() {
@@ -195,21 +197,8 @@ func TestCreate_Success(t *testing.T) {
 
 // A Create API error must surface a diagnostic and not write state.
 func TestCreate_APIErrorSurfacesDiag(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"message":"Invalid credentials or ServiceNow instance unavailable."}`))
-	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
-	req := resource.CreateRequest{Plan: planWith(t, sch, serviceNowITSMResourceModel{
-		ID:       types.StringUnknown(),
-		Name:     types.StringValue("prod"),
-		URL:      types.StringValue("https://acme.service-now.com"),
-		Username: types.StringValue("svc-orca"),
-		Password: types.StringValue("s3cret"),
-	})}
+	r, sch := itsmUnderTest(t, httpError(http.StatusBadRequest, "Invalid credentials or ServiceNow instance unavailable."))
+	req := resource.CreateRequest{Plan: planWith(t, sch, prodPlanModel())}
 	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
 	r.Create(context.Background(), req, resp)
 	if !resp.Diagnostics.HasError() {
@@ -219,32 +208,20 @@ func TestCreate_APIErrorSurfacesDiag(t *testing.T) {
 
 // Update must PUT the payload and refresh state from the API response.
 func TestUpdate_Success(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Errorf("expected PUT, got %s", r.Method)
+	r, sch := itsmUnderTest(t, func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", req.Method)
 		}
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success","data":{"id":"res-1","name":"renamed","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}}`))
+		jsonOK(`{"status":"success","data":{"id":"res-1","name":"renamed","host_url":"https://acme.service-now.com","data":{"username":"svc-orca"}}}`)(w, req)
 	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
+	renamed := prodPlanModel()
+	renamed.ID = types.StringValue("res-1")
+	renamed.Name = types.StringValue("renamed")
+	prior := prodPlanModel()
+	prior.ID = types.StringValue("res-1")
 	req := resource.UpdateRequest{
-		Plan: planWith(t, sch, serviceNowITSMResourceModel{
-			ID:       types.StringValue("res-1"),
-			Name:     types.StringValue("renamed"),
-			URL:      types.StringValue("https://acme.service-now.com"),
-			Username: types.StringValue("svc-orca"),
-			Password: types.StringValue("s3cret"),
-		}),
-		State: stateWith(t, sch, serviceNowITSMResourceModel{
-			ID:       types.StringValue("res-1"),
-			Name:     types.StringValue("prod"),
-			URL:      types.StringValue("https://acme.service-now.com"),
-			Username: types.StringValue("svc-orca"),
-			Password: types.StringValue("s3cret"),
-		}),
+		Plan:  planWith(t, sch, renamed),
+		State: stateWith(t, sch, prior),
 	}
 	resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
 	r.Update(context.Background(), req, resp)
@@ -260,23 +237,10 @@ func TestUpdate_Success(t *testing.T) {
 
 // An Update API error must surface a diagnostic.
 func TestUpdate_APIErrorSurfacesDiag(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message":"boom"}`))
-	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
+	r, sch := itsmUnderTest(t, httpError(http.StatusInternalServerError, "boom"))
 	req := resource.UpdateRequest{
-		Plan: planWith(t, sch, serviceNowITSMResourceModel{
-			ID: types.StringValue("res-1"), Name: types.StringValue("x"), URL: types.StringValue("u"),
-			Username: types.StringValue("user"), Password: types.StringValue("p"),
-		}),
-		State: stateWith(t, sch, serviceNowITSMResourceModel{
-			ID: types.StringValue("res-1"), Name: types.StringValue("x"), URL: types.StringValue("u"),
-			Username: types.StringValue("user"), Password: types.StringValue("p"),
-		}),
+		Plan:  planWith(t, sch, minModel("res-1")),
+		State: stateWith(t, sch, minModel("res-1")),
 	}
 	resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
 	r.Update(context.Background(), req, resp)
@@ -287,21 +251,13 @@ func TestUpdate_APIErrorSurfacesDiag(t *testing.T) {
 
 // Delete must issue the DELETE and complete without diagnostics on success.
 func TestDelete_Success(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			t.Errorf("expected DELETE, got %s", r.Method)
+	r, sch := itsmUnderTest(t, func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", req.Method)
 		}
-		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"status":"success"}`))
+		jsonOK(`{"status":"success"}`)(w, req)
 	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
-	req := resource.DeleteRequest{State: stateWith(t, sch, serviceNowITSMResourceModel{
-		ID: types.StringValue("res-1"), Name: types.StringValue("n"), URL: types.StringValue("u"),
-		Username: types.StringValue("user"), Password: types.StringValue("p"),
-	})}
+	req := resource.DeleteRequest{State: stateWith(t, sch, minModel("res-1"))}
 	resp := &resource.DeleteResponse{State: tfsdk.State{Schema: sch}}
 	r.Delete(context.Background(), req, resp)
 	if resp.Diagnostics.HasError() {
@@ -311,18 +267,8 @@ func TestDelete_Success(t *testing.T) {
 
 // A Delete API error must surface a diagnostic.
 func TestDelete_APIErrorSurfacesDiag(t *testing.T) {
-	client, closeFn := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message":"boom"}`))
-	})
-	defer closeFn()
-
-	sch := resourceSchema(t)
-	r := &serviceNowITSMResource{apiClient: client}
-	req := resource.DeleteRequest{State: stateWith(t, sch, serviceNowITSMResourceModel{
-		ID: types.StringValue("res-1"), Name: types.StringValue("n"), URL: types.StringValue("u"),
-		Username: types.StringValue("user"), Password: types.StringValue("p"),
-	})}
+	r, sch := itsmUnderTest(t, httpError(http.StatusInternalServerError, "boom"))
+	req := resource.DeleteRequest{State: stateWith(t, sch, minModel("res-1"))}
 	resp := &resource.DeleteResponse{State: tfsdk.State{Schema: sch}}
 	r.Delete(context.Background(), req, resp)
 	if !resp.Diagnostics.HasError() {

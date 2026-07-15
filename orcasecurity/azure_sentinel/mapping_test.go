@@ -4,26 +4,12 @@ import (
 	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	cc "terraform-provider-orcasecurity/orcasecurity/config_integration_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-// buSet builds a types.Set of business-unit IDs matching the `business_units` attribute shape.
-func buSet(t *testing.T, ids ...string) types.Set {
-	t.Helper()
-	vals := make([]attr.Value, 0, len(ids))
-	for _, id := range ids {
-		vals = append(vals, types.StringValue(id))
-	}
-	s, d := types.SetValue(types.StringType, vals)
-	if d.HasError() {
-		t.Fatalf("set build: %v", d)
-	}
-	return s
-}
 
 // BuildPayload must copy template/enabled/default, log_type, workspace_id, the sensitive primary
 // key, and business_units into the API envelope.
@@ -36,7 +22,7 @@ func TestBuildPayload_PopulatesAllFields(t *testing.T) {
 	s.TemplateName = types.StringValue("tf-acc-test-sentinel")
 	s.IsEnabled = types.BoolValue(true)
 	s.IsDefault = types.BoolValue(false)
-	s.BusinessUnits = buSet(t, "bu-1", "bu-2")
+	s.BusinessUnits = testutils.StringSet(t, "bu-1", "bu-2")
 
 	var diags diag.Diagnostics
 	got := buildPayload(context.Background(), s, &diags)

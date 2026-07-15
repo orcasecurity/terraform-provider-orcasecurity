@@ -2,61 +2,39 @@ package add_users
 
 import (
 	"context"
+	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// listVal builds a types.List of strings, failing the test on a build error.
-func listVal(t *testing.T, elems ...string) types.List {
-	t.Helper()
-	vals := make([]attr.Value, 0, len(elems))
-	for _, e := range elems {
-		vals = append(vals, types.StringValue(e))
+// basePlan returns a plan with every optional list null and email/role populated; each test
+// overrides only the fields it probes.
+func basePlan() addUsersResourceModel {
+	return addUsersResourceModel{
+		Email:             types.StringValue("tf-acc-test-x@example.com"),
+		RoleID:            types.StringValue("role-1"),
+		Groups:            types.ListNull(types.StringType),
+		AllCloudAccounts:  types.BoolValue(false),
+		CloudAccounts:     types.ListNull(types.StringType),
+		UserFilters:       types.ListNull(types.StringType),
+		ShiftleftProjects: types.ListNull(types.StringType),
+		MFARequired:       types.BoolValue(false),
+		ShouldSendEmail:   types.BoolValue(true),
 	}
-	lv, d := types.ListValue(types.StringType, vals)
-	if d.HasError() {
-		t.Fatalf("list build: %v", d)
-	}
-	return lv
-}
-
-// sliceEqualUnordered reports whether two string slices contain the same elements.
-func sliceEqualUnordered(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	counts := map[string]int{}
-	for _, x := range a {
-		counts[x]++
-	}
-	for _, x := range b {
-		counts[x]--
-	}
-	for _, c := range counts {
-		if c != 0 {
-			return false
-		}
-	}
-	return true
 }
 
 // modelToRequest must wrap the single email into a one-element list and copy every
 // scalar and scoped list into the bulk_create payload.
 func TestModelToRequest_MapsAllFields(t *testing.T) {
 	r := &addUsersResource{}
-	plan := addUsersResourceModel{
-		Email:             types.StringValue("tf-acc-test-x@example.com"),
-		RoleID:            types.StringValue("role-1"),
-		Groups:            types.ListNull(types.StringType),
-		AllCloudAccounts:  types.BoolValue(true),
-		CloudAccounts:     listVal(t, "ca-1", "ca-2"),
-		UserFilters:       listVal(t, "bu-1"),
-		ShiftleftProjects: listVal(t, "sl-1", "sl-2"),
-		MFARequired:       types.BoolValue(true),
-		ShouldSendEmail:   types.BoolValue(false),
-	}
+	plan := basePlan()
+	plan.AllCloudAccounts = types.BoolValue(true)
+	plan.CloudAccounts = testutils.StringList(t, "ca-1", "ca-2")
+	plan.UserFilters = testutils.StringList(t, "bu-1")
+	plan.ShiftleftProjects = testutils.StringList(t, "sl-1", "sl-2")
+	plan.MFARequired = types.BoolValue(true)
+	plan.ShouldSendEmail = types.BoolValue(false)
 
 	got, diags := r.modelToRequest(context.Background(), plan)
 	if diags.HasError() {
@@ -75,13 +53,13 @@ func TestModelToRequest_MapsAllFields(t *testing.T) {
 	if got.ShouldSendEmail {
 		t.Error("should_send_email should be false")
 	}
-	if !sliceEqualUnordered(got.CloudAccounts, []string{"ca-1", "ca-2"}) {
+	if !testutils.SameElements(got.CloudAccounts, []string{"ca-1", "ca-2"}) {
 		t.Errorf("cloud accounts mismatch: %v", got.CloudAccounts)
 	}
-	if !sliceEqualUnordered(got.UserFilters, []string{"bu-1"}) {
+	if !testutils.SameElements(got.UserFilters, []string{"bu-1"}) {
 		t.Errorf("user filters mismatch: %v", got.UserFilters)
 	}
-	if !sliceEqualUnordered(got.ShiftleftProjects, []string{"sl-1", "sl-2"}) {
+	if !testutils.SameElements(got.ShiftleftProjects, []string{"sl-1", "sl-2"}) {
 		t.Errorf("shiftleft mismatch: %v", got.ShiftleftProjects)
 	}
 }
@@ -89,17 +67,10 @@ func TestModelToRequest_MapsAllFields(t *testing.T) {
 // The groups path: a role_id-less invite must carry the group ids and an empty role.
 func TestModelToRequest_GroupsPath(t *testing.T) {
 	r := &addUsersResource{}
-	plan := addUsersResourceModel{
-		Email:             types.StringValue("tf-acc-test-g@example.com"),
-		RoleID:            types.StringNull(),
-		Groups:            listVal(t, "grp-1", "grp-2"),
-		AllCloudAccounts:  types.BoolValue(false),
-		CloudAccounts:     types.ListNull(types.StringType),
-		UserFilters:       types.ListNull(types.StringType),
-		ShiftleftProjects: types.ListNull(types.StringType),
-		MFARequired:       types.BoolValue(false),
-		ShouldSendEmail:   types.BoolValue(true),
-	}
+	plan := basePlan()
+	plan.Email = types.StringValue("tf-acc-test-g@example.com")
+	plan.RoleID = types.StringNull()
+	plan.Groups = testutils.StringList(t, "grp-1", "grp-2")
 
 	got, diags := r.modelToRequest(context.Background(), plan)
 	if diags.HasError() {
@@ -108,7 +79,7 @@ func TestModelToRequest_GroupsPath(t *testing.T) {
 	if got.RoleID != "" {
 		t.Errorf("role_id should be empty on groups path, got %q", got.RoleID)
 	}
-	if !sliceEqualUnordered(got.Groups, []string{"grp-1", "grp-2"}) {
+	if !testutils.SameElements(got.Groups, []string{"grp-1", "grp-2"}) {
 		t.Errorf("groups mismatch: %v", got.Groups)
 	}
 	if !got.ShouldSendEmail {
@@ -120,19 +91,7 @@ func TestModelToRequest_GroupsPath(t *testing.T) {
 // explicit empty arrays rather than dropping the fields.
 func TestModelToRequest_NullListsBecomeEmptySlices(t *testing.T) {
 	r := &addUsersResource{}
-	plan := addUsersResourceModel{
-		Email:             types.StringValue("tf-acc-test-n@example.com"),
-		RoleID:            types.StringValue("role-1"),
-		Groups:            types.ListNull(types.StringType),
-		AllCloudAccounts:  types.BoolValue(false),
-		CloudAccounts:     types.ListNull(types.StringType),
-		UserFilters:       types.ListNull(types.StringType),
-		ShiftleftProjects: types.ListNull(types.StringType),
-		MFARequired:       types.BoolValue(false),
-		ShouldSendEmail:   types.BoolValue(true),
-	}
-
-	got, diags := r.modelToRequest(context.Background(), plan)
+	got, diags := r.modelToRequest(context.Background(), basePlan())
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
@@ -155,17 +114,8 @@ func TestModelToRequest_NullListsBecomeEmptySlices(t *testing.T) {
 // single-element email list, using the empty string rather than panicking.
 func TestModelToRequest_NullEmailProducesSingleEntry(t *testing.T) {
 	r := &addUsersResource{}
-	plan := addUsersResourceModel{
-		Email:             types.StringNull(),
-		RoleID:            types.StringValue("role-1"),
-		Groups:            types.ListNull(types.StringType),
-		AllCloudAccounts:  types.BoolValue(false),
-		CloudAccounts:     types.ListNull(types.StringType),
-		UserFilters:       types.ListNull(types.StringType),
-		ShiftleftProjects: types.ListNull(types.StringType),
-		MFARequired:       types.BoolValue(false),
-		ShouldSendEmail:   types.BoolValue(true),
-	}
+	plan := basePlan()
+	plan.Email = types.StringNull()
 
 	got, diags := r.modelToRequest(context.Background(), plan)
 	if diags.HasError() {

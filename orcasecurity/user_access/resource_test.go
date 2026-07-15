@@ -3,44 +3,20 @@ package user_access
 import (
 	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// listVal builds a types.List of strings, failing the test on a build error.
-func listVal(t *testing.T, elems ...string) types.List {
-	t.Helper()
-	vals := make([]attr.Value, 0, len(elems))
-	for _, e := range elems {
-		vals = append(vals, types.StringValue(e))
+// nullListsRef returns a reference model whose scope lists are all null, as when the config left
+// every optional list unset.
+func nullListsRef() *userAccessResourceModel {
+	return &userAccessResourceModel{
+		CloudAccounts:     types.ListNull(types.StringType),
+		ShiftleftProjects: types.ListNull(types.StringType),
+		UserFilters:       types.ListNull(types.StringType),
 	}
-	lv, d := types.ListValue(types.StringType, vals)
-	if d.HasError() {
-		t.Fatalf("list build: %v", d)
-	}
-	return lv
-}
-
-// sliceEqualUnordered reports whether two string slices contain the same elements.
-func sliceEqualUnordered(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	counts := map[string]int{}
-	for _, x := range a {
-		counts[x]++
-	}
-	for _, x := range b {
-		counts[x]--
-	}
-	for _, c := range counts {
-		if c != 0 {
-			return false
-		}
-	}
-	return true
 }
 
 // modelToAPI must copy scalar fields verbatim and flatten every scoped list.
@@ -50,9 +26,9 @@ func TestModelToAPI_MapsAllFields(t *testing.T) {
 		UserID:            types.StringValue("user-1"),
 		RoleID:            types.StringValue("role-1"),
 		AllCloudAccounts:  types.BoolValue(true),
-		CloudAccounts:     listVal(t, "ca-1", "ca-2"),
-		ShiftleftProjects: listVal(t, "sl-1"),
-		UserFilters:       listVal(t, "bu-1", "bu-2"),
+		CloudAccounts:     testutils.StringList(t, "ca-1", "ca-2"),
+		ShiftleftProjects: testutils.StringList(t, "sl-1"),
+		UserFilters:       testutils.StringList(t, "bu-1", "bu-2"),
 	}
 
 	got, diags := r.modelToAPI(context.Background(), plan, "assign-99")
@@ -68,13 +44,13 @@ func TestModelToAPI_MapsAllFields(t *testing.T) {
 	if !got.AllCloudAccounts {
 		t.Error("all_cloud_accounts should be true")
 	}
-	if !sliceEqualUnordered(got.CloudAccounts, []string{"ca-1", "ca-2"}) {
+	if !testutils.SameElements(got.CloudAccounts, []string{"ca-1", "ca-2"}) {
 		t.Errorf("cloud accounts mismatch: %v", got.CloudAccounts)
 	}
-	if !sliceEqualUnordered(got.ShiftleftProjects, []string{"sl-1"}) {
+	if !testutils.SameElements(got.ShiftleftProjects, []string{"sl-1"}) {
 		t.Errorf("shiftleft mismatch: %v", got.ShiftleftProjects)
 	}
-	if !sliceEqualUnordered(got.UserFilters, []string{"bu-1", "bu-2"}) {
+	if !testutils.SameElements(got.UserFilters, []string{"bu-1", "bu-2"}) {
 		t.Errorf("user filters mismatch: %v", got.UserFilters)
 	}
 }
@@ -83,14 +59,10 @@ func TestModelToAPI_MapsAllFields(t *testing.T) {
 // explicit empty array rather than a dropped field (see StringSliceFromList contract).
 func TestModelToAPI_NullListsBecomeEmptySlices(t *testing.T) {
 	r := &userAccessResource{}
-	plan := userAccessResourceModel{
-		UserID:            types.StringValue("user-1"),
-		RoleID:            types.StringValue("role-1"),
-		AllCloudAccounts:  types.BoolValue(false),
-		CloudAccounts:     types.ListNull(types.StringType),
-		ShiftleftProjects: types.ListNull(types.StringType),
-		UserFilters:       types.ListNull(types.StringType),
-	}
+	plan := *nullListsRef()
+	plan.UserID = types.StringValue("user-1")
+	plan.RoleID = types.StringValue("role-1")
+	plan.AllCloudAccounts = types.BoolValue(false)
 
 	got, diags := r.modelToAPI(context.Background(), plan, "")
 	if diags.HasError() {
@@ -117,9 +89,9 @@ func TestModelToAPI_NullListsBecomeEmptySlices(t *testing.T) {
 func TestApiToModel_PopulatesFromAPI(t *testing.T) {
 	r := &userAccessResource{}
 	ref := &userAccessResourceModel{
-		CloudAccounts:     listVal(t, "ca-1"),
-		ShiftleftProjects: listVal(t, "sl-1"),
-		UserFilters:       listVal(t, "bu-1"),
+		CloudAccounts:     testutils.StringList(t, "ca-1"),
+		ShiftleftProjects: testutils.StringList(t, "sl-1"),
+		UserFilters:       testutils.StringList(t, "bu-1"),
 	}
 	ua := &api_client.UserAccess{
 		ID:                "assign-1",
@@ -145,7 +117,7 @@ func TestApiToModel_PopulatesFromAPI(t *testing.T) {
 	if d := got.CloudAccounts.ElementsAs(context.Background(), &cloud, false); d.HasError() {
 		t.Fatalf("elements as: %v", d)
 	}
-	if !sliceEqualUnordered(cloud, []string{"ca-1", "ca-2"}) {
+	if !testutils.SameElements(cloud, []string{"ca-1", "ca-2"}) {
 		t.Errorf("cloud accounts mismatch: %v", cloud)
 	}
 }
@@ -154,11 +126,6 @@ func TestApiToModel_PopulatesFromAPI(t *testing.T) {
 // must keep the list null (not []) to avoid a perpetual "null vs []" plan diff.
 func TestApiToModel_NullRefStaysNullOnEmptyAPI(t *testing.T) {
 	r := &userAccessResource{}
-	ref := &userAccessResourceModel{
-		CloudAccounts:     types.ListNull(types.StringType),
-		ShiftleftProjects: types.ListNull(types.StringType),
-		UserFilters:       types.ListNull(types.StringType),
-	}
 	ua := &api_client.UserAccess{
 		ID:               "assign-1",
 		UserID:           "user-1",
@@ -170,7 +137,7 @@ func TestApiToModel_NullRefStaysNullOnEmptyAPI(t *testing.T) {
 		UserFilters:       []string{},
 	}
 
-	got, diags := r.apiToModel(context.Background(), ua, ref)
+	got, diags := r.apiToModel(context.Background(), ua, nullListsRef())
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
@@ -190,9 +157,9 @@ func TestApiToModel_NullRefStaysNullOnEmptyAPI(t *testing.T) {
 func TestApiToModel_ExplicitEmptyRefStaysEmpty(t *testing.T) {
 	r := &userAccessResource{}
 	ref := &userAccessResourceModel{
-		CloudAccounts:     listVal(t), // explicit []
-		ShiftleftProjects: listVal(t),
-		UserFilters:       listVal(t),
+		CloudAccounts:     testutils.StringList(t), // explicit []
+		ShiftleftProjects: testutils.StringList(t),
+		UserFilters:       testutils.StringList(t),
 	}
 	ua := &api_client.UserAccess{
 		ID:                "assign-1",
@@ -227,9 +194,9 @@ func TestModelToAPI_ApiToModel_RoundTrip(t *testing.T) {
 		UserID:            types.StringValue("user-7"),
 		RoleID:            types.StringValue("role-7"),
 		AllCloudAccounts:  types.BoolValue(false),
-		CloudAccounts:     listVal(t, "ca-a", "ca-b"),
-		ShiftleftProjects: listVal(t, "sl-a"),
-		UserFilters:       listVal(t, "bu-a"),
+		CloudAccounts:     testutils.StringList(t, "ca-a", "ca-b"),
+		ShiftleftProjects: testutils.StringList(t, "sl-a"),
+		UserFilters:       testutils.StringList(t, "bu-a"),
 	}
 
 	payload, diags := r.modelToAPI(context.Background(), plan, "assign-7")
@@ -250,7 +217,7 @@ func TestModelToAPI_ApiToModel_RoundTrip(t *testing.T) {
 	if d := state.CloudAccounts.ElementsAs(context.Background(), &cloud, false); d.HasError() {
 		t.Fatalf("elements as: %v", d)
 	}
-	if !sliceEqualUnordered(cloud, []string{"ca-a", "ca-b"}) {
+	if !testutils.SameElements(cloud, []string{"ca-a", "ca-b"}) {
 		t.Errorf("cloud accounts drifted: %v", cloud)
 	}
 }
