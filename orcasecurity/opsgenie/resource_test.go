@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// Full lifecycle via the shared simple-key runner. The backend accepts unvalidated Opsgenie keys
-// on create (verified by probing the lab), so a fake key is safe to use here without a real
-// Opsgenie tenant.
+// Create/update/import via the shared simple-key runner. The backend accepts Opsgenie keys of any
+// shape (verified against the lab), so a fake key works without a real Opsgenie tenant.
 func TestAccOpsgenieResource(t *testing.T) {
 	acctest.RunSimpleKeyIntegrationTest(t, acctest.SimpleKeyIntegrationSpec{
 		ResourceType: "orcasecurity_integration_opsgenie",

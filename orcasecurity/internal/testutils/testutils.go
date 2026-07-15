@@ -94,6 +94,43 @@ func CheckVariantResource(t *testing.T, spec VariantResourceSpec) {
 	checkStateTagCoverage(t, attrs, spec.State)
 }
 
+// TemplateResourceSpec describes the metadata/schema contract shared by template-style resources
+// (e.g. the ServiceNow ITSM / SIR template variants) so CheckTemplateResource can verify it
+// uniformly across packages.
+type TemplateResourceSpec struct {
+	NewResource func() resource.Resource
+	// TypeName is the fully qualified resource type expected from Metadata.
+	TypeName string
+	// Attrs must all be present in the schema.
+	Attrs []string
+	// Forbidden attributes must be absent (e.g. business_units).
+	Forbidden []string
+}
+
+// CheckTemplateResource asserts the resource's Metadata-derived type name, the presence/absence
+// of the declared attributes, and that the resource is import-capable.
+func CheckTemplateResource(t *testing.T, spec TemplateResourceSpec) {
+	t.Helper()
+	r := spec.NewResource()
+	if r == nil {
+		t.Fatal("constructor returned nil")
+	}
+
+	mdResp := &resource.MetadataResponse{}
+	r.Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "orcasecurity"}, mdResp)
+	if mdResp.TypeName != spec.TypeName {
+		t.Errorf("type name = %q, want %q", mdResp.TypeName, spec.TypeName)
+	}
+
+	attrs := ResourceSchemaAttrs(t, r)
+	checkAttrsPresent(t, attrs, spec.Attrs)
+	checkAttrsAbsent(t, attrs, spec.Forbidden)
+
+	if _, ok := r.(resource.ResourceWithImportState); !ok {
+		t.Error("resource must implement ResourceWithImportState")
+	}
+}
+
 func checkAttrsPresent(t *testing.T, attrs map[string]schema.Attribute, names []string) {
 	t.Helper()
 	for _, name := range names {

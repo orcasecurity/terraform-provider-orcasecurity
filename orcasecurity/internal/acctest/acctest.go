@@ -21,23 +21,26 @@ type SimpleKeyIntegrationSpec struct {
 	TemplateName string
 	// KeyAttr is the HCL name of the single sensitive key attribute.
 	KeyAttr string
-	// KeyValue is the fake key to create with; the backend accepts these keys unvalidated.
+	// KeyValue is the fake key to create with. It must satisfy any backend-side format checks
+	// (e.g. PagerDuty enforces a 32-character key) but does not need to belong to a real account.
 	KeyValue string
 }
 
-// RunSimpleKeyIntegrationTest exercises the full lifecycle: create with a fake key, update
-// is_default, then import. resource.Test runs terraform destroy at the end of the TestCase so the
-// lab config is always torn down.
+// RunSimpleKeyIntegrationTest exercises create (with defaults asserted), an in-place update that
+// flips both is_default and is_enabled, and import. It does not cover business_units or the
+// template_name RequiresReplace path. resource.Test runs terraform destroy at the end of the
+// TestCase so the lab config is always torn down.
 func RunSimpleKeyIntegrationTest(t *testing.T, spec SimpleKeyIntegrationSpec) {
 	fullName := spec.ResourceType + ".test"
-	config := func(isDefault bool) string {
+	config := func(isDefault, isEnabled bool) string {
 		return orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "%s" "test" {
   template_name = "%s"
   is_default    = %t
+  is_enabled    = %t
   %s = "%s"
 }
-`, spec.ResourceType, spec.TemplateName, isDefault, spec.KeyAttr, spec.KeyValue)
+`, spec.ResourceType, spec.TemplateName, isDefault, isEnabled, spec.KeyAttr, spec.KeyValue)
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -45,7 +48,7 @@ resource "%s" "test" {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: config(false),
+				Config: config(false, true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullName, "template_name", spec.TemplateName),
 					resource.TestCheckResourceAttr(fullName, "is_enabled", "true"),
@@ -58,9 +61,10 @@ resource "%s" "test" {
 				),
 			},
 			{
-				Config: config(true),
+				Config: config(true, false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullName, "is_default", "true"),
+					resource.TestCheckResourceAttr(fullName, "is_enabled", "false"),
 				),
 			},
 			{

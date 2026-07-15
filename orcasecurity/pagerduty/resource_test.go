@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// Full lifecycle via the shared simple-key runner. The backend accepts unvalidated PagerDuty
-// integration keys on create (verified by probing the lab), so a fake key is safe here without a
-// real PagerDuty account.
+// Create/update/import via the shared simple-key runner. The backend validates the PagerDuty key
+// format (exactly 32 characters — verified against the lab) but not its ownership, so a
+// well-formed fake key works without a real PagerDuty account.
 func TestAccPagerDutyResource(t *testing.T) {
 	acctest.RunSimpleKeyIntegrationTest(t, acctest.SimpleKeyIntegrationSpec{
 		ResourceType: "orcasecurity_integration_pagerduty",

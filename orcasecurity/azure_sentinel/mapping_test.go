@@ -41,7 +41,7 @@ func TestBuildPayload_PopulatesAllFields(t *testing.T) {
 	if got.Config.PrimaryKey != "primary-secret" {
 		t.Errorf("primary_key mismatch: %q", got.Config.PrimaryKey)
 	}
-	if len(got.BusinessUnits) != 2 || got.BusinessUnits[0] != "bu-1" || got.BusinessUnits[1] != "bu-2" {
+	if !testutils.SameElements(got.BusinessUnits, []string{"bu-1", "bu-2"}) {
 		t.Errorf("business_units mismatch: %v", got.BusinessUnits)
 	}
 }
@@ -95,7 +95,7 @@ func TestExtract_MapsComputedFieldsAndEchoesConfig(t *testing.T) {
 	if !got.IsEnabled || !got.IsDefault {
 		t.Errorf("enabled/default mismatch: %+v", got)
 	}
-	if len(got.BusinessUnits) != 1 || got.BusinessUnits[0] != "bu-1" {
+	if !testutils.SameElements(got.BusinessUnits, []string{"bu-1"}) {
 		t.Errorf("business_units mismatch: %v", got.BusinessUnits)
 	}
 	if s.LogType.ValueString() != "ReturnedLog" {

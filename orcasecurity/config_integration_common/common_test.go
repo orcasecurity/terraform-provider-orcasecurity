@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -51,6 +52,19 @@ func TestBuildSchema_CommonAttributesAlwaysPresent(t *testing.T) {
 	}
 	if tn, ok := s.Attributes["template_name"].(schema.StringAttribute); !ok || !tn.Required {
 		t.Errorf("template_name must be a Required string attribute, got %#v", s.Attributes["template_name"])
+	} else {
+		// The modifier value holds unexported func fields, so identify it by its
+		// self-describing text rather than by equality.
+		want := stringplanmodifier.RequiresReplace().Description(context.Background())
+		hasRequiresReplace := false
+		for _, pm := range tn.PlanModifiers {
+			if pm.Description(context.Background()) == want {
+				hasRequiresReplace = true
+			}
+		}
+		if !hasRequiresReplace {
+			t.Error("template_name must carry the RequiresReplace plan modifier (it is the API URL key)")
+		}
 	}
 	if s.Description != "desc" {
 		t.Errorf("schema description not carried through: %q", s.Description)
