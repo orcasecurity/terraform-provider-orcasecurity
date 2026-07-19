@@ -7,20 +7,16 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// roundTripFunc adapts a function into an http.RoundTripper. api_client.RoundTripFunc
-// is defined in api_client's own _test.go file, so it is not visible outside that
-// package's test binary; this is a local equivalent for use here.
-type roundTripFunc func(req *http.Request) *http.Response
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req), nil
+// stubResource returns a resource whose API requests are answered by fn.
+func stubResource(fn testutils.RoundTripFunc) *automationPriorityOrderResource {
+	return &automationPriorityOrderResource{apiClient: testutils.NewStubAPIClient(fn)}
 }
 
 func automationJSON(id string, priority int) string {
@@ -46,9 +42,28 @@ func TestSchemaAutomationIDsRequired(t *testing.T) {
 	}
 }
 
+// id is the fixed singleton marker; it must be Computed and carry
+// UseStateForUnknown so re-applies do not plan "(known after apply)".
+func TestSchemaIDComputedWithUseStateForUnknown(t *testing.T) {
+	r := &automationPriorityOrderResource{}
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	attr, ok := resp.Schema.Attributes["id"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("id is not a StringAttribute")
+	}
+	if !attr.Computed {
+		t.Error("id must be Computed")
+	}
+	if len(attr.PlanModifiers) != 1 {
+		t.Errorf("id must have exactly 1 plan modifier (UseStateForUnknown), got %d", len(attr.PlanModifiers))
+	}
+}
+
 func TestAssertOrderPutsSequentially(t *testing.T) {
 	var puts []string // "id:priority" in call order
-	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) *http.Response {
+	r := stubResource(func(req *http.Request) *http.Response {
 		if req.Method != http.MethodPut || !strings.HasSuffix(req.URL.Path, "/priority") {
 			t.Fatalf("unexpected request %s %s", req.Method, req.URL.Path)
 		}
@@ -65,10 +80,7 @@ func TestAssertOrderPutsSequentially(t *testing.T) {
 				`{"status":"success","data":` + automationJSON(id, int(payload.Priority)) + `}`)),
 			Request: req,
 		}
-	})}
-	r := &automationPriorityOrderResource{apiClient: &api_client.APIClient{
-		APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient,
-	}}
+	})
 
 	err := r.assertOrder([]string{"b", "a", "c"})
 	if err != nil {
@@ -81,7 +93,7 @@ func TestAssertOrderPutsSequentially(t *testing.T) {
 }
 
 func TestAssertOrderSurfacesFailingID(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) *http.Response {
+	r := stubResource(func(req *http.Request) *http.Response {
 		if strings.Contains(req.URL.Path, "/gone/") {
 			return &http.Response{
 				StatusCode: 404,
@@ -95,10 +107,7 @@ func TestAssertOrderSurfacesFailingID(t *testing.T) {
 				`{"status":"success","data":` + automationJSON("ok", 1) + `}`)),
 			Request: req,
 		}
-	})}
-	r := &automationPriorityOrderResource{apiClient: &api_client.APIClient{
-		APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient,
-	}}
+	})
 
 	err := r.assertOrder([]string{"ok", "gone"})
 	if err == nil {
@@ -112,12 +121,9 @@ func TestAssertOrderSurfacesFailingID(t *testing.T) {
 func TestTopNIDs(t *testing.T) {
 	body := `{"total_items": 3, "data": [` +
 		automationJSON("x", 1) + `,` + automationJSON("y", 2) + `,` + automationJSON("z", 3) + `]}`
-	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) *http.Response {
+	r := stubResource(func(req *http.Request) *http.Response {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
-	})}
-	r := &automationPriorityOrderResource{apiClient: &api_client.APIClient{
-		APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient,
-	}}
+	})
 
 	ids, err := r.topNIDs(2)
 	if err != nil {
@@ -130,12 +136,9 @@ func TestTopNIDs(t *testing.T) {
 
 func TestTopNIDsFewerThanN(t *testing.T) {
 	body := `{"total_items": 1, "data": [` + automationJSON("x", 1) + `]}`
-	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) *http.Response {
+	r := stubResource(func(req *http.Request) *http.Response {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
-	})}
-	r := &automationPriorityOrderResource{apiClient: &api_client.APIClient{
-		APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient,
-	}}
+	})
 
 	ids, err := r.topNIDs(5)
 	if err != nil {

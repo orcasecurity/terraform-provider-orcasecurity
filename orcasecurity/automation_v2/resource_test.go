@@ -1,12 +1,49 @@
 package automation_v2_test
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+// testAccCheckServerPriority verifies against the live API — not just
+// Terraform state — that the automation's server-side priority matches want.
+// priority is a plain Optional attribute copied from plan into state, so a
+// state-only check would pass even if the priority PUT was never issued.
+func testAccCheckServerPriority(resourceName string, want int64) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", resourceName)
+		}
+		endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
+		token := os.Getenv("ORCASECURITY_API_TOKEN")
+		client, err := api_client.NewAPIClient(&endpoint, &token)
+		if err != nil {
+			return err
+		}
+		instance, err := client.GetAutomationV2(rs.Primary.ID)
+		if err != nil {
+			return err
+		}
+		if instance == nil {
+			return fmt.Errorf("automation %s not found via API", rs.Primary.ID)
+		}
+		if instance.Priority == nil {
+			return fmt.Errorf("automation %s has no priority on the server", rs.Primary.ID)
+		}
+		if *instance.Priority != want {
+			return fmt.Errorf("automation %s has server priority %d, want %d", rs.Primary.ID, *instance.Priority, want)
+		}
+		return nil
+	}
+}
 
 func TestAccAutomationV2Resource_RequireAtLeastOneAction(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -468,6 +505,7 @@ resource "orcasecurity_automation_v2" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "1"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 1),
 				),
 			},
 			// Update priority to 2
@@ -492,6 +530,7 @@ resource "orcasecurity_automation_v2" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "2"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 2),
 				),
 			},
 		},

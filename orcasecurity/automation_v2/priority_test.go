@@ -5,23 +5,15 @@ import (
 	"net/http"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// roundTripFunc adapts a function into an http.RoundTripper. api_client.RoundTripFunc
-// is defined in api_client's own _test.go file, so it is not visible outside that
-// package's test binary; this is a local equivalent for use here.
-type roundTripFunc func(req *http.Request) *http.Response
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req), nil
-}
-
 func priorityTestResource(t *testing.T, responseJSON string, wantPath string) *automationV2Resource {
 	t.Helper()
-	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) *http.Response {
+	apiClient := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
 		if wantPath != "" && req.URL.Path != wantPath {
 			t.Errorf("expected path %s, got %s", wantPath, req.URL.Path)
 		}
@@ -30,11 +22,11 @@ func priorityTestResource(t *testing.T, responseJSON string, wantPath string) *a
 			Body:       io.NopCloser(strings.NewReader(responseJSON)),
 			Request:    req,
 		}
-	})}
-	return &automationV2Resource{apiClient: &api_client.APIClient{
-		APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient,
-	}}
+	})
+	return &automationV2Resource{apiClient: apiClient}
 }
+
+func int64Ptr(v int64) *int64 { return &v }
 
 func TestApplyPriorityReturnsServerValue(t *testing.T) {
 	r := priorityTestResource(t,
@@ -78,8 +70,6 @@ func TestClampErrorDetailMentionsBothValues(t *testing.T) {
 		t.Errorf("clamp message must mention requested and actual values, got: %s", msg)
 	}
 }
-
-func int64Ptr(v int64) *int64 { return &v }
 
 func TestRefreshPriorityLeavesUntrackedNull(t *testing.T) {
 	state := &automationV2ResourceModel{Priority: types.Int64Null()}
