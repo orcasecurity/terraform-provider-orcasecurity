@@ -59,6 +59,7 @@ Provides an automation. You can read more about automations [here](https://docs.
 - `opus_template` (Attributes) Opus template to use for the automation. (see [below for nested schema](#nestedatt--opus_template))
 - `pager_duty_template` (Attributes) PagerDuty template to use for the automation. (see [below for nested schema](#nestedatt--pager_duty_template))
 - `panther_template` (Attributes) Panther template to use for the automation. (see [below for nested schema](#nestedatt--panther_template))
+- `priority` (Number) Evaluation-order priority (1 = evaluated first). Priorities form a global, dense 1..N ordering across all automations in the organization; the server renumbers other automations whenever one moves. Omit to leave ordering unmanaged by Terraform (existing configurations are unaffected). Setting it requires a token with the global Rules Create (admin) permission. A value above the current number of automations fails the apply and reports the actual placement.
 - `remediation_template` (Attributes) Remediation (Auto Remediate) settings. (see [below for nested schema](#nestedatt--remediation_template))
 - `servicenow_incidents_template` (Attributes) ServiceNow Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_incidents_template))
 - `servicenow_si_incidents_template` (Attributes) ServiceNow Security Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_si_incidents_template))
@@ -409,6 +410,33 @@ Required:
 Required:
 
 - `external_config_id` (String) Webhook external service config UUID.
+
+## Managing Priority
+
+Automation priority determines evaluation order (1 = evaluated first) and is a single global
+ordering shared by every automation in the organization — including ones not managed by
+Terraform. Setting `priority` on one resource shifts the positions of others.
+
+```terraform
+resource "orcasecurity_automation_v2" "first" {
+  name     = "evaluated first"
+  priority = 1
+  # ...
+}
+```
+
+Caveats:
+
+- `priority` is opt-in. Resources that omit it are never moved and show no drift when other
+  automations reorder them.
+- Writing priority requires a token with the global Rules Create (admin) permission; other
+  tokens receive HTTP 403.
+- Reordering several automations in one apply is order-dependent (the server renumbers on each
+  move). If the resulting plan still shows priority drift, apply again or use `-parallelism=1`.
+  Prefer contiguous low numbers (1, 2, 3, ...) for Terraform-managed automations.
+- A `priority` above the current number of automations fails the apply; the error reports where
+  the server actually placed the automation.
+- Imported resources have `priority` unset; add it to the configuration to start managing it.
 
 ## Import
 
