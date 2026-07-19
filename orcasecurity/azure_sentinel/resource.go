@@ -21,6 +21,35 @@ type state struct {
 	WorkspaceID types.String `tfsdk:"workspace_id"`
 }
 
+// buildPayload converts the planned state into the Azure Sentinel API payload.
+func buildPayload(ctx context.Context, st cc.State, diags *diag.Diagnostics) api_client.AzureSentinelExternalServiceConfig {
+	s := st.(*state)
+	return api_client.AzureSentinelExternalServiceConfig{
+		TemplateName:  s.TemplateName.ValueString(),
+		IsEnabled:     s.IsEnabled.ValueBool(),
+		IsDefault:     s.IsDefault.ValueBool(),
+		BusinessUnits: common.BusinessUnitsToAPI(ctx, s.BusinessUnits, diags),
+		Config: api_client.AzureSentinelConfig{
+			LogType:     s.LogType.ValueString(),
+			PrimaryKey:  s.PrimaryKey.ValueString(),
+			WorkspaceID: s.WorkspaceID.ValueString(),
+		},
+	}
+}
+
+// extract maps the API envelope back onto state; empty log_type / workspace_id never clobber
+// the plan.
+func extract(o *api_client.AzureSentinelExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
+	s := st.(*state)
+	if o.Config.LogType != "" {
+		s.LogType = types.StringValue(o.Config.LogType)
+	}
+	if o.Config.WorkspaceID != "" {
+		s.WorkspaceID = types.StringValue(o.Config.WorkspaceID)
+	}
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault, BusinessUnits: o.BusinessUnits}
+}
+
 func NewAzureSentinelResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.AzureSentinelExternalServiceConfig]{
 		TypeNameSuffix:        "_integration_azure_sentinel",
@@ -45,34 +74,12 @@ func NewAzureSentinelResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(ctx context.Context, st cc.State, diags *diag.Diagnostics) api_client.AzureSentinelExternalServiceConfig {
-			s := st.(*state)
-			return api_client.AzureSentinelExternalServiceConfig{
-				TemplateName:  s.TemplateName.ValueString(),
-				IsEnabled:     s.IsEnabled.ValueBool(),
-				IsDefault:     s.IsDefault.ValueBool(),
-				BusinessUnits: common.BusinessUnitsToAPI(ctx, s.BusinessUnits, diags),
-				Config: api_client.AzureSentinelConfig{
-					LogType:     s.LogType.ValueString(),
-					PrimaryKey:  s.PrimaryKey.ValueString(),
-					WorkspaceID: s.WorkspaceID.ValueString(),
-				},
-			}
-		},
-		Extract: func(o *api_client.AzureSentinelExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
-			s := st.(*state)
-			if o.Config.LogType != "" {
-				s.LogType = types.StringValue(o.Config.LogType)
-			}
-			if o.Config.WorkspaceID != "" {
-				s.WorkspaceID = types.StringValue(o.Config.WorkspaceID)
-			}
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault, BusinessUnits: o.BusinessUnits}
-		},
-		Create: (*api_client.APIClient).CreateAzureSentinelConfig,
-		Get:    (*api_client.APIClient).GetAzureSentinelConfig,
-		Update: (*api_client.APIClient).UpdateAzureSentinelConfig,
-		Delete: (*api_client.APIClient).DeleteAzureSentinelConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateAzureSentinelConfig,
+		Get:          (*api_client.APIClient).GetAzureSentinelConfig,
+		Update:       (*api_client.APIClient).UpdateAzureSentinelConfig,
+		Delete:       (*api_client.APIClient).DeleteAzureSentinelConfig,
 	})
 }

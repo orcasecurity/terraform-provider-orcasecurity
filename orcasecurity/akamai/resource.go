@@ -21,6 +21,30 @@ type state struct {
 	Host         types.String `tfsdk:"host"`
 }
 
+// buildPayload converts the planned state into the Akamai API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.AkamaiExternalServiceConfig {
+	s := st.(*state)
+	return api_client.AkamaiExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config: api_client.AkamaiConfig{
+			AccessToken:  s.AccessToken.ValueString(),
+			ClientToken:  s.ClientToken.ValueString(),
+			ClientSecret: s.ClientSecret.ValueString(),
+			Host:         s.Host.ValueString(),
+		},
+	}
+}
+
+// extract maps the API envelope back onto state; an empty host never clobbers the plan.
+func extract(o *api_client.AkamaiExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
+	if o.Config.Host != "" {
+		st.(*state).Host = types.StringValue(o.Config.Host)
+	}
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewAkamaiResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.AkamaiExternalServiceConfig]{
 		TypeNameSuffix: "_integration_akamai",
@@ -51,30 +75,12 @@ func NewAkamaiResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.AkamaiExternalServiceConfig {
-			s := st.(*state)
-			return api_client.AkamaiExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config: api_client.AkamaiConfig{
-					AccessToken:  s.AccessToken.ValueString(),
-					ClientToken:  s.ClientToken.ValueString(),
-					ClientSecret: s.ClientSecret.ValueString(),
-					Host:         s.Host.ValueString(),
-				},
-			}
-		},
-		Extract: func(o *api_client.AkamaiExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
-			if o.Config.Host != "" {
-				st.(*state).Host = types.StringValue(o.Config.Host)
-			}
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreateAkamaiConfig,
-		Get:    (*api_client.APIClient).GetAkamaiConfig,
-		Update: (*api_client.APIClient).UpdateAkamaiConfig,
-		Delete: (*api_client.APIClient).DeleteAkamaiConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateAkamaiConfig,
+		Get:          (*api_client.APIClient).GetAkamaiConfig,
+		Update:       (*api_client.APIClient).UpdateAkamaiConfig,
+		Delete:       (*api_client.APIClient).DeleteAkamaiConfig,
 	})
 }

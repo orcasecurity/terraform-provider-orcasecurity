@@ -21,6 +21,25 @@ type state struct {
 	Region   types.String `tfsdk:"region"`
 }
 
+// buildPayload converts the planned state into the Snyk API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.SnykExternalServiceConfig {
+	s := st.(*state)
+	return api_client.SnykExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config:       api_client.SnykConfig{APIToken: s.APIToken.ValueString(), Region: s.Region.ValueString()},
+	}
+}
+
+// extract maps the API envelope back onto state; an empty region never clobbers the plan.
+func extract(o *api_client.SnykExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
+	if o.Config.Region != "" {
+		st.(*state).Region = types.StringValue(o.Config.Region)
+	}
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewSnykResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.SnykExternalServiceConfig]{
 		TypeNameSuffix: "_integration_snyk",
@@ -43,25 +62,12 @@ func NewSnykResource() resource.Resource {
 				Validators: []validator.String{stringvalidator.OneOf(snykRegions...)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.SnykExternalServiceConfig {
-			s := st.(*state)
-			return api_client.SnykExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config:       api_client.SnykConfig{APIToken: s.APIToken.ValueString(), Region: s.Region.ValueString()},
-			}
-		},
-		Extract: func(o *api_client.SnykExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
-			if o.Config.Region != "" {
-				st.(*state).Region = types.StringValue(o.Config.Region)
-			}
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreateSnykConfig,
-		Get:    (*api_client.APIClient).GetSnykConfig,
-		Update: (*api_client.APIClient).UpdateSnykConfig,
-		Delete: (*api_client.APIClient).DeleteSnykConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateSnykConfig,
+		Get:          (*api_client.APIClient).GetSnykConfig,
+		Update:       (*api_client.APIClient).UpdateSnykConfig,
+		Delete:       (*api_client.APIClient).DeleteSnykConfig,
 	})
 }

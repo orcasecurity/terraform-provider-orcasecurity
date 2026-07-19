@@ -21,6 +21,32 @@ type state struct {
 	AllowSelfSignedCert types.Bool   `tfsdk:"allow_self_signed_cert"`
 }
 
+// buildPayload converts the planned state into the Splunk API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.SplunkExternalServiceConfig {
+	s := st.(*state)
+	return api_client.SplunkExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config: api_client.SplunkConfig{
+			URL:                 s.URL.ValueString(),
+			Token:               s.Token.ValueString(),
+			AllowSelfSignedCert: s.AllowSelfSignedCert.ValueBool(),
+		},
+	}
+}
+
+// extract maps the API envelope back onto state; an empty URL never clobbers the plan, and the
+// self-signed-cert flag always round-trips from the response.
+func extract(o *api_client.SplunkExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
+	s := st.(*state)
+	if o.Config.URL != "" {
+		s.URL = types.StringValue(o.Config.URL)
+	}
+	s.AllowSelfSignedCert = types.BoolValue(o.Config.AllowSelfSignedCert)
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewSplunkResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.SplunkExternalServiceConfig]{
 		TypeNameSuffix: "_integration_splunk",
@@ -45,31 +71,12 @@ func NewSplunkResource() resource.Resource {
 				Default:     booldefault.StaticBool(false),
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.SplunkExternalServiceConfig {
-			s := st.(*state)
-			return api_client.SplunkExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config: api_client.SplunkConfig{
-					URL:                 s.URL.ValueString(),
-					Token:               s.Token.ValueString(),
-					AllowSelfSignedCert: s.AllowSelfSignedCert.ValueBool(),
-				},
-			}
-		},
-		Extract: func(o *api_client.SplunkExternalServiceConfig, st cc.State, _ *diag.Diagnostics) cc.APIObject {
-			s := st.(*state)
-			if o.Config.URL != "" {
-				s.URL = types.StringValue(o.Config.URL)
-			}
-			s.AllowSelfSignedCert = types.BoolValue(o.Config.AllowSelfSignedCert)
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreateSplunkConfig,
-		Get:    (*api_client.APIClient).GetSplunkConfig,
-		Update: (*api_client.APIClient).UpdateSplunkConfig,
-		Delete: (*api_client.APIClient).DeleteSplunkConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateSplunkConfig,
+		Get:          (*api_client.APIClient).GetSplunkConfig,
+		Update:       (*api_client.APIClient).UpdateSplunkConfig,
+		Delete:       (*api_client.APIClient).DeleteSplunkConfig,
 	})
 }

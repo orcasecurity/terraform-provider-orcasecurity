@@ -18,6 +18,22 @@ type state struct {
 	APIToken types.String `tfsdk:"api_token"`
 }
 
+// buildPayload converts the planned state into the Cloudflare API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.CloudflareExternalServiceConfig {
+	s := st.(*state)
+	return api_client.CloudflareExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config:       api_client.CloudflareConfig{APIToken: s.APIToken.ValueString()},
+	}
+}
+
+// extract maps the API envelope back onto state; the token is never returned so state is untouched.
+func extract(o *api_client.CloudflareExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewCloudflareResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.CloudflareExternalServiceConfig]{
 		TypeNameSuffix: "_integration_cloudflare",
@@ -31,22 +47,12 @@ func NewCloudflareResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.CloudflareExternalServiceConfig {
-			s := st.(*state)
-			return api_client.CloudflareExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config:       api_client.CloudflareConfig{APIToken: s.APIToken.ValueString()},
-			}
-		},
-		Extract: func(o *api_client.CloudflareExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreateCloudflareConfig,
-		Get:    (*api_client.APIClient).GetCloudflareConfig,
-		Update: (*api_client.APIClient).UpdateCloudflareConfig,
-		Delete: (*api_client.APIClient).DeleteCloudflareConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreateCloudflareConfig,
+		Get:          (*api_client.APIClient).GetCloudflareConfig,
+		Update:       (*api_client.APIClient).UpdateCloudflareConfig,
+		Delete:       (*api_client.APIClient).DeleteCloudflareConfig,
 	})
 }

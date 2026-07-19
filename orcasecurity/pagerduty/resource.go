@@ -18,6 +18,22 @@ type state struct {
 	IntegrationKey types.String `tfsdk:"integration_key"`
 }
 
+// buildPayload converts the planned state into the PagerDuty API payload.
+func buildPayload(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.PagerDutyExternalServiceConfig {
+	s := st.(*state)
+	return api_client.PagerDutyExternalServiceConfig{
+		TemplateName: s.TemplateName.ValueString(),
+		IsEnabled:    s.IsEnabled.ValueBool(),
+		IsDefault:    s.IsDefault.ValueBool(),
+		Config:       api_client.PagerDutyConfig{IntegrationKey: s.IntegrationKey.ValueString()},
+	}
+}
+
+// extract maps the API envelope back onto state; the key is never returned so state is untouched.
+func extract(o *api_client.PagerDutyExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
+	return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
+}
+
 func NewPagerDutyResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.PagerDutyExternalServiceConfig]{
 		TypeNameSuffix: "_integration_pagerduty",
@@ -31,22 +47,12 @@ func NewPagerDutyResource() resource.Resource {
 				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
-		NewState: func() cc.State { return &state{} },
-		BuildPayload: func(_ context.Context, st cc.State, _ *diag.Diagnostics) api_client.PagerDutyExternalServiceConfig {
-			s := st.(*state)
-			return api_client.PagerDutyExternalServiceConfig{
-				TemplateName: s.TemplateName.ValueString(),
-				IsEnabled:    s.IsEnabled.ValueBool(),
-				IsDefault:    s.IsDefault.ValueBool(),
-				Config:       api_client.PagerDutyConfig{IntegrationKey: s.IntegrationKey.ValueString()},
-			}
-		},
-		Extract: func(o *api_client.PagerDutyExternalServiceConfig, _ cc.State, _ *diag.Diagnostics) cc.APIObject {
-			return cc.APIObject{ID: o.ID, TemplateName: o.TemplateName, IsEnabled: o.IsEnabled, IsDefault: o.IsDefault}
-		},
-		Create: (*api_client.APIClient).CreatePagerDutyConfig,
-		Get:    (*api_client.APIClient).GetPagerDutyConfig,
-		Update: (*api_client.APIClient).UpdatePagerDutyConfig,
-		Delete: (*api_client.APIClient).DeletePagerDutyConfig,
+		NewState:     func() cc.State { return &state{} },
+		BuildPayload: buildPayload,
+		Extract:      extract,
+		Create:       (*api_client.APIClient).CreatePagerDutyConfig,
+		Get:          (*api_client.APIClient).GetPagerDutyConfig,
+		Update:       (*api_client.APIClient).UpdatePagerDutyConfig,
+		Delete:       (*api_client.APIClient).DeletePagerDutyConfig,
 	})
 }
