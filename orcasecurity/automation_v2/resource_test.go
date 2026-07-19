@@ -1,12 +1,29 @@
 package automation_v2_test
 
 import (
+	"os"
 	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+// requireIntegrationConfigID returns a real integration config UUID from the
+// given env var, or skips the test when it is unset. Automation actions that
+// reference an external integration (Jira, Slack, Datadog, ...) need a config
+// UUID that actually exists in the target org; placeholder UUIDs are rejected
+// by the API with a 400. These tests are therefore opt-in: set the env var to a
+// valid config UUID (as the UI would use) to run them live.
+func requireIntegrationConfigID(t *testing.T, envVar string) string {
+	t.Helper()
+	v := os.Getenv(envVar)
+	if v == "" {
+		t.Skipf("set %s to a valid integration config UUID in the target org to run this test", envVar)
+	}
+	return v
+}
 
 func TestAccAutomationV2Resource_RequireAtLeastOneAction(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -49,7 +66,7 @@ resource "orcasecurity_automation_v2" "test" {
   }
 }
 `,
-				ExpectError: regexp.MustCompile("filter is required"),
+				ExpectError: regexp.MustCompile(`Missing required argument`),
 			},
 		},
 	})
@@ -57,6 +74,7 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with Jira Cloud integration using external_config_id
 func TestAccAutomationV2Resource_JiraCloud(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_JIRA_CLOUD_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -74,7 +92,7 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   jira_cloud_template = {
-    external_config_id = "test-jira-config-uuid"
+    external_config_id = "` + configID + `"
     parent_issue = "FOO-1"
   }
 }
@@ -83,7 +101,7 @@ resource "orcasecurity_automation_v2" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test name v2"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "description", "test description v2"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "status", "enabled"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "jira_cloud_template.external_config_id", "test-jira-config-uuid"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "jira_cloud_template.external_config_id", configID),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "jira_cloud_template.parent_issue", "FOO-1"),
 					// Verify dynamic values have any value set in the state
 					resource.TestCheckResourceAttrSet("orcasecurity_automation_v2.test", "id"),
@@ -110,7 +128,7 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   jira_cloud_template = {
-    external_config_id = "test-jira-config-uuid-updated"
+    external_config_id = "` + configID + `"
     parent_issue = "FOO-2"
   }
 }
@@ -119,7 +137,7 @@ resource "orcasecurity_automation_v2" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test name v2 updated"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "description", "test description v2 updated"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "status", "enabled"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "jira_cloud_template.external_config_id", "test-jira-config-uuid-updated"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "jira_cloud_template.external_config_id", configID),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "jira_cloud_template.parent_issue", "FOO-2"),
 					resource.TestCheckResourceAttrSet("orcasecurity_automation_v2.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_automation_v2.test", "organization_id"),
@@ -131,6 +149,7 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with Sumo Logic integration using external_config_id
 func TestAccAutomationV2Resource_SumoLogic(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_SUMO_LOGIC_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -148,13 +167,13 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   sumo_logic_template = {
-    external_config_id = "test-sumo-config-uuid"
+    external_config_id = "` + configID + `"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test sumo logic automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "sumo_logic_template.external_config_id", "test-sumo-config-uuid"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "sumo_logic_template.external_config_id", configID),
 				),
 			},
 		},
@@ -163,6 +182,7 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with Azure Sentinel integration using external_config_id
 func TestAccAutomationV2Resource_AzureSentinel(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_AZURE_SENTINEL_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -180,13 +200,13 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   azure_sentinel_template = {
-    external_config_id = "test-azure-sentinel-uuid"
+    external_config_id = "` + configID + `"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test azure sentinel automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "azure_sentinel_template.external_config_id", "test-azure-sentinel-uuid"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "azure_sentinel_template.external_config_id", configID),
 				),
 			},
 		},
@@ -195,6 +215,7 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with Slack integration using external_config_id
 func TestAccAutomationV2Resource_Slack(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_SLACK_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -212,13 +233,13 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   slack_template = {
-    external_config_id = "test-slack-config-uuid"
+    external_config_id = "` + configID + `"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test slack automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "slack_template.external_config_id", "test-slack-config-uuid"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "slack_template.external_config_id", configID),
 				),
 			},
 		},
@@ -227,6 +248,7 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with Datadog integration including type field
 func TestAccAutomationV2Resource_Datadog(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_DATADOG_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -244,14 +266,14 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   datadog_template = {
-    external_config_id = "test-datadog-config-uuid"
+    external_config_id = "` + configID + `"
     type = "LOGS"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test datadog automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "datadog_template.external_config_id", "test-datadog-config-uuid"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "datadog_template.external_config_id", configID),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "datadog_template.type", "LOGS"),
 				),
 			},
@@ -269,14 +291,14 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   datadog_template = {
-    external_config_id = "test-datadog-config-uuid-updated"
+    external_config_id = "` + configID + `"
     type = "EVENT"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test datadog automation updated"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "datadog_template.external_config_id", "test-datadog-config-uuid-updated"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "datadog_template.external_config_id", configID),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "datadog_template.type", "EVENT"),
 				),
 			},
@@ -315,6 +337,7 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with webhook integration using external_config_id
 func TestAccAutomationV2Resource_Webhook(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_WEBHOOK_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -332,13 +355,13 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   webhook_template = {
-    external_config_id = "test-webhook-config-uuid"
+    external_config_id = "` + configID + `"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test webhook automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "webhook_template.external_config_id", "test-webhook-config-uuid"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "webhook_template.external_config_id", configID),
 				),
 			},
 		},
@@ -443,6 +466,10 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with end_time
 func TestAccAutomationV2Resource_WithEndTime(t *testing.T) {
+	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_SUMO_LOGIC_CONFIG_ID")
+	// end_time must be in the future; compute it at run time so the fixture never
+	// rots into a past date the API rejects.
+	endTime := time.Now().UTC().AddDate(1, 0, 0).Format(time.RFC3339)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -453,7 +480,7 @@ resource "orcasecurity_automation_v2" "test" {
   name = "test automation with end time"
   description = "test automation with end time"
   status = "enabled"
-  end_time = "2024-12-31T23:59:59Z"
+  end_time = "` + endTime + `"
   filter = {
     sonar_query = jsonencode({
       models = ["Alert"]
@@ -461,13 +488,15 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   sumo_logic_template = {
-    external_config_id = "test-uuid"
+    external_config_id = "` + configID + `"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with end time"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "end_time", "2024-12-31T23:59:59Z"),
+					// end_time is normalized to the org's UTC offset on read, so assert
+					// it is set rather than pinning an exact string.
+					resource.TestCheckResourceAttrSet("orcasecurity_automation_v2.test", "end_time"),
 				),
 			},
 		},
