@@ -159,6 +159,7 @@ type automationV2ResourceModel struct {
 
 	OrganizationID  types.String `tfsdk:"organization_id"`
 	ApplyOnExisting types.Bool   `tfsdk:"apply_on_existing"`
+	Priority        types.Int64  `tfsdk:"priority"`
 }
 
 func NewAutomationV2Resource() resource.Resource {
@@ -328,6 +329,18 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 			"end_time": schema.StringAttribute{
 				Description: "End time for the automation (ISO 8601 format). If specified, the automation will automatically disable after this time.",
 				Optional:    true,
+			},
+			"priority": schema.Int64Attribute{
+				Optional: true,
+				Description: "Evaluation-order priority (1 = evaluated first). Priorities form a global, " +
+					"dense 1..N ordering across all automations in the organization; the server renumbers " +
+					"other automations whenever one moves. Omit to leave ordering unmanaged by Terraform " +
+					"(existing configurations are unaffected). Setting it requires a token with the global " +
+					"Rules Create (admin) permission. A value above the current number of automations fails " +
+					"the apply and reports the actual placement.",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 			"filter": schema.SingleNestedAttribute{
 				Description: "The filter that selects the alerts this automation applies to using sonar_query.",
