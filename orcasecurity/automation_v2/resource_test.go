@@ -441,6 +441,63 @@ resource "orcasecurity_automation_v2" "test" {
 	})
 }
 
+// Test resource with priority
+func TestAccAutomationV2Resource_priority(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create with priority = 1
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority"
+  status = "enabled"
+  priority = 1
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "1"),
+				),
+			},
+			// Update priority to 2
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority"
+  status = "enabled"
+  priority = 2
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "2"),
+				),
+			},
+		},
+	})
+}
+
 // Test resource with end_time
 func TestAccAutomationV2Resource_WithEndTime(t *testing.T) {
 	resource.Test(t, resource.TestCase{
