@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Regression: reason/justification on alert_dismissal_details must be plain
@@ -67,5 +68,31 @@ func TestPrioritySchemaIsOptionalNonComputed(t *testing.T) {
 	}
 	if len(attr.Validators) != 1 {
 		t.Errorf("priority must have exactly 1 validator (AtLeast(1)), got %d", len(attr.Validators))
+	}
+}
+
+// The server reformats end_time into the organization's UTC offset; equal
+// instants must keep the configured form or Terraform reports "inconsistent
+// result after apply" for this Optional (non-Computed) attribute.
+func TestNormalizeEndTime(t *testing.T) {
+	cases := []struct {
+		name    string
+		current types.String
+		server  string
+		want    types.String
+	}{
+		{"empty server clears", types.StringValue("2027-07-19T11:33:19Z"), "", types.StringNull()},
+		{"null current takes server", types.StringNull(), "2027-07-19T14:33:19+03:00", types.StringValue("2027-07-19T14:33:19+03:00")},
+		{"same instant keeps configured form", types.StringValue("2027-07-19T11:33:19Z"), "2027-07-19T14:33:19+03:00", types.StringValue("2027-07-19T11:33:19Z")},
+		{"different instant takes server", types.StringValue("2027-07-19T11:33:19Z"), "2028-01-01T00:00:00+03:00", types.StringValue("2028-01-01T00:00:00+03:00")},
+		{"unparseable current takes server", types.StringValue("not-a-time"), "2027-07-19T14:33:19+03:00", types.StringValue("2027-07-19T14:33:19+03:00")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := normalizeEndTime(tc.current, tc.server)
+			if !got.Equal(tc.want) {
+				t.Errorf("normalizeEndTime(%v, %q) = %v, want %v", tc.current, tc.server, got, tc.want)
+			}
+		})
 	}
 }

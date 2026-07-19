@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -958,6 +959,26 @@ func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_clie
 	}
 }
 
+// normalizeEndTime returns the end_time value to store in state. The server
+// reformats end_time into the organization's UTC offset (e.g. "...Z" comes
+// back as "...+03:00"), so when the two strings denote the same instant the
+// configured/prior value is kept — end_time is Optional (non-Computed) and
+// must match the planned value after apply.
+func normalizeEndTime(current types.String, serverValue string) types.String {
+	if serverValue == "" {
+		return types.StringNull()
+	}
+	if current.IsNull() || current.IsUnknown() {
+		return types.StringValue(serverValue)
+	}
+	prior, priorErr := time.Parse(time.RFC3339, current.ValueString())
+	remote, remoteErr := time.Parse(time.RFC3339, serverValue)
+	if priorErr == nil && remoteErr == nil && prior.Equal(remote) {
+		return current
+	}
+	return types.StringValue(serverValue)
+}
+
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan automationV2ResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -1035,9 +1056,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 	}
 	plan.Status = types.StringValue(normalizedStatus)
 
-	if instance.EndTime != "" {
-		plan.EndTime = types.StringValue(instance.EndTime)
-	}
+	plan.EndTime = normalizeEndTime(plan.EndTime, instance.EndTime)
 
 	r.applyPlanPriorityOnCreate(&plan, instance.ID, resp)
 
@@ -1098,11 +1117,7 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 	}
 	state.Status = types.StringValue(normalizedStatus)
 
-	if instance.EndTime != "" {
-		state.EndTime = types.StringValue(instance.EndTime)
-	} else {
-		state.EndTime = types.StringNull()
-	}
+	state.EndTime = normalizeEndTime(state.EndTime, instance.EndTime)
 
 	// On import there is no prior state for the filter or action templates
 	// (filter is Required, so a nil filter means this Read follows an import).
@@ -1244,11 +1259,7 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 	plan.Status = types.StringValue(normalizedStatus)
 
 	// Refresh end_time from API response (server might normalize the format)
-	if updatedInstance.EndTime != "" {
-		plan.EndTime = types.StringValue(updatedInstance.EndTime)
-	} else {
-		plan.EndTime = types.StringNull()
-	}
+	plan.EndTime = normalizeEndTime(plan.EndTime, updatedInstance.EndTime)
 
 	if r.applyPlanPriorityOnUpdate(ctx, &plan, verifyInstance, resp) {
 		return

@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -566,31 +567,34 @@ resource "orcasecurity_automation_v2" "test" {
 
 // Test resource with end_time
 func TestAccAutomationV2Resource_WithEndTime(t *testing.T) {
+	// The server rejects end_time values in the past, so a hardcoded date
+	// would rot; always aim one year ahead.
+	endTime := time.Now().UTC().AddDate(1, 0, 0).Truncate(time.Second).Format(time.RFC3339)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_automation_v2" "test" {
   name = "test automation with end time"
   description = "test automation with end time"
   status = "enabled"
-  end_time = "2024-12-31T23:59:59Z"
+  end_time = %q
   filter = {
     sonar_query = jsonencode({
       models = ["Alert"]
       type = "object_set"
     })
   }
-  sumo_logic_template = {
-    external_config_id = "test-uuid"
+  alert_dismissal_details = {
+    reason = "acceptance test"
   }
 }
-`,
+`, endTime),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with end time"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "end_time", "2024-12-31T23:59:59Z"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "end_time", endTime),
 				),
 			},
 		},
