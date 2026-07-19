@@ -956,6 +956,40 @@ func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_clie
 	}
 }
 
+// applyPriority moves the automation to the requested evaluation-order
+// position and returns the priority the server actually assigned. The server
+// silently clamps values above the automation count, so callers must compare
+// the returned value with the requested one and surface a diagnostic on
+// mismatch.
+func (r *automationV2Resource) applyPriority(id string, requested int64) (int64, error) {
+	instance, err := r.apiClient.SetAutomationV2Priority(id, requested)
+	if err != nil {
+		return 0, err
+	}
+	if instance == nil || instance.Priority == nil {
+		return 0, fmt.Errorf("priority endpoint returned no priority value")
+	}
+	return *instance.Priority, nil
+}
+
+func clampErrorDetail(requested, actual int64) string {
+	return fmt.Sprintf(
+		"priority %d exceeds the number of automations; the server placed the automation at priority %d. "+
+			"The automation is tracked in state — lower priority in the configuration and re-apply.",
+		requested, actual)
+}
+
+// refreshPriority updates the model's priority from the API instance, but only
+// when priority is already tracked (non-null) in state. Untracked priority
+// stays null so configurations that never set it see no drift noise from
+// external reordering.
+func refreshPriority(state *automationV2ResourceModel, instance *api_client.AutomationV2) {
+	if state.Priority.IsNull() {
+		return
+	}
+	state.Priority = types.Int64PointerValue(instance.Priority)
+}
+
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan automationV2ResourceModel
 	diags := req.Plan.Get(ctx, &plan)
