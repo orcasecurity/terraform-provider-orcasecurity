@@ -12,6 +12,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2_priorities"
+	"terraform-provider-orcasecurity/orcasecurity/automation_v2_priority_order"
 	"terraform-provider-orcasecurity/orcasecurity/azure_devops_template"
 	"terraform-provider-orcasecurity/orcasecurity/azure_sentinel"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
@@ -296,5 +297,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		sensitive_data_identifier.NewSensitiveDataIdentifierResource,
 		dspm_policy.NewDspmPolicyResource,
 		data_detection_rule.NewDataDetectionRuleResource,
+		automation_v2_priority_order.NewAutomationPriorityOrderResource,
 	}
 }

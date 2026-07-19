@@ -923,6 +923,9 @@ Caveats:
 - A `priority` above the current number of automations fails the apply; the error reports where
   the server actually placed the automation.
 - Imported resources have `priority` unset; add it to the configuration to start managing it.
+- To manage the ordering of several automations as one unit, prefer the
+  [`orcasecurity_automation_v2_priority_order`](./automation_v2_priority_order) resource over
+  per-resource `priority`; never combine both for the same automations.
 
 ## Import
 
