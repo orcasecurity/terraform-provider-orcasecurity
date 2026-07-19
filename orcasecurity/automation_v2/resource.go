@@ -1077,11 +1077,43 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		plan.EndTime = types.StringValue(instance.EndTime)
 	}
 
+	if r.applyPlanPriorityOnCreate(ctx, &plan, instance.ID, resp) {
+		return
+	}
+
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// applyPlanPriorityOnCreate sets the requested priority on a just-created
+// automation, if any was requested. It writes state before returning true on
+// error so the automation is tracked rather than orphaned. Split out of
+// Create to keep that function's cognitive complexity low.
+func (r *automationV2Resource) applyPlanPriorityOnCreate(ctx context.Context, plan *automationV2ResourceModel, instanceID string, resp *resource.CreateResponse) bool {
+	if plan.Priority.IsNull() || plan.Priority.IsUnknown() {
+		return false
+	}
+	requested := plan.Priority.ValueInt64()
+	actual, err := r.applyPriority(instanceID, requested)
+	if err != nil {
+		plan.Priority = types.Int64Null()
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+		resp.Diagnostics.AddError(
+			"Error setting Automation V2 priority",
+			fmt.Sprintf("Automation %s was created, but setting priority failed: %s", instanceID, err.Error()),
+		)
+		return true
+	}
+	if actual != requested {
+		plan.Priority = types.Int64Value(actual)
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+		resp.Diagnostics.AddError("Automation V2 priority out of range", clampErrorDetail(requested, actual))
+		return true
+	}
+	return false
 }
 
 func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -1154,6 +1186,8 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 			return
 		}
 	}
+
+	refreshPriority(&state, instance)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -1271,11 +1305,45 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 		plan.EndTime = types.StringNull()
 	}
 
+	if r.applyPlanPriorityOnUpdate(ctx, &plan, verifyInstance, resp) {
+		return
+	}
+
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// applyPlanPriorityOnUpdate PUTs the requested priority only when it differs
+// from the automation's current server-side priority, and does nothing when
+// the plan's priority is null (user stopped tracking it: no API call, no
+// error). Split out of Update to keep that function's cognitive complexity
+// low.
+func (r *automationV2Resource) applyPlanPriorityOnUpdate(ctx context.Context, plan *automationV2ResourceModel, verifyInstance *api_client.AutomationV2, resp *resource.UpdateResponse) bool {
+	if plan.Priority.IsNull() || plan.Priority.IsUnknown() {
+		return false
+	}
+	requested := plan.Priority.ValueInt64()
+	if verifyInstance.Priority != nil && *verifyInstance.Priority == requested {
+		return false
+	}
+	actual, err := r.applyPriority(plan.ID.ValueString(), requested)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting Automation V2 priority",
+			fmt.Sprintf("Could not set priority for Automation V2 ID %s: %s", plan.ID.ValueString(), err.Error()),
+		)
+		return true
+	}
+	if actual != requested {
+		plan.Priority = types.Int64Value(actual)
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+		resp.Diagnostics.AddError("Automation V2 priority out of range", clampErrorDetail(requested, actual))
+		return true
+	}
+	return false
 }
 
 func (r *automationV2Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
