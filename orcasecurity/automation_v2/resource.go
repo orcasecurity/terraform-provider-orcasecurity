@@ -331,13 +331,14 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Optional:    true,
 			},
 			"priority": schema.Int64Attribute{
-				Optional: true,
-				Description: "Evaluation-order priority (1 = evaluated first). Priorities form a global, " +
-					"dense 1..N ordering across all automations in the organization; the server renumbers " +
+				Description: "Evaluation-order priority (1 = evaluated first). Priorities form a single global " +
+					"ordering across all automations in the organization (intended to be dense 1..N, though " +
+					"legacy data may contain gaps or duplicates); the server renumbers " +
 					"other automations whenever one moves. Omit to leave ordering unmanaged by Terraform " +
 					"(existing configurations are unaffected). Setting it requires a token with the global " +
 					"Rules Create (admin) permission. A value above the current number of automations fails " +
 					"the apply and reports the actual placement.",
+				Optional: true,
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},
@@ -956,46 +957,6 @@ func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_clie
 	}
 }
 
-// applyPriority moves the automation to the requested evaluation-order
-// position and returns the priority the server actually assigned. The server
-// silently clamps values above the automation count, so callers must compare
-// the returned value with the requested one and surface a diagnostic on
-// mismatch.
-func (r *automationV2Resource) applyPriority(id string, requested int64) (int64, error) {
-	instance, err := r.apiClient.SetAutomationV2Priority(id, requested)
-	if err != nil {
-		return 0, err
-	}
-	if instance == nil || instance.Priority == nil {
-		return 0, fmt.Errorf("priority endpoint returned no priority value")
-	}
-	return *instance.Priority, nil
-}
-
-// clampErrorDetail formats the diagnostic message shown to users when the
-// server clamps a requested priority to a lower value than requested.
-func clampErrorDetail(requested, actual int64) string {
-	return fmt.Sprintf(
-		"priority %d exceeds the number of automations; the server placed the automation at priority %d. "+
-			"The automation is tracked in state — lower priority in the configuration and re-apply.",
-		requested, actual)
-}
-
-// refreshPriority updates the model's priority from the API instance, but only
-// when priority is already tracked (non-null) in state. Untracked priority
-// stays null so configurations that never set it see no drift noise from
-// external reordering.
-func refreshPriority(state *automationV2ResourceModel, instance *api_client.AutomationV2) {
-	if state.Priority.IsNull() {
-		return
-	}
-	if instance == nil {
-		state.Priority = types.Int64Null()
-		return
-	}
-	state.Priority = types.Int64PointerValue(instance.Priority)
-}
-
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan automationV2ResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -1086,34 +1047,6 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-}
-
-// applyPlanPriorityOnCreate sets the requested priority on a just-created
-// automation, if any was requested. It writes state before returning true on
-// error so the automation is tracked rather than orphaned. Split out of
-// Create to keep that function's cognitive complexity low.
-func (r *automationV2Resource) applyPlanPriorityOnCreate(ctx context.Context, plan *automationV2ResourceModel, instanceID string, resp *resource.CreateResponse) bool {
-	if plan.Priority.IsNull() || plan.Priority.IsUnknown() {
-		return false
-	}
-	requested := plan.Priority.ValueInt64()
-	actual, err := r.applyPriority(instanceID, requested)
-	if err != nil {
-		plan.Priority = types.Int64Null()
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-		resp.Diagnostics.AddError(
-			"Error setting Automation V2 priority",
-			fmt.Sprintf("Automation %s was created, but setting priority failed: %s", instanceID, err.Error()),
-		)
-		return true
-	}
-	if actual != requested {
-		plan.Priority = types.Int64Value(actual)
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-		resp.Diagnostics.AddError("Automation V2 priority out of range", clampErrorDetail(requested, actual))
-		return true
-	}
-	return false
 }
 
 func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -1314,36 +1247,6 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-}
-
-// applyPlanPriorityOnUpdate PUTs the requested priority only when it differs
-// from the automation's current server-side priority, and does nothing when
-// the plan's priority is null (user stopped tracking it: no API call, no
-// error). Split out of Update to keep that function's cognitive complexity
-// low.
-func (r *automationV2Resource) applyPlanPriorityOnUpdate(ctx context.Context, plan *automationV2ResourceModel, verifyInstance *api_client.AutomationV2, resp *resource.UpdateResponse) bool {
-	if plan.Priority.IsNull() || plan.Priority.IsUnknown() {
-		return false
-	}
-	requested := plan.Priority.ValueInt64()
-	if verifyInstance.Priority != nil && *verifyInstance.Priority == requested {
-		return false
-	}
-	actual, err := r.applyPriority(plan.ID.ValueString(), requested)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting Automation V2 priority",
-			fmt.Sprintf("Could not set priority for Automation V2 ID %s: %s", plan.ID.ValueString(), err.Error()),
-		)
-		return true
-	}
-	if actual != requested {
-		plan.Priority = types.Int64Value(actual)
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-		resp.Diagnostics.AddError("Automation V2 priority out of range", clampErrorDetail(requested, actual))
-		return true
-	}
-	return false
 }
 
 func (r *automationV2Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

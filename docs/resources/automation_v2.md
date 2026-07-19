@@ -542,7 +542,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 - `opus_template` (Attributes) Opus template to use for the automation. (see [below for nested schema](#nestedatt--opus_template))
 - `pager_duty_template` (Attributes) PagerDuty template to use for the automation. (see [below for nested schema](#nestedatt--pager_duty_template))
 - `panther_template` (Attributes) Panther template to use for the automation. (see [below for nested schema](#nestedatt--panther_template))
-- `priority` (Number) Evaluation-order priority (1 = evaluated first). Priorities form a global, dense 1..N ordering across all automations in the organization; the server renumbers other automations whenever one moves. Omit to leave ordering unmanaged by Terraform (existing configurations are unaffected). Setting it requires a token with the global Rules Create (admin) permission. A value above the current number of automations fails the apply and reports the actual placement.
+- `priority` (Number) Evaluation-order priority (1 = evaluated first). Priorities form a single global ordering across all automations in the organization (intended to be dense 1..N, though legacy data may contain gaps or duplicates); the server renumbers other automations whenever one moves. Omit to leave ordering unmanaged by Terraform (existing configurations are unaffected). Setting it requires a token with the global Rules Create (admin) permission. A value above the current number of automations fails the apply and reports the actual placement.
 - `remediation_template` (Attributes) Remediation (Auto Remediate) settings. (see [below for nested schema](#nestedatt--remediation_template))
 - `servicenow_incidents_template` (Attributes) ServiceNow Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_incidents_template))
 - `servicenow_si_incidents_template` (Attributes) ServiceNow Security Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_si_incidents_template))
@@ -904,7 +904,7 @@ Terraform. Setting `priority` on one resource shifts the positions of others.
 resource "orcasecurity_automation_v2" "first" {
   name     = "evaluated first"
   priority = 1
-  # ...
+  # ... filter and other required attributes (see Example Usage above)
 }
 ```
 
