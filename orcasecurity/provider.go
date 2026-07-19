@@ -11,6 +11,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
+	"terraform-provider-orcasecurity/orcasecurity/automation_v2_priorities"
 	"terraform-provider-orcasecurity/orcasecurity/azure_devops_template"
 	"terraform-provider-orcasecurity/orcasecurity/azure_sentinel"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
@@ -242,6 +243,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		rbac_role.NewRbacRolesDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
+		automation_v2_priorities.NewAutomationPrioritiesDataSource,
 	}
 }
 
