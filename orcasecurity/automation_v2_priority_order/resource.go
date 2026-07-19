@@ -175,7 +175,8 @@ func (r *automationPriorityOrderResource) Update(ctx context.Context, req resour
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// Delete is a no-op: removing the resource stops managing the ordering;
-// automations keep their current positions.
 func (r *automationPriorityOrderResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+	// Intentionally empty: deleting this resource only stops managing the
+	// ordering; automations keep their current positions, and there is
+	// nothing to clean up server-side.
 }
