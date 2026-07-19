@@ -469,3 +469,118 @@ func TestAutomationV2_JSONMarshaling(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
+func TestAutomationsV2_GetAutomationV2DecodesPriority(t *testing.T) {
+	mockResponse := `{
+		"status": "success",
+		"data": {
+			"id": "test-id-123",
+			"name": "Test Automation",
+			"status": "enabled",
+			"filter": {"sonar_query": {"models": ["Alert"], "type": "object_set"}},
+			"actions": [],
+			"priority": 7
+		}
+	}`
+
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automation, err := apiClient.GetAutomationV2("test-id-123")
+	if err != nil {
+		t.Fatalf("GetAutomationV2 failed: %v", err)
+	}
+	if automation.Priority == nil {
+		t.Fatal("expected priority to be decoded, got nil")
+	}
+	if *automation.Priority != 7 {
+		t.Errorf("expected priority 7, got %d", *automation.Priority)
+	}
+}
+
+func TestAutomationsV2_SetAutomationV2Priority(t *testing.T) {
+	mockResponse := `{
+		"status": "success",
+		"data": {
+			"id": "test-id-123",
+			"name": "Test Automation",
+			"status": "enabled",
+			"filter": {"sonar_query": {"models": ["Alert"], "type": "object_set"}},
+			"actions": [],
+			"priority": 3
+		}
+	}`
+
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", req.Method)
+		}
+		expectedURL := "/api/automations/test-id-123/priority"
+		if req.URL.Path != expectedURL {
+			t.Errorf("expected URL path %s, got %s", expectedURL, req.URL.Path)
+		}
+		body, _ := ioutil.ReadAll(req.Body)
+		var payload map[string]interface{}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("request body is not JSON: %v", err)
+		}
+		if payload["priority"] != float64(3) {
+			t.Errorf(`expected body {"priority": 3}, got %s`, string(body))
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automation, err := apiClient.SetAutomationV2Priority("test-id-123", 3)
+	if err != nil {
+		t.Fatalf("SetAutomationV2Priority failed: %v", err)
+	}
+	if automation == nil || automation.Priority == nil {
+		t.Fatal("expected updated automation with priority, got nil")
+	}
+	if *automation.Priority != 3 {
+		t.Errorf("expected priority 3, got %d", *automation.Priority)
+	}
+}
+
+func TestAutomationsV2_SetAutomationV2PriorityClamped(t *testing.T) {
+	// Server silently clamps priority above the automation count: request 50, get 10.
+	mockResponse := `{
+		"status": "success",
+		"data": {
+			"id": "test-id-123",
+			"name": "Test Automation",
+			"status": "enabled",
+			"filter": {"sonar_query": {"models": ["Alert"], "type": "object_set"}},
+			"actions": [],
+			"priority": 10
+		}
+	}`
+
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automation, err := apiClient.SetAutomationV2Priority("test-id-123", 50)
+	if err != nil {
+		t.Fatalf("SetAutomationV2Priority failed: %v", err)
+	}
+	if *automation.Priority != 10 {
+		t.Errorf("expected clamped priority 10, got %d", *automation.Priority)
+	}
+}

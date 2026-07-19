@@ -17,6 +17,9 @@ type AutomationV2 struct {
 	EndTime        string               `json:"end_time,omitempty"`
 	CreatedAt      string               `json:"created_at,omitempty"`
 	UpdatedAt      string               `json:"updated_at,omitempty"`
+	// Priority is the global, dense 1-based evaluation order. Read-only on the
+	// automation CRUD endpoints; writable only via SetAutomationV2Priority.
+	Priority *int64 `json:"priority,omitempty"`
 }
 
 type AutomationV2Filter struct {
@@ -90,6 +93,32 @@ func (client *APIClient) CreateAutomationV2(automation AutomationV2, applyOnExis
 
 func (client *APIClient) UpdateAutomationV2(ID string, data AutomationV2) (*AutomationV2, error) {
 	resp, err := client.Put(fmt.Sprintf("/api/automations/%s", ID), data)
+	if err != nil {
+		return nil, err
+	}
+
+	// API returns data nested in a "data" field
+	var response struct {
+		Status string       `json:"status"`
+		Data   AutomationV2 `json:"data"`
+	}
+	err = json.Unmarshal(resp.Body(), &response)
+	if err != nil {
+		return nil, err
+	}
+	return &response.Data, nil
+}
+
+// SetAutomationV2Priority moves the automation to the given evaluation-order
+// position via the dedicated priority endpoint. The server renumbers displaced
+// automations atomically and silently clamps values above the automation
+// count, so callers must compare the returned Priority with the requested one.
+func (client *APIClient) SetAutomationV2Priority(automationID string, priority int64) (*AutomationV2, error) {
+	payload := struct {
+		Priority int64 `json:"priority"`
+	}{Priority: priority}
+
+	resp, err := client.Put(fmt.Sprintf("/api/automations/%s/priority", automationID), payload)
 	if err != nil {
 		return nil, err
 	}
