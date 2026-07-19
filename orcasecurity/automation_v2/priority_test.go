@@ -166,3 +166,36 @@ func TestModelsEqualIgnoringPriority(t *testing.T) {
 		t.Error("models differing in name must not be equal")
 	}
 }
+
+// TestModelsEqualIgnoringPriorityUnknownDefeatsFastPath documents why the
+// status attribute needs a UseStateForUnknown plan modifier. An unknown value
+// on any field never DeepEquals a concrete one, so a plan that leaves status
+// "known after apply" would skip the priority-only fast path and fall into the
+// full CRUD PUT (which resets action statuses). UseStateForUnknown carries the
+// prior concrete value into the plan, keeping the two models equal on a
+// priority-only edit.
+func TestModelsEqualIgnoringPriorityUnknownDefeatsFastPath(t *testing.T) {
+	state := automationV2ResourceModel{
+		ID:       types.StringValue("a1"),
+		Name:     types.StringValue("n"),
+		Status:   types.StringValue("enabled"),
+		Priority: types.Int64Value(1),
+	}
+
+	// Config omits status and plan leaves it unknown (no UseStateForUnknown):
+	// the fast path is wrongly skipped.
+	planUnknownStatus := state
+	planUnknownStatus.Status = types.StringUnknown()
+	planUnknownStatus.Priority = types.Int64Value(5)
+	if modelsEqualIgnoringPriority(planUnknownStatus, state) {
+		t.Error("unknown status must break equality (this is the bug UseStateForUnknown prevents)")
+	}
+
+	// With UseStateForUnknown the plan carries the prior concrete status, so a
+	// priority-only edit is detected and routed through the priority endpoint.
+	planCarriedStatus := state
+	planCarriedStatus.Priority = types.Int64Value(5)
+	if !modelsEqualIgnoringPriority(planCarriedStatus, state) {
+		t.Error("priority-only edit with carried status must take the fast path")
+	}
+}

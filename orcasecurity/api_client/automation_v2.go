@@ -117,8 +117,10 @@ func (client *APIClient) UpdateAutomationV2(ID string, data AutomationV2) (*Auto
 
 // SetAutomationV2Priority moves the automation to the given evaluation-order
 // position via the dedicated priority endpoint. The server renumbers displaced
-// automations atomically and silently clamps values above the automation
-// count, so callers must compare the returned Priority with the requested one.
+// automations atomically and silently clamps values above the organization's
+// current highest priority (Least(new, Max(priority)), NOT the automation
+// count — legacy data can have gaps and duplicates), so callers must compare
+// the returned Priority with the requested one.
 func (client *APIClient) SetAutomationV2Priority(automationID string, priority int64) (*AutomationV2, error) {
 	payload := struct {
 		Priority int64 `json:"priority"`

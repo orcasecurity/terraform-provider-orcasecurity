@@ -351,14 +351,37 @@ resource "orcasecurity_automation_v2" "test" {
 	})
 }
 
-// Test resource with webhook integration using external_config_id
+// Test resource with webhook integration using external_config_id.
+//
+// The backend requires external_config_id to reference a real, enabled
+// integration config in the org (AutomationSerializer.validate_external_config),
+// so the test provisions its own webhook template with a dummy URL — webhook
+// config validation is schema-only, no live external call, no real credentials.
+// The automation references the template's id, which makes Terraform create the
+// webhook first and tear both down when the test finishes.
+//
+// Other integrations (slack, jira_cloud, azure_sentinel, sumo_logic, datadog)
+// need real external credentials or have no creatable provider resource, so
+// their tests still use placeholder ids and are skipped/expected to fail
+// without live integrations.
 func TestAccAutomationV2Resource_Webhook(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
 				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_integration_webhook_template" "test_webhook" {
+  template_name = "tf-acc-webhook-for-automation"
+  is_enabled    = true
+
+  config = {
+    webhook_url = "https://example.com/orca-tf-acc-test"
+    type        = "common"
+  }
+}
+
 resource "orcasecurity_automation_v2" "test" {
   name = "test webhook automation"
   description = "test webhook description"
@@ -370,13 +393,16 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   webhook_template = {
-    external_config_id = "test-webhook-config-uuid"
+    external_config_id = orcasecurity_integration_webhook_template.test_webhook.id
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test webhook automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "webhook_template.external_config_id", "test-webhook-config-uuid"),
+					resource.TestCheckResourceAttrPair(
+						"orcasecurity_automation_v2.test", "webhook_template.external_config_id",
+						"orcasecurity_integration_webhook_template.test_webhook", "id",
+					),
 				),
 			},
 		},
@@ -532,6 +558,36 @@ resource "orcasecurity_automation_v2" "test" {
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "2"),
 					testAccCheckServerPriority("orcasecurity_automation_v2.test", 2),
+				),
+			},
+			// Priority-only change with status OMITTED from config. status is
+			// Optional+Computed; without UseStateForUnknown the framework would
+			// plan it as unknown, modelsEqualIgnoringPriority would see
+			// plan.Status unknown vs state.Status concrete, skip the priority-
+			// only fast path, and fall into the full CRUD PUT. This step exercises
+			// the realistic config (no status) and asserts status is carried from
+			// state (still "enabled") with a clean, idempotent apply.
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority"
+  priority = 3
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "3"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "status", "enabled"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 3),
 				),
 			},
 			// Update a non-priority attribute: exercises the full CRUD update

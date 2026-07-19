@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -116,43 +117,39 @@ func (r *automationV2Resource) updatePriorityOnly(ctx context.Context, plan *aut
 		)
 		return
 	}
-	if r.applyPlanPriorityOnUpdate(ctx, plan, instance, resp) {
-		return
-	}
+	resp.Diagnostics.Append(r.resolvePlanPriorityOnUpdate(plan, instance)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-// applyPlanPriorityOnUpdate PUTs the requested priority only when it differs
+// resolvePlanPriorityOnUpdate PUTs the requested priority only when it differs
 // from the automation's current server-side priority, and does nothing when
 // the plan's priority is null (user stopped tracking it: no API call, no
-// error). Split out of Update to keep that function's cognitive complexity
-// low.
-func (r *automationV2Resource) applyPlanPriorityOnUpdate(ctx context.Context, plan *automationV2ResourceModel, verifyInstance *api_client.AutomationV2, resp *resource.UpdateResponse) bool {
+// error). It mutates plan.Priority to the value the server actually holds and
+// returns diagnostics for any failure or clamp; it never writes state. The
+// caller commits plan to state exactly once, so state stays consistent whether
+// this succeeds, clamps, or errors (an error still persists the server's real
+// priority rather than hiding the remote mutation).
+func (r *automationV2Resource) resolvePlanPriorityOnUpdate(plan *automationV2ResourceModel, verifyInstance *api_client.AutomationV2) diag.Diagnostics {
+	var diags diag.Diagnostics
 	if plan.Priority.IsNull() || plan.Priority.IsUnknown() {
-		return false
+		return diags
 	}
 	requested := plan.Priority.ValueInt64()
 	if verifyInstance.Priority != nil && *verifyInstance.Priority == requested {
-		return false
+		return diags
 	}
 	actual, err := r.applyPriority(plan.ID.ValueString(), requested)
 	if err != nil {
-		// Any CRUD update this apply performed already succeeded, so persist
-		// the refreshed state (with the server's actual priority) rather than
-		// leaving stale prior state that hides the remote mutation.
 		plan.Priority = types.Int64PointerValue(verifyInstance.Priority)
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-		resp.Diagnostics.AddError(
+		diags.AddError(
 			"Error setting Automation V2 priority",
 			fmt.Sprintf("Could not set priority for Automation V2 ID %s: %s", plan.ID.ValueString(), err.Error()),
 		)
-		return true
+		return diags
 	}
 	if actual != requested {
 		plan.Priority = types.Int64Value(actual)
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-		resp.Diagnostics.AddError("Automation V2 priority out of range", clampErrorDetail(requested, actual))
-		return true
+		diags.AddError("Automation V2 priority out of range", clampErrorDetail(requested, actual))
 	}
-	return false
+	return diags
 }

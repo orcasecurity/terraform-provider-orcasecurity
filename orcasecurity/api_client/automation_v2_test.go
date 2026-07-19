@@ -555,7 +555,7 @@ func TestAutomationsV2_SetAutomationV2Priority(t *testing.T) {
 }
 
 func TestAutomationsV2_SetAutomationV2PriorityClamped(t *testing.T) {
-	// Server silently clamps priority above the automation count: request 50, get 10.
+	// Server silently clamps priority above the org's current highest priority: request 50, get 10.
 	mockResponse := `{
 		"status": "success",
 		"data": {

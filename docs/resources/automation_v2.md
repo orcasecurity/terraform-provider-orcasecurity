@@ -920,8 +920,8 @@ Caveats:
 - Reordering several automations in one apply is order-dependent (the server renumbers on each
   move): every apply can succeed while the combined result differs from the configuration. The
   next plan shows the residual drift; apply again (or use `-parallelism=1`) until it converges.
-  For deterministic ordering of several automations, use
-  `orcasecurity_automation_v2_priority_order` instead — it is the canonical single owner.
+  For predictable results, give Terraform-managed automations spaced-out priority values and
+  reorder them one apply at a time.
 - Changing only `priority` calls the dedicated priority endpoint alone (like the Orca UI); the
   automation definition is not resent, so action statuses are unaffected.
 - A `priority` above the organization's current highest priority is clamped by the server. On
@@ -930,9 +930,6 @@ Caveats:
 - If setting priority fails during create, the automation is still created and kept (with
   `priority` unset in state); a warning explains the failure and the next apply retries.
 - Imported resources have `priority` unset; add it to the configuration to start managing it.
-- To manage the ordering of several automations as one unit, prefer the
-  [`orcasecurity_automation_v2_priority_order`](./automation_v2_priority_order) resource over
-  per-resource `priority`; never combine both for the same automations.
 
 ## Import
 

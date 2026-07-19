@@ -326,6 +326,15 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Description: "Automation status. Valid values: 'enabled', 'disabled'.",
 				Optional:    true,
 				Computed:    true,
+				// Carry the prior value on updates when config omits status.
+				// Without this the framework plans it as unknown, and the
+				// priority-only fast path (modelsEqualIgnoringPriority) would
+				// see plan.Status unknown vs state.Status concrete, skip the
+				// fast path, and fall into the full CRUD PUT that resets every
+				// action status. Matches id / apply_on_existing.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"end_time": schema.StringAttribute{
 				Description: "End time for the automation (ISO 8601 format). If specified, the automation will automatically disable after this time.",
@@ -1261,15 +1270,10 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 	// Refresh end_time from API response (server might normalize the format)
 	plan.EndTime = normalizeEndTime(plan.EndTime, updatedInstance.EndTime)
 
-	if r.applyPlanPriorityOnUpdate(ctx, &plan, verifyInstance, resp) {
-		return
-	}
+	resp.Diagnostics.Append(r.resolvePlanPriorityOnUpdate(&plan, verifyInstance)...)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (r *automationV2Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
