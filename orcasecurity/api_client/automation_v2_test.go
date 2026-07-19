@@ -586,7 +586,7 @@ func TestAutomationsV2_SetAutomationV2PriorityClamped(t *testing.T) {
 	}
 }
 
-func TestAutomationsV2_GetAutomationsV2Paginates(t *testing.T) {
+func TestAutomationsV2_ListAutomationsV2Paginates(t *testing.T) {
 	page := func(ids ...string) string {
 		items := make([]string, 0, len(ids))
 		for i, id := range ids {
@@ -619,9 +619,9 @@ func TestAutomationsV2_GetAutomationsV2Paginates(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	automations, err := apiClient.GetAutomationsV2()
+	automations, err := apiClient.ListAutomationsV2()
 	if err != nil {
-		t.Fatalf("GetAutomationsV2 failed: %v", err)
+		t.Fatalf("ListAutomationsV2 failed: %v", err)
 	}
 	if len(automations) != 4 {
 		t.Fatalf("expected 4 automations, got %d", len(automations))
@@ -629,12 +629,14 @@ func TestAutomationsV2_GetAutomationsV2Paginates(t *testing.T) {
 	if automations[3].ID != "a4" {
 		t.Errorf("expected last automation a4, got %s", automations[3].ID)
 	}
-	if len(requestedOffsets) != 2 || requestedOffsets[0] != "0" || requestedOffsets[1] != "300" {
-		t.Errorf("expected offsets [0 300], got %v", requestedOffsets)
+	// The next offset is the number of items received so far, not a page
+	// multiple, so short pages never skip items.
+	if len(requestedOffsets) != 2 || requestedOffsets[0] != "0" || requestedOffsets[1] != "3" {
+		t.Errorf("expected offsets [0 3], got %v", requestedOffsets)
 	}
 }
 
-func TestAutomationsV2_GetAutomationsV2StopsOnEmptyPage(t *testing.T) {
+func TestAutomationsV2_ListAutomationsV2StopsOnEmptyPage(t *testing.T) {
 	// Defensive: if the server claims more total_items than it returns, an
 	// empty page must terminate the loop rather than spin forever.
 	calls := 0
@@ -649,9 +651,9 @@ func TestAutomationsV2_GetAutomationsV2StopsOnEmptyPage(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	automations, err := apiClient.GetAutomationsV2()
+	automations, err := apiClient.ListAutomationsV2()
 	if err != nil {
-		t.Fatalf("GetAutomationsV2 failed: %v", err)
+		t.Fatalf("ListAutomationsV2 failed: %v", err)
 	}
 	if len(automations) != 0 {
 		t.Errorf("expected 0 automations, got %d", len(automations))

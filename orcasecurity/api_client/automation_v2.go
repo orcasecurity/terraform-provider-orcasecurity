@@ -17,8 +17,9 @@ type AutomationV2 struct {
 	EndTime        string               `json:"end_time,omitempty"`
 	CreatedAt      string               `json:"created_at,omitempty"`
 	UpdatedAt      string               `json:"updated_at,omitempty"`
-	// Priority is the global, dense 1-based evaluation order. Read-only on the
-	// automation CRUD endpoints; writable only via SetAutomationV2Priority.
+	// Priority is the global 1-based evaluation order (nominally dense, but
+	// legacy data may contain gaps or duplicates). Read-only on the automation
+	// CRUD endpoints; writable only via SetAutomationV2Priority.
 	Priority *int64 `json:"priority,omitempty"`
 }
 
@@ -52,28 +53,22 @@ func (client *APIClient) GetAutomationV2(automationID string) (*AutomationV2, er
 		return nil, nil
 	}
 
-	// API returns data nested in a "data" field
-	var response struct {
-		Status string       `json:"status"`
-		Data   AutomationV2 `json:"data"`
-	}
-	err = json.Unmarshal(resp.Body(), &response)
-	if err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readData[AutomationV2](resp)
 }
 
-// GetAutomationsV2 returns every automation in the organization in server
+// ListAutomationsV2 returns every automation in the organization in server
 // evaluation order (priority ascending, creation time as tiebreak), paging
 // through the list endpoint. Priorities in real-world data may contain
 // duplicates or gaps from legacy rows; the server order is still
 // deterministic.
-func (client *APIClient) GetAutomationsV2() ([]AutomationV2, error) {
+func (client *APIClient) ListAutomationsV2() ([]AutomationV2, error) {
 	const pageLimit = 300
 	var all []AutomationV2
-	for start := 0; ; start += pageLimit {
-		resp, err := client.Get(fmt.Sprintf("/api/automations?limit=%d&start_at_index=%d", pageLimit, start))
+	for {
+		// Offset by items actually received, not page count, so a short page
+		// with more items remaining (concurrent inserts, server-side cap)
+		// under-fetches safely instead of silently skipping items.
+		resp, err := client.Get(fmt.Sprintf("/api/automations?limit=%d&start_at_index=%d", pageLimit, len(all)))
 		if err != nil {
 			return nil, err
 		}
@@ -108,16 +103,7 @@ func (client *APIClient) CreateAutomationV2(automation AutomationV2, applyOnExis
 		return nil, err
 	}
 
-	// API returns data nested in a "data" field
-	var response struct {
-		Status string       `json:"status"`
-		Data   AutomationV2 `json:"data"`
-	}
-	err = resp.ReadJSON(&response)
-	if err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readData[AutomationV2](resp)
 }
 
 func (client *APIClient) UpdateAutomationV2(ID string, data AutomationV2) (*AutomationV2, error) {
@@ -126,16 +112,7 @@ func (client *APIClient) UpdateAutomationV2(ID string, data AutomationV2) (*Auto
 		return nil, err
 	}
 
-	// API returns data nested in a "data" field
-	var response struct {
-		Status string       `json:"status"`
-		Data   AutomationV2 `json:"data"`
-	}
-	err = json.Unmarshal(resp.Body(), &response)
-	if err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readData[AutomationV2](resp)
 }
 
 // SetAutomationV2Priority moves the automation to the given evaluation-order
@@ -152,16 +129,7 @@ func (client *APIClient) SetAutomationV2Priority(automationID string, priority i
 		return nil, err
 	}
 
-	// API returns data nested in a "data" field
-	var response struct {
-		Status string       `json:"status"`
-		Data   AutomationV2 `json:"data"`
-	}
-	err = json.Unmarshal(resp.Body(), &response)
-	if err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readData[AutomationV2](resp)
 }
 
 func (client *APIClient) DeleteAutomationV2(ID string) error {

@@ -91,7 +91,7 @@ func (r *automationPriorityOrderResource) assertOrder(ids []string) error {
 // topNIDs returns the IDs of the first n automations in server evaluation
 // order (fewer if the organization has fewer automations).
 func (r *automationPriorityOrderResource) topNIDs(n int) ([]string, error) {
-	instances, err := r.apiClient.GetAutomationsV2()
+	instances, err := r.apiClient.ListAutomationsV2()
 	if err != nil {
 		return nil, err
 	}

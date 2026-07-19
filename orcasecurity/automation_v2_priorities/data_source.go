@@ -80,7 +80,7 @@ func (ds *automationPrioritiesDataSource) Schema(_ context.Context, _ datasource
 // fetchAutomations retrieves all automations in server evaluation order and
 // maps them to the data source's entry model.
 func (ds *automationPrioritiesDataSource) fetchAutomations() ([]automationPriorityEntryModel, error) {
-	instances, err := ds.apiClient.GetAutomationsV2()
+	instances, err := ds.apiClient.ListAutomationsV2()
 	if err != nil {
 		return nil, err
 	}
