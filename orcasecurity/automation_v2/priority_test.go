@@ -104,3 +104,11 @@ func TestRefreshPriorityTrackedButServerOmitted(t *testing.T) {
 		t.Errorf("tracked priority with no server value must become null, got %v", state.Priority)
 	}
 }
+
+func TestRefreshPriorityNilInstance(t *testing.T) {
+	state := &automationV2ResourceModel{Priority: types.Int64Value(2)}
+	refreshPriority(state, nil)
+	if !state.Priority.IsNull() {
+		t.Errorf("tracked priority with nil instance must become null, got %v", state.Priority)
+	}
+}

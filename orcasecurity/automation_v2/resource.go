@@ -972,6 +972,8 @@ func (r *automationV2Resource) applyPriority(id string, requested int64) (int64,
 	return *instance.Priority, nil
 }
 
+// clampErrorDetail formats the diagnostic message shown to users when the
+// server clamps a requested priority to a lower value than requested.
 func clampErrorDetail(requested, actual int64) string {
 	return fmt.Sprintf(
 		"priority %d exceeds the number of automations; the server placed the automation at priority %d. "+
@@ -985,6 +987,10 @@ func clampErrorDetail(requested, actual int64) string {
 // external reordering.
 func refreshPriority(state *automationV2ResourceModel, instance *api_client.AutomationV2) {
 	if state.Priority.IsNull() {
+		return
+	}
+	if instance == nil {
+		state.Priority = types.Int64Null()
 		return
 	}
 	state.Priority = types.Int64PointerValue(instance.Priority)
