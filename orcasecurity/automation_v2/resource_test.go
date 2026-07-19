@@ -442,7 +442,7 @@ resource "orcasecurity_automation_v2" "test" {
 }
 
 // Test resource with priority
-func TestAccAutomationV2Resource_priority(t *testing.T) {
+func TestAccAutomationV2Resource_Priority(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
