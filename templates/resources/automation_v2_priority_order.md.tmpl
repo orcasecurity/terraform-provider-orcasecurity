@@ -12,7 +12,9 @@ Bulk, deterministic ownership of the **top N** automation evaluation-order posit
 automation's priority to its list position: the first entry gets priority 1, the second gets
 priority 2, and so on.
 
-This is a **singleton** resource: declare at most one instance per provider configuration. Do
+This is a **singleton** resource: declare at most one instance per provider configuration —
+if you declare a second instance, both will assert priorities 1..N over their own lists and
+repeatedly overwrite each other's ordering on every apply, causing perpetual plan diffs. Do
 not combine it with the `priority` attribute on `orcasecurity_automation_v2` resources for the
 same automations — both mechanisms write to the same global ordering and will fight each other,
 producing perpetual plan diffs.
@@ -26,7 +28,9 @@ producing perpetual plan diffs.
 - **Drift detection**: on every plan, Terraform re-reads the actual top-N automations from the
   API (N = the number of IDs currently in state) and shows drift if any listed automation was
   reordered, displaced from the top N, or deleted outside Terraform. Apply re-asserts the
-  configured order.
+  configured order. If a listed automation is deleted outside Terraform, the next apply's
+  priority-assignment call fails naming that ID; remove it from `automation_ids` in your
+  configuration to recover.
 - **Reordering**: changing the order of `automation_ids` (or the list contents) plans an update;
   apply reasserts priorities 1..N in the new order.
 - **Delete is a no-op**: destroying this resource simply stops managing the ordering. The
