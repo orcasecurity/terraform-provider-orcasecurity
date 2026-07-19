@@ -912,6 +912,9 @@ Caveats:
 
 - `priority` is opt-in. Resources that omit it are never moved and show no drift when other
   automations reorder them.
+- For resources that set `priority`, Terraform re-reads the actual value on every plan; if it
+  was moved outside Terraform, the plan shows drift and the next apply reasserts the configured
+  position.
 - Writing priority requires a token with the global Rules Create (admin) permission; other
   tokens receive HTTP 403.
 - Reordering several automations in one apply is order-dependent (the server renumbers on each
