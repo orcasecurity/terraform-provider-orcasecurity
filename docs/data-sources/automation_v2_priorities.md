@@ -2,12 +2,12 @@
 page_title: "orcasecurity_automation_v2_priorities Data Source - orcasecurity"
 subcategory: ""
 description: |-
-  Lists all automations in evaluation order (priority ascending)
+  Lists the automations visible to the API token in evaluation order (priority ascending)
 ---
 
 # orcasecurity_automation_v2_priorities (Data Source)
 
-Lists all automations in evaluation order (priority ascending), including automations not managed by Terraform. Use this data source to inspect the current evaluation order or to look up an automation's priority.
+Lists the automations visible to the API token in evaluation order (priority ascending), including automations not managed by Terraform. The list is scoped by the token's business-unit and RBAC permissions — a token without organization-wide read access sees a subset, not all automations. Use this data source to inspect the current evaluation order or to look up an automation's priority.
 
 ## Example Usage
 

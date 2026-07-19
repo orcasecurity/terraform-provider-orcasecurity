@@ -542,7 +542,7 @@ resource "orcasecurity_automation_v2" "analytics_integration" {
 - `opus_template` (Attributes) Opus template to use for the automation. (see [below for nested schema](#nestedatt--opus_template))
 - `pager_duty_template` (Attributes) PagerDuty template to use for the automation. (see [below for nested schema](#nestedatt--pager_duty_template))
 - `panther_template` (Attributes) Panther template to use for the automation. (see [below for nested schema](#nestedatt--panther_template))
-- `priority` (Number) Evaluation-order priority (1 = evaluated first). Priorities form a single global ordering across all automations in the organization (intended to be dense 1..N, though legacy data may contain gaps or duplicates); the server renumbers other automations whenever one moves. Omit to leave ordering unmanaged by Terraform (existing configurations are unaffected). Setting it requires a token with the global Rules Create (admin) permission. A value above the current number of automations fails the apply and reports the actual placement.
+- `priority` (Number) Evaluation-order priority (1 = evaluated first). Priorities form a single global ordering across all automations in the organization (intended to be dense 1..N, though legacy data may contain gaps or duplicates); the server renumbers other automations whenever one moves. Omit to leave ordering unmanaged by Terraform (existing configurations are unaffected). Setting it requires a token with the global Rules Create (admin) permission. A value above the organization's current highest priority is clamped by the server: on create Terraform records the actual placement with a warning, on update the apply fails and reports the actual placement.
 - `remediation_template` (Attributes) Remediation (Auto Remediate) settings. (see [below for nested schema](#nestedatt--remediation_template))
 - `servicenow_incidents_template` (Attributes) ServiceNow Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_incidents_template))
 - `servicenow_si_incidents_template` (Attributes) ServiceNow Security Incidents template to use for the automation. (see [below for nested schema](#nestedatt--servicenow_si_incidents_template))
@@ -918,10 +918,17 @@ Caveats:
 - Writing priority requires a token with the global Rules Create (admin) permission; other
   tokens receive HTTP 403.
 - Reordering several automations in one apply is order-dependent (the server renumbers on each
-  move). If the resulting plan still shows priority drift, apply again or use `-parallelism=1`.
-  Prefer contiguous low numbers (1, 2, 3, ...) for Terraform-managed automations.
-- A `priority` above the current number of automations fails the apply; the error reports where
-  the server actually placed the automation.
+  move): every apply can succeed while the combined result differs from the configuration. The
+  next plan shows the residual drift; apply again (or use `-parallelism=1`) until it converges.
+  For deterministic ordering of several automations, use
+  `orcasecurity_automation_v2_priority_order` instead — it is the canonical single owner.
+- Changing only `priority` calls the dedicated priority endpoint alone (like the Orca UI); the
+  automation definition is not resent, so action statuses are unaffected.
+- A `priority` above the organization's current highest priority is clamped by the server. On
+  create, Terraform records the actual placement and emits a warning (the plan then shows drift
+  until the configuration matches); on update, the apply fails and reports the actual placement.
+- If setting priority fails during create, the automation is still created and kept (with
+  `priority` unset in state); a warning explains the failure and the next apply retries.
 - Imported resources have `priority` unset; add it to the configuration to start managing it.
 - To manage the ordering of several automations as one unit, prefer the
   [`orcasecurity_automation_v2_priority_order`](./automation_v2_priority_order) resource over

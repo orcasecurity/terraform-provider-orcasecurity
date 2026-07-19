@@ -118,6 +118,49 @@ func TestAssertOrderSurfacesFailingID(t *testing.T) {
 	}
 }
 
+// orderStub answers priority PUTs with success and list GETs with the given
+// server order, so applyOrder's verification can be exercised.
+func orderStub(serverOrder ...string) *automationPriorityOrderResource {
+	return stubResource(func(req *http.Request) *http.Response {
+		if req.Method == http.MethodPut {
+			id := strings.TrimSuffix(strings.TrimPrefix(req.URL.Path, "/api/automations/"), "/priority")
+			return &http.Response{
+				StatusCode: 200,
+				Body: io.NopCloser(strings.NewReader(
+					`{"status":"success","data":` + automationJSON(id, 1) + `}`)),
+				Request: req,
+			}
+		}
+		items := make([]string, 0, len(serverOrder))
+		for i, id := range serverOrder {
+			items = append(items, automationJSON(id, i+1))
+		}
+		body := fmt.Sprintf(`{"total_items": %d, "data": [%s]}`, len(serverOrder), strings.Join(items, ","))
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+	})
+}
+
+func TestApplyOrderVerifiesAchievedOrder(t *testing.T) {
+	r := orderStub("a", "b")
+	if err := r.applyOrder([]string{"a", "b"}); err != nil {
+		t.Fatalf("applyOrder must succeed when the server converges, got: %v", err)
+	}
+}
+
+// Legacy duplicate priorities can make an order unreachable: every PUT
+// "succeeds" but the achieved order differs. applyOrder must fail with the
+// achieved order instead of silently saving the desired state.
+func TestApplyOrderFailsWhenServerDoesNotConverge(t *testing.T) {
+	r := orderStub("a", "x")
+	err := r.applyOrder([]string{"a", "c"})
+	if err == nil {
+		t.Fatal("expected convergence error, got nil")
+	}
+	if !strings.Contains(err.Error(), "x") || !strings.Contains(err.Error(), "c") {
+		t.Errorf("error must report requested and achieved orders, got: %v", err)
+	}
+}
+
 func TestTopNIDs(t *testing.T) {
 	body := `{"total_items": 3, "data": [` +
 		automationJSON("x", 1) + `,` + automationJSON("y", 2) + `,` + automationJSON("z", 3) + `]}`

@@ -336,8 +336,9 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 					"legacy data may contain gaps or duplicates); the server renumbers " +
 					"other automations whenever one moves. Omit to leave ordering unmanaged by Terraform " +
 					"(existing configurations are unaffected). Setting it requires a token with the global " +
-					"Rules Create (admin) permission. A value above the current number of automations fails " +
-					"the apply and reports the actual placement.",
+					"Rules Create (admin) permission. A value above the organization's current highest " +
+					"priority is clamped by the server: on create Terraform records the actual placement " +
+					"with a warning, on update the apply fails and reports the actual placement.",
 				Optional: true,
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -1038,9 +1039,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 		plan.EndTime = types.StringValue(instance.EndTime)
 	}
 
-	if r.applyPlanPriorityOnCreate(ctx, &plan, instance.ID, resp) {
-		return
-	}
+	r.applyPlanPriorityOnCreate(&plan, instance.ID, resp)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -1134,6 +1133,19 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// A priority-only change goes through the dedicated priority endpoint
+	// alone, like the UI: the full CRUD update below has the backend side
+	// effect of resetting every action's status to ACTIVE.
+	var state automationV2ResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if modelsEqualIgnoringPriority(plan, state) {
+		r.updatePriorityOnly(ctx, &plan, resp)
 		return
 	}
 

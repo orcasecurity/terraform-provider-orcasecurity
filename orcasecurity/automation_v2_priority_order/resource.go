@@ -3,6 +3,7 @@ package automation_v2_priority_order
 import (
 	"context"
 	"fmt"
+	"slices"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -88,6 +89,37 @@ func (r *automationPriorityOrderResource) assertOrder(ids []string) error {
 	return nil
 }
 
+// applyOrder asserts the desired order, then verifies the achieved top-N
+// against it instead of trusting that every successful PUT produced the
+// desired outcome. Legacy duplicate priorities make some orders unreachable:
+// the priority endpoint no-ops when old == new and clamps values above the
+// organization's current highest priority, so a duplicate group can be
+// impossible to separate via the public API. One corrective retry covers
+// transient interleaving; a persistent mismatch fails with the achieved order
+// rather than silently saving a desired state the server does not hold.
+func (r *automationPriorityOrderResource) applyOrder(ids []string) error {
+	for attempt := 0; ; attempt++ {
+		if err := r.assertOrder(ids); err != nil {
+			return err
+		}
+		achieved, err := r.topNIDs(len(ids))
+		if err != nil {
+			return fmt.Errorf("verifying automation order: %w", err)
+		}
+		if slices.Equal(achieved, ids) {
+			return nil
+		}
+		if attempt == 1 {
+			return fmt.Errorf(
+				"the server did not converge to the requested order: requested %v, achieved %v. "+
+					"This usually means the organization has legacy duplicate or gapped priorities, "+
+					"which the priority API cannot reorder; contact Orca support to renumber the "+
+					"organization's automation priorities and re-apply",
+				ids, achieved)
+		}
+	}
+}
+
 // topNIDs returns the IDs of the first n automations in server evaluation
 // order (fewer if the organization has fewer automations).
 func (r *automationPriorityOrderResource) topNIDs(n int) ([]string, error) {
@@ -118,7 +150,7 @@ func (r *automationPriorityOrderResource) Create(ctx context.Context, req resour
 		return
 	}
 
-	if err := r.assertOrder(r.listToIDs(ctx, plan.AutomationIDs)); err != nil {
+	if err := r.applyOrder(r.listToIDs(ctx, plan.AutomationIDs)); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting automation priority order",
 			"Could not set automation priority order: "+err.Error(),
@@ -163,7 +195,7 @@ func (r *automationPriorityOrderResource) Update(ctx context.Context, req resour
 		return
 	}
 
-	if err := r.assertOrder(r.listToIDs(ctx, plan.AutomationIDs)); err != nil {
+	if err := r.applyOrder(r.listToIDs(ctx, plan.AutomationIDs)); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting automation priority order",
 			"Could not set automation priority order: "+err.Error(),

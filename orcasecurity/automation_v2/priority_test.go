@@ -8,6 +8,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -100,5 +101,68 @@ func TestRefreshPriorityNilInstance(t *testing.T) {
 	refreshPriority(state, nil)
 	if !state.Priority.IsNull() {
 		t.Errorf("tracked priority with nil instance must become null, got %v", state.Priority)
+	}
+}
+
+// Create priority failures must be warnings, never errors: a Create error
+// would taint the freshly created automation and force replacement.
+func TestApplyPlanPriorityOnCreateFailureWarnsAndKeepsAutomation(t *testing.T) {
+	r := &automationV2Resource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 500,
+			Body:       io.NopCloser(strings.NewReader(`{"status":"failure","message":"boom"}`)),
+			Request:    req,
+		}
+	})}
+	plan := &automationV2ResourceModel{Priority: types.Int64Value(3)}
+	resp := &resource.CreateResponse{}
+
+	r.applyPlanPriorityOnCreate(plan, "a1", resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("priority failure on create must not be an error (taints the resource), got: %v", resp.Diagnostics)
+	}
+	if resp.Diagnostics.WarningsCount() != 1 {
+		t.Fatalf("expected exactly 1 warning, got %d", resp.Diagnostics.WarningsCount())
+	}
+	if !plan.Priority.IsNull() {
+		t.Errorf("failed priority must be nulled in the plan so the next apply retries, got %v", plan.Priority)
+	}
+}
+
+func TestApplyPlanPriorityOnCreateClampWarnsWithActual(t *testing.T) {
+	r := priorityTestResource(t,
+		`{"status":"success","data":{"id":"a1","name":"n","status":"enabled","filter":{"sonar_query":{"models":["Alert"],"type":"object_set"}},"actions":[],"priority":10}}`,
+		"")
+	plan := &automationV2ResourceModel{Priority: types.Int64Value(50)}
+	resp := &resource.CreateResponse{}
+
+	r.applyPlanPriorityOnCreate(plan, "a1", resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("clamp on create must not be an error, got: %v", resp.Diagnostics)
+	}
+	if resp.Diagnostics.WarningsCount() != 1 {
+		t.Fatalf("expected exactly 1 warning, got %d", resp.Diagnostics.WarningsCount())
+	}
+	if plan.Priority.ValueInt64() != 10 {
+		t.Errorf("plan must record the server's actual priority 10, got %v", plan.Priority)
+	}
+}
+
+func TestModelsEqualIgnoringPriority(t *testing.T) {
+	base := automationV2ResourceModel{
+		ID:       types.StringValue("a1"),
+		Name:     types.StringValue("n"),
+		Priority: types.Int64Value(1),
+	}
+	other := base
+	other.Priority = types.Int64Value(7)
+	if !modelsEqualIgnoringPriority(base, other) {
+		t.Error("models differing only in priority must be equal")
+	}
+	other.Name = types.StringValue("renamed")
+	if modelsEqualIgnoringPriority(base, other) {
+		t.Error("models differing in name must not be equal")
 	}
 }

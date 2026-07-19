@@ -33,6 +33,14 @@ resource "orcasecurity_automation_v2_priority_order" "main" {
 
 ## Behavior notes
 
+- **Applies are verified**: after asserting priorities 1..N, Terraform re-reads the actual top-N
+  order and fails the apply if the server did not converge to the requested order. The usual
+  cause is legacy duplicate (or gapped) priorities, which the priority API cannot separate —
+  the error reports the achieved order; contact Orca support to renumber the organization's
+  automation priorities, then re-apply.
+- **Priority writes are not atomic**: the order is asserted one automation at a time. A failure
+  mid-sequence leaves earlier entries moved; the apply fails, and the next apply re-asserts the
+  full order from the top.
 - **Drift detection**: on every plan, Terraform re-reads the actual top-N automations from the
   API (N = the number of IDs currently in state) and shows drift if any listed automation was
   reordered, displaced from the top N, or deleted outside Terraform. Apply re-asserts the

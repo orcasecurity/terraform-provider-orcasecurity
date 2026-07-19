@@ -533,6 +533,33 @@ resource "orcasecurity_automation_v2" "test" {
 					testAccCheckServerPriority("orcasecurity_automation_v2.test", 2),
 				),
 			},
+			// Update a non-priority attribute: exercises the full CRUD update
+			// path (not the priority-only fast path) and confirms the tracked
+			// priority survives it.
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority (updated)"
+  status = "enabled"
+  priority = 2
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "description", "test automation with priority (updated)"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "2"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 2),
+				),
+			},
 		},
 	})
 }

@@ -46,8 +46,8 @@ func (ds *automationPrioritiesDataSource) Metadata(_ context.Context, req dataso
 
 func (ds *automationPrioritiesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Lists all automations in the organization in evaluation order (priority ascending), " +
-			"including automations not managed by Terraform.",
+		Description: "Lists the automations visible to the API token (the list is business-unit/RBAC scoped) " +
+			"in evaluation order (priority ascending), including automations not managed by Terraform.",
 		Attributes: map[string]schema.Attribute{
 			"automations": schema.ListNestedAttribute{
 				Computed:    true,
