@@ -64,6 +64,35 @@ func (client *APIClient) GetAutomationV2(automationID string) (*AutomationV2, er
 	return &response.Data, nil
 }
 
+// GetAutomationsV2 returns every automation in the organization in server
+// evaluation order (priority ascending, creation time as tiebreak), paging
+// through the list endpoint. Priorities in real-world data may contain
+// duplicates or gaps from legacy rows; the server order is still
+// deterministic.
+func (client *APIClient) GetAutomationsV2() ([]AutomationV2, error) {
+	const pageLimit = 300
+	var all []AutomationV2
+	for start := 0; ; start += pageLimit {
+		resp, err := client.Get(fmt.Sprintf("/api/automations?limit=%d&start_at_index=%d", pageLimit, start))
+		if err != nil {
+			return nil, err
+		}
+
+		var response struct {
+			TotalItems int            `json:"total_items"`
+			Data       []AutomationV2 `json:"data"`
+		}
+		if err := json.Unmarshal(resp.Body(), &response); err != nil {
+			return nil, err
+		}
+
+		all = append(all, response.Data...)
+		if len(response.Data) == 0 || len(all) >= response.TotalItems {
+			return all, nil
+		}
+	}
+}
+
 func (client *APIClient) DoesAutomationV2Exist(id string) (bool, error) {
 	resp, _ := client.Head(fmt.Sprintf("/api/automations/%s", id))
 	return resp.StatusCode() == 200, nil

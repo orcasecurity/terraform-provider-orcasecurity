@@ -2,6 +2,7 @@ package api_client_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -582,5 +583,80 @@ func TestAutomationsV2_SetAutomationV2PriorityClamped(t *testing.T) {
 	}
 	if *automation.Priority != 10 {
 		t.Errorf("expected clamped priority 10, got %d", *automation.Priority)
+	}
+}
+
+func TestAutomationsV2_GetAutomationsV2Paginates(t *testing.T) {
+	page := func(ids ...string) string {
+		items := make([]string, 0, len(ids))
+		for i, id := range ids {
+			items = append(items, fmt.Sprintf(
+				`{"id":"%s","name":"auto-%s","status":"enabled","filter":{"sonar_query":{"models":["Alert"],"type":"object_set"}},"actions":[],"priority":%d}`,
+				id, id, i+1))
+		}
+		return `{"total_items": 4, "data": [` + strings.Join(items, ",") + `]}`
+	}
+
+	var requestedOffsets []string
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.URL.Path != "/api/automations" {
+			t.Errorf("expected path /api/automations, got %s", req.URL.Path)
+		}
+		if req.URL.Query().Get("limit") != "300" {
+			t.Errorf("expected limit=300, got %s", req.URL.Query().Get("limit"))
+		}
+		offset := req.URL.Query().Get("start_at_index")
+		requestedOffsets = append(requestedOffsets, offset)
+		body := page("a1", "a2", "a3")
+		if offset != "0" {
+			body = page("a4")
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automations, err := apiClient.GetAutomationsV2()
+	if err != nil {
+		t.Fatalf("GetAutomationsV2 failed: %v", err)
+	}
+	if len(automations) != 4 {
+		t.Fatalf("expected 4 automations, got %d", len(automations))
+	}
+	if automations[3].ID != "a4" {
+		t.Errorf("expected last automation a4, got %s", automations[3].ID)
+	}
+	if len(requestedOffsets) != 2 || requestedOffsets[0] != "0" || requestedOffsets[1] != "300" {
+		t.Errorf("expected offsets [0 300], got %v", requestedOffsets)
+	}
+}
+
+func TestAutomationsV2_GetAutomationsV2StopsOnEmptyPage(t *testing.T) {
+	// Defensive: if the server claims more total_items than it returns, an
+	// empty page must terminate the loop rather than spin forever.
+	calls := 0
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		calls++
+		body := `{"total_items": 50, "data": []}`
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automations, err := apiClient.GetAutomationsV2()
+	if err != nil {
+		t.Fatalf("GetAutomationsV2 failed: %v", err)
+	}
+	if len(automations) != 0 {
+		t.Errorf("expected 0 automations, got %d", len(automations))
+	}
+	if calls != 1 {
+		t.Errorf("expected exactly 1 request, got %d", calls)
 	}
 }
