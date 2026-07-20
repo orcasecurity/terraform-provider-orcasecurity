@@ -9,7 +9,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/admission_controller"
 	"terraform-provider-orcasecurity/orcasecurity/akamai"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/automation"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2_priorities"
 	"terraform-provider-orcasecurity/orcasecurity/automation_v2_priority_order"
@@ -254,7 +253,6 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		admission_controller.NewAdmissionControllerControlResource,
 		admission_controller.NewAdmissionControllerPolicyResource,
 		admission_controller.NewAdmissionControllerPolicyAssignmentResource,
-		automation.NewAutomationResource,
 		automation_v2.NewAutomationV2Resource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
 		custom_discovery_alert.NewCustomDiscoveryAlertResource,

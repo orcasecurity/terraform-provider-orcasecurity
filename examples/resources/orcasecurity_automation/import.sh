@@ -1,1 +1,0 @@
-terraform import orcasecurity_automation.example AUTOMATION_ID
