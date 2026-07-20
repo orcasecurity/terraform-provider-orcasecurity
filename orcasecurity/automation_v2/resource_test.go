@@ -1,14 +1,50 @@
 package automation_v2_test
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+// testAccCheckServerPriority verifies against the live API — not just
+// Terraform state — that the automation's server-side priority matches want.
+// priority is a plain Optional attribute copied from plan into state, so a
+// state-only check would pass even if the priority PUT was never issued.
+func testAccCheckServerPriority(resourceName string, want int64) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", resourceName)
+		}
+		endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
+		token := os.Getenv("ORCASECURITY_API_TOKEN")
+		client, err := api_client.NewAPIClient(&endpoint, &token)
+		if err != nil {
+			return err
+		}
+		instance, err := client.GetAutomationV2(rs.Primary.ID)
+		if err != nil {
+			return err
+		}
+		if instance == nil {
+			return fmt.Errorf("automation %s not found via API", rs.Primary.ID)
+		}
+		if instance.Priority == nil {
+			return fmt.Errorf("automation %s has no priority on the server", rs.Primary.ID)
+		}
+		if *instance.Priority != want {
+			return fmt.Errorf("automation %s has server priority %d, want %d", rs.Primary.ID, *instance.Priority, want)
+		}
+		return nil
+	}
+}
 
 // requireIntegrationConfigID returns a real integration config UUID from the
 // given env var, or skips the test when it is unset. Automation actions that
@@ -335,15 +371,36 @@ resource "orcasecurity_automation_v2" "test" {
 	})
 }
 
-// Test resource with webhook integration using external_config_id
+// Test resource with webhook integration using external_config_id.
+//
+// The backend requires external_config_id to reference a real, enabled
+// integration config in the org (AutomationSerializer.validate_external_config),
+// so the test provisions its own webhook template with a dummy URL — webhook
+// config validation is schema-only, no live external call, no real credentials.
+// The automation references the template's id, which makes Terraform create the
+// webhook first and tear both down when the test finishes.
+//
+// Other integrations (slack, jira_cloud, azure_sentinel, sumo_logic, datadog)
+// need real external credentials or have no creatable provider resource, so
+// their tests are opt-in via ORCASECURITY_ACC_*_CONFIG_ID env vars.
 func TestAccAutomationV2Resource_Webhook(t *testing.T) {
-	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_WEBHOOK_CONFIG_ID")
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
 				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_integration_webhook_template" "test_webhook" {
+  template_name = "tf-acc-webhook-for-automation"
+  is_enabled    = true
+
+  config = {
+    webhook_url = "https://example.com/orca-tf-acc-test"
+    type        = "common"
+  }
+}
+
 resource "orcasecurity_automation_v2" "test" {
   name = "test webhook automation"
   description = "test webhook description"
@@ -355,13 +412,16 @@ resource "orcasecurity_automation_v2" "test" {
     })
   }
   webhook_template = {
-    external_config_id = "` + configID + `"
+    external_config_id = orcasecurity_integration_webhook_template.test_webhook.id
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test webhook automation"),
-					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "webhook_template.external_config_id", configID),
+					resource.TestCheckResourceAttrPair(
+						"orcasecurity_automation_v2.test", "webhook_template.external_config_id",
+						"orcasecurity_integration_webhook_template.test_webhook", "id",
+					),
 				),
 			},
 		},
@@ -464,39 +524,152 @@ resource "orcasecurity_automation_v2" "test" {
 	})
 }
 
-// Test resource with end_time
-func TestAccAutomationV2Resource_WithEndTime(t *testing.T) {
-	configID := requireIntegrationConfigID(t, "ORCASECURITY_ACC_SUMO_LOGIC_CONFIG_ID")
-	// end_time must be in the future; compute it at run time so the fixture never
-	// rots into a past date the API rejects.
-	endTime := time.Now().UTC().AddDate(1, 0, 0).Format(time.RFC3339)
+// Test resource with priority
+func TestAccAutomationV2Resource_Priority(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Create and Read testing
+			// Create with priority = 1
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_automation_v2" "test" {
-  name = "test automation with end time"
-  description = "test automation with end time"
+  name = "test automation with priority"
+  description = "test automation with priority"
   status = "enabled"
-  end_time = "` + endTime + `"
+  priority = 1
   filter = {
     sonar_query = jsonencode({
       models = ["Alert"]
       type = "object_set"
     })
   }
-  sumo_logic_template = {
-    external_config_id = "` + configID + `"
+  alert_dismissal_details = {
+    reason = "acceptance test"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "1"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 1),
+				),
+			},
+			// Update priority to 2
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority"
+  status = "enabled"
+  priority = 2
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with priority"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "2"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 2),
+				),
+			},
+			// Priority-only change with status OMITTED from config. status is
+			// Optional+Computed; without UseStateForUnknown the framework would
+			// plan it as unknown, modelsEqualIgnoringPriority would see
+			// plan.Status unknown vs state.Status concrete, skip the priority-
+			// only fast path, and fall into the full CRUD PUT. This step exercises
+			// the realistic config (no status) and asserts status is carried from
+			// state (still "enabled") with a clean, idempotent apply.
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority"
+  priority = 3
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "3"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "status", "enabled"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 3),
+				),
+			},
+			// Update a non-priority attribute: exercises the full CRUD update
+			// path (not the priority-only fast path) and confirms the tracked
+			// priority survives it.
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with priority"
+  description = "test automation with priority (updated)"
+  status = "enabled"
+  priority = 2
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "description", "test automation with priority (updated)"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "priority", "2"),
+					testAccCheckServerPriority("orcasecurity_automation_v2.test", 2),
+				),
+			},
+		},
+	})
+}
+
+// Test resource with end_time
+func TestAccAutomationV2Resource_WithEndTime(t *testing.T) {
+	// The server rejects end_time values in the past, so a hardcoded date
+	// would rot; always aim one year ahead.
+	endTime := time.Now().UTC().AddDate(1, 0, 0).Truncate(time.Second).Format(time.RFC3339)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "orcasecurity_automation_v2" "test" {
+  name = "test automation with end time"
+  description = "test automation with end time"
+  status = "enabled"
+  end_time = %q
+  filter = {
+    sonar_query = jsonencode({
+      models = ["Alert"]
+      type = "object_set"
+    })
+  }
+  alert_dismissal_details = {
+    reason = "acceptance test"
+  }
+}
+`, endTime),
+				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "name", "test automation with end time"),
-					// end_time is normalized to the org's UTC offset on read, so assert
-					// it is set rather than pinning an exact string.
-					resource.TestCheckResourceAttrSet("orcasecurity_automation_v2.test", "end_time"),
+					resource.TestCheckResourceAttr("orcasecurity_automation_v2.test", "end_time", endTime),
 				),
 			},
 		},
