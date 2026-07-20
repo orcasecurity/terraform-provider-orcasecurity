@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -159,6 +160,7 @@ type automationV2ResourceModel struct {
 
 	OrganizationID  types.String `tfsdk:"organization_id"`
 	ApplyOnExisting types.Bool   `tfsdk:"apply_on_existing"`
+	Priority        types.Int64  `tfsdk:"priority"`
 }
 
 func NewAutomationV2Resource() resource.Resource {
@@ -324,10 +326,33 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Description: "Automation status. Valid values: 'enabled', 'disabled'.",
 				Optional:    true,
 				Computed:    true,
+				// Carry the prior value on updates when config omits status.
+				// Without this the framework plans it as unknown, and the
+				// priority-only fast path (modelsEqualIgnoringPriority) would
+				// see plan.Status unknown vs state.Status concrete, skip the
+				// fast path, and fall into the full CRUD PUT that resets every
+				// action status. Matches id / apply_on_existing.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"end_time": schema.StringAttribute{
 				Description: "End time for the automation (ISO 8601 format). If specified, the automation will automatically disable after this time.",
 				Optional:    true,
+			},
+			"priority": schema.Int64Attribute{
+				Description: "Evaluation-order priority (1 = evaluated first). Priorities form a single global " +
+					"ordering across all automations in the organization (intended to be dense 1..N, though " +
+					"legacy data may contain gaps or duplicates); the server renumbers " +
+					"other automations whenever one moves. Omit to leave ordering unmanaged by Terraform " +
+					"(existing configurations are unaffected). Setting it requires a token with the global " +
+					"Rules Create (admin) permission. A value above the organization's current highest " +
+					"priority is clamped by the server: on create Terraform records the actual placement " +
+					"with a warning, on update the apply fails and reports the actual placement.",
+				Optional: true,
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 			"filter": schema.SingleNestedAttribute{
 				Description: "The filter that selects the alerts this automation applies to using sonar_query.",
@@ -943,6 +968,26 @@ func applyV2AlertScoreChangeToState(state *automationV2ResourceModel, a api_clie
 	}
 }
 
+// normalizeEndTime returns the end_time value to store in state. The server
+// reformats end_time into the organization's UTC offset (e.g. "...Z" comes
+// back as "...+03:00"), so when the two strings denote the same instant the
+// configured/prior value is kept — end_time is Optional (non-Computed) and
+// must match the planned value after apply.
+func normalizeEndTime(current types.String, serverValue string) types.String {
+	if serverValue == "" {
+		return types.StringNull()
+	}
+	if current.IsNull() || current.IsUnknown() {
+		return types.StringValue(serverValue)
+	}
+	prior, priorErr := time.Parse(time.RFC3339, current.ValueString())
+	remote, remoteErr := time.Parse(time.RFC3339, serverValue)
+	if priorErr == nil && remoteErr == nil && prior.Equal(remote) {
+		return current
+	}
+	return types.StringValue(serverValue)
+}
+
 func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan automationV2ResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -1020,9 +1065,9 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 	}
 	plan.Status = types.StringValue(normalizedStatus)
 
-	if instance.EndTime != "" {
-		plan.EndTime = types.StringValue(instance.EndTime)
-	}
+	plan.EndTime = normalizeEndTime(plan.EndTime, instance.EndTime)
+
+	r.applyPlanPriorityOnCreate(&plan, instance.ID, resp)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -1081,11 +1126,7 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 	}
 	state.Status = types.StringValue(normalizedStatus)
 
-	if instance.EndTime != "" {
-		state.EndTime = types.StringValue(instance.EndTime)
-	} else {
-		state.EndTime = types.StringNull()
-	}
+	state.EndTime = normalizeEndTime(state.EndTime, instance.EndTime)
 
 	// On import there is no prior state for the filter or action templates
 	// (filter is Required, so a nil filter means this Read follows an import).
@@ -1102,6 +1143,8 @@ func (r *automationV2Resource) Read(ctx context.Context, req resource.ReadReques
 		}
 	}
 
+	refreshPriority(&state, instance)
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -1114,6 +1157,19 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// A priority-only change goes through the dedicated priority endpoint
+	// alone, like the UI: the full CRUD update below has the backend side
+	// effect of resetting every action's status to ACTIVE.
+	var state automationV2ResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if modelsEqualIgnoringPriority(plan, state) {
+		r.updatePriorityOnly(ctx, &plan, resp)
 		return
 	}
 
@@ -1212,17 +1268,12 @@ func (r *automationV2Resource) Update(ctx context.Context, req resource.UpdateRe
 	plan.Status = types.StringValue(normalizedStatus)
 
 	// Refresh end_time from API response (server might normalize the format)
-	if updatedInstance.EndTime != "" {
-		plan.EndTime = types.StringValue(updatedInstance.EndTime)
-	} else {
-		plan.EndTime = types.StringNull()
-	}
+	plan.EndTime = normalizeEndTime(plan.EndTime, updatedInstance.EndTime)
+
+	resp.Diagnostics.Append(r.resolvePlanPriorityOnUpdate(&plan, verifyInstance)...)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (r *automationV2Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
