@@ -16,11 +16,11 @@ import (
 type ScmUnitListSpec[A any] struct {
 	TypeNameSuffix string
 	Description    string
-	CollectionKey string
-	Extra map[string]attr.Type
+	CollectionKey  string
+	Extra          map[string]attr.Type
 	List           func(*api_client.APIClient) ([]A, error)
 	ListErrorTitle string
-	Row func(a *A) (accountName string, common api_client.ScmUnitCommonFields, extras map[string]attr.Value)
+	Row            func(a *A) (accountName string, common api_client.ScmUnitCommonFields, extras map[string]attr.Value)
 }
 
 func (s ScmUnitListSpec[A]) ListValue(rows []A) (types.List, diag.Diagnostics) {

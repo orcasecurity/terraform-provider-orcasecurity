@@ -14,17 +14,17 @@ import (
 )
 
 type AdoptedUnitOps[A any, M any] struct {
-	Labels AdoptLabels
-	UnitID func(m *M) string
-	Get func(m *M) (*A, error)
-	Update func(m *M, current *A, body api_client.ScmInstallationUpdate) (*A, error)
-	Integrate func(m *M, body api_client.ScmInstallationUpdate) error
-	Delete    func(m *M) error
-	Snapshot  func(*A) ExistingUnit
-	ToState   func(*A) M
-	Config    func(*M) *ScmConfigFields
-	Describe  func(m *M) string
-	CreateHint string
+	Labels           AdoptLabels
+	UnitID           func(m *M) string
+	Get              func(m *M) (*A, error)
+	Update           func(m *M, current *A, body api_client.ScmInstallationUpdate) (*A, error)
+	Integrate        func(m *M, body api_client.ScmInstallationUpdate) error
+	Delete           func(m *M) error
+	Snapshot         func(*A) ExistingUnit
+	ToState          func(*A) M
+	Config           func(*M) *ScmConfigFields
+	Describe         func(m *M) string
+	CreateHint       string
 	CreateErrorTitle string
 	UpdateErrorTitle string
 	DeleteErrorTitle string

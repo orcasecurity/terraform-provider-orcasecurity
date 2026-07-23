@@ -205,7 +205,6 @@ type repoOps struct {
 	update    func(api_client.ScmRepositoryConfigUpdate) error
 }
 
-
 func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
 	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
 	var plan M

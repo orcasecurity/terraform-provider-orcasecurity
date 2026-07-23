@@ -88,7 +88,6 @@ type scmRepositoryDescriptor struct {
 	Branch string `json:"branch,omitempty"`
 }
 
-
 type githubRepositoryItem struct {
 	ID                      string     `json:"id"`
 	GithubRepositoryID      int64      `json:"github_repository_id"`
@@ -182,7 +181,6 @@ func (client *APIClient) UpdateGithubRepositories(body ScmRepositoryConfigUpdate
 	return client.updateScmRepositories("github", body)
 }
 
-
 type gitlabRepositoryItem struct {
 	ID                      string     `json:"id"`
 	GitlabProjectID         int64      `json:"gitlab_project_id"`
@@ -273,7 +271,6 @@ func (client *APIClient) FindGitlabRepository(installationID string, gitlabProje
 func (client *APIClient) UpdateGitlabRepositories(body ScmRepositoryConfigUpdate) error {
 	return client.updateScmRepositories("gitlab", body)
 }
-
 
 type bitbucketRepositoryItem struct {
 	ID                    string `json:"id"`
@@ -370,7 +367,6 @@ func (client *APIClient) FindBitbucketRepository(accountID, bitbucketRepositoryI
 func (client *APIClient) UpdateBitbucketRepositories(body ScmRepositoryConfigUpdate) error {
 	return client.updateScmRepositories("bitbucket", body)
 }
-
 
 type azureRepositoryItem struct {
 	ID                       string `json:"id"`
