@@ -2,6 +2,7 @@ package shift_left_azure_devops_account
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -51,37 +52,20 @@ func (r *azureDevopsAccountResource) ImportState(ctx context.Context, req resour
 }
 
 func (r *azureDevopsAccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan resourceModel
+	var plan, config resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
-	existing, err := r.apiClient.GetAzureDevopsAccount(installationID, accountID)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Azure DevOps account", err.Error())
-		return
-	}
-	if existing == nil {
+	acc, err := r.write(installationID, accountID, plan, config)
+	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
 		resp.Diagnostics.AddError("Azure DevOps account not found",
 			fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Azure DevOps account first, then import.", accountID, installationID))
 		return
 	}
-	var config resourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
-		InstallationMode: existing.InstallationMode,
-		DefaultPolicies:  existing.DefaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(existing.Policies),
-		ConfigSettings:   existing.ConfigSettings,
-		ProjectID:        api_client.ProjectRefID(existing.Project),
-	})
-	acc, err := r.apiClient.UpdateAzureDevopsAccount(installationID, accountID, ad.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring Azure DevOps account", err.Error())
 		return
@@ -118,37 +102,20 @@ func (r *azureDevopsAccountResource) Read(ctx context.Context, req resource.Read
 }
 
 func (r *azureDevopsAccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan resourceModel
+	var plan, config resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
-	current, err := r.apiClient.GetAzureDevopsAccount(installationID, accountID)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Azure DevOps account before update", err.Error())
-		return
-	}
-	if current == nil {
+	acc, err := r.write(installationID, accountID, plan, config)
+	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
 		resp.Diagnostics.AddError("Azure DevOps account not found",
 			fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID))
 		return
 	}
-	var config resourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
-		InstallationMode: current.InstallationMode,
-		DefaultPolicies:  current.DefaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(current.Policies),
-		ConfigSettings:   current.ConfigSettings,
-		ProjectID:        api_client.ProjectRefID(current.Project),
-	})
-	acc, err := r.apiClient.UpdateAzureDevopsAccount(plan.InstallationID.ValueString(), plan.AccountID.ValueString(), ad.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating Azure DevOps account", err.Error())
 		return
@@ -165,8 +132,23 @@ func (r *azureDevopsAccountResource) Update(ctx context.Context, req resource.Up
 }
 
 // Delete removes the resource from state only. The Azure DevOps integrated
-// account is not owned by Terraform (created by integrating the Orca Azure
-// DevOps app) and is left untouched.
+// account is not owned by Terraform and is left untouched.
 func (r *azureDevopsAccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Info(ctx, "Removing Azure DevOps account from state; the live integration is left untouched.")
+}
+
+func (r *azureDevopsAccountResource) write(installationID, accountID string, plan, config resourceModel) (*api_client.AzureDevopsAccount, error) {
+	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
+	return shift_left_integration.WriteAdopted(
+		func() (*api_client.AzureDevopsAccount, error) {
+			return r.apiClient.GetAzureDevopsAccount(installationID, accountID)
+		},
+		func(body api_client.ScmInstallationUpdate) (*api_client.AzureDevopsAccount, error) {
+			return r.apiClient.UpdateAzureDevopsAccount(installationID, accountID, body)
+		},
+		func(u *api_client.AzureDevopsAccount) shift_left_integration.ExistingUnit {
+			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
+		},
+		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project,
+	)
 }

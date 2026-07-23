@@ -726,7 +726,7 @@ Optional:
 Required:
 
 - `ids` (List of String)
-- `key` (String) Scope key such as github_installations, github_repository_installations, gitlab_groups, gitlab_repositories.
+- `key` (String) Scope key. One of: github_installations, github_repository_installations, gitlab_groups, gitlab_projects, azure_organizations, azure_projects.
 
 
 

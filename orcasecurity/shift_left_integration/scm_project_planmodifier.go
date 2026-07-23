@@ -40,9 +40,12 @@ func (projectIDPlanModifier) PlanModifyString(ctx context.Context, req planmodif
 	}
 
 	var policies types.Set
-	req.Config.GetAttribute(ctx, path.Root("policies_ids"), &policies)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("policies_ids"), &policies)...)
 	var defaultPolicies types.Bool
-	req.Config.GetAttribute(ctx, path.Root("default_policies"), &defaultPolicies)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("default_policies"), &defaultPolicies)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	policiesIntent := (!policies.IsNull() && !policies.IsUnknown()) ||
 		(!defaultPolicies.IsNull() && !defaultPolicies.IsUnknown())
 

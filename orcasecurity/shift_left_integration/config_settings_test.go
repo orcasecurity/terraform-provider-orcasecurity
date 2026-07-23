@@ -43,6 +43,42 @@ func TestExpandConfigSettings_NoConditionsOmitsInstallationReposConfig(t *testin
 	}
 }
 
+func TestExpandConfigSettings_ExplicitEmptyListsClearsReposConfig(t *testing.T) {
+	m := &ConfigSettingsModel{
+		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+	}
+	api := ExpandConfigSettings(m)
+	if api.InstallationReposConfig == nil {
+		t.Fatal("expected empty InstallationReposConfig object to clear server-side, got nil (omitted)")
+	}
+	if api.InstallationReposConfig.ArchiveActions != nil || api.InstallationReposConfig.UnavailableActions != nil {
+		t.Fatalf("expected empty actions on clear, got: %+v", api.InstallationReposConfig)
+	}
+}
+
+func TestMergeThenExpand_ClearArchiveConditions(t *testing.T) {
+	base := FlattenConfigSettings(api_client.ShiftLeftConfigSettings{
+		CommentsOnPullRequests: "ALWAYS",
+		InstallationReposConfig: &api_client.ShiftLeftInstallationReposConfig{
+			ArchiveActions:     &api_client.ShiftLeftArchiveActions{Conditions: []string{"AVOID_SCAN", "DELETE_REPO"}},
+			UnavailableActions: &api_client.ShiftLeftArchiveActions{Conditions: []string{"DELETE_REPO"}},
+		},
+	})
+	overlay := &ConfigSettingsModel{
+		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+	}
+	merged := MergeConfigSettings(base, overlay)
+	api := ExpandConfigSettings(&merged)
+	if api.InstallationReposConfig == nil {
+		t.Fatal("clearing conditions must send explicit empty installation_repositories_configuration")
+	}
+	if api.CommentsOnPullRequests != "ALWAYS" {
+		t.Fatalf("expected unrelated fields preserved, got comments=%q", api.CommentsOnPullRequests)
+	}
+}
+
 func TestExpandConfigSettings_UnavailableConditionsOnly(t *testing.T) {
 	m := &ConfigSettingsModel{
 		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),

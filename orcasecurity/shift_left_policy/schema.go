@@ -170,8 +170,19 @@ func scmPostureBlock() schema.Block {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"key": schema.StringAttribute{
-							Required:    true,
-							Description: "Scope key such as github_installations, github_repository_installations, gitlab_groups, gitlab_repositories.",
+							Required: true,
+							Description: "Scope key. One of: github_installations, github_repository_installations, " +
+								"gitlab_groups, gitlab_projects, azure_organizations, azure_projects.",
+							Validators: []validator.String{
+								stringvalidator.OneOf(
+									"github_installations",
+									"github_repository_installations",
+									"gitlab_groups",
+									"gitlab_projects",
+									"azure_organizations",
+									"azure_projects",
+								),
+							},
 						},
 						"ids": schema.ListAttribute{
 							ElementType: types.StringType,

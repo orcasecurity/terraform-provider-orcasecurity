@@ -77,5 +77,6 @@ func (client *APIClient) UpdateGitlabGroup(installationID, groupID string, body 
 	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, groupID), body); err != nil {
 		return nil, err
 	}
+	client.invalidateScmListCache()
 	return client.GetGitlabGroup(installationID, groupID)
 }

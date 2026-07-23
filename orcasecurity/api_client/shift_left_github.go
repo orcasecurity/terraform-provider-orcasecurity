@@ -81,5 +81,6 @@ func (client *APIClient) UpdateGithubInstallation(id string, body ScmInstallatio
 	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/github/installations/%s/", id), body); err != nil {
 		return nil, err
 	}
+	client.invalidateScmListCache()
 	return client.GetGithubInstallation(id)
 }

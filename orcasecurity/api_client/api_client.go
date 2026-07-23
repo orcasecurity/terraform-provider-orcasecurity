@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,10 @@ type APIClient struct {
 	APIEndpoint string
 	APIToken    string
 	HTTPClient  *http.Client
+
+	// scmListCache memoizes shift-left SCM list pages (keyed by basePath) for
+	// the duration of an apply/refresh. Invalidated after every SCM PUT.
+	scmListCache sync.Map
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {

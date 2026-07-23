@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_account Resource - orcasecurity"
 description: |-
-  Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Azure DevOps integration). Adopt via terraform import.
+  Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via terraform import.
 ---
 
 # orcasecurity_shift_left_azure_devops_account (Resource)
 
-Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Azure DevOps integration). Adopt via `terraform import`.
+Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via `terraform import`.
 
 ## Example Usage
 
@@ -46,7 +46,7 @@ resource "orcasecurity_shift_left_azure_devops_account" "project_bound" {
 
 ### Optional
 
-- `configuration_settings` (Attributes) PR advanced settings. (see [below for nested schema](#nestedatt--configuration_settings))
+- `configuration_settings` (Attributes) PR/MR advanced settings. (see [below for nested schema](#nestedatt--configuration_settings))
 - `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with project_id.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES.
 - `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id.

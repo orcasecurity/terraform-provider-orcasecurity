@@ -133,9 +133,6 @@ func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set
 	case !project.FromConfig.IsNull() && !project.FromConfig.IsUnknown():
 		// User set project_id explicitly ("" clears, non-empty binds).
 		projectID = project.FromConfig.ValueString()
-	default:
-		// User touched neither -> preserve whatever the unit already has.
-		projectID = ex.ProjectID
 	}
 
 	body := ExpandUpdate(mode, defaultPolicies, policies, &merged)

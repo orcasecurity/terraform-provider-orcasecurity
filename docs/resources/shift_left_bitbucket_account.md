@@ -48,7 +48,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 
 ### Optional
 
-- `configuration_settings` (Attributes) PR advanced settings. (see [below for nested schema](#nestedatt--configuration_settings))
+- `configuration_settings` (Attributes) PR/MR advanced settings. (see [below for nested schema](#nestedatt--configuration_settings))
 - `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with project_id.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES.
 - `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id.
@@ -56,7 +56,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 
 ### Read-Only
 
-- `account_name` (String) Bitbucket account/workspace name.
+- `account_name` (String) Bitbucket workspace/account name.
 - `id` (String) Account UUID (mirrors account_id).
 
 <a id="nestedatt--configuration_settings"></a>

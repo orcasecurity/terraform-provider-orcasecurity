@@ -2,6 +2,7 @@ package shift_left_github_installation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -44,36 +45,19 @@ func (r *githubInstallationResource) ImportState(ctx context.Context, req resour
 }
 
 func (r *githubInstallationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan resourceModel
+	var plan, config resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := plan.InstallationID.ValueString()
-	existing, err := r.apiClient.GetGithubInstallation(id)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitHub installation", err.Error())
-		return
-	}
-	if existing == nil {
-		resp.Diagnostics.AddError("GitHub installation not found",
-			fmt.Sprintf("Installation %q does not exist. Install the Orca GitHub App first, then import.", id))
-		return
-	}
-	var config resourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
-		InstallationMode: existing.InstallationMode,
-		DefaultPolicies:  existing.DefaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(existing.Policies),
-		ConfigSettings:   existing.ConfigSettings,
-		ProjectID:        api_client.ProjectRefID(existing.Project),
-	})
-	inst, err := r.apiClient.UpdateGithubInstallation(id, ad.Body)
+	id := plan.InstallationID.ValueString()
+	inst, err := r.write(id, plan, config)
+	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
+		resp.Diagnostics.AddError("GitHub installation not found",
+			fmt.Sprintf("Installation %q does not exist. Install the Orca GitHub App first, then import.", id))
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring GitHub installation", err.Error())
 		return
@@ -110,36 +94,19 @@ func (r *githubInstallationResource) Read(ctx context.Context, req resource.Read
 }
 
 func (r *githubInstallationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan resourceModel
+	var plan, config resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := plan.InstallationID.ValueString()
-	current, err := r.apiClient.GetGithubInstallation(id)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitHub installation before update", err.Error())
-		return
-	}
-	if current == nil {
-		resp.Diagnostics.AddError("GitHub installation not found",
-			fmt.Sprintf("Installation %q was not found. It may have been removed; re-import.", id))
-		return
-	}
-	var config resourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
-		InstallationMode: current.InstallationMode,
-		DefaultPolicies:  current.DefaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(current.Policies),
-		ConfigSettings:   current.ConfigSettings,
-		ProjectID:        api_client.ProjectRefID(current.Project),
-	})
-	inst, err := r.apiClient.UpdateGithubInstallation(plan.InstallationID.ValueString(), ad.Body)
+	id := plan.InstallationID.ValueString()
+	inst, err := r.write(id, plan, config)
+	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
+		resp.Diagnostics.AddError("GitHub installation not found",
+			fmt.Sprintf("Installation %q was not found. It may have been removed; re-import.", id))
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating GitHub installation", err.Error())
 		return
@@ -160,4 +127,18 @@ func (r *githubInstallationResource) Update(ctx context.Context, req resource.Up
 // untouched.
 func (r *githubInstallationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Info(ctx, "Removing GitHub installation from state; the live integration is left untouched.")
+}
+
+func (r *githubInstallationResource) write(id string, plan, config resourceModel) (*api_client.GithubInstallation, error) {
+	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
+	return shift_left_integration.WriteAdopted(
+		func() (*api_client.GithubInstallation, error) { return r.apiClient.GetGithubInstallation(id) },
+		func(body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
+			return r.apiClient.UpdateGithubInstallation(id, body)
+		},
+		func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
+			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
+		},
+		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project,
+	)
 }

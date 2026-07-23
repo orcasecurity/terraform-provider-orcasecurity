@@ -2,6 +2,7 @@ package shift_left_gitlab_group
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -51,37 +52,20 @@ func (r *gitlabGroupResource) ImportState(ctx context.Context, req resource.Impo
 }
 
 func (r *gitlabGroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan resourceModel
+	var plan, config resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	installationID := plan.InstallationID.ValueString()
 	groupID := plan.GroupID.ValueString()
-	existing, err := r.apiClient.GetGitlabGroup(installationID, groupID)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitLab group", err.Error())
-		return
-	}
-	if existing == nil {
+	grp, err := r.write(installationID, groupID, plan, config)
+	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
 		resp.Diagnostics.AddError("GitLab group not found",
 			fmt.Sprintf("Group %q on installation %q does not exist. Integrate the Orca GitLab group first, then import.", groupID, installationID))
 		return
 	}
-	var config resourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
-		InstallationMode: existing.InstallationMode,
-		DefaultPolicies:  existing.DefaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(existing.Policies),
-		ConfigSettings:   existing.ConfigSettings,
-		ProjectID:        api_client.ProjectRefID(existing.Project),
-	})
-	grp, err := r.apiClient.UpdateGitlabGroup(installationID, groupID, ad.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring GitLab group", err.Error())
 		return
@@ -118,37 +102,20 @@ func (r *gitlabGroupResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *gitlabGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan resourceModel
+	var plan, config resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	installationID := plan.InstallationID.ValueString()
 	groupID := plan.GroupID.ValueString()
-	current, err := r.apiClient.GetGitlabGroup(installationID, groupID)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitLab group before update", err.Error())
-		return
-	}
-	if current == nil {
+	grp, err := r.write(installationID, groupID, plan, config)
+	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
 		resp.Diagnostics.AddError("GitLab group not found",
 			fmt.Sprintf("Group %q on installation %q was not found. It may have been removed; re-import.", groupID, installationID))
 		return
 	}
-	var config resourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
-		InstallationMode: current.InstallationMode,
-		DefaultPolicies:  current.DefaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(current.Policies),
-		ConfigSettings:   current.ConfigSettings,
-		ProjectID:        api_client.ProjectRefID(current.Project),
-	})
-	grp, err := r.apiClient.UpdateGitlabGroup(plan.InstallationID.ValueString(), plan.GroupID.ValueString(), ad.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating GitLab group", err.Error())
 		return
@@ -169,4 +136,20 @@ func (r *gitlabGroupResource) Update(ctx context.Context, req resource.UpdateReq
 // left untouched.
 func (r *gitlabGroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Info(ctx, "Removing GitLab group from state; the live integration is left untouched.")
+}
+
+func (r *gitlabGroupResource) write(installationID, groupID string, plan, config resourceModel) (*api_client.GitlabGroup, error) {
+	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
+	return shift_left_integration.WriteAdopted(
+		func() (*api_client.GitlabGroup, error) {
+			return r.apiClient.GetGitlabGroup(installationID, groupID)
+		},
+		func(body api_client.ScmInstallationUpdate) (*api_client.GitlabGroup, error) {
+			return r.apiClient.UpdateGitlabGroup(installationID, groupID, body)
+		},
+		func(u *api_client.GitlabGroup) shift_left_integration.ExistingUnit {
+			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
+		},
+		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project,
+	)
 }

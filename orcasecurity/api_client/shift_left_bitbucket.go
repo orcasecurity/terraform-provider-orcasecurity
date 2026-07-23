@@ -52,5 +52,6 @@ func (client *APIClient) UpdateBitbucketAccount(installationID, accountID string
 	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/bitbucket/installations/%s/integrated_accounts/%s/", installationID, accountID), body); err != nil {
 		return nil, err
 	}
+	client.invalidateScmListCache()
 	return client.GetBitbucketAccount(installationID, accountID)
 }

@@ -155,10 +155,13 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 		PrSummaryAppendix:       m.PrSummaryAppendix.ValueString(),
 	}
 
+	archiveKnown := !m.ArchiveConditions.IsNull() && !m.ArchiveConditions.IsUnknown()
+	unavailableKnown := !m.UnavailableConditions.IsNull() && !m.UnavailableConditions.IsUnknown()
 	archiveConditions := stringSliceFromList(m.ArchiveConditions)
 	unavailableConditions := stringSliceFromList(m.UnavailableConditions)
 
-	if len(archiveConditions) > 0 || len(unavailableConditions) > 0 {
+	switch {
+	case len(archiveConditions) > 0 || len(unavailableConditions) > 0:
 		installationReposConfig := &api_client.ShiftLeftInstallationReposConfig{}
 		if len(archiveConditions) > 0 {
 			installationReposConfig.ArchiveActions = &api_client.ShiftLeftArchiveActions{
@@ -171,6 +174,11 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 			}
 		}
 		out.InstallationReposConfig = installationReposConfig
+	case archiveKnown || unavailableKnown:
+		// Explicit empty lists (UI toggles off) must clear server-side config.
+		// Send {} rather than omitting the key — backend update paths assign
+		// model_dump() values including this field.
+		out.InstallationReposConfig = &api_client.ShiftLeftInstallationReposConfig{}
 	}
 
 	return out

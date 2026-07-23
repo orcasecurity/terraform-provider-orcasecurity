@@ -53,5 +53,6 @@ func (client *APIClient) UpdateAzureDevopsAccount(installationID, accountID stri
 	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/%s/", installationID, accountID), body); err != nil {
 		return nil, err
 	}
+	client.invalidateScmListCache()
 	return client.GetAzureDevopsAccount(installationID, accountID)
 }

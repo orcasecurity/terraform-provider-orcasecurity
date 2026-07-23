@@ -17,6 +17,15 @@ type scmInstallationID struct {
 	ID string `json:"id"`
 }
 
+// invalidateScmListCache drops cached list pages so the next Get/List after a
+// write re-fetches. Safe/no-op when unused.
+func (client *APIClient) invalidateScmListCache() {
+	client.scmListCache.Range(func(key, _ any) bool {
+		client.scmListCache.Delete(key)
+		return true
+	})
+}
+
 // listScmUnitsByInstallation fans out across every installation: it lists the
 // installations at installationsPath, then lists each installation's integrated
 // units at unitsPath(installationID), injecting the installation id via
@@ -55,7 +64,17 @@ func listScmUnitsByInstallation[T any](
 // to ignore the `offset` query param (confirmed live on the projects
 // endpoint, see ListShiftLeftProjects), instead honoring `start_at_index`,
 // the same convention used by /api/automations (see ListAutomationsV2).
+//
+// Results are cached on the client for the lifetime of an apply/refresh until
+// invalidateScmListCache is called (after every SCM PUT). That avoids O(n)
+// full-list re-fetches when many SCM resources refresh the same list.
 func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
+	if cached, ok := client.scmListCache.Load(basePath); ok {
+		if pages, ok := cached.([]T); ok {
+			return pages, nil
+		}
+	}
+
 	const pageLimit = 200
 	var all []T
 	for {
@@ -69,6 +88,7 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 		}
 		all = append(all, env.Data...)
 		if len(env.Data) == 0 || len(all) >= env.TotalItems {
+			client.scmListCache.Store(basePath, all)
 			return all, nil
 		}
 	}
