@@ -45,6 +45,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_sir_template"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_github_installation"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_gitlab_group"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy_catalog_controls"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
@@ -244,6 +245,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		rbac_role.NewRbacRolesDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_github_installation.NewInstallationsDataSource,
+		shift_left_gitlab_group.NewGroupsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		automation_v2_priorities.NewAutomationPrioritiesDataSource,
 	}
@@ -292,6 +294,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		shift_left_policy.NewShiftLeftPolicyResource,
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
 		shift_left_github_installation.NewResource,
+		shift_left_gitlab_group.NewResource,
 		system_sonar_alert.NewSystemSonarAlertResource,
 		trusted_cloud_account.NewTrustedCloudAccountResource,
 		trusted_dynamic_ip_range.NewTrustedDynamicIpRangeResource,
