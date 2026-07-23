@@ -1,12 +1,14 @@
 ---
 page_title: "orcasecurity_shift_left_github_installation Resource - orcasecurity"
 description: |-
-  Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via terraform import.
+  Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via terraform import. Schema follows the Shift-Left API (a superset of the UI): all configuration_settings enums are available.
 ---
 
 # orcasecurity_shift_left_github_installation (Resource)
 
-Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via `terraform import`.
+Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.
+
+-> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
 
 ## Example Usage
 
@@ -43,7 +45,7 @@ resource "orcasecurity_shift_left_github_installation" "project_bound" {
 
 ### Optional
 
-- `configuration_settings` (Attributes) PR/MR advanced settings. (see [below for nested schema](#nestedatt--configuration_settings))
+- `configuration_settings` (Attributes) PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose. (see [below for nested schema](#nestedatt--configuration_settings))
 - `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with project_id.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES.
 - `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id.
@@ -53,20 +55,21 @@ resource "orcasecurity_shift_left_github_installation" "project_bound" {
 
 - `account_name` (String) GitHub account/organization name.
 - `id` (String) Installation UUID (mirrors installation_id).
+- `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
 
 <a id="nestedatt--configuration_settings"></a>
 ### Nested Schema for `configuration_settings`
 
 Optional:
 
-- `archive_conditions` (List of String) Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions).
+- `archive_conditions` (List of String) Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO.
 - `comments_on_pull_requests` (String) When to post scan result comments on pull requests.
 - `config_file_support` (String) Whether in-repo Orca config file support is enabled.
 - `disable_scan_pull_requests` (Boolean) Disable scanning pull requests.
 - `pr_summary_appendix` (String) Additional free-text appendix appended to the pull request summary comment.
 - `pr_summary_comment` (String) When to post a pull request summary comment.
 - `skip_check_runs` (String) When to skip posting check runs.
-- `unavailable_conditions` (List of String) Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions).
+- `unavailable_conditions` (List of String) Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO (same as archive_conditions).
 
 ## Import
 

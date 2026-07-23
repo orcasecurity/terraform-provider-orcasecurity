@@ -24,4 +24,7 @@ func TestApiToState_MirrorsAccountID(t *testing.T) {
 	if len(elems) != 1 || elems[0].(types.String).ValueString() != "pol-1" {
 		t.Errorf("policies_ids wrong: %+v", st.PoliciesIds)
 	}
+	if !st.ProjectID.IsNull() {
+		t.Errorf("unbound project_id must be null, got %#v", st.ProjectID)
+	}
 }

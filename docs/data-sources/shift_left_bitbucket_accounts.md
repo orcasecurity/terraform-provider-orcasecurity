@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_accounts Data Source - orcasecurity"
 description: |-
-  Lists all Orca Bitbucket shift-left integrated accounts across every installation, for fleet-wide for_each.
+  Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each.
 ---
 
 # orcasecurity_shift_left_bitbucket_accounts (Data Source)
 
-Lists all Orca Bitbucket shift-left integrated accounts across every installation, for fleet-wide for_each.
+Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each.
 
 ## Example Usage
 
@@ -43,3 +43,4 @@ Read-Only:
 - `id` (String)
 - `installation_id` (String)
 - `installation_mode` (String)
+- `integration_status` (String) Live integration health from the API when present.

@@ -2,16 +2,13 @@ package shift_left_azure_devops_account
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -19,6 +16,15 @@ var (
 	_ resource.ResourceWithConfigure   = &azureDevopsAccountResource{}
 	_ resource.ResourceWithImportState = &azureDevopsAccountResource{}
 )
+
+var azureLabels = shift_left_integration.AdoptLabels{
+	NotFoundTitle:  "Azure DevOps account not found",
+	NilReadTitle:   "Error reading azure devops account after write",
+	NilReadDetail:  "The azure devops account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+	ReadErrorTitle: "Error reading Azure DevOps account",
+	DeleteLog:      "Removing Azure DevOps account from state; the live integration is left untouched.",
+	MissingWarn:    "Azure DevOps account %s missing remotely",
+}
 
 type azureDevopsAccountResource struct {
 	apiClient *api_client.APIClient
@@ -30,11 +36,8 @@ func (r *azureDevopsAccountResource) Metadata(_ context.Context, req resource.Me
 	resp.TypeName = req.ProviderTypeName + "_shift_left_azure_devops_account"
 }
 
-func (r *azureDevopsAccountResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	r.apiClient = req.ProviderData.(*api_client.APIClient)
+func (r *azureDevopsAccountResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
 }
 
 func (r *azureDevopsAccountResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -42,13 +45,7 @@ func (r *azureDevopsAccountResource) Schema(_ context.Context, _ resource.Schema
 }
 
 func (r *azureDevopsAccountResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError("Invalid import ID", "expected <installation_id>/<account_id>")
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_id"), parts[1])...)
+	shift_left_integration.ImportSlashPair(ctx, req, resp, "installation_id", "account_id", "<installation_id>/<account_id>")
 }
 
 func (r *azureDevopsAccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -60,21 +57,10 @@ func (r *azureDevopsAccountResource) Create(ctx context.Context, req resource.Cr
 	}
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
-	acc, err := r.write(installationID, accountID, plan, config)
-	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
-		resp.Diagnostics.AddError("Azure DevOps account not found",
-			fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Azure DevOps account first, then import.", accountID, installationID))
-		return
-	}
-	if err != nil {
-		resp.Diagnostics.AddError("Error configuring Azure DevOps account", err.Error())
-		return
-	}
+	acc := r.adopt(&resp.Diagnostics, installationID, accountID, plan, config,
+		fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Azure DevOps account first, then import.", accountID, installationID),
+		"Error configuring Azure DevOps account")
 	if acc == nil {
-		resp.Diagnostics.AddError(
-			"Error reading azure devops account after write",
-			"The azure devops account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-		)
 		return
 	}
 	state := apiToState(acc)
@@ -87,14 +73,15 @@ func (r *azureDevopsAccountResource) Read(ctx context.Context, req resource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	acc, err := r.apiClient.GetAzureDevopsAccount(state.InstallationID.ValueString(), state.AccountID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Azure DevOps account", err.Error())
-		return
-	}
+	installationID := state.InstallationID.ValueString()
+	accountID := state.AccountID.ValueString()
+	acc := shift_left_integration.ReadUnit(ctx, &resp.Diagnostics, azureLabels, accountID,
+		func() (*api_client.AzureDevopsAccount, error) {
+			return r.apiClient.GetAzureDevopsAccount(installationID, accountID)
+		},
+		resp.State.RemoveResource,
+	)
 	if acc == nil {
-		tflog.Warn(ctx, fmt.Sprintf("Azure DevOps account %s missing remotely", state.AccountID.ValueString()))
-		resp.State.RemoveResource(ctx)
 		return
 	}
 	newState := apiToState(acc)
@@ -110,36 +97,25 @@ func (r *azureDevopsAccountResource) Update(ctx context.Context, req resource.Up
 	}
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
-	acc, err := r.write(installationID, accountID, plan, config)
-	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
-		resp.Diagnostics.AddError("Azure DevOps account not found",
-			fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID))
-		return
-	}
-	if err != nil {
-		resp.Diagnostics.AddError("Error updating Azure DevOps account", err.Error())
-		return
-	}
+	acc := r.adopt(&resp.Diagnostics, installationID, accountID, plan, config,
+		fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID),
+		"Error updating Azure DevOps account")
 	if acc == nil {
-		resp.Diagnostics.AddError(
-			"Error reading azure devops account after write",
-			"The azure devops account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-		)
 		return
 	}
 	state := apiToState(acc)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Delete removes the resource from state only. The Azure DevOps integrated
-// account is not owned by Terraform and is left untouched.
-func (r *azureDevopsAccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	tflog.Info(ctx, "Removing Azure DevOps account from state; the live integration is left untouched.")
+func (r *azureDevopsAccountResource) Delete(ctx context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+	shift_left_integration.DeleteNoop(ctx, azureLabels)
 }
 
-func (r *azureDevopsAccountResource) write(installationID, accountID string, plan, config resourceModel) (*api_client.AzureDevopsAccount, error) {
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	return shift_left_integration.WriteAdopted(
+func (r *azureDevopsAccountResource) adopt(
+	diags *diag.Diagnostics, installationID, accountID string, plan, config resourceModel, notFoundMsg, writeTitle string,
+) *api_client.AzureDevopsAccount {
+	return shift_left_integration.AdoptWrite(
+		diags, azureLabels, notFoundMsg, writeTitle,
 		func() (*api_client.AzureDevopsAccount, error) {
 			return r.apiClient.GetAzureDevopsAccount(installationID, accountID)
 		},
@@ -149,6 +125,7 @@ func (r *azureDevopsAccountResource) write(installationID, accountID string, pla
 		func(u *api_client.AzureDevopsAccount) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
 		},
-		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project,
+		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings,
+		shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
 	)
 }

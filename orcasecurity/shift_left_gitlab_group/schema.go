@@ -26,7 +26,7 @@ func resourceSchema() rschema.Schema {
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
-		Description: "Configures an existing Orca GitLab shift-left integrated group (default policies, scan mode, PR/MR settings). The group must already be integrated (created by installing the Orca GitLab integration). Adopt via `terraform import`.",
+		Description: "Configures an existing Orca GitLab shift-left integrated group (default policies, scan mode, PR/MR settings). The group must already be integrated (created by installing the Orca GitLab integration). Adopt via `terraform import`. Schema follows the Shift-Left API; the GitLab UI may expose fewer `skip_check_runs` values than the account-level PUT accepts.",
 		Attributes:  attrs,
 	}
 }

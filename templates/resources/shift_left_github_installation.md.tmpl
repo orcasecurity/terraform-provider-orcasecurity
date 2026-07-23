@@ -8,6 +8,8 @@ description: |-
 
 {{ .Description | trimspace }}
 
+-> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
+
 ## Example Usage
 
 {{ tffile .ExampleFile }}

@@ -43,3 +43,4 @@ Read-Only:
 - `id` (String)
 - `installation_id` (String)
 - `installation_mode` (String)
+- `integration_status` (String) Live integration health from the API when present.

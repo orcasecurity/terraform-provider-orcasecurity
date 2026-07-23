@@ -21,7 +21,7 @@ func resourceSchema() rschema.Schema {
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
-		Description: "Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via `terraform import`.",
+		Description: "Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.",
 		Attributes:  attrs,
 	}
 }

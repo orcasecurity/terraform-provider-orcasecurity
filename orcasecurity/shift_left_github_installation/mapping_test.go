@@ -11,7 +11,8 @@ import (
 func TestApiToState_MirrorsInstallationID(t *testing.T) {
 	inst := &api_client.GithubInstallation{
 		ID: "abc", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
-		Policies: []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		IntegrationStatus: "ENABLED",
+		Policies:          []api_client.ScmPolicyRef{{ID: "pol-1"}},
 	}
 	st := apiToState(inst)
 	if st.ID.ValueString() != "abc" || st.InstallationID.ValueString() != "abc" {
@@ -20,5 +21,11 @@ func TestApiToState_MirrorsInstallationID(t *testing.T) {
 	elems := st.PoliciesIds.Elements()
 	if len(elems) != 1 || elems[0].(types.String).ValueString() != "pol-1" {
 		t.Errorf("policies_ids wrong: %+v", st.PoliciesIds)
+	}
+	if st.IntegrationStatus.ValueString() != "ENABLED" {
+		t.Errorf("integration_status: got %v", st.IntegrationStatus)
+	}
+	if !st.ProjectID.IsNull() {
+		t.Errorf("unbound project_id must be null, got %#v", st.ProjectID)
 	}
 }

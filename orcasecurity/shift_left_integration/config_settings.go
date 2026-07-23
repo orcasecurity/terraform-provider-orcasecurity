@@ -84,7 +84,7 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 		Optional:    true,
 		Computed:    true,
 		ElementType: types.StringType,
-		Description: "Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions).",
+		Description: "Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO.",
 		Validators: []validator.List{
 			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
 		},
@@ -93,9 +93,9 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 		Optional:    true,
 		Computed:    true,
 		ElementType: types.StringType,
-		Description: "Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions).",
+		Description: "Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO (same as archive_conditions).",
 		Validators: []validator.List{
-			listvalidator.ValueStringsAre(stringvalidator.OneOf("DELETE_REPO")),
+			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
 		},
 	}
 

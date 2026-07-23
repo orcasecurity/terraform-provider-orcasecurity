@@ -26,7 +26,7 @@ func resourceSchema() rschema.Schema {
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
-		Description: "Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via `terraform import`.",
+		Description: "Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).",
 		Attributes:  attrs,
 	}
 }

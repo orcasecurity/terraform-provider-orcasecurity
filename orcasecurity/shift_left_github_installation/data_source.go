@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -31,35 +32,31 @@ func (ds *installationsDataSource) Metadata(_ context.Context, req datasource.Me
 	resp.TypeName = req.ProviderTypeName + "_shift_left_github_installations"
 }
 
-func (ds *installationsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (ds *installationsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
 	ds.apiClient = req.ProviderData.(*api_client.APIClient)
 }
 
-var installationAttrTypes = map[string]attr.Type{
-	"id":                types.StringType,
-	"installation_id":   types.StringType,
-	"account_name":      types.StringType,
-	"installation_mode": types.StringType,
-	"default_policies":  types.BoolType,
+func installationAttrTypes() map[string]attr.Type {
+	attrs := shift_left_integration.SharedScmListUnitAttrTypes()
+	attrs["id"] = types.StringType
+	attrs["installation_id"] = types.StringType
+	return attrs
 }
 
 func (ds *installationsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	nested := shift_left_integration.SharedScmListUnitAttrs()
+	nested["id"] = dschema.StringAttribute{Computed: true}
+	nested["installation_id"] = dschema.StringAttribute{Computed: true}
 	resp.Schema = dschema.Schema{
 		Description: "Lists all Orca GitHub shift-left installations for fleet-wide for_each.",
 		Attributes: map[string]dschema.Attribute{
 			"installations": dschema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: dschema.NestedAttributeObject{
-					Attributes: map[string]dschema.Attribute{
-						"id":                dschema.StringAttribute{Computed: true},
-						"installation_id":   dschema.StringAttribute{Computed: true},
-						"account_name":      dschema.StringAttribute{Computed: true},
-						"installation_mode": dschema.StringAttribute{Computed: true},
-						"default_policies":  dschema.BoolAttribute{Computed: true},
-					},
+					Attributes: nested,
 				},
 			},
 		},
@@ -67,26 +64,18 @@ func (ds *installationsDataSource) Schema(_ context.Context, _ datasource.Schema
 }
 
 func installationsToListValue(insts []api_client.GithubInstallation) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	elemType := types.ObjectType{AttrTypes: installationAttrTypes}
-	elems := make([]attr.Value, len(insts))
+	attrTypes := installationAttrTypes()
+	elems := make([]map[string]attr.Value, len(insts))
 	for i, in := range insts {
-		obj, d := types.ObjectValue(installationAttrTypes, map[string]attr.Value{
-			"id":                types.StringValue(in.ID),
-			"installation_id":   types.StringValue(in.ID),
-			"account_name":      types.StringValue(in.AccountName),
-			"installation_mode": types.StringValue(in.InstallationMode),
-			"default_policies":  types.BoolValue(in.DefaultPolicies),
-		})
-		diags.Append(d...)
-		elems[i] = obj
+		m := shift_left_integration.SharedScmListUnitValues(in.AccountName, in.InstallationMode, in.IntegrationStatus, in.DefaultPolicies)
+		m["id"] = types.StringValue(in.ID)
+		m["installation_id"] = types.StringValue(in.ID)
+		elems[i] = m
 	}
-	list, d := types.ListValue(elemType, elems)
-	diags.Append(d...)
-	return list, diags
+	return shift_left_integration.ObjectListFromValues(attrTypes, elems)
 }
 
-func (ds *installationsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (ds *installationsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
 	insts, err := ds.apiClient.ListGithubInstallations()
 	if err != nil {
 		resp.Diagnostics.AddError("Error listing GitHub installations", err.Error())

@@ -3,14 +3,15 @@ package api_client
 import "fmt"
 
 type AzureDevopsAccount struct {
-	ID               string                  `json:"id"`
-	InstallationID   string                  `json:"installation_id,omitempty"`
-	AccountName      string                  `json:"account_name"`
-	InstallationMode string                  `json:"installation_mode,omitempty"`
-	DefaultPolicies  bool                    `json:"default_policies"`
-	Policies         []ScmPolicyRef          `json:"policies,omitempty"`
-	Project          *ScmProjectRef          `json:"project,omitempty"`
-	ConfigSettings   ShiftLeftConfigSettings `json:"configuration_settings"`
+	ID                string                  `json:"id"`
+	InstallationID    string                  `json:"installation_id,omitempty"`
+	AccountName       string                  `json:"account_name"`
+	InstallationMode  string                  `json:"installation_mode,omitempty"`
+	DefaultPolicies   bool                    `json:"default_policies"`
+	Policies          []ScmPolicyRef          `json:"policies,omitempty"`
+	Project           *ScmProjectRef          `json:"project,omitempty"`
+	IntegrationStatus string                  `json:"integration_status,omitempty"`
+	ConfigSettings    ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
 // ListAzureDevopsAccounts fans out across every Azure DevOps installation so

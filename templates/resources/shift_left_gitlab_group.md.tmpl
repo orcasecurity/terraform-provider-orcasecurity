@@ -8,6 +8,8 @@ description: |-
 
 {{ .Description | trimspace }}
 
+-> **API vs UI:** This resource follows the Shift-Left **API** contract. The GitLab UI may offer fewer `skip_check_runs` values than the account-level PUT accepts. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+
 ## Example Usage
 
 {{ tffile .ExampleFile }}

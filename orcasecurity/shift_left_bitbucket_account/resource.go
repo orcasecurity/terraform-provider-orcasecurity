@@ -2,16 +2,13 @@ package shift_left_bitbucket_account
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -19,6 +16,15 @@ var (
 	_ resource.ResourceWithConfigure   = &bitbucketAccountResource{}
 	_ resource.ResourceWithImportState = &bitbucketAccountResource{}
 )
+
+var bitbucketLabels = shift_left_integration.AdoptLabels{
+	NotFoundTitle:  "Bitbucket account not found",
+	NilReadTitle:   "Error reading bitbucket account after write",
+	NilReadDetail:  "The bitbucket account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+	ReadErrorTitle: "Error reading Bitbucket account",
+	DeleteLog:      "Removing Bitbucket account from state; the live integration is left untouched.",
+	MissingWarn:    "Bitbucket account %s missing remotely",
+}
 
 type bitbucketAccountResource struct {
 	apiClient *api_client.APIClient
@@ -30,11 +36,8 @@ func (r *bitbucketAccountResource) Metadata(_ context.Context, req resource.Meta
 	resp.TypeName = req.ProviderTypeName + "_shift_left_bitbucket_account"
 }
 
-func (r *bitbucketAccountResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	r.apiClient = req.ProviderData.(*api_client.APIClient)
+func (r *bitbucketAccountResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
 }
 
 func (r *bitbucketAccountResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -42,13 +45,7 @@ func (r *bitbucketAccountResource) Schema(_ context.Context, _ resource.SchemaRe
 }
 
 func (r *bitbucketAccountResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError("Invalid import ID", "expected <installation_id>/<account_id>")
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_id"), parts[1])...)
+	shift_left_integration.ImportSlashPair(ctx, req, resp, "installation_id", "account_id", "<installation_id>/<account_id>")
 }
 
 func (r *bitbucketAccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -60,21 +57,10 @@ func (r *bitbucketAccountResource) Create(ctx context.Context, req resource.Crea
 	}
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
-	acc, err := r.write(installationID, accountID, plan, config)
-	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
-		resp.Diagnostics.AddError("Bitbucket account not found",
-			fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Bitbucket account first, then import.", accountID, installationID))
-		return
-	}
-	if err != nil {
-		resp.Diagnostics.AddError("Error configuring Bitbucket account", err.Error())
-		return
-	}
+	acc := r.adopt(&resp.Diagnostics, installationID, accountID, plan, config,
+		fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Bitbucket account first, then import.", accountID, installationID),
+		"Error configuring Bitbucket account")
 	if acc == nil {
-		resp.Diagnostics.AddError(
-			"Error reading bitbucket account after write",
-			"The bitbucket account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-		)
 		return
 	}
 	state := apiToState(acc)
@@ -87,14 +73,15 @@ func (r *bitbucketAccountResource) Read(ctx context.Context, req resource.ReadRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	acc, err := r.apiClient.GetBitbucketAccount(state.InstallationID.ValueString(), state.AccountID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Bitbucket account", err.Error())
-		return
-	}
+	installationID := state.InstallationID.ValueString()
+	accountID := state.AccountID.ValueString()
+	acc := shift_left_integration.ReadUnit(ctx, &resp.Diagnostics, bitbucketLabels, accountID,
+		func() (*api_client.BitbucketAccount, error) {
+			return r.apiClient.GetBitbucketAccount(installationID, accountID)
+		},
+		resp.State.RemoveResource,
+	)
 	if acc == nil {
-		tflog.Warn(ctx, fmt.Sprintf("Bitbucket account %s missing remotely", state.AccountID.ValueString()))
-		resp.State.RemoveResource(ctx)
 		return
 	}
 	newState := apiToState(acc)
@@ -110,36 +97,25 @@ func (r *bitbucketAccountResource) Update(ctx context.Context, req resource.Upda
 	}
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
-	acc, err := r.write(installationID, accountID, plan, config)
-	if errors.Is(err, shift_left_integration.ErrUnitNotFound) {
-		resp.Diagnostics.AddError("Bitbucket account not found",
-			fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID))
-		return
-	}
-	if err != nil {
-		resp.Diagnostics.AddError("Error updating Bitbucket account", err.Error())
-		return
-	}
+	acc := r.adopt(&resp.Diagnostics, installationID, accountID, plan, config,
+		fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID),
+		"Error updating Bitbucket account")
 	if acc == nil {
-		resp.Diagnostics.AddError(
-			"Error reading bitbucket account after write",
-			"The bitbucket account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-		)
 		return
 	}
 	state := apiToState(acc)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Delete removes the resource from state only. The Bitbucket integrated account
-// is not owned by Terraform and is left untouched.
-func (r *bitbucketAccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	tflog.Info(ctx, "Removing Bitbucket account from state; the live integration is left untouched.")
+func (r *bitbucketAccountResource) Delete(ctx context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+	shift_left_integration.DeleteNoop(ctx, bitbucketLabels)
 }
 
-func (r *bitbucketAccountResource) write(installationID, accountID string, plan, config resourceModel) (*api_client.BitbucketAccount, error) {
-	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
-	return shift_left_integration.WriteAdopted(
+func (r *bitbucketAccountResource) adopt(
+	diags *diag.Diagnostics, installationID, accountID string, plan, config resourceModel, notFoundMsg, writeTitle string,
+) *api_client.BitbucketAccount {
+	return shift_left_integration.AdoptWrite(
+		diags, bitbucketLabels, notFoundMsg, writeTitle,
 		func() (*api_client.BitbucketAccount, error) {
 			return r.apiClient.GetBitbucketAccount(installationID, accountID)
 		},
@@ -149,6 +125,7 @@ func (r *bitbucketAccountResource) write(installationID, accountID string, plan,
 		func(u *api_client.BitbucketAccount) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
 		},
-		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project,
+		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings,
+		shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
 	)
 }

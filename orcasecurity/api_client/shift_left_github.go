@@ -56,6 +56,7 @@ type GithubInstallation struct {
 	DefaultPolicies      bool                    `json:"default_policies"`
 	Policies             []ScmPolicyRef          `json:"policies,omitempty"`
 	Project              *ScmProjectRef          `json:"project,omitempty"`
+	IntegrationStatus    string                  `json:"integration_status,omitempty"`
 	ConfigSettings       ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 

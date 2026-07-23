@@ -8,16 +8,13 @@ import (
 )
 
 func apiToState(inst *api_client.BitbucketAccount) resourceModel {
-	cs := shift_left_integration.FlattenConfigSettings(inst.ConfigSettings)
 	return resourceModel{
-		ID:               types.StringValue(inst.ID),
-		InstallationID:   types.StringValue(inst.InstallationID),
-		AccountID:        types.StringValue(inst.ID),
-		AccountName:      types.StringValue(inst.AccountName),
-		InstallationMode: types.StringValue(inst.InstallationMode),
-		DefaultPolicies:  types.BoolValue(inst.DefaultPolicies),
-		PoliciesIds:      shift_left_integration.PolicyIDsFromRefs(inst.Policies),
-		ProjectID:        types.StringValue(api_client.ProjectRefID(inst.Project)),
-		ConfigSettings:   &cs,
+		ID:             types.StringValue(inst.ID),
+		InstallationID: types.StringValue(inst.InstallationID),
+		AccountID:      types.StringValue(inst.ID),
+		ScmConfigFields: shift_left_integration.ScmConfigFieldsFromAPI(
+			inst.AccountName, inst.IntegrationStatus, inst.InstallationMode,
+			inst.DefaultPolicies, inst.Policies, inst.Project, inst.ConfigSettings,
+		),
 	}
 }
