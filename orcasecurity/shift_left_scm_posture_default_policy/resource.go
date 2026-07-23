@@ -25,6 +25,12 @@ var (
 	_ resource.ResourceWithImportState = &defaultPolicyResource{}
 )
 
+// Diagnostic summaries shared by every CRUD path of the singleton.
+const (
+	errReadDefaultPolicy   = "Error reading SCM posture default policy"
+	errUpdateDefaultPolicy = "Error updating SCM posture default policy"
+)
+
 type defaultPolicyResource struct {
 	apiClient *api_client.APIClient
 }
@@ -112,7 +118,7 @@ func (r *defaultPolicyResource) ImportState(ctx context.Context, _ resource.Impo
 	// follow-up Read.
 	live, err := r.apiClient.GetScmPostureDefaultPolicy()
 	if err != nil {
-		resp.Diagnostics.AddError("Error reading SCM posture default policy", err.Error())
+		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, apiToState(live))...)
@@ -124,7 +130,7 @@ func (r *defaultPolicyResource) ImportState(ctx context.Context, _ resource.Impo
 func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnostics) *resourceModel {
 	live, err := r.apiClient.GetScmPostureDefaultPolicy()
 	if err != nil {
-		diags.AddError("Error reading SCM posture default policy", err.Error())
+		diags.AddError(errReadDefaultPolicy, err.Error())
 		return nil
 	}
 
@@ -140,7 +146,7 @@ func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnosti
 
 	updated, err := r.apiClient.UpdateScmPostureDefaultPolicy(body)
 	if err != nil {
-		diags.AddError("Error updating SCM posture default policy", err.Error())
+		diags.AddError(errUpdateDefaultPolicy, err.Error())
 		return nil
 	}
 	state := apiToState(updated)
@@ -173,7 +179,7 @@ func (r *defaultPolicyResource) Read(ctx context.Context, req resource.ReadReque
 	}
 	live, err := r.apiClient.GetScmPostureDefaultPolicy()
 	if err != nil {
-		resp.Diagnostics.AddError("Error reading SCM posture default policy", err.Error())
+		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
 		return
 	}
 	newState := apiToState(live)
