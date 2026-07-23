@@ -81,13 +81,17 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	policyType := plan.Type.ValueString()
-	if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
-		resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
-		return
-	}
-	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
-		resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
-		return
+	// malicious_packages has no controls and no catalog endpoint (policy_data is
+	// always {}), so skip catalog expansion/enrichment which would 404 for it.
+	if policyType != "malicious_packages" {
+		if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
+			resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
+			return
+		}
+		if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
+			resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
+			return
+		}
 	}
 
 	instance, err := r.apiClient.CreateShiftLeftPolicy(policyType, apiPolicy)
@@ -162,13 +166,17 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 
 	policyType := plan.Type.ValueString()
 	policyID := plan.ID.ValueString()
-	if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
-		resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
-		return
-	}
-	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
-		resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
-		return
+	// malicious_packages has no controls and no catalog endpoint (policy_data is
+	// always {}), so skip catalog expansion/enrichment which would 404 for it.
+	if policyType != "malicious_packages" {
+		if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
+			resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
+			return
+		}
+		if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
+			resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
+			return
+		}
 	}
 
 	_, err := r.apiClient.UpdateShiftLeftPolicy(policyType, policyID, apiPolicy)
