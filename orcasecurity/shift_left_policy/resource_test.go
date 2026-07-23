@@ -1,9 +1,12 @@
 package shift_left_policy_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -185,4 +188,133 @@ func importPolicyID(resourceName string) resource.ImportStateIdFunc {
 		policyID := rs.Primary.ID
 		return policyType + "/" + policyID, nil
 	}
+}
+
+// TestAccShiftLeftPolicyResource_BuiltinAttachProjects exercises the relaxed
+// built-in guard: built-in policies cannot be Created by Terraform (Create
+// would POST a brand new policy), so the only way to exercise Update's
+// projects_ids-only allowance is an import-then-apply flow against a real
+// built-in policy that already exists in the org.
+//
+// The test captures the live policy's current attached projects before
+// mutating anything, only ever *adds* the scratch project (never replaces
+// the existing attachment list), and restores the original list afterward.
+// The final step uses a `removed` block (Terraform >= 1.7) instead of letting
+// the resource fall out of config, because a real `terraform destroy` on a
+// built-in policy is expected to always fail (Delete blocks it) -- forcing an
+// actual destroy here would make this test permanently red for reasons
+// unrelated to correctness, since terraform-plugin-testing always attempts a
+// final destroy of anything left in state at the end of resource.Test.
+func TestAccShiftLeftPolicyResource_BuiltinAttachProjects(t *testing.T) {
+	builtinType := os.Getenv("ORCA_TEST_BUILTIN_POLICY_TYPE")
+	builtinID := os.Getenv("ORCA_TEST_BUILTIN_POLICY_ID")
+	projectID := os.Getenv("ORCA_TEST_PROJECT_ID")
+	if builtinType == "" || builtinID == "" || projectID == "" {
+		t.Skip("Set ORCA_TEST_BUILTIN_POLICY_TYPE, ORCA_TEST_BUILTIN_POLICY_ID and ORCA_TEST_PROJECT_ID to run the built-in projects-attach acceptance test")
+	}
+	if builtinType != "licenses" && builtinType != "sca" {
+		t.Skipf("this test only knows how to render the type-specific block for licenses/sca built-ins, got %q", builtinType)
+	}
+
+	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
+	token := os.Getenv("ORCASECURITY_API_TOKEN")
+	client, err := api_client.NewAPIClient(&endpoint, &token)
+	if err != nil {
+		t.Fatalf("failed to build a setup API client: %s", err)
+	}
+
+	original, err := client.GetShiftLeftPolicy(builtinType, builtinID)
+	if err != nil || original == nil {
+		t.Fatalf("failed to read built-in policy %s/%s before test: %v", builtinType, builtinID, err)
+	}
+
+	// GetShiftLeftPolicy's ProjectsIds field never populates from the read API
+	// shape (GET returns nested "projects": [{id,name,key}] objects, while the
+	// write side accepts "projects_ids": [ids]), so read the currently attached
+	// project ids directly from the raw body to capture a restorable baseline.
+	rawResp, err := client.Get(fmt.Sprintf("/api/shiftleft/%s/policies/%s/", builtinType, builtinID))
+	if err != nil {
+		t.Fatalf("failed to read raw built-in policy body: %s", err)
+	}
+	var raw struct {
+		Projects []struct {
+			ID string `json:"id"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(rawResp.Body(), &raw); err != nil {
+		t.Fatalf("failed to parse raw built-in policy body: %s", err)
+	}
+	originalProjectIDs := make([]string, 0, len(raw.Projects))
+	for _, p := range raw.Projects {
+		originalProjectIDs = append(originalProjectIDs, p.ID)
+	}
+
+	t.Cleanup(func() {
+		restore := *original
+		restore.ProjectsIds = originalProjectIDs
+		if _, err := client.UpdateShiftLeftPolicy(builtinType, builtinID, restore); err != nil {
+			t.Errorf("failed to restore built-in policy %s/%s project attachments after test: %s", builtinType, builtinID, err)
+		}
+	})
+
+	quoteAll := func(ids []string) string {
+		quoted := make([]string, len(ids))
+		for i, id := range ids {
+			quoted[i] = fmt.Sprintf("%q", id)
+		}
+		return strings.Join(quoted, ", ")
+	}
+
+	baseConfig := fmt.Sprintf(`
+resource "orcasecurity_shift_left_policy" "builtin" {
+  type                       = %q
+  name                       = %q
+  description                = %q
+  disabled                   = %t
+  warn_mode                  = %t
+  priority_failure_threshold = %q
+
+  %s {}
+`, builtinType, original.Name, original.Description, original.Disabled, original.WarnMode, original.PriorityFailureThreshold, builtinType)
+
+	importConfig := baseConfig + "}\n"
+	attachConfig := baseConfig + fmt.Sprintf("  projects_ids = [%s]\n}\n", quoteAll(append(append([]string{}, originalProjectIDs...), projectID)))
+	forgetConfig := `
+removed {
+  from = orcasecurity_shift_left_policy.builtin
+  lifecycle {
+    destroy = false
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// Import only: built-ins can't go through Create, so state is
+				// established the same way a real user would attach projects to
+				// an existing built-in -- import it, then apply projects_ids.
+				Config:             orcasecurity.TestProviderConfig + importConfig,
+				ResourceName:       "orcasecurity_shift_left_policy.builtin",
+				ImportState:        true,
+				ImportStatePersist: true,
+				ImportStateId:      builtinType + "/" + builtinID,
+			},
+			{
+				// Only projects_ids differs from the imported state; the relaxed
+				// built-in guard must allow this Update through.
+				Config: orcasecurity.TestProviderConfig + attachConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.builtin", "projects_ids.#", fmt.Sprintf("%d", len(originalProjectIDs)+1)),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_shift_left_policy.builtin", "projects_ids.*", projectID),
+				),
+			},
+			{
+				// Forget the resource (do not destroy it -- built-in Delete is
+				// intentionally always blocked; see the doc comment above).
+				Config: orcasecurity.TestProviderConfig + forgetConfig,
+			},
+		},
+	})
 }

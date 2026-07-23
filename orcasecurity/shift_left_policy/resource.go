@@ -138,12 +138,20 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	if plan.Builtin.ValueBool() {
-		resp.Diagnostics.AddError(
-			"Cannot update built-in policy",
-			"Built-in Orca policies cannot be modified via Terraform. Import only custom policies.",
-		)
+	var state shiftLeftPolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if plan.Builtin.ValueBool() {
+		if field, changed := builtinNonProjectFieldChanged(&plan, &state); changed {
+			resp.Diagnostics.AddError(
+				"Cannot modify built-in policy",
+				fmt.Sprintf("Built-in Orca policies allow changing only projects_ids via Terraform; field %q cannot be modified.", field),
+			)
+			return
+		}
 	}
 
 	apiPolicy, diags := planToAPI(&plan)
@@ -175,8 +183,8 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	state := stateFromPlanAfterWrite(&plan, instance)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	newState := stateFromPlanAfterWrite(&plan, instance)
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 }
 
 func (r *shiftLeftPolicyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

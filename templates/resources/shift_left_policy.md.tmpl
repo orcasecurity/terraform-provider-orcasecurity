@@ -128,10 +128,46 @@ resource "orcasecurity_shift_left_policy" "attached" {
 }
 ```
 
+### Attach a fleet of projects to a built-in policy
+
+Built-in Orca policies (for example the built-in "OSS Licenses Policy") cannot be
+created, renamed, or otherwise edited via Terraform, but -- just like in the Orca
+UI -- you can attach projects to one. Import the built-in policy first, then
+apply a configuration that changes only `projects_ids`; every other attribute
+must match the policy's current values exactly or the apply is rejected.
+
+```shell
+terraform import orcasecurity_shift_left_policy.licenses_builtin licenses/<policy-id>
+```
+
+```terraform
+resource "orcasecurity_shift_left_project" "fleet" {
+  for_each         = toset(["team-a", "team-b", "team-c"])
+  name             = each.value
+  key              = each.value
+  default_policies = false
+}
+
+resource "orcasecurity_shift_left_policy" "licenses_builtin" {
+  type                       = "licenses"
+  name                       = "OSS Licenses Policy"
+  description                = "Orca built-in open-source license compliance policy (Fail on disallowed or high-risk open source licenses)."
+  disabled                   = false
+  warn_mode                  = true
+  priority_failure_threshold = "HIGH"
+
+  # Bulk-attach the whole fleet by projecting ids out of a for_each collection.
+  projects_ids = [for p in orcasecurity_shift_left_project.fleet : p.id]
+
+  licenses {}
+}
+```
+
 ## Update and delete
 
 - **Update**: change any attribute (for example `name`, `description`, `warn_mode`, `priority_failure_threshold`, `disabled`, `projects_ids`, or the controls) and re-apply.
 - **Delete**: remove the resource from configuration (or run `terraform destroy`) and apply.
+- **Built-in policies**: only `projects_ids` can be changed via Terraform (mirroring what the Orca UI allows); changing any other attribute is rejected, and built-in policies can never be deleted via Terraform.
 
 ## Import
 
@@ -147,7 +183,7 @@ terraform import orcasecurity_shift_left_policy.example iac/<policy-id>
 
 After importing, run `terraform plan` and copy the populated control blocks into your configuration so the plan is empty.
 
-~> **Note:** Built-in Orca policies cannot be updated or deleted via Terraform; import and manage only custom policies.
+~> **Note:** Built-in Orca policies can only have `projects_ids` changed via Terraform; every other attribute is read-only for built-ins and any other change is rejected. Built-in policies can never be deleted via Terraform. Because built-ins already exist outside of Terraform, always `terraform import` a built-in before changing its `projects_ids` -- Create would otherwise attempt to POST a brand new policy.
 
 -> **Note:** Custom controls are identified by their `title`. Keep custom control titles unique within a section, and do not reuse a catalog control title for a custom control (a matching title is resolved to the catalog control).
 
