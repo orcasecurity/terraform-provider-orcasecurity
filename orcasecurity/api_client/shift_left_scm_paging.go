@@ -39,6 +39,28 @@ type scmCacheEntry struct {
 	data any
 }
 
+func loadScmListCache[T any](client *APIClient, basePath string, gen uint64) ([]T, bool) {
+	cached, ok := client.scmListCache.Load(basePath)
+	if !ok {
+		return nil, false
+	}
+	entry, ok := cached.(scmCacheEntry)
+	if !ok || entry.gen != gen {
+		return nil, false
+	}
+	pages, ok := entry.data.([]T)
+	if !ok {
+		return nil, false
+	}
+	return pages, true
+}
+
+func storeScmListCacheIfCurrent[T any](client *APIClient, basePath string, startGen uint64, all []T) {
+	if client.scmListGen.Load() == startGen {
+		client.scmListCache.Store(basePath, scmCacheEntry{gen: startGen, data: all})
+	}
+}
+
 // listScmUnitsByInstallation is required to obtain installation_id for for_each; global lists omit it.
 func listScmUnitsByInstallation[T any, PT interface {
 	*T
@@ -103,12 +125,8 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 	// bumping this generation; a store guarded by the snapshot is dropped when it
 	// no longer matches, so a stale read cannot repopulate the cache.
 	startGen := client.scmListGen.Load()
-	if cached, ok := client.scmListCache.Load(basePath); ok {
-		if entry, ok := cached.(scmCacheEntry); ok && entry.gen == startGen {
-			if pages, ok := entry.data.([]T); ok {
-				return pages, nil
-			}
-		}
+	if pages, ok := loadScmListCache[T](client, basePath, startGen); ok {
+		return pages, nil
 	}
 
 	const pageLimit = 200
@@ -126,9 +144,7 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 		if len(env.Data) == 0 || len(all) >= env.TotalItems {
 			// Only cache if no invalidation happened during the fetch; otherwise
 			// these pages predate the write and must not be resurrected.
-			if client.scmListGen.Load() == startGen {
-				client.scmListCache.Store(basePath, scmCacheEntry{gen: startGen, data: all})
-			}
+			storeScmListCacheIfCurrent(client, basePath, startGen, all)
 			return all, nil
 		}
 	}
