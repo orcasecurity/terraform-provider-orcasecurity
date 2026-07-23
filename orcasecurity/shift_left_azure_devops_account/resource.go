@@ -17,14 +17,7 @@ var (
 	_ resource.ResourceWithImportState = &azureDevopsAccountResource{}
 )
 
-var azureLabels = shift_left_integration.AdoptLabels{
-	NotFoundTitle:  "Azure DevOps account not found",
-	NilReadTitle:   "Error reading azure devops account after write",
-	NilReadDetail:  "The azure devops account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-	ReadErrorTitle: "Error reading Azure DevOps account",
-	DeleteLog:      "Removing Azure DevOps account from state; the live integration is left untouched.",
-	MissingWarn:    "Azure DevOps account %s missing remotely",
-}
+var azureLabels = shift_left_integration.NewAdoptLabels("Azure DevOps account")
 
 type azureDevopsAccountResource struct {
 	apiClient *api_client.APIClient

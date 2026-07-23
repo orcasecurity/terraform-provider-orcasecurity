@@ -17,37 +17,6 @@ func TestShiftLeftPolicyTypePath(t *testing.T) {
 	}
 }
 
-func TestDoesShiftLeftPolicyExist_Head500FallsBackToGet(t *testing.T) {
-	var methods []string
-	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		methods = append(methods, req.Method)
-		if req.Method == "HEAD" {
-			return &http.Response{
-				StatusCode: 500,
-				Body:       io.NopCloser(strings.NewReader(``)),
-				Header:     make(http.Header),
-			}
-		}
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(`{"id":"scm-1","name":"scm"}`)),
-			Header:     make(http.Header),
-		}
-	})}
-
-	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := client.DoesShiftLeftPolicyExist("scm_posture", "scm-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !exists {
-		t.Fatal("expected policy to exist via GET fallback")
-	}
-	if len(methods) < 2 || methods[0] != "HEAD" || methods[1] != "GET" {
-		t.Fatalf("expected HEAD then GET, got %v", methods)
-	}
-}
-
 func TestGetShiftLeftPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "GET" {
@@ -111,32 +80,14 @@ func TestDeleteShiftLeftPolicy(t *testing.T) {
 	}
 }
 
-func TestDoesShiftLeftPolicyExist(t *testing.T) {
+// TestGetShiftLeftPolicy_NotFoundReturnsNil pins the drift contract: a 404
+// yields (nil, nil) so the resource Read removes the policy from state and the
+// plan recreates it, rather than surfacing an error.
+func TestGetShiftLeftPolicy_NotFoundReturnsNil(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.Method != "HEAD" {
-			t.Errorf("expected HEAD, got %s", req.Method)
+		if req.Method != "GET" {
+			t.Errorf("reads must use GET (HEAD 5xxes on some policy types), got %s", req.Method)
 		}
-		if req.URL.Path != "/api/shiftleft/iac/policies/policy-123/" {
-			t.Errorf("unexpected path: %s", req.URL.Path)
-		}
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(``)),
-		}
-	})}
-
-	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := client.DoesShiftLeftPolicyExist("iac", "policy-123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !exists {
-		t.Error("expected policy to exist for 200 response")
-	}
-}
-
-func TestDoesShiftLeftPolicyExist_NotFound(t *testing.T) {
-	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
 			Body:       io.NopCloser(strings.NewReader(``)),
@@ -144,12 +95,32 @@ func TestDoesShiftLeftPolicyExist_NotFound(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	exists, err := client.DoesShiftLeftPolicyExist("iac", "missing")
+	policy, err := client.GetShiftLeftPolicy("iac", "missing")
 	if err != nil {
 		t.Fatalf("expected no error on 404 so the plan recreates the resource, got: %v", err)
 	}
-	if exists {
-		t.Error("expected policy not to exist for 404 response")
+	if policy != nil {
+		t.Errorf("expected nil policy for 404 response, got %+v", policy)
+	}
+}
+
+// TestGetShiftLeftPolicy_ServerErrorIsError pins that a transient 5xx is an
+// error (surfaced as a diagnostic), never mistaken for "policy deleted".
+func TestGetShiftLeftPolicy_ServerErrorIsError(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 500,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"boom"}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	policy, err := client.GetShiftLeftPolicy("iac", "policy-123")
+	if err == nil {
+		t.Fatal("expected an error for a 500 response")
+	}
+	if policy != nil {
+		t.Errorf("expected nil policy alongside the error, got %+v", policy)
 	}
 }
 

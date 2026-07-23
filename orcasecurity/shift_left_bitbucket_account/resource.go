@@ -17,14 +17,7 @@ var (
 	_ resource.ResourceWithImportState = &bitbucketAccountResource{}
 )
 
-var bitbucketLabels = shift_left_integration.AdoptLabels{
-	NotFoundTitle:  "Bitbucket account not found",
-	NilReadTitle:   "Error reading bitbucket account after write",
-	NilReadDetail:  "The bitbucket account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-	ReadErrorTitle: "Error reading Bitbucket account",
-	DeleteLog:      "Removing Bitbucket account from state; the live integration is left untouched.",
-	MissingWarn:    "Bitbucket account %s missing remotely",
-}
+var bitbucketLabels = shift_left_integration.NewAdoptLabels("Bitbucket account")
 
 type bitbucketAccountResource struct {
 	apiClient *api_client.APIClient

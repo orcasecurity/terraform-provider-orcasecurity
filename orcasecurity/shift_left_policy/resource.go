@@ -114,20 +114,14 @@ func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadReq
 	policyType := state.Type.ValueString()
 	policyID := state.ID.ValueString()
 
-	exists, err := r.apiClient.DoesShiftLeftPolicyExist(policyType, policyID)
+	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading AppSec policy", fmt.Sprintf("Could not read policy %s/%s: %s", policyType, policyID, err.Error()))
 		return
 	}
-	if !exists {
+	if instance == nil {
 		tflog.Warn(ctx, fmt.Sprintf("AppSec policy %s/%s is missing on the remote side.", policyType, policyID))
 		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading AppSec policy", "Could not read policy: "+err.Error())
 		return
 	}
 

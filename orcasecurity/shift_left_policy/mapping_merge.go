@@ -143,29 +143,6 @@ func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
 	}
 }
 
-func mergeStateFromPlan(state, plan *shiftLeftPolicyResourceModel) {
-	switch plan.Type.ValueString() {
-	case "iac":
-		mergeIacBlockFromPlan(state.Iac, plan.Iac)
-	case "sast":
-		mergeSastBlockFromPlan(state.Sast, plan.Sast)
-	case "file_system":
-		mergeControlsBlockFromPlan(state.FileSystem, plan.FileSystem)
-	case "file_system_vulnerabilities":
-		mergeControlsBlockFromPlan(state.FileSystemVulnerabilities, plan.FileSystemVulnerabilities)
-	case "file_system_secret_detection":
-		mergeControlsBlockFromPlan(state.FileSystemSecretDetection, plan.FileSystemSecretDetection)
-	case "container_image":
-		mergeContainerImageFromPlan(state.ContainerImage, plan.ContainerImage)
-	case "licenses":
-		mergeLicensesBlockFromPlan(state.Licenses, plan.Licenses)
-	case "sca":
-		mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
-	case "scm_posture":
-		mergeScmPostureBlockFromPlan(state.ScmPosture, plan.ScmPosture)
-	}
-}
-
 func mergeScmPostureBlockFromPlan(dst, src *scmPostureBlockModel) {
 	if dst == nil || src == nil {
 		return

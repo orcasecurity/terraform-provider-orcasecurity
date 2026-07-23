@@ -297,31 +297,6 @@ func resolveControls(apiPolicy *api_client.ShiftLeftPolicy, policyData map[strin
 	return controls
 }
 
-func applyTypeBlockToState(model *shiftLeftPolicyResourceModel, policyType string, apiPolicy *api_client.ShiftLeftPolicy, policyData map[string]interface{}, controls []map[string]interface{}) {
-	switch policyType {
-	case "iac":
-		model.Iac = buildIacBlock(controls)
-	case "sast":
-		model.Sast = buildSastBlock(controls)
-	case "file_system":
-		model.FileSystem = buildControlsBlock(controls)
-	case "file_system_vulnerabilities":
-		model.FileSystemVulnerabilities = buildControlsBlock(controls)
-	case "file_system_secret_detection":
-		model.FileSystemSecretDetection = buildControlsBlock(controls)
-	case "container_image":
-		model.ContainerImage = buildContainerImageBlock(apiPolicy, policyData, controls)
-	case "scm_posture":
-		model.ScmPosture = buildScmPostureBlock(apiPolicy, controls)
-	case "licenses":
-		model.Licenses = buildLicensesBlock(controls)
-	case "sca":
-		model.Sca = buildLicensesBlock(controls)
-	case "malicious_packages":
-		// No controls to populate.
-	}
-}
-
 func mapToLicenseControl(m map[string]interface{}) licenseControlModel {
 	return licenseControlModel{
 		baseControlModel: mapToBaseControl(m),

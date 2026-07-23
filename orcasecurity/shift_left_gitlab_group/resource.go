@@ -17,14 +17,7 @@ var (
 	_ resource.ResourceWithImportState = &gitlabGroupResource{}
 )
 
-var gitlabLabels = shift_left_integration.AdoptLabels{
-	NotFoundTitle:  "GitLab group not found",
-	NilReadTitle:   "Error reading gitlab group after write",
-	NilReadDetail:  "The gitlab group was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-	ReadErrorTitle: "Error reading GitLab group",
-	DeleteLog:      "Removing GitLab group from state; the live integration is left untouched.",
-	MissingWarn:    "GitLab group %s missing remotely",
-}
+var gitlabLabels = shift_left_integration.NewAdoptLabels("GitLab group")
 
 type gitlabGroupResource struct {
 	apiClient *api_client.APIClient

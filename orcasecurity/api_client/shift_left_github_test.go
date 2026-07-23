@@ -13,7 +13,7 @@ func TestScmInstallationUpdate_MarshalShape(t *testing.T) {
 		ConfigSettings: ShiftLeftConfigSettings{
 			DisableScanPullRequests: false,
 			CommentsOnPullRequests:  "ALWAYS",
-			PrSummaryComment:        "ONLY_ON_FAILED_SCAN",
+			PrSummaryComment:        "ONLY_ON_FAILED_ISSUES",
 			SkipCheckRuns:           "ALWAYS",
 			ConfigFileSupport:       "ENABLED",
 		},
@@ -30,8 +30,19 @@ func TestScmInstallationUpdate_MarshalShape(t *testing.T) {
 		}
 	}
 	cs := got["configuration_settings"].(map[string]interface{})
-	if cs["pr_summary_comment"] != "ONLY_ON_FAILED_SCAN" {
+	if cs["pr_summary_comment"] != "ONLY_ON_FAILED_ISSUES" {
 		t.Errorf("configuration_settings.pr_summary_comment wrong: %v", cs["pr_summary_comment"])
+	}
+	// The API requires these on every PUT (UpdateConfigurationSettingsRequest),
+	// so the marshaled body must always carry them, even at zero values.
+	for _, k := range []string{
+		"disable_scan_pull_requests", "comments_on_pull_requests",
+		"pr_summary_comment", "skip_check_runs", "config_file_support",
+		"pr_summary_appendix",
+	} {
+		if _, ok := cs[k]; !ok {
+			t.Errorf("missing required configuration_settings key %q in %s", k, raw)
+		}
 	}
 }
 

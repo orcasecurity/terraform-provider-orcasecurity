@@ -14,46 +14,32 @@ type AzureDevopsAccount struct {
 	ConfigSettings    ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+func (a *AzureDevopsAccount) unitID() string { return a.ID }
+
+func (a *AzureDevopsAccount) stampInstallationID(id string) {
+	if a.InstallationID == "" {
+		a.InstallationID = id
+	}
+}
+
+func azureDevopsAccountsPath(installationID string) string {
+	return fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/", installationID)
+}
+
 // ListAzureDevopsAccounts fans out across every Azure DevOps installation so
 // each account carries its installation_id (the global
 // /azure_devops/integrated_accounts/ endpoint omits it, which breaks the
 // config-resource for_each workflow).
 func (client *APIClient) ListAzureDevopsAccounts() ([]AzureDevopsAccount, error) {
-	return listScmUnitsByInstallation[AzureDevopsAccount](
-		client,
-		"/api/shiftleft/azure_devops/installations/",
-		func(installationID string) string {
-			return fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/", installationID)
-		},
-		func(a *AzureDevopsAccount, installationID string) {
-			if a.InstallationID == "" {
-				a.InstallationID = installationID
-			}
-		},
-	)
+	return listScmUnitsByInstallation[AzureDevopsAccount](client, "/api/shiftleft/azure_devops/installations/", azureDevopsAccountsPath)
 }
 
 // GetAzureDevopsAccount reads via list-filter on the installation-scoped list.
 func (client *APIClient) GetAzureDevopsAccount(installationID, accountID string) (*AzureDevopsAccount, error) {
-	all, err := getAllScmPages[AzureDevopsAccount](client, fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/", installationID))
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == accountID {
-			if all[i].InstallationID == "" {
-				all[i].InstallationID = installationID
-			}
-			return &all[i], nil
-		}
-	}
-	return nil, nil // not found -> caller treats nil as drift
+	return findScmUnit[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID), installationID, accountID)
 }
 
 func (client *APIClient) UpdateAzureDevopsAccount(installationID, accountID string, body ScmInstallationUpdate) (*AzureDevopsAccount, error) {
-	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/%s/", installationID, accountID), body); err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	return client.GetAzureDevopsAccount(installationID, accountID)
+	updatePath := fmt.Sprintf("%s%s/", azureDevopsAccountsPath(installationID), accountID)
+	return updateScmUnit[AzureDevopsAccount](client, updatePath, azureDevopsAccountsPath(installationID), installationID, accountID, body)
 }

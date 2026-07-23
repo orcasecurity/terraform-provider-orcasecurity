@@ -146,6 +146,36 @@ func TestAdopt_PoliciesIntentClearsProject(t *testing.T) {
 	}
 }
 
+// TestAdopt_RemapsLegacyScanAllMode asserts that hydrating installation_mode
+// from a legacy unit stored as SCAN_ALL sends SELECTED_REPOSITORIES instead:
+// the API rejects SCAN_ALL on update, and the UI applies the same remap.
+func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
+	ad := Adopt(
+		types.StringNull(), // installation_mode unset in config
+		types.BoolNull(),
+		types.SetNull(types.StringType),
+		nil,
+		ProjectIntent{},
+		ExistingUnit{InstallationMode: "SCAN_ALL", PolicyIDs: []string{"pol-1"}},
+	)
+	if ad.Body.InstallationMode != "SELECTED_REPOSITORIES" {
+		t.Fatalf("expected legacy SCAN_ALL remapped to SELECTED_REPOSITORIES, got %q", ad.Body.InstallationMode)
+	}
+	// An explicit user-set mode is never remapped (the schema validator already
+	// rejects SCAN_ALL in config).
+	ad = Adopt(
+		types.StringValue("SCAN_ALL_INCLUDE_FUTURE"),
+		types.BoolNull(),
+		types.SetNull(types.StringType),
+		nil,
+		ProjectIntent{},
+		ExistingUnit{InstallationMode: "SCAN_ALL"},
+	)
+	if ad.Body.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
+		t.Fatalf("expected user mode kept, got %q", ad.Body.InstallationMode)
+	}
+}
+
 // TestAdopt_MergesConfigSettings asserts the user overlay merges on top of the
 // live configuration_settings rather than replacing them wholesale.
 func TestAdopt_MergesConfigSettings(t *testing.T) {

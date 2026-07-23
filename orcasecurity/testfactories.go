@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
 
@@ -35,20 +37,19 @@ func TestAccPreCheck(t *testing.T) {
 }
 
 // RestoreScmBody builds the PUT body that restores an integrated SCM unit to a
-// previously snapshotted state. Mirrors the resource write path (project_id XOR
-// policies) so acceptance tests can revert a unit they mutated.
+// previously snapshotted state. It runs the snapshot through the resource's
+// canonical adopt write path (shift_left_integration.Adopt with an empty plan)
+// rather than re-implementing the project_id-XOR-policies rule, so restores
+// always follow the exact same contract as a real apply.
 func RestoreScmBody(mode string, defaultPolicies bool, policies []api_client.ScmPolicyRef, project *api_client.ScmProjectRef, cfg api_client.ShiftLeftConfigSettings) api_client.ScmInstallationUpdate {
-	body := api_client.ScmInstallationUpdate{
-		InstallationMode: mode,
-		DefaultPolicies:  defaultPolicies,
-		Policies:         api_client.PolicyRefIDs(policies),
-		ConfigSettings:   cfg,
-	}
-	if projectID := api_client.ProjectRefID(project); projectID != "" {
-		body.ProjectID = projectID
-		body.Policies = nil
-	}
-	return body
+	return shift_left_integration.Adopt(
+		types.StringNull(),
+		types.BoolNull(),
+		types.SetNull(types.StringType),
+		nil,
+		shift_left_integration.ProjectIntent{},
+		shift_left_integration.ExistingFromAPI(mode, defaultPolicies, policies, project, cfg),
+	).Body
 }
 
 // TestAPIClient builds an API client from the acceptance-test environment

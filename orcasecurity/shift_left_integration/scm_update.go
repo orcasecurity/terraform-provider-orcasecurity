@@ -36,6 +36,18 @@ func PolicyIDsToSet(ids []string) types.Set {
 	return types.SetValueMust(types.StringType, elems)
 }
 
+// normalizeInstallationMode maps the legacy stored mode SCAN_ALL to
+// SELECTED_REPOSITORIES. The API can still return SCAN_ALL on old units but
+// rejects it on update; the UI applies the same remap on every write
+// (commonAccountMappers.ts), so echoing the live value back verbatim would
+// 400 on every apply for a legacy unit.
+func normalizeInstallationMode(mode string) string {
+	if mode == "SCAN_ALL" {
+		return "SELECTED_REPOSITORIES"
+	}
+	return mode
+}
+
 // ExpandUpdate builds the shared PUT body from resolved plan values.
 // policies = default_policies ? [] : ids (matches preprocessAccountToUpdate in
 // the UI).
@@ -75,13 +87,21 @@ type ProjectIntent struct {
 	PoliciesIntent bool
 }
 
+// policiesIntent is the single definition of "the config explicitly chose
+// policies over a project binding": policies_ids or default_policies was set.
+// Shared by ProjectIntentFrom and the project_id plan modifier so the plan
+// and the apply can never disagree about the user's intent.
+func policiesIntent(policies types.Set, defaultPolicies types.Bool) bool {
+	return (!policies.IsNull() && !policies.IsUnknown()) ||
+		(!defaultPolicies.IsNull() && !defaultPolicies.IsUnknown())
+}
+
 // ProjectIntentFrom builds a ProjectIntent from a resource's CONFIG values
 // (config.project_id, config.policies_ids, config.default_policies).
 func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set, configDefault types.Bool) ProjectIntent {
 	return ProjectIntent{
-		FromConfig: configProjectID,
-		PoliciesIntent: (!configPolicies.IsNull() && !configPolicies.IsUnknown()) ||
-			(!configDefault.IsNull() && !configDefault.IsUnknown()),
+		FromConfig:     configProjectID,
+		PoliciesIntent: policiesIntent(configPolicies, configDefault),
 	}
 }
 
@@ -113,7 +133,7 @@ func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set
 
 	mode := planMode
 	if mode.IsNull() || mode.IsUnknown() {
-		mode = types.StringValue(ex.InstallationMode)
+		mode = types.StringValue(normalizeInstallationMode(ex.InstallationMode))
 	}
 	defaultPolicies := planDefault
 	if defaultPolicies.IsNull() || defaultPolicies.IsUnknown() {

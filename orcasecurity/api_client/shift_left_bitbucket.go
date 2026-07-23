@@ -14,45 +14,31 @@ type BitbucketAccount struct {
 	ConfigSettings    ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+func (a *BitbucketAccount) unitID() string { return a.ID }
+
+func (a *BitbucketAccount) stampInstallationID(id string) {
+	if a.InstallationID == "" {
+		a.InstallationID = id
+	}
+}
+
+func bitbucketAccountsPath(installationID string) string {
+	return fmt.Sprintf("/api/shiftleft/bitbucket/installations/%s/integrated_accounts/", installationID)
+}
+
 // ListBitbucketAccounts fans out across every Bitbucket installation since
 // there is no global integrated_accounts list endpoint: list installations,
 // then list each installation's integrated_accounts and concatenate.
 func (client *APIClient) ListBitbucketAccounts() ([]BitbucketAccount, error) {
-	return listScmUnitsByInstallation[BitbucketAccount](
-		client,
-		"/api/shiftleft/bitbucket/installations/",
-		func(installationID string) string {
-			return fmt.Sprintf("/api/shiftleft/bitbucket/installations/%s/integrated_accounts/", installationID)
-		},
-		func(a *BitbucketAccount, installationID string) {
-			if a.InstallationID == "" {
-				a.InstallationID = installationID
-			}
-		},
-	)
+	return listScmUnitsByInstallation[BitbucketAccount](client, "/api/shiftleft/bitbucket/installations/", bitbucketAccountsPath)
 }
 
 // GetBitbucketAccount reads via list-filter on the installation-scoped list.
 func (client *APIClient) GetBitbucketAccount(installationID, accountID string) (*BitbucketAccount, error) {
-	all, err := getAllScmPages[BitbucketAccount](client, fmt.Sprintf("/api/shiftleft/bitbucket/installations/%s/integrated_accounts/", installationID))
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == accountID {
-			if all[i].InstallationID == "" {
-				all[i].InstallationID = installationID
-			}
-			return &all[i], nil
-		}
-	}
-	return nil, nil // not found -> caller treats nil as drift
+	return findScmUnit[BitbucketAccount](client, bitbucketAccountsPath(installationID), installationID, accountID)
 }
 
 func (client *APIClient) UpdateBitbucketAccount(installationID, accountID string, body ScmInstallationUpdate) (*BitbucketAccount, error) {
-	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/bitbucket/installations/%s/integrated_accounts/%s/", installationID, accountID), body); err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	return client.GetBitbucketAccount(installationID, accountID)
+	updatePath := fmt.Sprintf("%s%s/", bitbucketAccountsPath(installationID), accountID)
+	return updateScmUnit[BitbucketAccount](client, updatePath, bitbucketAccountsPath(installationID), installationID, accountID, body)
 }

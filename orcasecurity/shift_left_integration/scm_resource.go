@@ -25,6 +25,21 @@ type AdoptLabels struct {
 	MissingWarn    string // sprintf: unit id
 }
 
+// NewAdoptLabels derives the standard adopt-resource error/log copy from a
+// unit display name (e.g. "GitHub installation", "Azure DevOps account"), so
+// per-provider packages declare one string instead of six formulaic messages.
+func NewAdoptLabels(displayName string) AdoptLabels {
+	lower := strings.ToLower(displayName)
+	return AdoptLabels{
+		NotFoundTitle:  displayName + " not found",
+		NilReadTitle:   "Error reading " + lower + " after write",
+		NilReadDetail:  "The " + lower + " was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		ReadErrorTitle: "Error reading " + displayName,
+		DeleteLog:      "Removing " + displayName + " from state; the live integration is left untouched.",
+		MissingWarn:    displayName + " %s missing remotely",
+	}
+}
+
 // ConfigureAPIClient extracts the API client from provider data.
 func ConfigureAPIClient(req resource.ConfigureRequest) *api_client.APIClient {
 	if req.ProviderData == nil {

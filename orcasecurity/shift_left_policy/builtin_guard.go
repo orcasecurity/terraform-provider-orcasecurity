@@ -22,23 +22,15 @@ func builtinNonProjectFieldChanged(plan, state *shiftLeftPolicyResourceModel) (s
 		return "priority_failure_threshold", true
 	}
 
-	controlBlocks := []struct {
-		name        string
-		plan, state interface{}
-	}{
-		{"iac", plan.Iac, state.Iac},
-		{"sast", plan.Sast, state.Sast},
-		{"file_system", plan.FileSystem, state.FileSystem},
-		{"file_system_vulnerabilities", plan.FileSystemVulnerabilities, state.FileSystemVulnerabilities},
-		{"file_system_secret_detection", plan.FileSystemSecretDetection, state.FileSystemSecretDetection},
-		{"container_image", plan.ContainerImage, state.ContainerImage},
-		{"scm_posture", plan.ScmPosture, state.ScmPosture},
-		{"licenses", plan.Licenses, state.Licenses},
-		{"sca", plan.Sca, state.Sca},
-	}
-	for _, cb := range controlBlocks {
-		if !reflect.DeepEqual(cb.plan, cb.state) {
-			return cb.name, true
+	// Compare every type block via the shared handler table (policyTypes keeps
+	// the iteration order deterministic so the reported field name is stable).
+	for _, name := range policyTypes {
+		h := policyTypeHandlers[name]
+		if h.block == nil {
+			continue
+		}
+		if !reflect.DeepEqual(h.block(plan), h.block(state)) {
+			return name, true
 		}
 	}
 

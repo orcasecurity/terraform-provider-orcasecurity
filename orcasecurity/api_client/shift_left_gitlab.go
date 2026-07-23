@@ -17,6 +17,14 @@ type GitlabGroup struct {
 	ConfigSettings    ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+func (g *GitlabGroup) unitID() string { return g.ID }
+
+func (g *GitlabGroup) stampInstallationID(id string) {
+	if g.InstallationID == "" {
+		g.InstallationID = id
+	}
+}
+
 // UnmarshalJSON maps the GitLab group name into AccountName. Unlike the other
 // providers, GitLab's API returns the unit name under `gitlab_group_name`
 // (there is no `account_name` field), so fall back to it.
@@ -36,48 +44,26 @@ func (g *GitlabGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func gitlabGroupsPath(installationID string) string {
+	return fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_groups/", installationID)
+}
+
 // ListGitlabGroups fans out across every GitLab installation so each group
 // carries its installation_id (the global /gitlab/integrated_groups/ endpoint
 // omits it, which breaks the config-resource for_each workflow).
 func (client *APIClient) ListGitlabGroups() ([]GitlabGroup, error) {
-	return listScmUnitsByInstallation[GitlabGroup](
-		client,
-		"/api/shiftleft/gitlab/installations/",
-		func(installationID string) string {
-			return fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_groups/", installationID)
-		},
-		func(g *GitlabGroup, installationID string) {
-			if g.InstallationID == "" {
-				g.InstallationID = installationID
-			}
-		},
-	)
+	return listScmUnitsByInstallation[GitlabGroup](client, "/api/shiftleft/gitlab/installations/", gitlabGroupsPath)
 }
 
 // GetGitlabGroup reads via list-filter on the installation-scoped list.
 func (client *APIClient) GetGitlabGroup(installationID, groupID string) (*GitlabGroup, error) {
-	all, err := getAllScmPages[GitlabGroup](client, fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_groups/", installationID))
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == groupID {
-			if all[i].InstallationID == "" {
-				all[i].InstallationID = installationID
-			}
-			return &all[i], nil
-		}
-	}
-	return nil, nil // not found -> caller treats nil as drift
+	return findScmUnit[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, groupID)
 }
 
 func (client *APIClient) UpdateGitlabGroup(installationID, groupID string, body ScmInstallationUpdate) (*GitlabGroup, error) {
 	// NOTE: the list endpoints are plural ("integrated_groups"), but the update
 	// endpoint is singular ("integrated_group"). This mismatch is intentional
 	// on the API side, not a typo here.
-	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, groupID), body); err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	return client.GetGitlabGroup(installationID, groupID)
+	updatePath := fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, groupID)
+	return updateScmUnit[GitlabGroup](client, updatePath, gitlabGroupsPath(installationID), installationID, groupID, body)
 }

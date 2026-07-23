@@ -69,14 +69,17 @@ func (p *ShiftLeftPolicy) populateProjectsIds() {
 	p.ProjectsIds = ids
 }
 
+// GetShiftLeftPolicy reads a policy. Returns (nil, nil) when the policy does
+// not exist (404) so callers can treat nil as remote drift; any other failure
+// is an error. Reads always use GET: some policy type views (notably
+// scm_posture) 5xx on HEAD even when the policy exists.
 func (client *APIClient) GetShiftLeftPolicy(policyType, id string) (*ShiftLeftPolicy, error) {
 	resp, err := client.Get(shiftLeftPolicyItemPath(policyType, id))
+	if resp != nil && resp.StatusCode() == 404 {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
-	}
-
-	if !resp.IsOk() {
-		return nil, nil
 	}
 
 	response := ShiftLeftPolicy{}
@@ -86,25 +89,6 @@ func (client *APIClient) GetShiftLeftPolicy(policyType, id string) (*ShiftLeftPo
 	}
 	response.populateProjectsIds()
 	return &response, nil
-}
-
-func (client *APIClient) DoesShiftLeftPolicyExist(policyType, id string) (bool, error) {
-	path := shiftLeftPolicyItemPath(policyType, id)
-	resp, err := client.Head(path)
-	if err == nil && resp != nil && resp.StatusCode() == 200 {
-		return true, nil
-	}
-
-	// Some AppSec policy type views (notably scm_posture) return 5xx on HEAD
-	// even when the policy exists. Fall back to GET and treat only 404 as missing.
-	getResp, getErr := client.Get(path)
-	if getResp != nil && getResp.StatusCode() == 404 {
-		return false, nil
-	}
-	if getErr != nil {
-		return false, getErr
-	}
-	return getResp != nil && getResp.IsOk(), nil
 }
 
 func (client *APIClient) CreateShiftLeftPolicy(policyType string, policy ShiftLeftPolicy) (*ShiftLeftPolicy, error) {

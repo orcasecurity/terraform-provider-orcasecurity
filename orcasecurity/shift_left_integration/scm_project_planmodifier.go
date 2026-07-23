@@ -46,12 +46,10 @@ func (projectIDPlanModifier) PlanModifyString(ctx context.Context, req planmodif
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	policiesIntent := (!policies.IsNull() && !policies.IsUnknown()) ||
-		(!defaultPolicies.IsNull() && !defaultPolicies.IsUnknown())
 
 	// Switching an existing project-bound unit to policies: the binding will be
 	// cleared, so don't assert the old value in the plan.
-	if policiesIntent && !req.StateValue.IsNull() && req.StateValue.ValueString() != "" {
+	if policiesIntent(policies, defaultPolicies) && !req.StateValue.IsNull() && req.StateValue.ValueString() != "" {
 		resp.PlanValue = types.StringUnknown()
 		return
 	}

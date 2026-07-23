@@ -18,14 +18,7 @@ var (
 	_ resource.ResourceWithImportState = &githubInstallationResource{}
 )
 
-var githubLabels = shift_left_integration.AdoptLabels{
-	NotFoundTitle:  "GitHub installation not found",
-	NilReadTitle:   "Error reading github installation after write",
-	NilReadDetail:  "The github installation was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
-	ReadErrorTitle: "Error reading GitHub installation",
-	DeleteLog:      "Removing GitHub installation from state; the live integration is left untouched.",
-	MissingWarn:    "GitHub installation %s missing remotely",
-}
+var githubLabels = shift_left_integration.NewAdoptLabels("GitHub installation")
 
 type githubInstallationResource struct {
 	apiClient *api_client.APIClient

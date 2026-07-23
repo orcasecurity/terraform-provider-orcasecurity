@@ -60,28 +60,25 @@ type GithubInstallation struct {
 	ConfigSettings       ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+func (g *GithubInstallation) unitID() string { return g.ID }
+
+// stampInstallationID is a no-op: GitHub installations are themselves the
+// units, with no parent installation id to carry.
+func (g *GithubInstallation) stampInstallationID(string) {}
+
+const githubInstallationsPath = "/api/shiftleft/github/installations/"
+
 func (client *APIClient) ListGithubInstallations() ([]GithubInstallation, error) {
-	return getAllScmPages[GithubInstallation](client, "/api/shiftleft/github/installations/")
+	return getAllScmPages[GithubInstallation](client, githubInstallationsPath)
 }
 
-// GetGithubInstallation reads via list-filter; single-GET returns 500.
+// GetGithubInstallation reads via list-filter; the API defines no single-unit
+// GET route for SCM installations (GET on the item path is a 405).
 func (client *APIClient) GetGithubInstallation(id string) (*GithubInstallation, error) {
-	all, err := client.ListGithubInstallations()
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == id {
-			return &all[i], nil
-		}
-	}
-	return nil, nil // not found -> caller treats nil as drift
+	return findScmUnit[GithubInstallation](client, githubInstallationsPath, "", id)
 }
 
 func (client *APIClient) UpdateGithubInstallation(id string, body ScmInstallationUpdate) (*GithubInstallation, error) {
-	if _, err := client.Put(fmt.Sprintf("/api/shiftleft/github/installations/%s/", id), body); err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	return client.GetGithubInstallation(id)
+	updatePath := fmt.Sprintf("%s%s/", githubInstallationsPath, id)
+	return updateScmUnit[GithubInstallation](client, updatePath, githubInstallationsPath, "", id, body)
 }
