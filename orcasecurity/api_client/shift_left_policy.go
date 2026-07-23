@@ -89,8 +89,22 @@ func (client *APIClient) GetShiftLeftPolicy(policyType, id string) (*ShiftLeftPo
 }
 
 func (client *APIClient) DoesShiftLeftPolicyExist(policyType, id string) (bool, error) {
-	resp, _ := client.Head(shiftLeftPolicyItemPath(policyType, id))
-	return resp.StatusCode() == 200, nil
+	path := shiftLeftPolicyItemPath(policyType, id)
+	resp, err := client.Head(path)
+	if err == nil && resp != nil && resp.StatusCode() == 200 {
+		return true, nil
+	}
+
+	// Some AppSec policy type views (notably scm_posture) return 5xx on HEAD
+	// even when the policy exists. Fall back to GET and treat only 404 as missing.
+	getResp, getErr := client.Get(path)
+	if getResp != nil && getResp.StatusCode() == 404 {
+		return false, nil
+	}
+	if getErr != nil {
+		return false, getErr
+	}
+	return getResp != nil && getResp.IsOk(), nil
 }
 
 func (client *APIClient) CreateShiftLeftPolicy(policyType string, policy ShiftLeftPolicy) (*ShiftLeftPolicy, error) {

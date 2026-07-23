@@ -163,7 +163,7 @@ resource "orcasecurity_shift_left_policy" "scm" {
     }
 
     controls {
-      id       = "github_branch_protection_disabled"
+      id       = "github_repository_missing_default_branch_protection"
       priority = "HIGH"
       disabled = true
     }

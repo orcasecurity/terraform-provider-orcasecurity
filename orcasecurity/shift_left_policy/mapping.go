@@ -257,6 +257,12 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		ProjectsIds:              setFromStringSlice(apiPolicy.ProjectsIds),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
+	// scm_posture (and some other reads) omit priority_failure_threshold; keep the
+	// prior/planned value so Required config does not perpetual-drift on refresh.
+	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
+		!existing.PriorityFailureThreshold.IsNull() && !existing.PriorityFailureThreshold.IsUnknown() {
+		model.PriorityFailureThreshold = existing.PriorityFailureThreshold
+	}
 
 	policyType := apiPolicy.Type
 	if policyType == "" && existing != nil {

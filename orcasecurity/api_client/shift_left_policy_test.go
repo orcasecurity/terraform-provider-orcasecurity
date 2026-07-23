@@ -17,6 +17,37 @@ func TestShiftLeftPolicyTypePath(t *testing.T) {
 	}
 }
 
+func TestDoesShiftLeftPolicyExist_Head500FallsBackToGet(t *testing.T) {
+	var methods []string
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		methods = append(methods, req.Method)
+		if req.Method == "HEAD" {
+			return &http.Response{
+				StatusCode: 500,
+				Body:       io.NopCloser(strings.NewReader(``)),
+				Header:     make(http.Header),
+			}
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"id":"scm-1","name":"scm"}`)),
+			Header:     make(http.Header),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	exists, err := client.DoesShiftLeftPolicyExist("scm_posture", "scm-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected policy to exist via GET fallback")
+	}
+	if len(methods) < 2 || methods[0] != "HEAD" || methods[1] != "GET" {
+		t.Fatalf("expected HEAD then GET, got %v", methods)
+	}
+}
+
 func TestGetShiftLeftPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "GET" {

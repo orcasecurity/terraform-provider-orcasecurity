@@ -161,5 +161,21 @@ func mergeStateFromPlan(state, plan *shiftLeftPolicyResourceModel) {
 		mergeLicensesBlockFromPlan(state.Licenses, plan.Licenses)
 	case "sca":
 		mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
+	case "scm_posture":
+		mergeScmPostureBlockFromPlan(state.ScmPosture, plan.ScmPosture)
+	}
+}
+
+func mergeScmPostureBlockFromPlan(dst, src *scmPostureBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	// Keep the configured control/scope shape. Catalog enrichment fills
+	// entity/scm/threat on read; writing those back would create perpetual drift.
+	if len(src.Controls) > 0 {
+		dst.Controls = src.Controls
+	}
+	if len(src.Scope) > 0 {
+		dst.Scope = src.Scope
 	}
 }
