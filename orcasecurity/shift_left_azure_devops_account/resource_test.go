@@ -38,6 +38,13 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 	if original == nil {
 		t.Skip("azure devops account not found; cannot run adopt test")
 	}
+	// Destroy tears down the account's integrated repositories, and the restore
+	// helper re-integrates only the empty unit. Require a disposable empty account
+	// so the test never drops real repository integrations from a shared lab.
+	if original.IntegratedRepositoriesCount > 0 {
+		t.Skipf("azure devops account %s has %d integrated repositories; point ORCA_TEST_AZ_* at a disposable empty account (destroy removes repositories and they are not restored)",
+			original.ID, original.IntegratedRepositoriesCount)
+	}
 	accountName = original.AccountName
 	t.Cleanup(func() {
 		restoreAzureAccount(t, client, installationID, accountName, original)

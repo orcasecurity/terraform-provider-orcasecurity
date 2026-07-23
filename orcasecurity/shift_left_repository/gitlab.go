@@ -46,7 +46,7 @@ func (r *gitlabRepositoryResource) Configure(_ context.Context, req resource.Con
 }
 
 func (r *gitlabRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := sharedRepoAttributes("GitLab", gitlabSkipCheckRuns)
+	attrs := sharedRepoAttributes("GitLab", gitlabSkipCheckRuns, true)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Orca id of the GitLab installation (see `orcasecurity_shift_left_gitlab_installation`).",
@@ -86,6 +86,7 @@ func (r *gitlabRepositoryResource) ops(plan *gitlabRepositoryModel) repoOps {
 				URL:             plan.URL.ValueString(),
 				Branch:          plan.Branch.ValueString(),
 				ProjectID:       plan.ProjectID.ValueString(),
+				Config:          integrateConfig(&plan.RepoConfigFields),
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {

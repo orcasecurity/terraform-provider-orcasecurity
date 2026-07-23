@@ -24,10 +24,19 @@ func (client *APIClient) InvalidateScmListCache() {
 }
 
 func (client *APIClient) invalidateScmListCache() {
+	// Bump the generation first so any fetch already in flight stores under the
+	// old generation and fails the generation check on the next read.
+	client.scmListGen.Add(1)
 	client.scmListCache.Range(func(key, _ any) bool {
 		client.scmListCache.Delete(key)
 		return true
 	})
+}
+
+// scmCacheEntry tags cached pages with the generation seen when their fetch began.
+type scmCacheEntry struct {
+	gen  uint64
+	data any
 }
 
 // listScmUnitsByInstallation is required to obtain installation_id for for_each; global lists omit it.
@@ -90,9 +99,15 @@ func updateScmUnit[T any, PT interface {
 // getAllScmPages uses limit/start_at_index (offset is ignored on shift-left lists).
 // Results are cached until invalidateScmListCache runs after SCM writes.
 func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
+	// Snapshot the generation before fetching. A concurrent write invalidates by
+	// bumping this generation; a store guarded by the snapshot is dropped when it
+	// no longer matches, so a stale read cannot repopulate the cache.
+	startGen := client.scmListGen.Load()
 	if cached, ok := client.scmListCache.Load(basePath); ok {
-		if pages, ok := cached.([]T); ok {
-			return pages, nil
+		if entry, ok := cached.(scmCacheEntry); ok && entry.gen == startGen {
+			if pages, ok := entry.data.([]T); ok {
+				return pages, nil
+			}
 		}
 	}
 
@@ -109,7 +124,11 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 		}
 		all = append(all, env.Data...)
 		if len(env.Data) == 0 || len(all) >= env.TotalItems {
-			client.scmListCache.Store(basePath, all)
+			// Only cache if no invalidation happened during the fetch; otherwise
+			// these pages predate the write and must not be resurrected.
+			if client.scmListGen.Load() == startGen {
+				client.scmListCache.Store(basePath, scmCacheEntry{gen: startGen, data: all})
+			}
 			return all, nil
 		}
 	}

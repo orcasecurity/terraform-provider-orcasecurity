@@ -3,6 +3,7 @@ package shift_left_scm_posture_default_policy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
@@ -118,7 +119,12 @@ func (r *defaultPolicyResource) ImportState(ctx context.Context, _ resource.Impo
 		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, apiToState(live))...)
+	state, err := apiToState(live)
+	if err != nil {
+		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnostics) *resourceModel {
@@ -135,7 +141,12 @@ func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnosti
 	if plan.Controls != nil {
 		body.PolicyData.Controls = controlsToAPI(plan.Controls)
 	} else {
-		body.PolicyData.Controls = liveControls(live)
+		existing, err := liveControls(live)
+		if err != nil {
+			diags.AddError(errUpdateDefaultPolicy, err.Error())
+			return nil
+		}
+		body.PolicyData.Controls = existing
 	}
 
 	updated, err := r.apiClient.UpdateScmPostureDefaultPolicy(body)
@@ -143,7 +154,11 @@ func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnosti
 		diags.AddError(errUpdateDefaultPolicy, err.Error())
 		return nil
 	}
-	state := apiToState(updated)
+	state, err := apiToState(updated)
+	if err != nil {
+		diags.AddError(errUpdateDefaultPolicy, err.Error())
+		return nil
+	}
 	if plan.Controls != nil {
 		state.Controls = plan.Controls
 	}
@@ -174,7 +189,11 @@ func (r *defaultPolicyResource) Read(ctx context.Context, req resource.ReadReque
 		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
 		return
 	}
-	newState := apiToState(live)
+	newState, err := apiToState(live)
+	if err != nil {
+		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
+		return
+	}
 	if state.Controls == nil && newState.Controls != nil {
 		newState.Controls = nil
 	}
@@ -214,27 +233,42 @@ func controlsToAPI(controls []controlModel) []api_client.ScmPostureControlOverri
 	return out
 }
 
-func liveControls(p *api_client.ScmPostureDefaultPolicy) []api_client.ScmPostureControlOverride {
+// decodePolicyData parses the live policy_data blob. A decode failure must be
+// surfaced, never swallowed: callers echo the decoded controls back in a
+// full-replacement PUT, so treating malformed JSON as "no controls" would erase
+// every live override.
+func decodePolicyData(p *api_client.ScmPostureDefaultPolicy) (api_client.ScmPostureDefaultPolicyData, error) {
 	var data api_client.ScmPostureDefaultPolicyData
-	if len(p.PolicyData) > 0 {
-		_ = json.Unmarshal(p.PolicyData, &data)
+	if len(p.PolicyData) == 0 {
+		return data, nil
 	}
-	if data.Controls == nil {
-		return []api_client.ScmPostureControlOverride{}
+	if err := json.Unmarshal(p.PolicyData, &data); err != nil {
+		return data, fmt.Errorf("could not decode live policy_data: %w", err)
 	}
-	return data.Controls
+	return data, nil
 }
 
-func apiToState(p *api_client.ScmPostureDefaultPolicy) *resourceModel {
+func liveControls(p *api_client.ScmPostureDefaultPolicy) ([]api_client.ScmPostureControlOverride, error) {
+	data, err := decodePolicyData(p)
+	if err != nil {
+		return nil, err
+	}
+	if data.Controls == nil {
+		return []api_client.ScmPostureControlOverride{}, nil
+	}
+	return data.Controls, nil
+}
+
+func apiToState(p *api_client.ScmPostureDefaultPolicy) (*resourceModel, error) {
 	state := &resourceModel{
 		ID:          types.StringValue(p.ID),
 		Name:        types.StringValue(p.Name),
 		Description: types.StringValue(p.Description),
 		Disabled:    types.BoolValue(p.Disabled),
 	}
-	var data api_client.ScmPostureDefaultPolicyData
-	if len(p.PolicyData) > 0 {
-		_ = json.Unmarshal(p.PolicyData, &data)
+	data, err := decodePolicyData(p)
+	if err != nil {
+		return nil, err
 	}
 	if len(data.Controls) > 0 {
 		state.Controls = make([]controlModel, 0, len(data.Controls))
@@ -249,5 +283,5 @@ func apiToState(p *api_client.ScmPostureDefaultPolicy) *resourceModel {
 			state.Controls = append(state.Controls, m)
 		}
 	}
-	return state
+	return state, nil
 }

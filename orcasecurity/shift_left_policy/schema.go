@@ -292,10 +292,12 @@ func resourceSchemaBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"iac":                          iacBlock(),
 		"sast":                         sastBlock(),
+		"file_system":                  controlsOnlyBlock(),
 		"file_system_vulnerabilities":  controlsOnlyBlock(),
 		"file_system_secret_detection": controlsOnlyBlock(),
 		"container_image":              containerImageBlock(),
 		"scm_posture":                  scmPostureBlock(),
 		"licenses":                     licensesBlock(),
+		"sca":                          licensesBlock(),
 	}
 }

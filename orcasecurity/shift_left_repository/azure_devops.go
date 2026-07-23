@@ -44,7 +44,7 @@ func (r *azureRepositoryResource) Configure(_ context.Context, req resource.Conf
 }
 
 func (r *azureRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := sharedRepoAttributes("Azure DevOps", fullSkipCheckRuns)
+	attrs := sharedRepoAttributes("Azure DevOps", fullSkipCheckRuns, false)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Orca id of the Azure DevOps installation (see `orcasecurity_shift_left_azure_devops_installation`).",
@@ -74,6 +74,7 @@ func (r *azureRepositoryResource) Schema(_ context.Context, _ resource.SchemaReq
 }
 
 func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
+	installationID := plan.InstallationID.ValueString()
 	accountName := plan.AccountName.ValueString()
 	repoID := plan.AzureRepositoryID.ValueString()
 	return repoOps{
@@ -89,10 +90,11 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 				URL:               plan.URL.ValueString(),
 				Branch:            plan.Branch.ValueString(),
 				ProjectID:         plan.ProjectID.ValueString(),
+				Config:            integrateConfig(&plan.RepoConfigFields),
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {
-			return r.apiClient.FindAzureRepository(accountName, repoID)
+			return r.apiClient.FindAzureRepository(installationID, accountName, repoID)
 		},
 		update: r.apiClient.UpdateAzureRepositories,
 	}

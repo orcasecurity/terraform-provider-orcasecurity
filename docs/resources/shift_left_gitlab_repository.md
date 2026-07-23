@@ -30,6 +30,7 @@ resource "orcasecurity_shift_left_gitlab_repository" "example" {
 
 ### Required
 
+- `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API neither returns nor updates it after integration, so changing it forces re-integration.
 - `gitlab_group_id` (Number) Numeric GitLab group id owning the project. If the group is not yet integrated with Orca, integrating the first repository also creates the group unit.
 - `gitlab_project_id` (Number) Numeric GitLab project (repository) id.
 - `installation_id` (String) Orca id of the GitLab installation (see `orcasecurity_shift_left_gitlab_installation`).
@@ -38,7 +39,6 @@ resource "orcasecurity_shift_left_gitlab_repository" "example" {
 
 ### Optional
 
-- `branch` (String) Branch to scan. Omit for the repository default branch. Create-only: the API neither returns nor updates it after integration, so changing it forces re-integration.
 - `comments_on_pull_requests` (String) When to comment on pull requests.
 - `config_file_support` (String) Whether the in-repo Orca config file is honored.
 - `disable_scan_pull_requests` (Boolean) Disable pull request scanning for this repository.

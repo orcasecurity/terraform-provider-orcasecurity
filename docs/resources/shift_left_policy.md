@@ -9,7 +9,7 @@ description: |-
 
 Provides an AppSec (Shift Left) policy resource. Use this resource to create, update, and delete AppSec scan policies in Orca Security, and to import existing ones.
 
-Supported policy `type` values: `iac`, `sast`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `malicious_packages`.
+Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`, `malicious_packages`. `file_system` and `sca` are legacy aggregate types (superseded by the scoped `file_system_*` types and by `licenses`); they remain supported for existing policies.
 
 ## Example Usage
 
@@ -56,7 +56,7 @@ resource "orcasecurity_shift_left_policy" "iac_by_id" {
 
 ### Include all catalog controls for a section
 
-Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system_vulnerabilities`, `file_system_secret_detection`, `licenses` blocks and on each `container_image` feature-scope block.
+Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `licenses`, `sca` blocks and on each `container_image` feature-scope block.
 
 ```terraform
 resource "orcasecurity_shift_left_policy" "container_all" {
@@ -224,12 +224,14 @@ After importing, run `terraform plan` and copy the populated control blocks into
 
 - `container_image` (Block, Optional) (see [below for nested schema](#nestedblock--container_image))
 - `description` (String) Policy description.
+- `file_system` (Block, Optional) (see [below for nested schema](#nestedblock--file_system))
 - `file_system_secret_detection` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_secret_detection))
 - `file_system_vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities))
 - `iac` (Block, Optional) (see [below for nested schema](#nestedblock--iac))
 - `licenses` (Block, Optional) (see [below for nested schema](#nestedblock--licenses))
 - `projects_ids` (Set of String) Project IDs to attach this policy to. Reflects the API on read; omit to leave the current attachment unchanged, or set to `[]` to detach from all projects.
 - `sast` (Block, Optional) (see [below for nested schema](#nestedblock--sast))
+- `sca` (Block, Optional) (see [below for nested schema](#nestedblock--sca))
 - `scm_posture` (Block, Optional) (see [below for nested schema](#nestedblock--scm_posture))
 
 ### Read-Only
@@ -401,6 +403,44 @@ Optional:
 - `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
 - `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
+
+
+
+
+<a id="nestedblock--file_system"></a>
+### Nested Schema for `file_system`
+
+Optional:
+
+- `all_controls` (Boolean) When true, include every catalog control for this section automatically (no need to list controls or use a data source).
+- `controls` (Block List) (see [below for nested schema](#nestedblock--file_system--controls))
+
+<a id="nestedblock--file_system--controls"></a>
+### Nested Schema for `file_system.controls`
+
+Required:
+
+- `disabled` (Boolean)
+- `priority` (String)
+
+Optional:
+
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--file_system--controls--conditions))
+- `id` (String) Catalog control ID. Omit to define a custom control identified by its title and conditions.
+- `title` (String) Control title. Informational for catalog controls (filled from the Orca catalog); required to identify a custom control when no id is set.
+
+<a id="nestedblock--file_system--controls--conditions"></a>
+### Nested Schema for `file_system.controls.conditions`
+
+Optional:
+
+- `days_from_discovery` (Number)
+- `days_from_fix` (Number)
+- `fix_available` (Boolean)
+- `from_base_image` (Boolean)
+- `has_exploit` (Boolean)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
@@ -597,6 +637,51 @@ Optional:
 
 <a id="nestedblock--sast--controls--conditions"></a>
 ### Nested Schema for `sast.controls.conditions`
+
+Optional:
+
+- `days_from_discovery` (Number)
+- `days_from_fix` (Number)
+- `fix_available` (Boolean)
+- `from_base_image` (Boolean)
+- `has_exploit` (Boolean)
+- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
+- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
+
+
+
+
+<a id="nestedblock--sca"></a>
+### Nested Schema for `sca`
+
+Optional:
+
+- `all_controls` (Boolean) When true, include every catalog control for this section automatically (no need to list controls or use a data source).
+- `controls` (Block List) (see [below for nested schema](#nestedblock--sca--controls))
+
+<a id="nestedblock--sca--controls"></a>
+### Nested Schema for `sca.controls`
+
+Required:
+
+- `disabled` (Boolean)
+- `priority` (String)
+
+Optional:
+
+- `additional_info` (List of String)
+- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--sca--controls--conditions))
+- `id` (String) Catalog control ID. Omit to define a custom control identified by its title and conditions.
+- `is_deprecated` (Boolean)
+- `is_fsf_libre` (Boolean)
+- `is_osi_approved` (Boolean)
+- `license_category` (String)
+- `license_id` (String)
+- `title` (String) Control title. Informational for catalog controls (filled from the Orca catalog); required to identify a custom control when no id is set.
+- `url` (String)
+
+<a id="nestedblock--sca--controls--conditions"></a>
+### Nested Schema for `sca.controls.conditions`
 
 Optional:
 

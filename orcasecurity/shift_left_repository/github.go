@@ -45,7 +45,7 @@ func (r *githubRepositoryResource) Configure(_ context.Context, req resource.Con
 }
 
 func (r *githubRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := sharedRepoAttributes("GitHub", fullSkipCheckRuns)
+	attrs := sharedRepoAttributes("GitHub", fullSkipCheckRuns, true)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Orca id of the GitHub installation (see `orcasecurity_shift_left_github_installations`).",
@@ -78,6 +78,7 @@ func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
 				URL:                plan.URL.ValueString(),
 				Branch:             plan.Branch.ValueString(),
 				ProjectID:          plan.ProjectID.ValueString(),
+				Config:             integrateConfig(&plan.RepoConfigFields),
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {

@@ -31,6 +31,7 @@ resource "orcasecurity_shift_left_github_repository" "example" {
 
 ### Required
 
+- `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API neither returns nor updates it after integration, so changing it forces re-integration.
 - `github_repository_id` (Number) Numeric GitHub repository id.
 - `installation_id` (String) Orca id of the GitHub installation (see `orcasecurity_shift_left_github_installations`).
 - `name` (String) Repository name (path) as known to GitHub.
@@ -38,7 +39,6 @@ resource "orcasecurity_shift_left_github_repository" "example" {
 
 ### Optional
 
-- `branch` (String) Branch to scan. Omit for the repository default branch. Create-only: the API neither returns nor updates it after integration, so changing it forces re-integration.
 - `comments_on_pull_requests` (String) When to comment on pull requests.
 - `config_file_support` (String) Whether the in-repo Orca config file is honored.
 - `disable_scan_pull_requests` (Boolean) Disable pull request scanning for this repository.

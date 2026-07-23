@@ -150,6 +150,11 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
+	// Project associations are managed through the dedicated projects endpoint,
+	// never the main policy body: projects_ids is omitempty there, so an empty
+	// slice is dropped and detach-all (N->0) would be impossible.
+	apiPolicy.ProjectsIds = nil
+
 	policyType := plan.Type.ValueString()
 	policyID := plan.ID.ValueString()
 	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
@@ -160,6 +165,15 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating AppSec policy", "Could not update policy: "+err.Error())
 		return
+	}
+
+	// Sync projects only when the user manages them (known value). An
+	// unknown/null projects_ids means "leave associations as-is".
+	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, stringSliceFromSet(plan.ProjectsIds)); err != nil {
+			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
+			return
+		}
 	}
 
 	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)

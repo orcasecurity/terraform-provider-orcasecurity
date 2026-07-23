@@ -42,6 +42,21 @@ type ScmRepositoryConfigUpdate struct {
 	ConfigFileSupport       string   `json:"config_file_support,omitempty"`
 }
 
+// ScmRepoIntegrationConfig is the batch-level configuration_settings sent with a
+// repository integration POST so configuration is applied atomically at integrate
+// time (rather than only via a follow-up PATCH, which would leave a window where
+// the repository scans with default settings). `disabled` is intentionally not
+// here: GitHub's integrate endpoint does not accept it, so it is applied
+// post-integrate for all providers. The object is always sent (the API requires
+// the field); its members are omitempty so unset values are left at API defaults.
+type ScmRepoIntegrationConfig struct {
+	DisableScanPullRequests *bool  `json:"disable_scan_pull_requests,omitempty"`
+	CommentsOnPullRequests  string `json:"comments_on_pull_requests,omitempty"`
+	PrSummaryComment        string `json:"pr_summary_comment,omitempty"`
+	SkipCheckRuns           string `json:"skip_check_runs,omitempty"`
+	ConfigFileSupport       string `json:"config_file_support,omitempty"`
+}
+
 func integratedRepositoriesPath(provider string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/integrated_repositories/", provider)
 }
@@ -140,6 +155,7 @@ type GithubRepositoryIntegrate struct {
 	URL                string
 	Branch             string
 	ProjectID          string
+	Config             ScmRepoIntegrationConfig
 }
 
 func (client *APIClient) IntegrateGithubRepository(req GithubRepositoryIntegrate) error {
@@ -148,13 +164,14 @@ func (client *APIClient) IntegrateGithubRepository(req GithubRepositoryIntegrate
 		GithubRepositoryID int64 `json:"github_repository_id"`
 	}
 	body := struct {
-		InstallationID        string      `json:"installation_id"`
-		ConfigurationSettings struct{}    `json:"configuration_settings"`
-		ProjectID             string      `json:"project_id,omitempty"`
-		Repositories          []repoEntry `json:"repositories"`
+		InstallationID        string                   `json:"installation_id"`
+		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
+		ProjectID             string                   `json:"project_id,omitempty"`
+		Repositories          []repoEntry              `json:"repositories"`
 	}{
-		InstallationID: req.InstallationID,
-		ProjectID:      req.ProjectID,
+		InstallationID:        req.InstallationID,
+		ConfigurationSettings: req.Config,
+		ProjectID:             req.ProjectID,
 		Repositories: []repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.GithubRepositoryID,
@@ -229,6 +246,7 @@ type GitlabRepositoryIntegrate struct {
 	URL             string
 	Branch          string
 	ProjectID       string
+	Config          ScmRepoIntegrationConfig
 }
 
 func (client *APIClient) IntegrateGitlabRepository(req GitlabRepositoryIntegrate) error {
@@ -237,15 +255,16 @@ func (client *APIClient) IntegrateGitlabRepository(req GitlabRepositoryIntegrate
 		ID int64 `json:"id"`
 	}
 	body := struct {
-		InstallationID        string      `json:"installation_id"`
-		GroupID               int64       `json:"group_id"`
-		ConfigurationSettings struct{}    `json:"configuration_settings"`
-		ProjectID             string      `json:"project_id,omitempty"`
-		Repositories          []repoEntry `json:"repositories"`
+		InstallationID        string                   `json:"installation_id"`
+		GroupID               int64                    `json:"group_id"`
+		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
+		ProjectID             string                   `json:"project_id,omitempty"`
+		Repositories          []repoEntry              `json:"repositories"`
 	}{
-		InstallationID: req.InstallationID,
-		GroupID:        req.GitlabGroupID,
-		ProjectID:      req.ProjectID,
+		InstallationID:        req.InstallationID,
+		GroupID:               req.GitlabGroupID,
+		ConfigurationSettings: req.Config,
+		ProjectID:             req.ProjectID,
 		Repositories: []repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.GitlabProjectID,
@@ -323,6 +342,7 @@ type BitbucketRepositoryIntegrate struct {
 	URL                   string
 	Branch                string
 	ProjectID             string
+	Config                ScmRepoIntegrationConfig
 }
 
 func (client *APIClient) IntegrateBitbucketRepository(req BitbucketRepositoryIntegrate) error {
@@ -332,15 +352,16 @@ func (client *APIClient) IntegrateBitbucketRepository(req BitbucketRepositoryInt
 		Slug string `json:"slug"`
 	}
 	body := struct {
-		InstallationID        string      `json:"installation_id"`
-		AccountID             string      `json:"account_id"`
-		ConfigurationSettings struct{}    `json:"configuration_settings"`
-		ProjectID             string      `json:"project_id,omitempty"`
-		Repositories          []repoEntry `json:"repositories"`
+		InstallationID        string                   `json:"installation_id"`
+		AccountID             string                   `json:"account_id"`
+		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
+		ProjectID             string                   `json:"project_id,omitempty"`
+		Repositories          []repoEntry              `json:"repositories"`
 	}{
-		InstallationID: req.InstallationID,
-		AccountID:      req.AccountID,
-		ProjectID:      req.ProjectID,
+		InstallationID:        req.InstallationID,
+		AccountID:             req.AccountID,
+		ConfigurationSettings: req.Config,
+		ProjectID:             req.ProjectID,
 		Repositories: []repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.BitbucketRepositoryID,
@@ -350,13 +371,25 @@ func (client *APIClient) IntegrateBitbucketRepository(req BitbucketRepositoryInt
 	return client.integrateScmRepositories("bitbucket", body)
 }
 
-func (client *APIClient) FindBitbucketRepository(accountID, bitbucketRepositoryID string) (*ScmRepository, error) {
+// FindBitbucketRepository scopes the match to the parent installation's Orca
+// account-installation id, not the external account slug: the same slug can be
+// integrated under multiple installations in one org (slugs are unique only per
+// installation, and bitbucket repository ids carry no uniqueness at all), so
+// matching on the slug alone can return a repository under the wrong installation.
+func (client *APIClient) FindBitbucketRepository(installationID, accountSlug, bitbucketRepositoryID string) (*ScmRepository, error) {
+	account, err := client.FindBitbucketAccountBySlug(installationID, accountSlug)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, nil // account not integrated under this installation
+	}
 	all, err := getAllScmPages[bitbucketRepositoryItem](client, integratedRepositoriesPath("bitbucket"))
 	if err != nil {
 		return nil, err
 	}
 	for i := range all {
-		if all[i].AccountInstallation.AccountID == accountID && all[i].BitbucketRepositoryID == bitbucketRepositoryID {
+		if all[i].AccountInstallation.ID == account.ID && all[i].BitbucketRepositoryID == bitbucketRepositoryID {
 			c := all[i].common()
 			return &c, nil
 		}
@@ -418,6 +451,7 @@ type AzureRepositoryIntegrate struct {
 	URL               string
 	Branch            string
 	ProjectID         string
+	Config            ScmRepoIntegrationConfig
 }
 
 func (client *APIClient) IntegrateAzureRepository(req AzureRepositoryIntegrate) error {
@@ -427,15 +461,16 @@ func (client *APIClient) IntegrateAzureRepository(req AzureRepositoryIntegrate) 
 		AzureProjectID string `json:"azure_project_id"`
 	}
 	body := struct {
-		InstallationID        string      `json:"installation_id"`
-		AzureAccountName      string      `json:"azure_account_name"`
-		ConfigurationSettings struct{}    `json:"configuration_settings"`
-		ProjectID             string      `json:"project_id,omitempty"`
-		Repositories          []repoEntry `json:"repositories"`
+		InstallationID        string                   `json:"installation_id"`
+		AzureAccountName      string                   `json:"azure_account_name"`
+		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
+		ProjectID             string                   `json:"project_id,omitempty"`
+		Repositories          []repoEntry              `json:"repositories"`
 	}{
-		InstallationID:   req.InstallationID,
-		AzureAccountName: req.AccountName,
-		ProjectID:        req.ProjectID,
+		InstallationID:        req.InstallationID,
+		AzureAccountName:      req.AccountName,
+		ConfigurationSettings: req.Config,
+		ProjectID:             req.ProjectID,
 		Repositories: []repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.AzureRepositoryID,
@@ -445,13 +480,25 @@ func (client *APIClient) IntegrateAzureRepository(req AzureRepositoryIntegrate) 
 	return client.integrateScmRepositories("azure_devops", body)
 }
 
-func (client *APIClient) FindAzureRepository(accountName, azureRepositoryID string) (*ScmRepository, error) {
+// FindAzureRepository scopes the match to the parent installation's Orca
+// account-installation id, not the external account name: an account name is
+// unique only per installation and the same account can be integrated under
+// multiple installations, so matching on the name alone can return a repository
+// under the wrong installation.
+func (client *APIClient) FindAzureRepository(installationID, accountName, azureRepositoryID string) (*ScmRepository, error) {
+	account, err := client.FindAzureDevopsAccountByName(installationID, accountName)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, nil // account not integrated under this installation
+	}
 	all, err := getAllScmPages[azureRepositoryItem](client, integratedRepositoriesPath("azure_devops"))
 	if err != nil {
 		return nil, err
 	}
 	for i := range all {
-		if all[i].AzureAccountInstallation.AccountName == accountName && all[i].AzureRepositoryID == azureRepositoryID {
+		if all[i].AzureAccountInstallation.ID == account.ID && all[i].AzureRepositoryID == azureRepositoryID {
 			c := all[i].common()
 			return &c, nil
 		}

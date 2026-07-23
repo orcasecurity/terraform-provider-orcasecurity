@@ -366,6 +366,71 @@ func TestPlanToAPI_Licenses(t *testing.T) {
 	}
 }
 
+// Legacy aggregate file_system uses flat policy_data.controls (unlike the scoped
+// file_system_* sub-types), and round-trips back into the file_system block.
+func TestPlanToAPI_FileSystem_FlatShapeRoundTrip(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("file_system"),
+		Name:                     types.StringValue("fs policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		FileSystem: &controlsBlockModel{
+			Controls: []baseControlModel{
+				{ID: types.StringValue("fs-1"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	if _, ok := pd["controls"].([]interface{}); !ok {
+		t.Fatalf("expected flat policy_data.controls, got %v", pd)
+	}
+	if _, scoped := pd["feature_scope"]; scoped {
+		t.Error("legacy file_system must not send feature_scope")
+	}
+
+	state := apiToState(&policy, nil)
+	if state.FileSystem == nil || len(state.FileSystem.Controls) != 1 {
+		t.Fatalf("file_system block did not round-trip, got %+v", state.FileSystem)
+	}
+}
+
+// Legacy sca round-trips through the licenses block shape.
+func TestPlanToAPI_Sca_RoundTrip(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("sca"),
+		Name:                     types.StringValue("sca policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		Sca: &licensesBlockModel{
+			Controls: []licenseControlModel{
+				{baseControlModel: baseControlModel{ID: types.StringValue("sca-1"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)}},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if len(policy.Controls) == 0 {
+		t.Error("expected controls to be set for sca")
+	}
+	state := apiToState(&policy, nil)
+	if state.Sca == nil || len(state.Sca.Controls) != 1 {
+		t.Fatalf("sca block did not round-trip, got %+v", state.Sca)
+	}
+}
+
 // file_system_* requires scoped policy_data; flat controls rejected (400).
 func TestPlanToAPI_FileSystemVulnerabilities_ScopedShape(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{

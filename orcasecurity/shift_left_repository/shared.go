@@ -35,7 +35,27 @@ type RepoConfigFields struct {
 	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-func sharedRepoAttributes(scmName string, skipCheckRunsValues []string) map[string]rschema.Attribute {
+// branchAttribute renders the `branch` field. GitHub and GitLab reject an
+// integration request with no branch (API 400), so it is Required there; Azure
+// and Bitbucket accept an omitted branch and fall back to the default branch at
+// scan time, so it stays Optional.
+func branchAttribute(branchRequired bool) rschema.StringAttribute {
+	attr := rschema.StringAttribute{
+		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+	}
+	if branchRequired {
+		attr.Required = true
+		attr.Description = "Branch to scan. Required by this SCM's integration API. Create-only: the API neither " +
+			"returns nor updates it after integration, so changing it forces re-integration."
+	} else {
+		attr.Optional = true
+		attr.Description = "Branch to scan. Omit for the repository default branch. Create-only: the API neither returns " +
+			"nor updates it after integration, so changing it forces re-integration."
+	}
+	return attr
+}
+
+func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRequired bool) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"id": rschema.StringAttribute{
 			Computed:      true,
@@ -52,12 +72,7 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string) map[stri
 			Description:   "Repository URL.",
 			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
-		"branch": rschema.StringAttribute{
-			Optional: true,
-			Description: "Branch to scan. Omit for the repository default branch. Create-only: the API neither returns " +
-				"nor updates it after integration, so changing it forces re-integration.",
-			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-		},
+		"branch": branchAttribute(branchRequired),
 		"project_id": rschema.StringAttribute{
 			Optional: true,
 			Computed: true,
@@ -197,6 +212,31 @@ func known(v interface {
 	return !v.IsNull() && !v.IsUnknown()
 }
 
+// integrateConfig builds the batch configuration_settings sent with the
+// integration POST so config is applied atomically at integrate time. `disabled`
+// is excluded (GitHub's integrate endpoint rejects it) and is applied by the
+// post-integrate config update for all providers.
+func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig {
+	cfg := api_client.ScmRepoIntegrationConfig{}
+	if known(plan.DisableScanPullRequests) {
+		v := plan.DisableScanPullRequests.ValueBool()
+		cfg.DisableScanPullRequests = &v
+	}
+	if known(plan.CommentsOnPullRequests) {
+		cfg.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
+	}
+	if known(plan.PrSummaryComment) {
+		cfg.PrSummaryComment = plan.PrSummaryComment.ValueString()
+	}
+	if known(plan.SkipCheckRuns) {
+		cfg.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
+	}
+	if known(plan.ConfigFileSupport) {
+		cfg.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
+	}
+	return cfg
+}
+
 type repoOps struct {
 	client    *api_client.APIClient
 	scmName   string
@@ -282,6 +322,10 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 	}
 	if body, set := configUpdateBody(row.ID, plan); set {
 		if err := ops.update(body); err != nil {
+			// The repository was integrated but its configuration could not be
+			// applied. Roll back the integration so we do not leave an orphaned
+			// live integration that never made it into Terraform state.
+			rollbackIntegration(ops, row, diags)
 			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.scmName), err.Error())
 			return nil
 		}
@@ -292,6 +336,23 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 		}
 	}
 	return row
+}
+
+// rollbackIntegration removes a just-created repository context after a failed
+// post-integrate configuration step, so a partial create does not orphan a live
+// integration. A rollback failure is surfaced as a warning (the create error is
+// reported separately) so the user can reconcile manually.
+func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag.Diagnostics) {
+	ctxID := row.RepositoryContextID
+	if ctxID == "" {
+		return
+	}
+	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
+		diags.AddWarning(
+			fmt.Sprintf("Failed to roll back %s repository integration", ops.scmName),
+			fmt.Sprintf("The repository was integrated but configuration failed, and removing repository context %s during rollback also failed: %s. Remove the integration manually or re-run to reconcile.", ctxID, err.Error()),
+		)
+	}
 }
 
 func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {

@@ -58,16 +58,11 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	configFields := o.Config(&config)
 	mode := planFields.InstallationMode
 	if mode.IsNull() || mode.IsUnknown() {
-		mode = types.StringValue("SCAN_ALL_INCLUDE_FUTURE")
-	}
-	if mode.ValueString() == "SELECTED_REPOSITORIES" {
-		resp.Diagnostics.AddError(
-			o.CreateErrorTitle,
-			"Creating a missing unit with installation_mode=SELECTED_REPOSITORIES requires repository entries; "+
-				"omit installation_mode (defaults to SCAN_ALL_INCLUDE_FUTURE) or set SCAN_ALL_INCLUDE_FUTURE, "+
-				"or integrate repositories first and let this resource adopt the existing unit.",
-		)
-		return
+		// Match the API and UI default. SCAN_ALL_INCLUDE_FUTURE would silently
+		// enroll every current and future repository in the org/group for
+		// scanning; SELECTED_REPOSITORIES integrates the unit and scans nothing
+		// until repositories are added explicitly.
+		mode = types.StringValue("SELECTED_REPOSITORIES")
 	}
 
 	ad := CreateUnitBody(mode, planFields.DefaultPolicies, planFields.PoliciesIds, planFields.ConfigSettings,

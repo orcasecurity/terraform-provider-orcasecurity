@@ -203,10 +203,12 @@ func TestFindBitbucketRepository_NormalizesNestedConfig(t *testing.T) {
 		"disabled":true,
 		"configuration_settings":{"disable_scan_pull_requests":null,"comments_on_pull_requests":"ALWAYS","pr_summary_comment":null,"skip_check_runs":null,"config_file_support":"DISABLED"},
 		"status":"IN_PROGRESS","repository_context_id":"ctx-9","integration_status":null}]}`
+	accounts := `{"total_items":1,"data":[{"id":"acct-row","account_id":"workspace-slug","account_name":"WS"}]}`
 	client, _ := captureServer(t, map[string]string{
-		"GET /api/shiftleft/bitbucket/integrated_repositories/": list,
+		"GET /api/shiftleft/bitbucket/installations/inst-1/integrated_accounts/": accounts,
+		"GET /api/shiftleft/bitbucket/integrated_repositories/":                  list,
 	})
-	row, err := client.FindBitbucketRepository("workspace-slug", "bb-1")
+	row, err := client.FindBitbucketRepository("inst-1", "workspace-slug", "bb-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,6 +223,30 @@ func TestFindBitbucketRepository_NormalizesNestedConfig(t *testing.T) {
 	}
 }
 
+// The same account slug integrated under two installations must resolve to the
+// row under the requested installation, not the first row that shares the slug.
+func TestFindBitbucketRepository_DisambiguatesByInstallation(t *testing.T) {
+	repos := `{"total_items":2,"data":[
+		{"id":"row-other","bitbucket_repository_id":"bb-1","bitbucket_repository_slug":"repo",
+		 "account_installation":{"id":"acct-other","account_id":"workspace-slug","account_name":"WS"},
+		 "repository":{"name":"repo","url":"https://bitbucket.org/w/repo"}},
+		{"id":"row-mine","bitbucket_repository_id":"bb-1","bitbucket_repository_slug":"repo",
+		 "account_installation":{"id":"acct-mine","account_id":"workspace-slug","account_name":"WS"},
+		 "repository":{"name":"repo","url":"https://bitbucket.org/w/repo"}}]}`
+	accounts := `{"total_items":1,"data":[{"id":"acct-mine","account_id":"workspace-slug","account_name":"WS"}]}`
+	client, _ := captureServer(t, map[string]string{
+		"GET /api/shiftleft/bitbucket/installations/inst-mine/integrated_accounts/": accounts,
+		"GET /api/shiftleft/bitbucket/integrated_repositories/":                     repos,
+	})
+	row, err := client.FindBitbucketRepository("inst-mine", "workspace-slug", "bb-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row == nil || row.ID != "row-mine" {
+		t.Fatalf("expected row-mine (scoped by installation), got %+v", row)
+	}
+}
+
 func TestFindAzureRepository_NormalizesManagedProperties(t *testing.T) {
 	list := `{"total_items":1,"data":[{
 		"id":"row-1","azure_repository_id":"az-repo-uuid",
@@ -231,10 +257,12 @@ func TestFindAzureRepository_NormalizesManagedProperties(t *testing.T) {
 		"disable_scan_pull_requests":false,"comments_on_pull_requests":"NEVER","pr_summary_comment":"NEVER",
 		"status":"FAILED","repository_context_id":"ctx-2","integration_status":"INSTALLATION_UNREACHABLE",
 		"scm_posture_policy_id":null}]}`
+	accounts := `{"total_items":1,"data":[{"id":"acct-row","account_name":"org-name"}]}`
 	client, _ := captureServer(t, map[string]string{
-		"GET /api/shiftleft/azure_devops/integrated_repositories/": list,
+		"GET /api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/": accounts,
+		"GET /api/shiftleft/azure_devops/integrated_repositories/":                  list,
 	})
-	row, err := client.FindAzureRepository("org-name", "az-repo-uuid")
+	row, err := client.FindAzureRepository("inst-1", "org-name", "az-repo-uuid")
 	if err != nil {
 		t.Fatal(err)
 	}

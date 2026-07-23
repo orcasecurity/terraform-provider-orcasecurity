@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,6 +28,11 @@ type APIClient struct {
 	HTTPClient  *http.Client
 
 	scmListCache sync.Map
+	// scmListGen is bumped on every SCM write. Cached pages are tagged with the
+	// generation observed when their fetch started, so a read that raced with an
+	// invalidation stores under a stale generation and is treated as a miss
+	// rather than resurrecting data the write just invalidated.
+	scmListGen atomic.Uint64
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {

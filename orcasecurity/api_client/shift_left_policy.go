@@ -48,6 +48,27 @@ func shiftLeftPolicyCatalogPath(policyType string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/catalog/controls/", policyType)
 }
 
+func shiftLeftPolicyProjectsPath(policyType, id string) string {
+	return fmt.Sprintf("/api/shiftleft/%s/policies/%s/projects/", policyType, id)
+}
+
+// SetShiftLeftPolicyProjects replaces the policy's project associations via the
+// dedicated projects endpoint. Unlike the main policy body (where projects_ids
+// is omitempty and an empty slice is dropped, making detach-all impossible), this
+// body always sends projects_ids explicitly, so an empty slice detaches all.
+// The backend rejects detaching a project that would be left with no active
+// policy (400), which surfaces to the user.
+func (client *APIClient) SetShiftLeftPolicyProjects(policyType, id string, projectIDs []string) error {
+	if projectIDs == nil {
+		projectIDs = []string{}
+	}
+	body := struct {
+		ProjectsIds []string `json:"projects_ids"`
+	}{ProjectsIds: projectIDs}
+	_, err := client.Put(shiftLeftPolicyProjectsPath(policyType, id), body)
+	return err
+}
+
 func (p *ShiftLeftPolicy) populateProjectsIds() {
 	if len(p.ProjectsIds) > 0 || len(p.Projects) == 0 {
 		return

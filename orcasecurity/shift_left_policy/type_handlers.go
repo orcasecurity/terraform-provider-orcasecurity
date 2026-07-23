@@ -97,6 +97,24 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) { mergeSastBlockFromPlan(state.Sast, plan.Sast) },
 	},
+	// Legacy aggregate file_system type: flat controls (no feature_scope), unlike
+	// the scoped file_system_* sub-types. Kept for backward compatibility.
+	"file_system": {
+		catalogType: "file_system",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.FileSystem },
+		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
+			return m.FileSystem != nil && boolIsTrue(m.FileSystem.AllControls)
+		}),
+		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
+			return controlsBlockToMaps(m.FileSystem)
+		}),
+		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
+			m.FileSystem = buildControlsBlock(controls)
+		},
+		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
+			mergeControlsBlockFromPlan(state.FileSystem, plan.FileSystem)
+		},
+	},
 	"file_system_vulnerabilities": fsScopedHandler("vulnerabilities",
 		func(m *shiftLeftPolicyResourceModel) *controlsBlockModel { return m.FileSystemVulnerabilities },
 		func(m *shiftLeftPolicyResourceModel, b *controlsBlockModel) { m.FileSystemVulnerabilities = b },
@@ -170,6 +188,24 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
 			mergeLicensesBlockFromPlan(state.Licenses, plan.Licenses)
+		},
+	},
+	// Legacy sca type: shares the licenses block shape (superseded by licenses).
+	// Kept for backward compatibility.
+	"sca": {
+		catalogType: "sca",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Sca },
+		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
+			return m.Sca != nil && boolIsTrue(m.Sca.AllControls)
+		}),
+		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
+			return licenseControlsToMaps(m.Sca.Controls)
+		}),
+		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
+			m.Sca = buildLicensesBlock(controls)
+		},
+		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
+			mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
 		},
 	},
 	// malicious_packages: no controls, no catalog, policy_data always {}.

@@ -9,7 +9,7 @@ description: |-
 
 Provides an AppSec (Shift Left) policy resource. Use this resource to create, update, and delete AppSec scan policies in Orca Security, and to import existing ones.
 
-Supported policy `type` values: `iac`, `sast`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `malicious_packages`.
+Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`, `malicious_packages`. `file_system` and `sca` are legacy aggregate types (superseded by the scoped `file_system_*` types and by `licenses`); they remain supported for existing policies.
 
 ## Example Usage
 
@@ -56,7 +56,7 @@ resource "orcasecurity_shift_left_policy" "iac_by_id" {
 
 ### Include all catalog controls for a section
 
-Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system_vulnerabilities`, `file_system_secret_detection`, `licenses` blocks and on each `container_image` feature-scope block.
+Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `licenses`, `sca` blocks and on each `container_image` feature-scope block.
 
 ```terraform
 resource "orcasecurity_shift_left_policy" "container_all" {

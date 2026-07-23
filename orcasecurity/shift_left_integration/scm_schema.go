@@ -26,7 +26,7 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 		"installation_mode": rschema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
-			Description:   "Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES.",
+			Description:   "Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.",
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			Validators: []validator.String{
 				stringvalidator.OneOf("SCAN_ALL_INCLUDE_FUTURE", "SELECTED_REPOSITORIES"),

@@ -4,15 +4,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Legacy file_system and sca types have no typed CRUD routes.
+// file_system and sca are the legacy aggregate types (superseded by the scoped
+// file_system_* types and by licenses respectively); kept for backward
+// compatibility so existing policies keep importing/reading/updating.
 var policyTypes = []string{
 	"iac",
 	"sast",
+	"file_system",
 	"file_system_vulnerabilities",
 	"file_system_secret_detection",
 	"container_image",
 	"scm_posture",
 	"licenses",
+	"sca",
 	"malicious_packages",
 }
 
@@ -132,9 +136,11 @@ type shiftLeftPolicyResourceModel struct {
 
 	Iac                       *iacBlockModel            `tfsdk:"iac"`
 	Sast                      *sastBlockModel           `tfsdk:"sast"`
+	FileSystem                *controlsBlockModel       `tfsdk:"file_system"`
 	FileSystemVulnerabilities *controlsBlockModel       `tfsdk:"file_system_vulnerabilities"`
 	FileSystemSecretDetection *controlsBlockModel       `tfsdk:"file_system_secret_detection"`
 	ContainerImage            *containerImageBlockModel `tfsdk:"container_image"`
 	ScmPosture                *scmPostureBlockModel     `tfsdk:"scm_posture"`
 	Licenses                  *licensesBlockModel       `tfsdk:"licenses"`
+	Sca                       *licensesBlockModel       `tfsdk:"sca"`
 }

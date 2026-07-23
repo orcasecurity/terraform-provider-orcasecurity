@@ -39,6 +39,14 @@ func fetchGitlabGroupForTest(t *testing.T, client *api_client.APIClient, install
 	if original == nil {
 		t.Skipf("gitlab group not found under installation %s", installationID)
 	}
+	// This test destroys the group, which tears down its integrated repositories
+	// (their repository contexts). The restore helper re-integrates only the empty
+	// unit, not those repositories, so require a disposable empty group to avoid
+	// silently dropping real repository integrations from a shared lab.
+	if original.IntegratedRepositoriesCount > 0 {
+		t.Skipf("gitlab group %s has %d integrated repositories; point ORCA_TEST_GL_* at a disposable empty group (destroy removes repositories and they are not restored)",
+			original.ID, original.IntegratedRepositoriesCount)
+	}
 	return original
 }
 
