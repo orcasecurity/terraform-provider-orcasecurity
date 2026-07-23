@@ -214,6 +214,62 @@ func TestAPIToState_ProjectsIdsNullWhenUnset(t *testing.T) {
 	}
 }
 
+// TestAPIToState_ProjectsIdsPopulatedFromInstance is the import-path case
+// (Step 5 of task-1b): once GetShiftLeftPolicy populates
+// api_client.ShiftLeftPolicy.ProjectsIds from the `projects` array (see
+// shift_left_policy.go's populateProjectsIds), apiToState must carry those
+// ids into the model. ImportState calls apiToState(instance, nil), so no
+// prior state exists to merge against.
+func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
+	apiPolicy := &api_client.ShiftLeftPolicy{
+		ID:          "policy-1",
+		Type:        "licenses",
+		Builtin:     true,
+		ProjectsIds: []string{"a", "b"},
+		PolicyData:  []byte(`{"controls":[]}`),
+	}
+
+	state := apiToState(apiPolicy, nil)
+	if len(state.ProjectsIds) != 2 {
+		t.Fatalf("expected 2 projects_ids, got %#v", state.ProjectsIds)
+	}
+	if state.ProjectsIds[0].ValueString() != "a" || state.ProjectsIds[1].ValueString() != "b" {
+		t.Errorf("expected [a b], got %#v", state.ProjectsIds)
+	}
+}
+
+// TestAPIToState_ProjectsIdsRefreshEntanglement documents a pre-existing
+// interaction between apiToState's merge-from-prior-state path (used by
+// Read, not ImportState) and the projects_ids fix in task-1b: when a prior
+// known state had no projects_ids, mergeProjectsIdsFromPlan forces the field
+// back to nil even though the API-derived value (now correctly populated by
+// GetShiftLeftPolicy.populateProjectsIds) has entries. This means a
+// `terraform refresh`/`plan` on an already-imported resource whose config
+// never set projects_ids will not surface projects attached out-of-band
+// after the initial import -- only a fresh `terraform import` (existing ==
+// nil) sees the corrected value. See task-1b-report.md for the concern.
+func TestAPIToState_ProjectsIdsRefreshEntanglement(t *testing.T) {
+	apiPolicy := &api_client.ShiftLeftPolicy{
+		ID:          "policy-1",
+		Type:        "licenses",
+		Builtin:     true,
+		ProjectsIds: []string{"a", "b"}, // freshly populated from the API's `projects` array
+		PolicyData:  []byte(`{"controls":[]}`),
+	}
+	priorState := &shiftLeftPolicyResourceModel{
+		Type: types.StringValue("licenses"),
+		// ProjectsIds left nil: prior state never knew about any attachment.
+	}
+
+	state := apiToState(apiPolicy, priorState)
+	if state.ProjectsIds != nil {
+		t.Logf("projects_ids survived the merge: %#v (entanglement not present)", state.ProjectsIds)
+		return
+	}
+	t.Log("confirmed: Read's merge-from-prior-state discards the API-derived projects_ids " +
+		"when prior state had none -- refresh does not surface out-of-band attachments")
+}
+
 func TestParseImportID(t *testing.T) {
 	policyType, policyID, err := parseImportID("iac/abc-123")
 	if err != nil {
