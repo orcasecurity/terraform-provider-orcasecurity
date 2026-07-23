@@ -51,6 +51,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy_catalog_controls"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_projects"
 	"terraform-provider-orcasecurity/orcasecurity/slack"
 	"terraform-provider-orcasecurity/orcasecurity/snyk"
 	"terraform-provider-orcasecurity/orcasecurity/splunk"
@@ -251,6 +252,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		shift_left_github_installation.NewInstallationsDataSource,
 		shift_left_gitlab_group.NewGroupsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
+		shift_left_projects.NewProjectsDataSource,
 		automation_v2_priorities.NewAutomationPrioritiesDataSource,
 	}
 }
