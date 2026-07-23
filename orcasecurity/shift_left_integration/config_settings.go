@@ -32,25 +32,28 @@ type ConfigSettingsModel struct {
 // FieldGate controls which configuration_settings fields are exposed by a
 // given per-provider resource schema, since not every SCM integration
 // supports every field:
-//   - SkipCheckRuns: GitHub only.
 //   - ArchiveActions: gates both archive_conditions and unavailable_conditions
 //     (installation_repositories_configuration), which are only meaningful for
 //     providers that model installation/repository access changes.
 type FieldGate struct {
-	SkipCheckRuns  bool
 	ArchiveActions bool
 }
 
 // ConfigSettingsAttributes returns the nested attribute map for the
-// configuration_settings object, omitting fields not enabled by opts.
+// configuration_settings object, omitting fields not enabled by opts. All
+// attributes are Optional+Computed: the server always returns a value for
+// every field, and per-provider resources adopt existing units, so the
+// server is authoritative and null-vs-config plan drift must be avoided.
 func ConfigSettingsAttributes(opts FieldGate) map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"disable_scan_pull_requests": schema.BoolAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "Disable scanning pull requests.",
 		},
 		"comments_on_pull_requests": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "When to post scan result comments on pull requests.",
 			Validators: []validator.String{
 				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_FAILED_ISSUES"),
@@ -58,13 +61,23 @@ func ConfigSettingsAttributes(opts FieldGate) map[string]schema.Attribute {
 		},
 		"pr_summary_comment": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "When to post a pull request summary comment.",
 			Validators: []validator.String{
 				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_FAILED_SCAN"),
 			},
 		},
+		"skip_check_runs": schema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "When to skip posting check runs.",
+			Validators: []validator.String{
+				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"),
+			},
+		},
 		"config_file_support": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "Whether in-repo Orca config file support is enabled.",
 			Validators: []validator.String{
 				stringvalidator.OneOf("ENABLED", "DISABLED"),
@@ -72,23 +85,15 @@ func ConfigSettingsAttributes(opts FieldGate) map[string]schema.Attribute {
 		},
 		"pr_summary_appendix": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "Additional free-text appendix appended to the pull request summary comment.",
 		},
-	}
-
-	if opts.SkipCheckRuns {
-		attrs["skip_check_runs"] = schema.StringAttribute{
-			Optional:    true,
-			Description: "When to skip posting check runs (GitHub only).",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"),
-			},
-		}
 	}
 
 	if opts.ArchiveActions {
 		attrs["archive_conditions"] = schema.ListAttribute{
 			Optional:    true,
+			Computed:    true,
 			ElementType: types.StringType,
 			Description: "Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions).",
 			Validators: []validator.List{
@@ -97,6 +102,7 @@ func ConfigSettingsAttributes(opts FieldGate) map[string]schema.Attribute {
 		}
 		attrs["unavailable_conditions"] = schema.ListAttribute{
 			Optional:    true,
+			Computed:    true,
 			ElementType: types.StringType,
 			Description: "Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions).",
 			Validators: []validator.List{
