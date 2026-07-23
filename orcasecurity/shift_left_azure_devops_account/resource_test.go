@@ -15,21 +15,31 @@ import (
 
 func TestAccAzureDevopsAccount_import(t *testing.T) {
 	installationID := os.Getenv("ORCA_TEST_AZ_INSTALLATION_ID")
+	// Prefer account name (stable SCM identity). Fall back to Orca UUID for older env setups.
+	accountName := os.Getenv("ORCA_TEST_AZ_ACCOUNT_NAME")
 	orcaAccountID := os.Getenv("ORCA_TEST_AZ_ACCOUNT_ID")
-	if installationID == "" || orcaAccountID == "" {
-		t.Skip("ORCA_TEST_AZ_INSTALLATION_ID / ORCA_TEST_AZ_ACCOUNT_ID not set")
+	if installationID == "" || (accountName == "" && orcaAccountID == "") {
+		t.Skip("ORCA_TEST_AZ_INSTALLATION_ID and ORCA_TEST_AZ_ACCOUNT_NAME (or ORCA_TEST_AZ_ACCOUNT_ID) not set")
 	}
 
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
-	original, err := client.GetAzureDevopsAccount(installationID, orcaAccountID)
+	client.InvalidateScmListCache()
+
+	var original *api_client.AzureDevopsAccount
+	var err error
+	if accountName != "" {
+		original, err = client.FindAzureDevopsAccountByName(installationID, accountName)
+	} else {
+		original, err = client.GetAzureDevopsAccount(installationID, orcaAccountID)
+	}
 	if err != nil {
-		t.Fatalf("failed to snapshot azure devops account %s/%s: %s", installationID, orcaAccountID, err)
+		t.Fatalf("failed to snapshot azure devops account: %s", err)
 	}
 	if original == nil {
-		t.Skipf("azure devops account %s/%s not found; cannot run adopt test", installationID, orcaAccountID)
+		t.Skip("azure devops account not found; cannot run adopt test")
 	}
-	accountName := original.AccountName
+	accountName = original.AccountName
 	t.Cleanup(func() {
 		restoreAzureAccount(t, client, installationID, accountName, original)
 	})
@@ -68,6 +78,7 @@ resource "orcasecurity_shift_left_azure_devops_account" "t" {
 func restoreAzureAccount(t *testing.T, client *api_client.APIClient, installationID, accountName string, original *api_client.AzureDevopsAccount) {
 	t.Helper()
 	body := acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)
+	client.InvalidateScmListCache()
 	cur, err := client.FindAzureDevopsAccountByName(installationID, accountName)
 	if err != nil {
 		t.Errorf("restore lookup: %s", err)
@@ -84,6 +95,13 @@ func restoreAzureAccount(t *testing.T, client *api_client.APIClient, installatio
 		return
 	}
 	if _, err := client.UpdateAzureDevopsAccount(installationID, cur.ID, body); err != nil {
-		t.Errorf("failed to restore azure account %s: %s", cur.ID, err)
+		client.InvalidateScmListCache()
+		if err2 := client.IntegrateAzureDevopsUnit(api_client.AzureDevopsUnitIntegrate{
+			InstallationID: installationID,
+			AccountName:    accountName,
+			Body:           body,
+		}); err2 != nil {
+			t.Errorf("failed to restore azure account %s (update: %v; re-integrate: %v)", cur.ID, err, err2)
+		}
 	}
 }

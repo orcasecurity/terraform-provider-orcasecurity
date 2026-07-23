@@ -27,6 +27,13 @@ type scmUnit interface {
 	stampInstallationID(string)
 }
 
+// InvalidateScmListCache drops cached SCM list pages. Tests that share a
+// client with provider-driven deletes must call this before Find/Get so they
+// do not see stale rows after destroy.
+func (client *APIClient) InvalidateScmListCache() {
+	client.invalidateScmListCache()
+}
+
 // invalidateScmListCache drops cached list pages so the next Get/List after a
 // write re-fetches. Safe/no-op when unused.
 func (client *APIClient) invalidateScmListCache() {
