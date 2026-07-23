@@ -1,8 +1,6 @@
 package shift_left_gitlab_group_test
 
 import (
-	"os"
-	"strconv"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
@@ -18,58 +16,16 @@ import (
 // the live group, and registers a cleanup that restores its original config.
 func snapshotGitlabGroupForTest(t *testing.T) (*api_client.APIClient, string, string, *api_client.GitlabGroup) {
 	t.Helper()
-	installationID := os.Getenv("ORCA_TEST_GL_INSTALLATION_ID")
-	gitlabGroupIDEnv := os.Getenv("ORCA_TEST_GL_GITLAB_GROUP_ID")
-	groupID := os.Getenv("ORCA_TEST_GL_GROUP_ID")
-	if installationID == "" || (gitlabGroupIDEnv == "" && groupID == "") {
-		t.Skip("ORCA_TEST_GL_INSTALLATION_ID and ORCA_TEST_GL_GITLAB_GROUP_ID (or ORCA_TEST_GL_GROUP_ID) not set")
-	}
+	installationID, gitlabGroupIDEnv, orcaGroupID := requireGitlabGroupTestEnv(t)
 
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 	client.InvalidateScmListCache()
 
-	var original *api_client.GitlabGroup
-	var err error
-	if gitlabGroupIDEnv != "" {
-		n, perr := strconv.ParseInt(gitlabGroupIDEnv, 10, 64)
-		if perr != nil {
-			t.Fatalf("ORCA_TEST_GL_GITLAB_GROUP_ID: %v", perr)
-		}
-		original, err = client.FindGitlabGroupByGitlabID(installationID, n)
-	} else {
-		original, err = client.GetGitlabGroup(installationID, groupID)
-	}
-	if err != nil {
-		t.Fatalf("snapshot failed: %s", err)
-	}
-	if original == nil {
-		t.Skipf("gitlab group not found under installation %s", installationID)
-	}
-	groupID = original.ID
+	original := fetchGitlabGroupForTest(t, client, installationID, gitlabGroupIDEnv, orcaGroupID)
+	groupID := original.ID
 	t.Cleanup(func() {
-		client.InvalidateScmListCache()
-		body := acctest.RestoreScmBody(
-			original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings,
-		)
-		cur, err := client.FindGitlabGroupByGitlabID(installationID, original.GitlabGroupID)
-		if err != nil || cur == nil {
-			if original.GitlabGroupID == 0 {
-				t.Errorf("restore failed for %s/%s: unit missing and gitlab_group_id unknown", installationID, groupID)
-				return
-			}
-			if err := client.IntegrateGitlabUnit(api_client.GitlabUnitIntegrate{
-				InstallationID: installationID,
-				GitlabGroupID:  original.GitlabGroupID,
-				Body:           body,
-			}); err != nil {
-				t.Errorf("re-integrate failed for gitlab_group_id=%d: %s", original.GitlabGroupID, err)
-			}
-			return
-		}
-		if _, err := client.UpdateGitlabGroup(installationID, cur.ID, body); err != nil {
-			t.Errorf("restore failed for %s/%s: %s", installationID, cur.ID, err)
-		}
+		restoreGitlabGroup(t, client, installationID, original.GitlabGroupID, original)
 	})
 	return client, installationID, groupID, original
 }
