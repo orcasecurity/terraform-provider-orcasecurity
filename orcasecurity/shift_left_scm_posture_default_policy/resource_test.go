@@ -3,6 +3,7 @@ package shift_left_scm_posture_default_policy_test
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
@@ -13,6 +14,12 @@ import (
 )
 
 func TestAccScmPostureDefaultPolicy_adopt(t *testing.T) {
+	// The snapshot below runs before resource.Test can auto-skip, so gate on
+	// TF_ACC explicitly (CI runs unit tests without credentials).
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+
 	// Snapshot the live singleton and restore it after the test: the policy
 	// is org-wide and never deletable, so the applied config would otherwise
 	// leak into the lab environment.
