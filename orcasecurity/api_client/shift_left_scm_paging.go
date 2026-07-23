@@ -13,16 +13,16 @@ type scmEnvelope[T any] struct {
 
 // getAllScmPages fetches every page of an enveloped {total_items,data} list.
 // basePath must already include a leading "/api" and no query string.
-// Uses limit/offset; offset advances by items actually received.
+//
+// Uses limit/start_at_index rather than limit/offset: this API family proved
+// to ignore the `offset` query param (confirmed live on the projects
+// endpoint, see ListShiftLeftProjects), instead honoring `start_at_index`,
+// the same convention used by /api/automations (see ListAutomationsV2).
 func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 	const pageLimit = 200
 	var all []T
 	for {
-		sep := "?"
-		if containsRune(basePath, '?') {
-			sep = "&"
-		}
-		resp, err := client.Get(fmt.Sprintf("%s%slimit=%d&offset=%d", basePath, sep, pageLimit, len(all)))
+		resp, err := client.Get(fmt.Sprintf("%s?limit=%d&start_at_index=%d", basePath, pageLimit, len(all)))
 		if err != nil {
 			return nil, err
 		}
@@ -35,13 +35,4 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 			return all, nil
 		}
 	}
-}
-
-func containsRune(s string, r rune) bool {
-	for _, c := range s {
-		if c == r {
-			return true
-		}
-	}
-	return false
 }

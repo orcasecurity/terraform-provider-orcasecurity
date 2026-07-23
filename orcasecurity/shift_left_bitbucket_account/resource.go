@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -67,9 +69,26 @@ func (r *bitbucketAccountResource) Create(ctx context.Context, req resource.Crea
 			fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Bitbucket account first, then import.", accountID, installationID))
 		return
 	}
+	if plan.ConfigSettings == nil {
+		cs := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
+		plan.ConfigSettings = &cs
+	}
+	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
+		plan.InstallationMode = types.StringValue(existing.InstallationMode)
+	}
+	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
+		plan.DefaultPolicies = types.BoolValue(existing.DefaultPolicies)
+	}
 	acc, err := r.apiClient.UpdateBitbucketAccount(installationID, accountID, expandUpdate(&plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring Bitbucket account", err.Error())
+		return
+	}
+	if acc == nil {
+		resp.Diagnostics.AddError(
+			"Error reading bitbucket account after write",
+			"The bitbucket account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		)
 		return
 	}
 	state := apiToState(acc)
@@ -105,6 +124,13 @@ func (r *bitbucketAccountResource) Update(ctx context.Context, req resource.Upda
 	acc, err := r.apiClient.UpdateBitbucketAccount(plan.InstallationID.ValueString(), plan.AccountID.ValueString(), expandUpdate(&plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating Bitbucket account", err.Error())
+		return
+	}
+	if acc == nil {
+		resp.Diagnostics.AddError(
+			"Error reading bitbucket account after write",
+			"The bitbucket account was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		)
 		return
 	}
 	state := apiToState(acc)

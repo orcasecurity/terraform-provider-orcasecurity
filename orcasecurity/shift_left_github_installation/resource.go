@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -59,9 +61,26 @@ func (r *githubInstallationResource) Create(ctx context.Context, req resource.Cr
 			fmt.Sprintf("Installation %q does not exist. Install the Orca GitHub App first, then import.", id))
 		return
 	}
+	if plan.ConfigSettings == nil {
+		cs := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
+		plan.ConfigSettings = &cs
+	}
+	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
+		plan.InstallationMode = types.StringValue(existing.InstallationMode)
+	}
+	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
+		plan.DefaultPolicies = types.BoolValue(existing.DefaultPolicies)
+	}
 	inst, err := r.apiClient.UpdateGithubInstallation(id, expandUpdate(&plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring GitHub installation", err.Error())
+		return
+	}
+	if inst == nil {
+		resp.Diagnostics.AddError(
+			"Error reading github installation after write",
+			"The github installation was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		)
 		return
 	}
 	state := apiToState(inst)
@@ -97,6 +116,13 @@ func (r *githubInstallationResource) Update(ctx context.Context, req resource.Up
 	inst, err := r.apiClient.UpdateGithubInstallation(plan.InstallationID.ValueString(), expandUpdate(&plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating GitHub installation", err.Error())
+		return
+	}
+	if inst == nil {
+		resp.Diagnostics.AddError(
+			"Error reading github installation after write",
+			"The github installation was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		)
 		return
 	}
 	state := apiToState(inst)

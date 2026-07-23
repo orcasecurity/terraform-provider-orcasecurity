@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -67,9 +69,26 @@ func (r *gitlabGroupResource) Create(ctx context.Context, req resource.CreateReq
 			fmt.Sprintf("Group %q on installation %q does not exist. Integrate the Orca GitLab group first, then import.", groupID, installationID))
 		return
 	}
+	if plan.ConfigSettings == nil {
+		cs := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
+		plan.ConfigSettings = &cs
+	}
+	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
+		plan.InstallationMode = types.StringValue(existing.InstallationMode)
+	}
+	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
+		plan.DefaultPolicies = types.BoolValue(existing.DefaultPolicies)
+	}
 	grp, err := r.apiClient.UpdateGitlabGroup(installationID, groupID, expandUpdate(&plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring GitLab group", err.Error())
+		return
+	}
+	if grp == nil {
+		resp.Diagnostics.AddError(
+			"Error reading gitlab group after write",
+			"The gitlab group was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		)
 		return
 	}
 	state := apiToState(grp)
@@ -105,6 +124,13 @@ func (r *gitlabGroupResource) Update(ctx context.Context, req resource.UpdateReq
 	grp, err := r.apiClient.UpdateGitlabGroup(plan.InstallationID.ValueString(), plan.GroupID.ValueString(), expandUpdate(&plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating GitLab group", err.Error())
+		return
+	}
+	if grp == nil {
+		resp.Diagnostics.AddError(
+			"Error reading gitlab group after write",
+			"The gitlab group was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
+		)
 		return
 	}
 	state := apiToState(grp)
