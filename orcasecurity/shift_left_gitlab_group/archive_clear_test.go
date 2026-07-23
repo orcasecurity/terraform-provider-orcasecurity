@@ -13,12 +13,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// TestAccGitlabGroup_clearsArchiveConditions verifies that an explicit empty
-// archive_conditions/unavailable_conditions overlay clears
-// installation_repositories_configuration on the live unit (finding #3).
-//
-// Requires ORCA_TEST_GL_INSTALLATION_ID and ORCA_TEST_GL_GROUP_ID.
-func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
+// snapshotGitlabGroupForTest gates on the ORCA_TEST_GL_* env vars, snapshots
+// the live group, and registers a cleanup that restores its original config.
+func snapshotGitlabGroupForTest(t *testing.T) (*api_client.APIClient, string, string, *api_client.GitlabGroup) {
+	t.Helper()
 	installationID := os.Getenv("ORCA_TEST_GL_INSTALLATION_ID")
 	groupID := os.Getenv("ORCA_TEST_GL_GROUP_ID")
 	if installationID == "" || groupID == "" {
@@ -42,6 +40,30 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 			t.Errorf("restore failed for %s/%s: %s", installationID, groupID, err)
 		}
 	})
+	return client, installationID, groupID, original
+}
+
+// assertConditionsCleared accepts null or an empty {} object as a successful
+// clear; anything still carrying conditions fails.
+func assertConditionsCleared(t *testing.T, repos *api_client.ShiftLeftInstallationReposConfig) {
+	t.Helper()
+	if repos == nil {
+		return
+	}
+	hasArchive := repos.ArchiveActions != nil && len(repos.ArchiveActions.Conditions) > 0
+	hasUnavailable := repos.UnavailableActions != nil && len(repos.UnavailableActions.Conditions) > 0
+	if hasArchive || hasUnavailable {
+		t.Fatalf("expected installation_repositories_configuration cleared, got %+v", repos)
+	}
+}
+
+// TestAccGitlabGroup_clearsArchiveConditions verifies that an explicit empty
+// archive_conditions/unavailable_conditions overlay clears
+// installation_repositories_configuration on the live unit (finding #3).
+//
+// Requires ORCA_TEST_GL_INSTALLATION_ID and ORCA_TEST_GL_GROUP_ID.
+func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
+	client, installationID, groupID, original := snapshotGitlabGroupForTest(t)
 
 	// 1) Set archive + unavailable conditions.
 	withConditions := original.ConfigSettings
@@ -77,13 +99,6 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("clear update failed: %s", err)
 	}
-	// API may return null or an empty {} object; either is a successful clear.
-	if repos := cleared.ConfigSettings.InstallationReposConfig; repos != nil {
-		hasArchive := repos.ArchiveActions != nil && len(repos.ArchiveActions.Conditions) > 0
-		hasUnavailable := repos.UnavailableActions != nil && len(repos.UnavailableActions.Conditions) > 0
-		if hasArchive || hasUnavailable {
-			t.Fatalf("expected installation_repositories_configuration cleared, got %+v", repos)
-		}
-	}
+	assertConditionsCleared(t, cleared.ConfigSettings.InstallationReposConfig)
 	t.Log("archive/unavailable conditions cleared via empty lists")
 }
