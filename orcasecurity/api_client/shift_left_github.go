@@ -63,7 +63,9 @@ type GithubInstallation struct {
 
 func (g *GithubInstallation) unitID() string { return g.ID }
 
-func (g *GithubInstallation) stampInstallationID(string) {}
+func (g *GithubInstallation) stampInstallationID(string) {
+	// GitHub installations are top-level units; no parent installation_id to stamp.
+}
 
 const githubInstallationsPath = "/api/shiftleft/github/installations/"
 
