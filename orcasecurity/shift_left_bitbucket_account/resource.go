@@ -10,7 +10,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -69,16 +68,20 @@ func (r *bitbucketAccountResource) Create(ctx context.Context, req resource.Crea
 			fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Bitbucket account first, then import.", accountID, installationID))
 		return
 	}
-	base := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
-	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
-	plan.ConfigSettings = &merged
-	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
-		plan.InstallationMode = types.StringValue(existing.InstallationMode)
+	var config resourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
-		plan.DefaultPolicies = types.BoolValue(existing.DefaultPolicies)
-	}
-	acc, err := r.apiClient.UpdateBitbucketAccount(installationID, accountID, expandUpdate(&plan))
+	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
+	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
+		InstallationMode: existing.InstallationMode,
+		DefaultPolicies:  existing.DefaultPolicies,
+		PolicyIDs:        api_client.PolicyRefIDs(existing.Policies),
+		ConfigSettings:   existing.ConfigSettings,
+		ProjectID:        api_client.ProjectRefID(existing.Project),
+	})
+	acc, err := r.apiClient.UpdateBitbucketAccount(installationID, accountID, ad.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error configuring Bitbucket account", err.Error())
 		return
@@ -132,16 +135,20 @@ func (r *bitbucketAccountResource) Update(ctx context.Context, req resource.Upda
 			fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID))
 		return
 	}
-	base := shift_left_integration.FlattenConfigSettings(current.ConfigSettings)
-	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
-	plan.ConfigSettings = &merged
-	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
-		plan.InstallationMode = types.StringValue(current.InstallationMode)
+	var config resourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
-		plan.DefaultPolicies = types.BoolValue(current.DefaultPolicies)
-	}
-	acc, err := r.apiClient.UpdateBitbucketAccount(plan.InstallationID.ValueString(), plan.AccountID.ValueString(), expandUpdate(&plan))
+	project := shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies)
+	ad := shift_left_integration.Adopt(plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings, project, shift_left_integration.ExistingUnit{
+		InstallationMode: current.InstallationMode,
+		DefaultPolicies:  current.DefaultPolicies,
+		PolicyIDs:        api_client.PolicyRefIDs(current.Policies),
+		ConfigSettings:   current.ConfigSettings,
+		ProjectID:        api_client.ProjectRefID(current.Project),
+	})
+	acc, err := r.apiClient.UpdateBitbucketAccount(plan.InstallationID.ValueString(), plan.AccountID.ValueString(), ad.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating Bitbucket account", err.Error())
 		return

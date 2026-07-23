@@ -39,4 +39,5 @@ Read-Only:
 - `account_name` (String)
 - `default_policies` (Boolean)
 - `id` (String)
+- `installation_id` (String)
 - `installation_mode` (String)

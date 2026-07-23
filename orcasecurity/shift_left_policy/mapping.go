@@ -6,6 +6,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -18,6 +19,35 @@ func stringSliceFromTypes(values []types.String) []string {
 		}
 	}
 	return result
+}
+
+// stringSliceFromSet extracts the known string elements from a set attribute,
+// returning nil for a null/unknown set.
+func stringSliceFromSet(s types.Set) []string {
+	if s.IsNull() || s.IsUnknown() {
+		return nil
+	}
+	elems := s.Elements()
+	result := make([]string, 0, len(elems))
+	for _, e := range elems {
+		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
+			result = append(result, v.ValueString())
+		}
+	}
+	return result
+}
+
+// setFromStringSlice builds a set attribute from ids, returning a null set for
+// an empty/nil input so an unattached policy reads as null rather than [].
+func setFromStringSlice(values []string) types.Set {
+	if len(values) == 0 {
+		return types.SetNull(types.StringType)
+	}
+	elems := make([]attr.Value, len(values))
+	for i, v := range values {
+		elems[i] = types.StringValue(v)
+	}
+	return types.SetValueMust(types.StringType, elems)
 }
 
 func containsString(values []string, target string) bool {
@@ -391,7 +421,7 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 		WarnMode:                 model.WarnMode.ValueBool(),
 		PriorityFailureThreshold: model.PriorityFailureThreshold.ValueString(),
 		Type:                     policyType,
-		ProjectsIds:              stringSliceFromTypes(model.ProjectsIds),
+		ProjectsIds:              stringSliceFromSet(model.ProjectsIds),
 	}
 
 	controls, policyData, d := buildControlsAndData(model, &policy)
@@ -958,7 +988,7 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		Disabled:                 types.BoolValue(apiPolicy.Disabled),
 		WarnMode:                 types.BoolValue(apiPolicy.WarnMode),
 		PriorityFailureThreshold: types.StringValue(apiPolicy.PriorityFailureThreshold),
-		ProjectsIds:              stringSliceToTypes(apiPolicy.ProjectsIds),
+		ProjectsIds:              setFromStringSlice(apiPolicy.ProjectsIds),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
 
@@ -977,10 +1007,6 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		mergeStateFromPlan(model, existing)
 	}
 
-	if len(model.ProjectsIds) == 0 {
-		model.ProjectsIds = nil
-	}
-
 	return model
 }
 
@@ -990,8 +1016,10 @@ func stateFromPlanAfterWrite(plan *shiftLeftPolicyResourceModel, apiPolicy *api_
 	state := *plan
 	state.ID = types.StringValue(apiPolicy.ID)
 	state.Builtin = types.BoolValue(apiPolicy.Builtin)
-	if len(plan.ProjectsIds) == 0 {
-		state.ProjectsIds = nil
+	// projects_ids is Optional+Computed: when the user omitted it the plan value
+	// is unknown, so anchor it on the projects the API reports as attached.
+	if plan.ProjectsIds.IsUnknown() {
+		state.ProjectsIds = setFromStringSlice(apiPolicy.ProjectsIds)
 	}
 	return &state
 }

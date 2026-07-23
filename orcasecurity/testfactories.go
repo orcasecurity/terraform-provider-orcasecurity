@@ -2,7 +2,10 @@ package orcasecurity
 
 import (
 	"os"
+	"strings"
 	"testing"
+
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
@@ -29,4 +32,36 @@ func TestAccPreCheck(t *testing.T) {
 	if v := os.Getenv("ORCASECURITY_API_TOKEN"); v == "" {
 		t.Fatal("ORCASECURITY_API_TOKEN must be set for acceptance tests")
 	}
+}
+
+// RestoreScmBody builds the PUT body that restores an integrated SCM unit to a
+// previously snapshotted state. Mirrors the resource write path (project_id XOR
+// policies) so acceptance tests can revert a unit they mutated.
+func RestoreScmBody(mode string, defaultPolicies bool, policies []api_client.ScmPolicyRef, project *api_client.ScmProjectRef, cfg api_client.ShiftLeftConfigSettings) api_client.ScmInstallationUpdate {
+	body := api_client.ScmInstallationUpdate{
+		InstallationMode: mode,
+		DefaultPolicies:  defaultPolicies,
+		Policies:         api_client.PolicyRefIDs(policies),
+		ConfigSettings:   cfg,
+	}
+	if projectID := api_client.ProjectRefID(project); projectID != "" {
+		body.ProjectID = projectID
+		body.Policies = nil
+	}
+	return body
+}
+
+// TestAPIClient builds an API client from the acceptance-test environment
+// variables. It is used by acceptance tests that need to snapshot and restore
+// live state (adopt-existing SCM units are not TF-owned, so a test that mutates
+// one must put it back).
+func TestAPIClient(t *testing.T) *api_client.APIClient {
+	t.Helper()
+	endpoint := strings.TrimRight(os.Getenv("ORCASECURITY_API_ENDPOINT"), "/")
+	token := os.Getenv("ORCASECURITY_API_TOKEN")
+	client, err := api_client.NewAPIClient(&endpoint, &token)
+	if err != nil {
+		t.Fatalf("failed to create API client for acceptance test: %s", err)
+	}
+	return client
 }

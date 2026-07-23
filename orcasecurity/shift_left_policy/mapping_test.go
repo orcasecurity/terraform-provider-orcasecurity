@@ -209,8 +209,8 @@ func TestAPIToState_ProjectsIdsNullWhenUnset(t *testing.T) {
 	}
 
 	state := apiToState(apiPolicy, plan)
-	if state.ProjectsIds != nil {
-		t.Errorf("expected nil projects_ids, got %#v", state.ProjectsIds)
+	if !state.ProjectsIds.IsNull() {
+		t.Errorf("expected null projects_ids, got %#v", state.ProjectsIds)
 	}
 }
 
@@ -230,11 +230,12 @@ func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 	}
 
 	state := apiToState(apiPolicy, nil)
-	if len(state.ProjectsIds) != 2 {
-		t.Fatalf("expected 2 projects_ids, got %#v", state.ProjectsIds)
+	got := stringSliceFromSet(state.ProjectsIds)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 projects_ids, got %#v", got)
 	}
-	if state.ProjectsIds[0].ValueString() != "a" || state.ProjectsIds[1].ValueString() != "b" {
-		t.Errorf("expected [a b], got %#v", state.ProjectsIds)
+	if got[0] != "a" || got[1] != "b" {
+		t.Errorf("expected [a b], got %#v", got)
 	}
 }
 
@@ -246,13 +247,13 @@ func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 func TestAPIToState_ProjectsIdsAuthoritativeOnRead(t *testing.T) {
 	// prior state had NO projects; API now reports two attached (out-of-band attach)
 	existing := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("licenses"), ProjectsIds: nil,
+		Type: types.StringValue("licenses"), ProjectsIds: types.SetNull(types.StringType),
 	}
 	api := &api_client.ShiftLeftPolicy{
 		ID: "p1", Type: "licenses", ProjectsIds: []string{"proj-a", "proj-b"},
 	}
 	state := apiToState(api, existing)
-	got := stringSliceFromTypes(state.ProjectsIds)
+	got := stringSliceFromSet(state.ProjectsIds)
 	if len(got) != 2 {
 		t.Fatalf("expected refresh to reflect API projects [proj-a proj-b], got %v", got)
 	}
@@ -265,8 +266,8 @@ func TestAPIToState_ProjectsIdsEmptyStaysNull(t *testing.T) {
 	existing := &shiftLeftPolicyResourceModel{Type: types.StringValue("licenses")}
 	api := &api_client.ShiftLeftPolicy{ID: "p1", Type: "licenses"}
 	state := apiToState(api, existing)
-	if len(state.ProjectsIds) != 0 {
-		t.Fatalf("expected nil/empty, got %v", state.ProjectsIds)
+	if !state.ProjectsIds.IsNull() {
+		t.Fatalf("expected null, got %v", state.ProjectsIds)
 	}
 }
 

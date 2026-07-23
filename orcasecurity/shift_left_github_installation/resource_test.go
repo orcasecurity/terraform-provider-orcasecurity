@@ -15,6 +15,25 @@ func TestAccGithubInstallation_import(t *testing.T) {
 	if id == "" {
 		t.Skip("ORCA_TEST_GH_INSTALLATION_ID not set")
 	}
+
+	// Snapshot the live installation and restore it after the test. Adopt-existing
+	// units are not TF-owned (Delete is a no-op), so without this the applied
+	// config would leak into the lab environment.
+	orcasecurity.TestAccPreCheck(t)
+	client := orcasecurity.TestAPIClient(t)
+	original, err := client.GetGithubInstallation(id)
+	if err != nil {
+		t.Fatalf("failed to snapshot github installation %s: %s", id, err)
+	}
+	if original == nil {
+		t.Skipf("github installation %s not found; cannot run adopt test", id)
+	}
+	t.Cleanup(func() {
+		if _, err := client.UpdateGithubInstallation(id, orcasecurity.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
+			t.Errorf("failed to restore github installation %s to its original config: %s", id, err)
+		}
+	})
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,

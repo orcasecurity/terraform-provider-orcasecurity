@@ -29,9 +29,9 @@ func TestBitbucketAccount_UnmarshalLiveShape(t *testing.T) {
 	}
 }
 
-func TestBitbucketInstallation_Unmarshal(t *testing.T) {
+func TestScmInstallationID_Unmarshal(t *testing.T) {
 	fixture := `{"id":"55555555-5555-5555-5555-555555555555"}`
-	var inst bitbucketInstallation
+	var inst scmInstallationID
 	if err := json.Unmarshal([]byte(fixture), &inst); err != nil {
 		t.Fatal(err)
 	}

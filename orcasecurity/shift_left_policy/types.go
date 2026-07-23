@@ -121,15 +121,15 @@ type licensesBlockModel struct {
 }
 
 type shiftLeftPolicyResourceModel struct {
-	ID                       types.String   `tfsdk:"id"`
-	Type                     types.String   `tfsdk:"type"`
-	Name                     types.String   `tfsdk:"name"`
-	Description              types.String   `tfsdk:"description"`
-	Disabled                 types.Bool     `tfsdk:"disabled"`
-	WarnMode                 types.Bool     `tfsdk:"warn_mode"`
-	PriorityFailureThreshold types.String   `tfsdk:"priority_failure_threshold"`
-	ProjectsIds              []types.String `tfsdk:"projects_ids"`
-	Builtin                  types.Bool     `tfsdk:"builtin"`
+	ID                       types.String `tfsdk:"id"`
+	Type                     types.String `tfsdk:"type"`
+	Name                     types.String `tfsdk:"name"`
+	Description              types.String `tfsdk:"description"`
+	Disabled                 types.Bool   `tfsdk:"disabled"`
+	WarnMode                 types.Bool   `tfsdk:"warn_mode"`
+	PriorityFailureThreshold types.String `tfsdk:"priority_failure_threshold"`
+	ProjectsIds              types.Set    `tfsdk:"projects_ids"`
+	Builtin                  types.Bool   `tfsdk:"builtin"`
 
 	Iac                       *iacBlockModel            `tfsdk:"iac"`
 	Sast                      *sastBlockModel           `tfsdk:"sast"`

@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -263,7 +264,11 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 		"projects_ids": schema.SetAttribute{
 			ElementType: types.StringType,
 			Optional:    true,
-			Description: "Project IDs to attach this policy to.",
+			Computed:    true,
+			Description: "Project IDs to attach this policy to. Reflects the API on read; omit to leave the current attachment unchanged, or set to `[]` to detach from all projects.",
+			PlanModifiers: []planmodifier.Set{
+				setplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"builtin": schema.BoolAttribute{
 			Computed:    true,

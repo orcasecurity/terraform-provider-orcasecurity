@@ -3,6 +3,7 @@ package shift_left_policy
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -21,7 +22,7 @@ func baseBuiltin() *shiftLeftPolicyResourceModel {
 func TestBuiltinGuard_ProjectsOnlyChangeAllowed(t *testing.T) {
 	state := baseBuiltin()
 	plan := baseBuiltin()
-	plan.ProjectsIds = []types.String{types.StringValue("proj-1"), types.StringValue("proj-2")}
+	plan.ProjectsIds = types.SetValueMust(types.StringType, []attr.Value{types.StringValue("proj-1"), types.StringValue("proj-2")})
 
 	field, changed := builtinNonProjectFieldChanged(plan, state)
 	if changed {

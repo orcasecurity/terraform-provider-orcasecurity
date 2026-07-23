@@ -8,20 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func policyIdsFromSet(s types.Set) []string {
-	if s.IsNull() || s.IsUnknown() {
-		return nil
-	}
-	elems := s.Elements()
-	out := make([]string, 0, len(elems))
-	for _, e := range elems {
-		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
-			out = append(out, v.ValueString())
-		}
-	}
-	return out
-}
-
 func policyIdsToTypes(refs []api_client.ScmPolicyRef) types.Set {
 	if len(refs) == 0 {
 		return types.SetNull(types.StringType)
@@ -33,18 +19,12 @@ func policyIdsToTypes(refs []api_client.ScmPolicyRef) types.Set {
 	return types.SetValueMust(types.StringType, elems)
 }
 
-// expandUpdate builds the PUT body. policies = default_policies ? [] : ids.
+// expandUpdate builds the PUT body from the model. policies = default_policies
+// ? [] : ids. Adopt-existing writes go through shift_left_integration.Adopt,
+// which also preserves live server state; this remains for the plain
+// model->body path (and its unit test).
 func expandUpdate(m *resourceModel) api_client.ScmInstallationUpdate {
-	ids := policyIdsFromSet(m.PoliciesIds)
-	if m.DefaultPolicies.ValueBool() {
-		ids = []string{}
-	}
-	return api_client.ScmInstallationUpdate{
-		InstallationMode: m.InstallationMode.ValueString(),
-		DefaultPolicies:  m.DefaultPolicies.ValueBool(),
-		Policies:         ids,
-		ConfigSettings:   shift_left_integration.ExpandConfigSettings(m.ConfigSettings),
-	}
+	return shift_left_integration.ExpandUpdate(m.InstallationMode, m.DefaultPolicies, m.PoliciesIds, m.ConfigSettings)
 }
 
 func apiToState(inst *api_client.AzureDevopsAccount) resourceModel {
@@ -57,6 +37,7 @@ func apiToState(inst *api_client.AzureDevopsAccount) resourceModel {
 		InstallationMode: types.StringValue(inst.InstallationMode),
 		DefaultPolicies:  types.BoolValue(inst.DefaultPolicies),
 		PoliciesIds:      policyIdsToTypes(inst.Policies),
+		ProjectID:        types.StringValue(api_client.ProjectRefID(inst.Project)),
 		ConfigSettings:   &cs,
 	}
 }

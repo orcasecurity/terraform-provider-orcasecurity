@@ -1,6 +1,9 @@
 package api_client
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type GitlabGroup struct {
 	ID               string                  `json:"id"`
@@ -9,11 +12,45 @@ type GitlabGroup struct {
 	InstallationMode string                  `json:"installation_mode,omitempty"`
 	DefaultPolicies  bool                    `json:"default_policies"`
 	Policies         []ScmPolicyRef          `json:"policies,omitempty"`
+	Project          *ScmProjectRef          `json:"project,omitempty"`
 	ConfigSettings   ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+// UnmarshalJSON maps the GitLab group name into AccountName. Unlike the other
+// providers, GitLab's API returns the unit name under `gitlab_group_name`
+// (there is no `account_name` field), so fall back to it.
+func (g *GitlabGroup) UnmarshalJSON(b []byte) error {
+	type alias GitlabGroup
+	aux := struct {
+		alias
+		GitlabGroupName string `json:"gitlab_group_name"`
+	}{alias: alias(*g)}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	*g = GitlabGroup(aux.alias)
+	if g.AccountName == "" {
+		g.AccountName = aux.GitlabGroupName
+	}
+	return nil
+}
+
+// ListGitlabGroups fans out across every GitLab installation so each group
+// carries its installation_id (the global /gitlab/integrated_groups/ endpoint
+// omits it, which breaks the config-resource for_each workflow).
 func (client *APIClient) ListGitlabGroups() ([]GitlabGroup, error) {
-	return getAllScmPages[GitlabGroup](client, "/api/shiftleft/gitlab/integrated_groups/")
+	return listScmUnitsByInstallation[GitlabGroup](
+		client,
+		"/api/shiftleft/gitlab/installations/",
+		func(installationID string) string {
+			return fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_groups/", installationID)
+		},
+		func(g *GitlabGroup, installationID string) {
+			if g.InstallationID == "" {
+				g.InstallationID = installationID
+			}
+		},
+	)
 }
 
 // GetGitlabGroup reads via list-filter on the installation-scoped list.

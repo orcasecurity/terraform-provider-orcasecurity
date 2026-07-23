@@ -17,11 +17,13 @@ type ShiftLeftInstallationReposConfig struct {
 // by the Orca SCM integration UI/API for shift-left source-control integrations
 // (GitHub, GitLab, Azure DevOps, Bitbucket).
 type ShiftLeftConfigSettings struct {
-	DisableScanPullRequests bool                              `json:"disable_scan_pull_requests"`
-	CommentsOnPullRequests  string                            `json:"comments_on_pull_requests,omitempty"`
-	PrSummaryComment        string                            `json:"pr_summary_comment,omitempty"`
-	SkipCheckRuns           string                            `json:"skip_check_runs,omitempty"`
-	ConfigFileSupport       string                            `json:"config_file_support,omitempty"`
-	PrSummaryAppendix       string                            `json:"pr_summary_appendix,omitempty"`
+	DisableScanPullRequests bool   `json:"disable_scan_pull_requests"`
+	CommentsOnPullRequests  string `json:"comments_on_pull_requests,omitempty"`
+	PrSummaryComment        string `json:"pr_summary_comment,omitempty"`
+	SkipCheckRuns           string `json:"skip_check_runs,omitempty"`
+	ConfigFileSupport       string `json:"config_file_support,omitempty"`
+	// pr_summary_appendix is always sent (even when empty) to match the UI,
+	// which writes `pr_summary_appendix: customPrNote ?? ''` on every update.
+	PrSummaryAppendix       string                            `json:"pr_summary_appendix"`
 	InstallationReposConfig *ShiftLeftInstallationReposConfig `json:"installation_repositories_configuration,omitempty"`
 }

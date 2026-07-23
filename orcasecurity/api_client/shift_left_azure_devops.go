@@ -9,11 +9,27 @@ type AzureDevopsAccount struct {
 	InstallationMode string                  `json:"installation_mode,omitempty"`
 	DefaultPolicies  bool                    `json:"default_policies"`
 	Policies         []ScmPolicyRef          `json:"policies,omitempty"`
+	Project          *ScmProjectRef          `json:"project,omitempty"`
 	ConfigSettings   ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+// ListAzureDevopsAccounts fans out across every Azure DevOps installation so
+// each account carries its installation_id (the global
+// /azure_devops/integrated_accounts/ endpoint omits it, which breaks the
+// config-resource for_each workflow).
 func (client *APIClient) ListAzureDevopsAccounts() ([]AzureDevopsAccount, error) {
-	return getAllScmPages[AzureDevopsAccount](client, "/api/shiftleft/azure_devops/integrated_accounts/")
+	return listScmUnitsByInstallation[AzureDevopsAccount](
+		client,
+		"/api/shiftleft/azure_devops/installations/",
+		func(installationID string) string {
+			return fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/", installationID)
+		},
+		func(a *AzureDevopsAccount, installationID string) {
+			if a.InstallationID == "" {
+				a.InstallationID = installationID
+			}
+		},
+	)
 }
 
 // GetAzureDevopsAccount reads via list-filter on the installation-scoped list.

@@ -40,6 +40,7 @@ func (ds *installationsDataSource) Configure(_ context.Context, req datasource.C
 
 var installationAttrTypes = map[string]attr.Type{
 	"id":                types.StringType,
+	"installation_id":   types.StringType,
 	"account_name":      types.StringType,
 	"installation_mode": types.StringType,
 	"default_policies":  types.BoolType,
@@ -54,6 +55,7 @@ func (ds *installationsDataSource) Schema(_ context.Context, _ datasource.Schema
 				NestedObject: dschema.NestedAttributeObject{
 					Attributes: map[string]dschema.Attribute{
 						"id":                dschema.StringAttribute{Computed: true},
+						"installation_id":   dschema.StringAttribute{Computed: true},
 						"account_name":      dschema.StringAttribute{Computed: true},
 						"installation_mode": dschema.StringAttribute{Computed: true},
 						"default_policies":  dschema.BoolAttribute{Computed: true},
@@ -71,6 +73,7 @@ func installationsToListValue(insts []api_client.GithubInstallation) (types.List
 	for i, in := range insts {
 		obj, d := types.ObjectValue(installationAttrTypes, map[string]attr.Value{
 			"id":                types.StringValue(in.ID),
+			"installation_id":   types.StringValue(in.ID),
 			"account_name":      types.StringValue(in.AccountName),
 			"installation_mode": types.StringValue(in.InstallationMode),
 			"default_policies":  types.BoolValue(in.DefaultPolicies),
