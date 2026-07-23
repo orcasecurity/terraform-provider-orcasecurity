@@ -229,6 +229,8 @@ func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) d
 		hasBlock(model.Licenses != nil, "licenses")
 	case "sca":
 		hasBlock(model.Sca != nil, "sca")
+	case "malicious_packages":
+		// No controls, no type block required.
 	default:
 		diags.AddError("Unsupported policy type", fmt.Sprintf("Unknown policy type %q.", policyType))
 	}
@@ -358,6 +360,8 @@ func buildControlsAndData(model *shiftLeftPolicyResourceModel, policy *api_clien
 	case "sca":
 		controls = licenseControlsToMaps(model.Sca.Controls)
 		policyData["controls"] = controls
+	case "malicious_packages":
+		// No controls; policy_data is {}.
 	}
 
 	return controls, policyData, diags
@@ -940,6 +944,8 @@ func applyTypeBlockToState(model *shiftLeftPolicyResourceModel, policyType strin
 		model.Licenses = buildLicensesBlock(controls)
 	case "sca":
 		model.Sca = buildLicensesBlock(controls)
+	case "malicious_packages":
+		// No controls to populate.
 	}
 }
 

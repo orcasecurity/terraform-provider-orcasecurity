@@ -14,6 +14,7 @@ var policyTypes = []string{
 	"scm_posture",
 	"licenses",
 	"sca",
+	"malicious_packages",
 }
 
 type conditionsModel struct {

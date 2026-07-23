@@ -318,3 +318,127 @@ removed {
 		},
 	})
 }
+
+// TestAccShiftLeftPolicy_MaliciousPackages exercises the malicious_packages
+// built-in policy type. Unlike licenses/sca/iac/etc, malicious_packages has no
+// controls and no type-specific block at all (policy_data is always {}), so
+// the config carries no `malicious_packages {}` block.
+//
+// Modeled on TestAccShiftLeftPolicyResource_BuiltinAttachProjects: built-ins
+// cannot be Created by Terraform, so the test imports the live policy,
+// attaches one scratch project via projects_ids (additively, never replacing
+// the existing attachment list), verifies, then restores the original
+// attachments and forgets the resource (a real destroy is expected to always
+// fail for built-ins).
+func TestAccShiftLeftPolicy_MaliciousPackages(t *testing.T) {
+	builtinID := os.Getenv("ORCA_TEST_MALICIOUS_PACKAGES_POLICY_ID")
+	if builtinID == "" {
+		// Live built-in "Malicious Packages" policy id, per progress notes.
+		// Re-confirm this is still current before relying on it.
+		builtinID = "019efa3e-d809-797a-9b4b-eae491fc4e66"
+	}
+	projectID := os.Getenv("ORCA_TEST_PROJECT_ID")
+	if projectID == "" {
+		t.Skip("Set ORCA_TEST_PROJECT_ID to run the malicious_packages acceptance test")
+	}
+
+	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
+	token := os.Getenv("ORCASECURITY_API_TOKEN")
+	client, err := api_client.NewAPIClient(&endpoint, &token)
+	if err != nil {
+		t.Fatalf("failed to build a setup API client: %s", err)
+	}
+
+	original, err := client.GetShiftLeftPolicy("malicious_packages", builtinID)
+	if err != nil || original == nil {
+		t.Fatalf("failed to read built-in malicious_packages policy %s before test: %v", builtinID, err)
+	}
+
+	// GetShiftLeftPolicy's ProjectsIds field never populates from the read API
+	// shape (GET returns nested "projects": [{id,name,key}] objects, while the
+	// write side accepts "projects_ids": [ids]), so read the currently attached
+	// project ids directly from the raw body to capture a restorable baseline.
+	rawResp, err := client.Get(fmt.Sprintf("/api/shiftleft/malicious_packages/policies/%s/", builtinID))
+	if err != nil {
+		t.Fatalf("failed to read raw built-in policy body: %s", err)
+	}
+	var raw struct {
+		Projects []struct {
+			ID string `json:"id"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(rawResp.Body(), &raw); err != nil {
+		t.Fatalf("failed to parse raw built-in policy body: %s", err)
+	}
+	originalProjectIDs := make([]string, 0, len(raw.Projects))
+	for _, p := range raw.Projects {
+		originalProjectIDs = append(originalProjectIDs, p.ID)
+	}
+
+	t.Cleanup(func() {
+		restore := *original
+		restore.ProjectsIds = originalProjectIDs
+		if _, err := client.UpdateShiftLeftPolicy("malicious_packages", builtinID, restore); err != nil {
+			t.Errorf("failed to restore built-in malicious_packages policy %s project attachments after test: %s", builtinID, err)
+		}
+	})
+
+	quoteAll := func(ids []string) string {
+		quoted := make([]string, len(ids))
+		for i, id := range ids {
+			quoted[i] = fmt.Sprintf("%q", id)
+		}
+		return strings.Join(quoted, ", ")
+	}
+
+	baseConfig := fmt.Sprintf(`
+resource "orcasecurity_shift_left_policy" "malicious_packages" {
+  type                       = "malicious_packages"
+  name                       = %q
+  description                = %q
+  disabled                   = %t
+  warn_mode                  = %t
+  priority_failure_threshold = %q
+`, original.Name, original.Description, original.Disabled, original.WarnMode, original.PriorityFailureThreshold)
+
+	importConfig := baseConfig + "}\n"
+	attachConfig := baseConfig + fmt.Sprintf("  projects_ids = [%s]\n}\n", quoteAll(append(append([]string{}, originalProjectIDs...), projectID)))
+	forgetConfig := `
+removed {
+  from = orcasecurity_shift_left_policy.malicious_packages
+  lifecycle {
+    destroy = false
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// Import only: built-ins can't go through Create, so state is
+				// established the same way a real user would attach projects to
+				// an existing built-in -- import it, then apply projects_ids.
+				Config:             orcasecurity.TestProviderConfig + importConfig,
+				ResourceName:       "orcasecurity_shift_left_policy.malicious_packages",
+				ImportState:        true,
+				ImportStatePersist: true,
+				ImportStateId:      "malicious_packages/" + builtinID,
+			},
+			{
+				// Only projects_ids differs from the imported state; the relaxed
+				// built-in guard must allow this Update through.
+				Config: orcasecurity.TestProviderConfig + attachConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.malicious_packages", "projects_ids.#", fmt.Sprintf("%d", len(originalProjectIDs)+1)),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_shift_left_policy.malicious_packages", "projects_ids.*", projectID),
+				),
+			},
+			{
+				// Forget the resource (do not destroy it -- built-in Delete is
+				// intentionally always blocked; see the doc comment above).
+				Config: orcasecurity.TestProviderConfig + forgetConfig,
+			},
+		},
+	})
+}

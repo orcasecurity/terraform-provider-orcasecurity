@@ -635,3 +635,20 @@ func TestPlanToAPI_ScmPosture(t *testing.T) {
 		t.Error("expected scm scope to be encoded")
 	}
 }
+
+func TestPlanToAPI_MaliciousPackages_NoControls(t *testing.T) {
+	m := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("malicious_packages"),
+		Name:                     types.StringValue("MP"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+	}
+	policy, diags := planToAPI(m)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if policy.Type != "malicious_packages" {
+		t.Errorf("type mismatch: %s", policy.Type)
+	}
+}

@@ -9,7 +9,7 @@ description: |-
 
 Provides an AppSec (Shift Left) policy resource. Use this resource to create, update, and delete AppSec scan policies in Orca Security, and to import existing ones.
 
-Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`.
+Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`, `malicious_packages`.
 
 ## Example Usage
 
@@ -160,6 +160,28 @@ resource "orcasecurity_shift_left_policy" "licenses_builtin" {
   projects_ids = [for p in orcasecurity_shift_left_project.fleet : p.id]
 
   licenses {}
+}
+```
+
+### Attach projects to the built-in Malicious Packages policy
+
+`malicious_packages` has no controls and no type-specific block -- omit any
+`malicious_packages { ... }` block entirely.
+
+```shell
+terraform import orcasecurity_shift_left_policy.malicious_packages_builtin malicious_packages/<policy-id>
+```
+
+```terraform
+resource "orcasecurity_shift_left_policy" "malicious_packages_builtin" {
+  type                       = "malicious_packages"
+  name                       = "Malicious Packages"
+  description                = "Orca built-in malicious packages detection policy."
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
+
+  projects_ids = [orcasecurity_shift_left_project.example.id]
 }
 ```
 
