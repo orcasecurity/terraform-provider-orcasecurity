@@ -6,16 +6,16 @@ import "fmt"
 // Azure DevOps). The API defines no single-item GET route for installations,
 // so reads go through the cached list and filter by id.
 
-// scmInstallationRow is implemented by the parent-installation DTOs so the
+// installationIDer is implemented by the parent-installation DTOs so the
 // shared helpers can match a row by id.
-type scmInstallationRow interface {
+type installationIDer interface {
 	installationID() string
 }
 
 // findScmInstallation reads via list-filter. Returns nil when absent.
 func findScmInstallation[T any, PT interface {
 	*T
-	scmInstallationRow
+	installationIDer
 }](client *APIClient, listPath, id string) (*T, error) {
 	all, err := getAllScmPages[T](client, listPath)
 	if err != nil {
@@ -48,7 +48,7 @@ func createScmInstallation[T any](client *APIClient, listPath string, body any) 
 // (for providers whose PATCH returns an empty body: GitLab, Azure DevOps).
 func patchScmInstallationAndReread[T any, PT interface {
 	*T
-	scmInstallationRow
+	installationIDer
 }](client *APIClient, listPath, id string, body any) (*T, error) {
 	if _, err := client.Patch(fmt.Sprintf("%s%s/", listPath, id), body); err != nil {
 		return nil, err
