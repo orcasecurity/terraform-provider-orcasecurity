@@ -16,10 +16,11 @@ func TestAccGithubInstallation_import(t *testing.T) {
 	if id == "" {
 		t.Skip("ORCA_TEST_GH_INSTALLATION_ID not set")
 	}
+	// Destroy DELETEs the Orca GitHub installation (cannot re-create without App flow).
+	if os.Getenv("ORCA_TEST_GH_ALLOW_DESTROY") == "" {
+		t.Skip("ORCA_TEST_GH_ALLOW_DESTROY not set; refuse to DELETE a shared lab GitHub installation")
+	}
 
-	// Snapshot the live installation and restore it after the test. Adopt-existing
-	// units are not TF-owned (Delete is a no-op), so without this the applied
-	// config would leak into the lab environment.
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 	original, err := client.GetGithubInstallation(id)
@@ -30,8 +31,13 @@ func TestAccGithubInstallation_import(t *testing.T) {
 		t.Skipf("github installation %s not found; cannot run adopt test", id)
 	}
 	t.Cleanup(func() {
+		cur, err := client.GetGithubInstallation(id)
+		if err != nil || cur == nil {
+			t.Logf("github installation %s deleted (expected); reinstall via GitHub App to restore", id)
+			return
+		}
 		if _, err := client.UpdateGithubInstallation(id, acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
-			t.Errorf("failed to restore github installation %s to its original config: %s", id, err)
+			t.Errorf("failed to restore github installation %s: %s", id, err)
 		}
 	})
 

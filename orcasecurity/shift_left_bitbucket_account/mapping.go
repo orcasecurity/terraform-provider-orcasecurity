@@ -11,7 +11,7 @@ func apiToState(inst *api_client.BitbucketAccount) resourceModel {
 	return resourceModel{
 		ID:              types.StringValue(inst.ID),
 		InstallationID:  types.StringValue(inst.InstallationID),
-		AccountID:       types.StringValue(inst.ID),
+		AccountID:       types.StringValue(inst.AccountID),
 		ScmConfigFields: shift_left_integration.ScmConfigFieldsFromAPI(inst.AccountName, inst.ScmUnitCommonFields),
 	}
 }

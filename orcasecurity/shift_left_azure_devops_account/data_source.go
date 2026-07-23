@@ -12,13 +12,12 @@ import (
 
 var accountsSpec = shift_left_integration.ScmUnitListSpec[api_client.AzureDevopsAccount]{
 	TypeNameSuffix: "_shift_left_azure_devops_accounts",
-	Description:    "Lists all Orca Azure DevOps shift-left integrated accounts for fleet-wide for_each.",
+	Description:    "Lists all Orca Azure DevOps shift-left integrated accounts for fleet-wide for_each. Use account_name with orcasecurity_shift_left_azure_devops_account.",
 	CollectionKey:  "accounts",
 	ListErrorTitle: "Error listing Azure DevOps accounts",
 	Extra: map[string]attr.Type{
 		"id":              types.StringType,
 		"installation_id": types.StringType,
-		"account_id":      types.StringType,
 	},
 	List: func(c *api_client.APIClient) ([]api_client.AzureDevopsAccount, error) {
 		return c.ListAzureDevopsAccounts()
@@ -27,7 +26,6 @@ var accountsSpec = shift_left_integration.ScmUnitListSpec[api_client.AzureDevops
 		return a.AccountName, a.ScmUnitCommonFields, map[string]attr.Value{
 			"id":              types.StringValue(a.ID),
 			"installation_id": types.StringValue(a.InstallationID),
-			"account_id":      types.StringValue(a.ID),
 		}
 	},
 }

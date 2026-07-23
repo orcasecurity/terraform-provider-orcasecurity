@@ -12,13 +12,12 @@ import (
 
 var groupsSpec = shift_left_integration.ScmUnitListSpec[api_client.GitlabGroup]{
 	TypeNameSuffix: "_shift_left_gitlab_groups",
-	Description:    "Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each.",
+	Description:    "Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each. Use gitlab_group_id with orcasecurity_shift_left_gitlab_group.",
 	CollectionKey:  "groups",
 	ListErrorTitle: "Error listing GitLab groups",
 	Extra: map[string]attr.Type{
 		"id":              types.StringType,
 		"installation_id": types.StringType,
-		"group_id":        types.StringType,
 		"gitlab_group_id": types.Int64Type,
 	},
 	List: func(c *api_client.APIClient) ([]api_client.GitlabGroup, error) {
@@ -28,7 +27,6 @@ var groupsSpec = shift_left_integration.ScmUnitListSpec[api_client.GitlabGroup]{
 		return g.AccountName, g.ScmUnitCommonFields, map[string]attr.Value{
 			"id":              types.StringValue(g.ID),
 			"installation_id": types.StringValue(g.InstallationID),
-			"group_id":        types.StringValue(g.ID),
 			"gitlab_group_id": types.Int64Value(g.GitlabGroupID),
 		}
 	},

@@ -24,8 +24,8 @@ func TestAccountsToListValue(t *testing.T) {
 	if obj.Attributes()["account_name"].(types.String).ValueString() != "acme" {
 		t.Errorf("bad account_name: %v", obj.Attributes())
 	}
-	if obj.Attributes()["account_id"].(types.String).ValueString() != "a-1" {
-		t.Errorf("bad account_id: %v", obj.Attributes())
+	if obj.Attributes()["id"].(types.String).ValueString() != "a-1" {
+		t.Errorf("bad id: %v", obj.Attributes())
 	}
 	if obj.Attributes()["installation_id"].(types.String).ValueString() != "i-1" {
 		t.Errorf("bad installation_id: %v", obj.Attributes())

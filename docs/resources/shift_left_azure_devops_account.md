@@ -1,21 +1,25 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_account Resource - orcasecurity"
 description: |-
-  Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via terraform import. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
+  Creates or configures an Orca Azure DevOps shift-left integrated account (organization). Create POSTs /api/shiftleft/azure_devops/integrated_repositories/ with azure_account_name, installation_mode (defaults to SCAN_ALL_INCLUDE_FUTURE), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
 ---
 
 # orcasecurity_shift_left_azure_devops_account (Resource)
 
-Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
+Creates or configures an Orca Azure DevOps shift-left integrated account (organization). Create POSTs `/api/shiftleft/azure_devops/integrated_repositories/` with `azure_account_name`, `installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. The Azure DevOps UI hides `skip_check_runs` and archive actions, but the API accepts them (and Terraform exposes them). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+
+-> **Destroy:** `terraform destroy` DELETEs the integrated account (UI parity). That also removes its integrated repositories.
+
+-> **Coverage:** Browse accounts, `check_availability`, and scan-now are UI operations and are not managed here.
 
 ## Example Usage
 
 ```terraform
 resource "orcasecurity_shift_left_azure_devops_account" "example" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  account_id        = "22222222-2222-2222-2222-222222222222"
+  account_name      = "my-org"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   default_policies  = true
 
@@ -27,12 +31,9 @@ resource "orcasecurity_shift_left_azure_devops_account" "example" {
   }
 }
 
-# Alternatively, bind the account to a scan-all project instead of policies
-# project_id is mutually exclusive with
-# default_policies and policies_ids.
 resource "orcasecurity_shift_left_azure_devops_account" "project_bound" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  account_id        = "33333333-3333-3333-3333-333333333333"
+  account_name      = "other-org"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   project_id        = "44444444-4444-4444-4444-444444444444"
 }
@@ -43,7 +44,7 @@ resource "orcasecurity_shift_left_azure_devops_account" "project_bound" {
 
 ### Required
 
-- `account_id` (String) Orca Azure DevOps integrated account UUID.
+- `account_name` (String) Azure DevOps organization name (API `azure_account_name` on integrate).
 - `installation_id` (String) Orca Azure DevOps installation UUID.
 
 ### Optional
@@ -56,8 +57,7 @@ resource "orcasecurity_shift_left_azure_devops_account" "project_bound" {
 
 ### Read-Only
 
-- `account_name` (String) Azure DevOps account/organization name.
-- `id` (String) Account UUID (mirrors account_id).
+- `id` (String) Orca Azure DevOps integrated account UUID.
 - `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
 - `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
@@ -82,5 +82,5 @@ Optional:
 Import is supported using the following syntax:
 
 ```shell
-terraform import orcasecurity_shift_left_azure_devops_account.example <installation_id>/<account_id>
+terraform import orcasecurity_shift_left_azure_devops_account.example <installation_id>/<account_name_or_orca_uuid>
 ```

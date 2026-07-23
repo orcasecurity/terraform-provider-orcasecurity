@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestApiToState_MirrorsAccountID(t *testing.T) {
+func TestApiToState_MapsAccountName(t *testing.T) {
 	inst := &api_client.AzureDevopsAccount{
 		ID: "abc", InstallationID: "inst-1", AccountName: "acme",
 		ScmUnitCommonFields: api_client.ScmUnitCommonFields{
@@ -18,8 +18,8 @@ func TestApiToState_MirrorsAccountID(t *testing.T) {
 		},
 	}
 	st := apiToState(inst)
-	if st.ID.ValueString() != "abc" || st.AccountID.ValueString() != "abc" {
-		t.Errorf("id/account_id mismatch: %+v", st)
+	if st.ID.ValueString() != "abc" || st.AccountName.ValueString() != "acme" {
+		t.Errorf("id/account_name mismatch: %+v", st)
 	}
 	if st.InstallationID.ValueString() != "inst-1" {
 		t.Errorf("installation_id mismatch: %+v", st)

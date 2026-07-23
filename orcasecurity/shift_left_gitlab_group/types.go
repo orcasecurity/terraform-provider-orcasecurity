@@ -9,7 +9,6 @@ import (
 type resourceModel struct {
 	ID             types.String `tfsdk:"id"`
 	InstallationID types.String `tfsdk:"installation_id"`
-	GroupID        types.String `tfsdk:"group_id"`
 	GitlabGroupID  types.Int64  `tfsdk:"gitlab_group_id"`
 	shift_left_integration.ScmConfigFields
 }

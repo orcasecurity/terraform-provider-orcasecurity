@@ -10,6 +10,10 @@ description: |-
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. The Azure DevOps UI hides `skip_check_runs` and archive actions, but the API accepts them (and Terraform exposes them). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
 
+-> **Destroy:** `terraform destroy` DELETEs the integrated account (UI parity). That also removes its integrated repositories.
+
+-> **Coverage:** Browse accounts, `check_availability`, and scan-now are UI operations and are not managed here.
+
 ## Example Usage
 
 {{ tffile .ExampleFile }}

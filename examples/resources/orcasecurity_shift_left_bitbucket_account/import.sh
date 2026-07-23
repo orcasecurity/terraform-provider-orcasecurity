@@ -1,1 +1,1 @@
-terraform import orcasecurity_shift_left_bitbucket_account.example <installation_id>/<account_id>
+terraform import orcasecurity_shift_left_bitbucket_account.example <installation_id>/<account_slug_or_orca_uuid>

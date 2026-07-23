@@ -5,7 +5,10 @@ import "fmt"
 type BitbucketAccount struct {
 	ID             string `json:"id"`
 	InstallationID string `json:"installation_id,omitempty"`
-	AccountName    string `json:"account_name"`
+	// AccountID is the Bitbucket-side slug (serializer source:
+	// bitbucket_account_slug). Distinct from ID, the Orca unit UUID.
+	AccountID   string `json:"account_id,omitempty"`
+	AccountName string `json:"account_name"`
 	ScmUnitCommonFields
 }
 
@@ -83,12 +86,65 @@ func (client *APIClient) ListBitbucketAccounts() ([]BitbucketAccount, error) {
 	return listScmUnitsByInstallation[BitbucketAccount](client, "/api/shiftleft/bitbucket/installations/", bitbucketAccountsPath)
 }
 
-// GetBitbucketAccount reads via list-filter on the installation-scoped list.
-func (client *APIClient) GetBitbucketAccount(installationID, accountID string) (*BitbucketAccount, error) {
-	return findScmUnit[BitbucketAccount](client, bitbucketAccountsPath(installationID), installationID, accountID)
+// GetBitbucketAccount reads via list-filter on the installation-scoped list
+// by Orca unit UUID.
+func (client *APIClient) GetBitbucketAccount(installationID, orcaAccountID string) (*BitbucketAccount, error) {
+	return findScmUnit[BitbucketAccount](client, bitbucketAccountsPath(installationID), installationID, orcaAccountID)
 }
 
-func (client *APIClient) UpdateBitbucketAccount(installationID, accountID string, body ScmInstallationUpdate) (*BitbucketAccount, error) {
-	updatePath := fmt.Sprintf("%s%s/", bitbucketAccountsPath(installationID), accountID)
-	return updateScmUnit[BitbucketAccount](client, updatePath, bitbucketAccountsPath(installationID), installationID, accountID, body)
+// FindBitbucketAccountBySlug reads via list-filter matching Bitbucket account_id (slug).
+func (client *APIClient) FindBitbucketAccountBySlug(installationID, slug string) (*BitbucketAccount, error) {
+	all, err := getAllScmPages[BitbucketAccount](client, bitbucketAccountsPath(installationID))
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].AccountID == slug {
+			all[i].stampInstallationID(installationID)
+			return &all[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (client *APIClient) UpdateBitbucketAccount(installationID, orcaAccountID string, body ScmInstallationUpdate) (*BitbucketAccount, error) {
+	updatePath := fmt.Sprintf("%s%s/", bitbucketAccountsPath(installationID), orcaAccountID)
+	return updateScmUnit[BitbucketAccount](client, updatePath, bitbucketAccountsPath(installationID), installationID, orcaAccountID, body)
+}
+
+func (client *APIClient) DeleteBitbucketAccount(installationID, orcaAccountID string) error {
+	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", bitbucketAccountsPath(installationID), orcaAccountID))
+}
+
+// BitbucketUnitIntegrate is the scan-all (empty repos) create body for a Bitbucket account.
+type BitbucketUnitIntegrate struct {
+	InstallationID string
+	AccountID      string // Bitbucket slug
+	Body           ScmInstallationUpdate
+}
+
+func (client *APIClient) IntegrateBitbucketUnit(req BitbucketUnitIntegrate) error {
+	body := struct {
+		InstallationID        string                  `json:"installation_id"`
+		AccountID             string                  `json:"account_id"`
+		InstallationMode      string                  `json:"installation_mode,omitempty"`
+		DefaultPolicies       bool                    `json:"default_policies"`
+		Policies              []string                `json:"policies"`
+		ProjectID             string                  `json:"project_id,omitempty"`
+		ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
+		Repositories          []struct{}              `json:"repositories"`
+	}{
+		InstallationID:        req.InstallationID,
+		AccountID:             req.AccountID,
+		InstallationMode:      req.Body.InstallationMode,
+		DefaultPolicies:       req.Body.DefaultPolicies,
+		Policies:              req.Body.Policies,
+		ProjectID:             req.Body.ProjectID,
+		ConfigurationSettings: req.Body.ConfigSettings,
+		Repositories:          []struct{}{},
+	}
+	if req.Body.ProjectID != "" {
+		body.Policies = nil
+	}
+	return client.integrateScmRepositories("bitbucket", body)
 }

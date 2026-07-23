@@ -34,7 +34,7 @@ func NewAdoptLabels(displayName string) AdoptLabels {
 		NilReadTitle:   "Error reading " + lower + " after write",
 		NilReadDetail:  "The " + lower + " was configured but could not be read back; the API may not have propagated the change yet. Re-run terraform apply.",
 		ReadErrorTitle: "Error reading " + displayName,
-		DeleteLog:      "Removing " + displayName + " from state; the live integration is left untouched.",
+		DeleteLog:      "Deleting live " + lower + " (Terraform destroy tears down the integration).",
 		MissingWarn:    displayName + " %s missing remotely",
 	}
 }
@@ -56,6 +56,27 @@ func ImportSlashPair(ctx context.Context, req resource.ImportStateRequest, resp 
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(leftAttr), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(rightAttr), parts[1])...)
+}
+
+// LooksLikeUUID reports whether s is an 8-4-4-4-12 hex UUID (used to disambiguate
+// Orca unit ids from SCM-side slugs/names on import).
+func LooksLikeUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // AdoptWrite runs WriteAdopted and maps errors into diagnostics. Returns nil

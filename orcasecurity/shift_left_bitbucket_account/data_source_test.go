@@ -10,8 +10,8 @@ import (
 
 func TestAccountsToListValue(t *testing.T) {
 	accs := []api_client.BitbucketAccount{
-		{ID: "a-1", InstallationID: "i-1", AccountName: "acme"},
-		{ID: "a-2", InstallationID: "i-2", AccountName: "beta"},
+		{ID: "a-1", InstallationID: "i-1", AccountID: "slug-1", AccountName: "acme"},
+		{ID: "a-2", InstallationID: "i-2", AccountID: "slug-2", AccountName: "beta"},
 	}
 	list, diags := accountsToListValue(accs)
 	if diags.HasError() {
@@ -24,7 +24,7 @@ func TestAccountsToListValue(t *testing.T) {
 	if obj.Attributes()["account_name"].(types.String).ValueString() != "acme" {
 		t.Errorf("bad account_name: %v", obj.Attributes())
 	}
-	if obj.Attributes()["account_id"].(types.String).ValueString() != "a-1" {
+	if obj.Attributes()["account_id"].(types.String).ValueString() != "slug-1" {
 		t.Errorf("bad account_id: %v", obj.Attributes())
 	}
 	if obj.Attributes()["installation_id"].(types.String).ValueString() != "i-1" {

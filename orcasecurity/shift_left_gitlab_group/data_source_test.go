@@ -10,8 +10,8 @@ import (
 
 func TestGroupsToListValue(t *testing.T) {
 	grps := []api_client.GitlabGroup{
-		{ID: "g-1", InstallationID: "i-1", AccountName: "acme", ScmUnitCommonFields: api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}},
-		{ID: "g-2", InstallationID: "i-1", AccountName: "beta"},
+		{ID: "g-1", InstallationID: "i-1", AccountName: "acme", GitlabGroupID: 11, ScmUnitCommonFields: api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}},
+		{ID: "g-2", InstallationID: "i-1", AccountName: "beta", GitlabGroupID: 22},
 	}
 	list, diags := groupsToListValue(grps)
 	if diags.HasError() {
@@ -24,8 +24,11 @@ func TestGroupsToListValue(t *testing.T) {
 	if obj.Attributes()["account_name"].(types.String).ValueString() != "acme" {
 		t.Errorf("bad account_name: %v", obj.Attributes())
 	}
-	if obj.Attributes()["group_id"].(types.String).ValueString() != "g-1" {
-		t.Errorf("bad group_id: %v", obj.Attributes())
+	if obj.Attributes()["id"].(types.String).ValueString() != "g-1" {
+		t.Errorf("bad id: %v", obj.Attributes())
+	}
+	if obj.Attributes()["gitlab_group_id"].(types.Int64).ValueInt64() != 11 {
+		t.Errorf("bad gitlab_group_id: %v", obj.Attributes())
 	}
 	if obj.Attributes()["installation_id"].(types.String).ValueString() != "i-1" {
 		t.Errorf("bad installation_id: %v", obj.Attributes())

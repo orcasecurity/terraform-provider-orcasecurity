@@ -1,14 +1,18 @@
 ---
 page_title: "orcasecurity_shift_left_github_installation Resource - orcasecurity"
 description: |-
-  Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via terraform import. Schema follows the Shift-Left API (a superset of the UI): all configuration_settings enums are available.
+  Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App — /github/config/ and App callback are not managed here). Create/Update PUT the unit config; Destroy DELETEs the Orca installation (tears down the live integration). Not covered: GHES /github/enterprises/*, browse repos, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the UI): all configuration_settings enums are available.
 ---
 
 # orcasecurity_shift_left_github_installation (Resource)
 
-Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.
+Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App — `/github/config/` and App callback are not managed here). Create/Update PUT the unit config; Destroy DELETEs the Orca installation (tears down the live integration). Not covered: GHES `/github/enterprises/*`, browse repos, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
+
+-> **Destroy:** `terraform destroy` DELETEs the Orca GitHub installation (UI parity). Re-create requires reinstalling the Orca GitHub App.
+
+-> **Coverage:** GitHub App install URL (`/github/config/`), GHES `/github/enterprises/*`, browse repos, `check_availability`, and scan-now are not managed here.
 
 ## Example Usage
 

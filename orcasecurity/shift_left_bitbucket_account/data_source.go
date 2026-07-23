@@ -12,7 +12,7 @@ import (
 
 var accountsSpec = shift_left_integration.ScmUnitListSpec[api_client.BitbucketAccount]{
 	TypeNameSuffix: "_shift_left_bitbucket_accounts",
-	Description:    "Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each.",
+	Description:    "Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. account_id is the Bitbucket slug.",
 	CollectionKey:  "accounts",
 	ListErrorTitle: "Error listing Bitbucket accounts",
 	Extra: map[string]attr.Type{
@@ -27,7 +27,7 @@ var accountsSpec = shift_left_integration.ScmUnitListSpec[api_client.BitbucketAc
 		return a.AccountName, a.ScmUnitCommonFields, map[string]attr.Value{
 			"id":              types.StringValue(a.ID),
 			"installation_id": types.StringValue(a.InstallationID),
-			"account_id":      types.StringValue(a.ID),
+			"account_id":      types.StringValue(a.AccountID),
 		}
 	},
 }

@@ -42,10 +42,11 @@ func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
 // AdoptWriteRequest carries the inputs for the shared adopt-existing
 // Create/Update path (WriteAdopted / AdoptWrite).
 type AdoptWriteRequest[T any] struct {
-	// Get loads the live unit, Update PUTs the adopted body, Snapshot extracts
-	// the adoptable fields from the live unit.
+	// Get loads the live unit, Update PUTs the adopted body (using the loaded
+	// unit for Orca identity when the plan has not yet stored id), Snapshot
+	// extracts the adoptable fields from the live unit.
 	Get      func() (*T, error)
-	Update   func(api_client.ScmInstallationUpdate) (*T, error)
+	Update   func(current *T, body api_client.ScmInstallationUpdate) (*T, error)
 	Snapshot func(*T) ExistingUnit
 
 	// Plan values; unset fields are hydrated from the live unit by Adopt.
@@ -72,5 +73,5 @@ func WriteAdopted[T any](req AdoptWriteRequest[T]) (*T, error) {
 		return nil, ErrUnitNotFound
 	}
 	ad := Adopt(req.PlanMode, req.PlanDefault, req.PlanPolicies, req.PlanConfig, req.Project, req.Snapshot(current))
-	return req.Update(ad.Body)
+	return req.Update(current, ad.Body)
 }

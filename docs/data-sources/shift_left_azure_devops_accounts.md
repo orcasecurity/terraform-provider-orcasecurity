@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_accounts Data Source - orcasecurity"
 description: |-
-  Lists all Orca Azure DevOps shift-left integrated accounts for fleet-wide for_each.
+  Lists all Orca Azure DevOps shift-left integrated accounts for fleet-wide for_each. Use account_name with orcasecurity_shift_left_azure_devops_account.
 ---
 
 # orcasecurity_shift_left_azure_devops_accounts (Data Source)
 
-Lists all Orca Azure DevOps shift-left integrated accounts for fleet-wide for_each.
+Lists all Orca Azure DevOps shift-left integrated accounts for fleet-wide for_each. Use account_name with orcasecurity_shift_left_azure_devops_account.
 
 ## Example Usage
 
@@ -37,7 +37,6 @@ resource "orcasecurity_shift_left_azure_devops_account" "all" {
 
 Read-Only:
 
-- `account_id` (String)
 - `account_name` (String)
 - `default_policies` (Boolean)
 - `id` (String)

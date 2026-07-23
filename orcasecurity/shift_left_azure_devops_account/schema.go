@@ -10,9 +10,15 @@ import (
 
 func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.SharedScmConfigAttributes("Azure DevOps account/organization name.")
+	// SharedScmConfigAttributes already defines computed account_name — override to Required identity.
+	attrs["account_name"] = rschema.StringAttribute{
+		Required:      true,
+		Description:   "Azure DevOps organization name (API `azure_account_name` on integrate).",
+		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+	}
 	attrs["id"] = rschema.StringAttribute{
 		Computed:      true,
-		Description:   "Account UUID (mirrors account_id).",
+		Description:   "Orca Azure DevOps integrated account UUID.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 	}
 	attrs["installation_id"] = rschema.StringAttribute{
@@ -20,13 +26,13 @@ func resourceSchema() rschema.Schema {
 		Description:   "Orca Azure DevOps installation UUID.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
-	attrs["account_id"] = rschema.StringAttribute{
-		Required:      true,
-		Description:   "Orca Azure DevOps integrated account UUID.",
-		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-	}
 	return rschema.Schema{
-		Description: "Configures an existing Orca Azure DevOps shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated. Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).",
-		Attributes:  attrs,
+		Description: "Creates or configures an Orca Azure DevOps shift-left integrated account (organization). " +
+			"Create POSTs `/api/shiftleft/azure_devops/integrated_repositories/` with `azure_account_name`, " +
+			"`installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories`. " +
+			"If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. " +
+			"Not covered: browse accounts, check_availability, scan-now. " +
+			"Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).",
+		Attributes: attrs,
 	}
 }

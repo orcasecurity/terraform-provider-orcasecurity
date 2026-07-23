@@ -29,7 +29,11 @@ func resourceSchema() rschema.Schema {
 		Description: "URL of the Orca GitHub App settings page on GitHub (null when the API omits it).",
 	}
 	return rschema.Schema{
-		Description: "Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App). Adopt via `terraform import`. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.",
-		Attributes:  attrs,
+		Description: "Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). " +
+			"The installation must already exist (created by installing the Orca GitHub App — `/github/config/` and App callback are not managed here). " +
+			"Create/Update PUT the unit config; Destroy DELETEs the Orca installation (tears down the live integration). " +
+			"Not covered: GHES `/github/enterprises/*`, browse repos, check_availability, scan-now. " +
+			"Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.",
+		Attributes: attrs,
 	}
 }

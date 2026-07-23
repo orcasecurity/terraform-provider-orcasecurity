@@ -8,16 +8,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestApiToState_MirrorsAccountID(t *testing.T) {
+func TestApiToState_MapsSlugAccountID(t *testing.T) {
 	inst := &api_client.BitbucketAccount{
-		ID: "abc", InstallationID: "inst-1", AccountName: "acme",
+		ID: "abc", InstallationID: "inst-1", AccountID: "acme-slug", AccountName: "acme",
 		ScmUnitCommonFields: api_client.ScmUnitCommonFields{
 			InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
 			Policies:         []api_client.ScmPolicyRef{{ID: "pol-1"}},
 		},
 	}
 	st := apiToState(inst)
-	if st.ID.ValueString() != "abc" || st.AccountID.ValueString() != "abc" {
+	if st.ID.ValueString() != "abc" || st.AccountID.ValueString() != "acme-slug" {
 		t.Errorf("id/account_id mismatch: %+v", st)
 	}
 	if st.InstallationID.ValueString() != "inst-1" {

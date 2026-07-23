@@ -10,12 +10,12 @@ func TestBitbucketAccount_UnmarshalLiveShape(t *testing.T) {
 	// Bitbucket's configuration_settings has no installation_repositories_configuration key at all
 	// (unlike Azure DevOps/GitHub/GitLab, which return it as null) since Bitbucket's config type
 	// doesn't model it.
-	fixture := `{"id":"44444444-4444-4444-4444-444444444444","account_name":"acme-bb","installation_mode":"SCAN_ALL_INCLUDE_FUTURE","default_policies":false,"policies":[{"id":"pol-1","name":"P1","type":"iac","builtin":true}],"configuration_settings":{"disable_scan_pull_requests":false,"comments_on_pull_requests":"ALWAYS","pr_summary_comment":"ALWAYS","skip_check_runs":"ALWAYS","config_file_support":"ENABLED","pr_summary_appendix":null}}`
+	fixture := `{"id":"44444444-4444-4444-4444-444444444444","account_id":"acme-bb","account_name":"acme-bb","installation_mode":"SCAN_ALL_INCLUDE_FUTURE","default_policies":false,"policies":[{"id":"pol-1","name":"P1","type":"iac","builtin":true}],"configuration_settings":{"disable_scan_pull_requests":false,"comments_on_pull_requests":"ALWAYS","pr_summary_comment":"ALWAYS","skip_check_runs":"ALWAYS","config_file_support":"ENABLED","pr_summary_appendix":null}}`
 	var acc BitbucketAccount
 	if err := json.Unmarshal([]byte(fixture), &acc); err != nil {
 		t.Fatal(err)
 	}
-	if acc.ID != "44444444-4444-4444-4444-444444444444" || acc.AccountName != "acme-bb" {
+	if acc.ID != "44444444-4444-4444-4444-444444444444" || acc.AccountName != "acme-bb" || acc.AccountID != "acme-bb" {
 		t.Errorf("bad id/account: %+v", acc)
 	}
 	if len(acc.Policies) != 1 || !acc.Policies[0].Builtin {

@@ -1,21 +1,25 @@
 ---
 page_title: "orcasecurity_shift_left_gitlab_group Resource - orcasecurity"
 description: |-
-  Configures an existing Orca GitLab shift-left integrated group (default policies, scan mode, PR/MR settings). The group must already be integrated (created by installing the Orca GitLab integration). Adopt via terraform import. Schema follows the Shift-Left API; the GitLab UI may expose fewer skip_check_runs values than the account-level PUT accepts.
+  Creates or configures an Orca GitLab shift-left integrated group. Create POSTs /api/shiftleft/gitlab/integrated_repositories/ with group_id, installation_mode (defaults to SCAN_ALL_INCLUDE_FUTURE), configuration, and empty repositories (UI parity). If the group is already integrated, Create/Update PUT the unit config instead. Destroy DELETEs the integrated group (tears down the live integration and its repos). Not covered: browse remote groups, check_availability, scan-now (UI operations).
 ---
 
 # orcasecurity_shift_left_gitlab_group (Resource)
 
-Configures an existing Orca GitLab shift-left integrated group (default policies, scan mode, PR/MR settings). The group must already be integrated (created by installing the Orca GitLab integration). Adopt via `terraform import`. Schema follows the Shift-Left API; the GitLab UI may expose fewer `skip_check_runs` values than the account-level PUT accepts.
+Creates or configures an Orca GitLab shift-left integrated group. Create POSTs `/api/shiftleft/gitlab/integrated_repositories/` with `group_id`, `installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories` (UI parity). If the group is already integrated, Create/Update PUT the unit config instead. Destroy DELETEs the integrated group (tears down the live integration and its repos). Not covered: browse remote groups, check_availability, scan-now (UI operations).
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. The GitLab UI may offer fewer `skip_check_runs` values than the account-level PUT accepts. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+
+-> **Destroy:** `terraform destroy` DELETEs the integrated group (UI parity). That also removes its integrated repositories.
+
+-> **Coverage:** Browse remote groups, `check_availability`, and scan-now are UI operations and are not managed here.
 
 ## Example Usage
 
 ```terraform
 resource "orcasecurity_shift_left_gitlab_group" "example" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  group_id          = "22222222-2222-2222-2222-222222222222"
+  gitlab_group_id   = 87654321
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   default_policies  = true
 
@@ -32,7 +36,7 @@ resource "orcasecurity_shift_left_gitlab_group" "example" {
 # default_policies and policies_ids.
 resource "orcasecurity_shift_left_gitlab_group" "project_bound" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  group_id          = "33333333-3333-3333-3333-333333333333"
+  gitlab_group_id   = 11223344
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   project_id        = "44444444-4444-4444-4444-444444444444"
 }
@@ -43,7 +47,7 @@ resource "orcasecurity_shift_left_gitlab_group" "project_bound" {
 
 ### Required
 
-- `group_id` (String) Orca GitLab integrated group UUID.
+- `gitlab_group_id` (Number) GitLab-side numeric group ID (from GET .../installations/{id}/groups/).
 - `installation_id` (String) Orca GitLab installation UUID.
 
 ### Optional
@@ -57,8 +61,7 @@ resource "orcasecurity_shift_left_gitlab_group" "project_bound" {
 ### Read-Only
 
 - `account_name` (String) GitLab group/account name.
-- `gitlab_group_id` (Number) GitLab-side numeric group ID.
-- `id` (String) Group UUID (mirrors group_id).
+- `id` (String) Orca GitLab integrated group UUID.
 - `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
 - `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
@@ -83,5 +86,5 @@ Optional:
 Import is supported using the following syntax:
 
 ```shell
-terraform import orcasecurity_shift_left_gitlab_group.example <installation_id>/<group_id>
+terraform import orcasecurity_shift_left_gitlab_group.example <installation_id>/<gitlab_group_id_or_orca_uuid>
 ```

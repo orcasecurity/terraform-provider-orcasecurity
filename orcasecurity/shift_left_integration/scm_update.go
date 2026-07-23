@@ -115,6 +115,63 @@ type Adopted struct {
 	Body             api_client.ScmInstallationUpdate
 }
 
+// defaultConfigSettings mirrors the API/UI defaults applied when creating a
+// unit with an empty configuration_settings overlay.
+func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
+	return api_client.ShiftLeftConfigSettings{
+		DisableScanPullRequests: false,
+		CommentsOnPullRequests:  "ALWAYS",
+		PrSummaryComment:        "ALWAYS",
+		SkipCheckRuns:           "ALWAYS",
+		ConfigFileSupport:       "ENABLED",
+		PrSummaryAppendix:       "",
+	}
+}
+
+// CreateUnitBody builds the POST integrate body for a missing unit. Mode must
+// already be resolved (typically SCAN_ALL_INCLUDE_FUTURE). Unset
+// default_policies defaults to true when the config did not choose policies;
+// configuration_settings merge onto API defaults.
+func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) Adopted {
+	base := FlattenConfigSettings(defaultConfigSettings())
+	merged := MergeConfigSettings(base, planConfig)
+
+	defaultPolicies := planDefault
+	if defaultPolicies.IsNull() || defaultPolicies.IsUnknown() {
+		if project.PoliciesIntent {
+			defaultPolicies = types.BoolValue(false)
+		} else {
+			defaultPolicies = types.BoolValue(true)
+		}
+	}
+	policies := planPolicies
+	if policies.IsNull() || policies.IsUnknown() {
+		policies = PolicyIDsToSet(nil)
+	}
+
+	projectID := ""
+	switch {
+	case project.PoliciesIntent:
+		projectID = ""
+	case !project.FromConfig.IsNull() && !project.FromConfig.IsUnknown():
+		projectID = project.FromConfig.ValueString()
+	}
+
+	body := ExpandUpdate(mode, defaultPolicies, policies, &merged)
+	if projectID != "" {
+		body.ProjectID = projectID
+		body.Policies = nil
+	}
+
+	return Adopted{
+		InstallationMode: mode,
+		DefaultPolicies:  defaultPolicies,
+		PoliciesIds:      policies,
+		ConfigSettings:   &merged,
+		Body:             body,
+	}
+}
+
 // Adopt hydrates unset plan fields from the live unit so an adopt-existing apply
 // always sends a complete body and never wipes server-managed state:
 //   - configuration_settings: the user's overlay merged on top of live values

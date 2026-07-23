@@ -11,7 +11,6 @@ func apiToState(inst *api_client.AzureDevopsAccount) resourceModel {
 	return resourceModel{
 		ID:              types.StringValue(inst.ID),
 		InstallationID:  types.StringValue(inst.InstallationID),
-		AccountID:       types.StringValue(inst.ID),
 		ScmConfigFields: shift_left_integration.ScmConfigFieldsFromAPI(inst.AccountName, inst.ScmUnitCommonFields),
 	}
 }

@@ -1,6 +1,6 @@
 resource "orcasecurity_shift_left_gitlab_group" "example" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  group_id          = "22222222-2222-2222-2222-222222222222"
+  gitlab_group_id   = 87654321
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   default_policies  = true
 
@@ -17,7 +17,7 @@ resource "orcasecurity_shift_left_gitlab_group" "example" {
 # default_policies and policies_ids.
 resource "orcasecurity_shift_left_gitlab_group" "project_bound" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  group_id          = "33333333-3333-3333-3333-333333333333"
+  gitlab_group_id   = 11223344
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   project_id        = "44444444-4444-4444-4444-444444444444"
 }

@@ -73,7 +73,17 @@ func patchScmInstallation[T any](client *APIClient, listPath, id string, body an
 }
 
 func deleteScmInstallation(client *APIClient, listPath, id string) error {
-	_, err := client.Delete(fmt.Sprintf("%s%s/", listPath, id))
+	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", listPath, id))
+}
+
+// deleteScmPathIgnoring404 DELETEs path and treats 404 as success so Terraform
+// destroy stays idempotent when the unit is already gone.
+func deleteScmPathIgnoring404(client *APIClient, path string) error {
+	resp, err := client.Delete(path)
+	if resp != nil && resp.StatusCode() == 404 {
+		client.invalidateScmListCache()
+		return nil
+	}
 	if err == nil {
 		client.invalidateScmListCache()
 	}

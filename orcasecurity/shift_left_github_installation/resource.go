@@ -48,8 +48,12 @@ func (r *githubInstallationResource) ops() shift_left_integration.AdoptedUnitOps
 		Get: func(m *resourceModel) (*api_client.GithubInstallation, error) {
 			return r.apiClient.GetGithubInstallation(m.InstallationID.ValueString())
 		},
-		Update: func(m *resourceModel, body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
-			return r.apiClient.UpdateGithubInstallation(m.InstallationID.ValueString(), body)
+		Update: func(m *resourceModel, current *api_client.GithubInstallation, body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
+			return r.apiClient.UpdateGithubInstallation(current.ID, body)
+		},
+		// Integrate is nil: GitHub units are created by the GitHub App install callback.
+		Delete: func(m *resourceModel) error {
+			return r.apiClient.DeleteGithubInstallation(m.InstallationID.ValueString())
 		},
 		Snapshot: func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromCommon(u.ScmUnitCommonFields)
@@ -59,9 +63,10 @@ func (r *githubInstallationResource) ops() shift_left_integration.AdoptedUnitOps
 		Describe: func(m *resourceModel) string {
 			return fmt.Sprintf("Installation %q", m.InstallationID.ValueString())
 		},
-		CreateHint:       "Install the Orca GitHub App first, then import.",
+		CreateHint:       "Install the Orca GitHub App first (UI / GitHub App flow), then import or reference the installation_id.",
 		CreateErrorTitle: "Error configuring GitHub installation",
 		UpdateErrorTitle: "Error updating GitHub installation",
+		DeleteErrorTitle: "Error deleting GitHub installation",
 	}
 }
 

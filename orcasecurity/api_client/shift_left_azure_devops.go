@@ -82,12 +82,65 @@ func (client *APIClient) ListAzureDevopsAccounts() ([]AzureDevopsAccount, error)
 	return listScmUnitsByInstallation[AzureDevopsAccount](client, "/api/shiftleft/azure_devops/installations/", azureDevopsAccountsPath)
 }
 
-// GetAzureDevopsAccount reads via list-filter on the installation-scoped list.
-func (client *APIClient) GetAzureDevopsAccount(installationID, accountID string) (*AzureDevopsAccount, error) {
-	return findScmUnit[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID), installationID, accountID)
+// GetAzureDevopsAccount reads via list-filter on the installation-scoped list
+// by Orca unit UUID.
+func (client *APIClient) GetAzureDevopsAccount(installationID, orcaAccountID string) (*AzureDevopsAccount, error) {
+	return findScmUnit[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID), installationID, orcaAccountID)
 }
 
-func (client *APIClient) UpdateAzureDevopsAccount(installationID, accountID string, body ScmInstallationUpdate) (*AzureDevopsAccount, error) {
-	updatePath := fmt.Sprintf("%s%s/", azureDevopsAccountsPath(installationID), accountID)
-	return updateScmUnit[AzureDevopsAccount](client, updatePath, azureDevopsAccountsPath(installationID), installationID, accountID, body)
+// FindAzureDevopsAccountByName reads via list-filter matching Azure organization name.
+func (client *APIClient) FindAzureDevopsAccountByName(installationID, accountName string) (*AzureDevopsAccount, error) {
+	all, err := getAllScmPages[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID))
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].AccountName == accountName {
+			all[i].stampInstallationID(installationID)
+			return &all[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (client *APIClient) UpdateAzureDevopsAccount(installationID, orcaAccountID string, body ScmInstallationUpdate) (*AzureDevopsAccount, error) {
+	updatePath := fmt.Sprintf("%s%s/", azureDevopsAccountsPath(installationID), orcaAccountID)
+	return updateScmUnit[AzureDevopsAccount](client, updatePath, azureDevopsAccountsPath(installationID), installationID, orcaAccountID, body)
+}
+
+func (client *APIClient) DeleteAzureDevopsAccount(installationID, orcaAccountID string) error {
+	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", azureDevopsAccountsPath(installationID), orcaAccountID))
+}
+
+// AzureDevopsUnitIntegrate is the scan-all (empty repos) create body for an Azure org.
+type AzureDevopsUnitIntegrate struct {
+	InstallationID string
+	AccountName    string
+	Body           ScmInstallationUpdate
+}
+
+func (client *APIClient) IntegrateAzureDevopsUnit(req AzureDevopsUnitIntegrate) error {
+	body := struct {
+		InstallationID        string                  `json:"installation_id"`
+		AzureAccountName      string                  `json:"azure_account_name"`
+		InstallationMode      string                  `json:"installation_mode,omitempty"`
+		DefaultPolicies       bool                    `json:"default_policies"`
+		Policies              []string                `json:"policies"`
+		ProjectID             string                  `json:"project_id,omitempty"`
+		ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
+		Repositories          []struct{}              `json:"repositories"`
+	}{
+		InstallationID:        req.InstallationID,
+		AzureAccountName:      req.AccountName,
+		InstallationMode:      req.Body.InstallationMode,
+		DefaultPolicies:       req.Body.DefaultPolicies,
+		Policies:              req.Body.Policies,
+		ProjectID:             req.Body.ProjectID,
+		ConfigurationSettings: req.Body.ConfigSettings,
+		Repositories:          []struct{}{},
+	}
+	if req.Body.ProjectID != "" {
+		body.Policies = nil
+	}
+	return client.integrateScmRepositories("azure_devops", body)
 }

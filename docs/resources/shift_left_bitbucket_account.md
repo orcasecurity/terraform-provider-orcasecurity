@@ -1,21 +1,25 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_account Resource - orcasecurity"
 description: |-
-  Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via terraform import. Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.
+  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode (defaults to SCAN_ALL_INCLUDE_FUTURE), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 ---
 
 # orcasecurity_shift_left_bitbucket_account (Resource)
 
-Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via `terraform import`. Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.
+Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+
+-> **Destroy:** `terraform destroy` DELETEs the integrated account (UI parity). That also removes its integrated repositories.
+
+-> **Coverage:** Browse accounts, `check_availability`, and scan-now are UI operations and are not managed here.
 
 ## Example Usage
 
 ```terraform
 resource "orcasecurity_shift_left_bitbucket_account" "example" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  account_id        = "22222222-2222-2222-2222-222222222222"
+  account_id        = "acme-workspace"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   default_policies  = true
 
@@ -27,12 +31,9 @@ resource "orcasecurity_shift_left_bitbucket_account" "example" {
   }
 }
 
-# Alternatively, bind the account to a scan-all project instead of policies
-# project_id is mutually exclusive with
-# default_policies and policies_ids.
 resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
-  account_id        = "33333333-3333-3333-3333-333333333333"
+  account_id        = "other-workspace"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   project_id        = "44444444-4444-4444-4444-444444444444"
 }
@@ -43,7 +44,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 
 ### Required
 
-- `account_id` (String) Orca Bitbucket integrated account UUID.
+- `account_id` (String) Bitbucket-side account/workspace slug (API `account_id`, not the Orca UUID).
 - `installation_id` (String) Orca Bitbucket installation UUID.
 
 ### Optional
@@ -57,7 +58,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 ### Read-Only
 
 - `account_name` (String) Bitbucket workspace/account name.
-- `id` (String) Account UUID (mirrors account_id).
+- `id` (String) Orca Bitbucket integrated account UUID.
 - `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
 - `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
@@ -82,5 +83,5 @@ Optional:
 Import is supported using the following syntax:
 
 ```shell
-terraform import orcasecurity_shift_left_bitbucket_account.example <installation_id>/<account_id>
+terraform import orcasecurity_shift_left_bitbucket_account.example <installation_id>/<account_slug_or_orca_uuid>
 ```

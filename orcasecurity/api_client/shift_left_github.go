@@ -98,3 +98,7 @@ func (client *APIClient) UpdateGithubInstallation(id string, body ScmInstallatio
 	updatePath := fmt.Sprintf("%s%s/", githubInstallationsPath, id)
 	return updateScmUnit[GithubInstallation](client, updatePath, githubInstallationsPath, "", id, body)
 }
+
+func (client *APIClient) DeleteGithubInstallation(id string) error {
+	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", githubInstallationsPath, id))
+}

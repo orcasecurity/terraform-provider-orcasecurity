@@ -12,7 +12,7 @@ func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.SharedScmConfigAttributes("Bitbucket workspace/account name.")
 	attrs["id"] = rschema.StringAttribute{
 		Computed:      true,
-		Description:   "Account UUID (mirrors account_id).",
+		Description:   "Orca Bitbucket integrated account UUID.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 	}
 	attrs["installation_id"] = rschema.StringAttribute{
@@ -22,11 +22,16 @@ func resourceSchema() rschema.Schema {
 	}
 	attrs["account_id"] = rschema.StringAttribute{
 		Required:      true,
-		Description:   "Orca Bitbucket integrated account UUID.",
+		Description:   "Bitbucket-side account/workspace slug (API `account_id`, not the Orca UUID).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
-		Description: "Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via `terraform import`. Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.",
-		Attributes:  attrs,
+		Description: "Creates or configures an Orca Bitbucket shift-left integrated account. " +
+			"Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), " +
+			"`installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories`. " +
+			"If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. " +
+			"Not covered: browse accounts, check_availability, scan-now. " +
+			"Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.",
+		Attributes: attrs,
 	}
 }

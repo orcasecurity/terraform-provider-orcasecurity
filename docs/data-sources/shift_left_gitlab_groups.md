@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_gitlab_groups Data Source - orcasecurity"
 description: |-
-  Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each.
+  Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each. Use gitlab_group_id with orcasecurity_shift_left_gitlab_group.
 ---
 
 # orcasecurity_shift_left_gitlab_groups (Data Source)
 
-Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each.
+Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each. Use gitlab_group_id with orcasecurity_shift_left_gitlab_group.
 
 ## Example Usage
 
@@ -40,7 +40,6 @@ Read-Only:
 - `account_name` (String)
 - `default_policies` (Boolean)
 - `gitlab_group_id` (Number)
-- `group_id` (String)
 - `id` (String)
 - `installation_id` (String)
 - `installation_mode` (String)

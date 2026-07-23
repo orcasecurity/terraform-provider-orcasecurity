@@ -104,15 +104,68 @@ func (client *APIClient) ListGitlabGroups() ([]GitlabGroup, error) {
 	return listScmUnitsByInstallation[GitlabGroup](client, "/api/shiftleft/gitlab/installations/", gitlabGroupsPath)
 }
 
-// GetGitlabGroup reads via list-filter on the installation-scoped list.
-func (client *APIClient) GetGitlabGroup(installationID, groupID string) (*GitlabGroup, error) {
-	return findScmUnit[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, groupID)
+// GetGitlabGroup reads via list-filter on the installation-scoped list by Orca unit UUID.
+func (client *APIClient) GetGitlabGroup(installationID, orcaGroupID string) (*GitlabGroup, error) {
+	return findScmUnit[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, orcaGroupID)
 }
 
-func (client *APIClient) UpdateGitlabGroup(installationID, groupID string, body ScmInstallationUpdate) (*GitlabGroup, error) {
+// FindGitlabGroupByGitlabID reads via list-filter matching the GitLab-side numeric group id.
+func (client *APIClient) FindGitlabGroupByGitlabID(installationID string, gitlabGroupID int64) (*GitlabGroup, error) {
+	all, err := getAllScmPages[GitlabGroup](client, gitlabGroupsPath(installationID))
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].GitlabGroupID == gitlabGroupID {
+			all[i].stampInstallationID(installationID)
+			return &all[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (client *APIClient) UpdateGitlabGroup(installationID, orcaGroupID string, body ScmInstallationUpdate) (*GitlabGroup, error) {
 	// NOTE: the list endpoints are plural ("integrated_groups"), but the update
 	// endpoint is singular ("integrated_group"). This mismatch is intentional
 	// on the API side, not a typo here.
-	updatePath := fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, groupID)
-	return updateScmUnit[GitlabGroup](client, updatePath, gitlabGroupsPath(installationID), installationID, groupID, body)
+	updatePath := fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, orcaGroupID)
+	return updateScmUnit[GitlabGroup](client, updatePath, gitlabGroupsPath(installationID), installationID, orcaGroupID, body)
+}
+
+func (client *APIClient) DeleteGitlabGroup(installationID, orcaGroupID string) error {
+	return deleteScmPathIgnoring404(client,
+		fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, orcaGroupID))
+}
+
+// GitlabUnitIntegrate is the scan-all (empty repos) create body for a GitLab group.
+type GitlabUnitIntegrate struct {
+	InstallationID string
+	GitlabGroupID  int64
+	Body           ScmInstallationUpdate
+}
+
+func (client *APIClient) IntegrateGitlabUnit(req GitlabUnitIntegrate) error {
+	body := struct {
+		InstallationID        string                  `json:"installation_id"`
+		GroupID               int64                   `json:"group_id"`
+		InstallationMode      string                  `json:"installation_mode,omitempty"`
+		DefaultPolicies       bool                    `json:"default_policies"`
+		Policies              []string                `json:"policies"`
+		ProjectID             string                  `json:"project_id,omitempty"`
+		ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
+		Repositories          []struct{}              `json:"repositories"`
+	}{
+		InstallationID:        req.InstallationID,
+		GroupID:               req.GitlabGroupID,
+		InstallationMode:      req.Body.InstallationMode,
+		DefaultPolicies:       req.Body.DefaultPolicies,
+		Policies:              req.Body.Policies,
+		ProjectID:             req.Body.ProjectID,
+		ConfigurationSettings: req.Body.ConfigSettings,
+		Repositories:          []struct{}{},
+	}
+	if req.Body.ProjectID != "" {
+		body.Policies = nil
+	}
+	return client.integrateScmRepositories("gitlab", body)
 }
