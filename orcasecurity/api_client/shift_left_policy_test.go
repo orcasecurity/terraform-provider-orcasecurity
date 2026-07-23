@@ -71,9 +71,6 @@ func TestDeleteShiftLeftPolicy(t *testing.T) {
 	}
 }
 
-// TestGetShiftLeftPolicy_NotFoundReturnsNil pins the drift contract: a 404
-// yields (nil, nil) so the resource Read removes the policy from state and the
-// plan recreates it, rather than surfacing an error.
 func TestGetShiftLeftPolicy_NotFoundReturnsNil(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "GET" {
@@ -95,8 +92,6 @@ func TestGetShiftLeftPolicy_NotFoundReturnsNil(t *testing.T) {
 	}
 }
 
-// TestGetShiftLeftPolicy_ServerErrorIsError pins that a transient 5xx is an
-// error (surfaced as a diagnostic), never mistaken for "policy deleted".
 func TestGetShiftLeftPolicy_ServerErrorIsError(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
@@ -139,10 +134,6 @@ func TestUpdateShiftLeftPolicy(t *testing.T) {
 	}
 }
 
-// TestShiftLeftPolicy_ProjectsIdsFromProjects is the RED/GREEN case for the
-// populateProjectsIds helper: the live GET response returns attached projects
-// as `"projects":[{"id":...}]`, never `"projects_ids"`, so ProjectsIds must be
-// derived from Projects after unmarshal.
 func TestShiftLeftPolicy_ProjectsIdsFromProjects(t *testing.T) {
 	body := []byte(`{"id":"p1","name":"OSS Licenses Policy","builtin":true,
 		"projects":[{"id":"proj-a"},{"id":"proj-b"}]}`)
@@ -165,9 +156,6 @@ func TestShiftLeftPolicy_ProjectsIdsPrefersExplicit(t *testing.T) {
 	}
 }
 
-// TestGetShiftLeftPolicy_PopulatesProjectsIdsFromProjects exercises the full
-// client wiring: GetShiftLeftPolicy must populate ProjectsIds from the
-// `projects` array of a realistic GET response, not just the bare helper.
 func TestGetShiftLeftPolicy_PopulatesProjectsIdsFromProjects(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{

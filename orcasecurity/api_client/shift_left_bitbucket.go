@@ -5,8 +5,7 @@ import "fmt"
 type BitbucketAccount struct {
 	ID             string `json:"id"`
 	InstallationID string `json:"installation_id,omitempty"`
-	// AccountID is the Bitbucket-side slug (serializer source:
-	// bitbucket_account_slug). Distinct from ID, the Orca unit UUID.
+	// Bitbucket slug, not the Orca unit UUID.
 	AccountID   string `json:"account_id,omitempty"`
 	AccountName string `json:"account_name"`
 	ScmUnitCommonFields
@@ -20,8 +19,6 @@ func (a *BitbucketAccount) stampInstallationID(id string) {
 	}
 }
 
-// BitbucketAccessTokenDetails carries the credential on writes and its
-// non-secret metadata on reads (the API never echoes access_token back).
 type BitbucketAccessTokenDetails struct {
 	AccessToken     string `json:"access_token,omitempty"`
 	AccessTokenType string `json:"access_token_type,omitempty"` // PAT | TOKEN
@@ -29,7 +26,6 @@ type BitbucketAccessTokenDetails struct {
 	AccountID       string `json:"account_id,omitempty"`
 }
 
-// BitbucketInstallation is a parent Bitbucket connection.
 type BitbucketInstallation struct {
 	ID                 string                       `json:"id"`
 	Name               string                       `json:"name"`
@@ -40,8 +36,6 @@ type BitbucketInstallation struct {
 	CloudIntegration   bool                         `json:"cloud_integration"`
 }
 
-// BitbucketInstallationWrite is the POST/PATCH body (all fields optional on
-// PATCH).
 type BitbucketInstallationWrite struct {
 	Name               string                       `json:"name,omitempty"`
 	ServerURL          string                       `json:"server_url,omitempty"`
@@ -56,7 +50,6 @@ func (client *APIClient) ListBitbucketInstallations() ([]BitbucketInstallation, 
 	return getAllScmPages[BitbucketInstallation](client, bitbucketInstallationsPath)
 }
 
-// GetBitbucketInstallation reads via list-filter. Returns nil when absent.
 func (client *APIClient) GetBitbucketInstallation(id string) (*BitbucketInstallation, error) {
 	return findScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, id)
 }
@@ -65,8 +58,6 @@ func (client *APIClient) CreateBitbucketInstallation(body BitbucketInstallationW
 	return createScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, body)
 }
 
-// UpdateBitbucketInstallation PATCHes and decodes the response (Bitbucket
-// echoes the full serializer on PATCH).
 func (client *APIClient) UpdateBitbucketInstallation(id string, body BitbucketInstallationWrite) (*BitbucketInstallation, error) {
 	return patchScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, id, body)
 }
@@ -79,20 +70,14 @@ func bitbucketAccountsPath(installationID string) string {
 	return fmt.Sprintf("/api/shiftleft/bitbucket/installations/%s/integrated_accounts/", installationID)
 }
 
-// ListBitbucketAccounts fans out across every Bitbucket installation since
-// there is no global integrated_accounts list endpoint: list installations,
-// then list each installation's integrated_accounts and concatenate.
 func (client *APIClient) ListBitbucketAccounts() ([]BitbucketAccount, error) {
 	return listScmUnitsByInstallation[BitbucketAccount](client, "/api/shiftleft/bitbucket/installations/", bitbucketAccountsPath)
 }
 
-// GetBitbucketAccount reads via list-filter on the installation-scoped list
-// by Orca unit UUID.
 func (client *APIClient) GetBitbucketAccount(installationID, orcaAccountID string) (*BitbucketAccount, error) {
 	return findScmUnit[BitbucketAccount](client, bitbucketAccountsPath(installationID), installationID, orcaAccountID)
 }
 
-// FindBitbucketAccountBySlug reads via list-filter matching Bitbucket account_id (slug).
 func (client *APIClient) FindBitbucketAccountBySlug(installationID, slug string) (*BitbucketAccount, error) {
 	all, err := getAllScmPages[BitbucketAccount](client, bitbucketAccountsPath(installationID))
 	if err != nil {
@@ -116,7 +101,6 @@ func (client *APIClient) DeleteBitbucketAccount(installationID, orcaAccountID st
 	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", bitbucketAccountsPath(installationID), orcaAccountID))
 }
 
-// BitbucketUnitIntegrate is the scan-all (empty repos) create body for a Bitbucket account.
 type BitbucketUnitIntegrate struct {
 	InstallationID string
 	AccountID      string // Bitbucket slug

@@ -1,6 +1,3 @@
-// Package shift_left_integration holds the shared `configuration_settings`
-// schema, model, and expand/flatten helpers reused by the per-SCM-provider
-// shift-left integration resources (GitHub, GitLab, Azure DevOps, Bitbucket).
 package shift_left_integration
 
 import (
@@ -14,10 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ConfigSettingsModel is the Terraform representation of the
-// configuration_settings object sent/received by the Orca SCM integration
-// API. It is embedded as a nested attribute on each per-provider resource
-// schema (github/gitlab/azure/bitbucket).
 type ConfigSettingsModel struct {
 	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
 	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
@@ -29,11 +22,6 @@ type ConfigSettingsModel struct {
 	UnavailableConditions   types.List   `tfsdk:"unavailable_conditions"`
 }
 
-// ConfigSettingsAttributes returns the nested attribute map for the
-// configuration_settings object. All attributes are Optional+Computed: the
-// server always returns a value for every field, and per-provider resources
-// adopt existing units, so the server is authoritative and null-vs-config
-// plan drift must be avoided.
 func ConfigSettingsAttributes() map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"disable_scan_pull_requests": schema.BoolAttribute{
@@ -102,8 +90,6 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 	return attrs
 }
 
-// stringSliceFromList converts a types.List of types.String elements into a
-// []string, skipping a null/unknown list and any null/unknown elements.
 func stringSliceFromList(l types.List) []string {
 	if l.IsNull() || l.IsUnknown() {
 		return nil
@@ -123,9 +109,6 @@ func stringSliceFromList(l types.List) []string {
 	return result
 }
 
-// stringSliceToList converts a []string into a types.List of types.String
-// elements. Returns a null list for an empty/nil input so the resulting
-// model attribute stays null rather than an empty list.
 func stringSliceToList(values []string) types.List {
 	if len(values) == 0 {
 		return types.ListNull(types.StringType)
@@ -137,10 +120,6 @@ func stringSliceToList(values []string) types.List {
 	return types.ListValueMust(types.StringType, elems)
 }
 
-// ExpandConfigSettings converts a ConfigSettingsModel into the API payload
-// shape. InstallationReposConfig (and its archive_actions/unavailable_actions
-// children) is only built when the corresponding conditions list is
-// non-empty, so unused providers don't send an empty nested object.
 func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSettings {
 	if m == nil {
 		return api_client.ShiftLeftConfigSettings{}
@@ -184,8 +163,6 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 	return out
 }
 
-// FlattenConfigSettings converts the API payload shape back into a
-// ConfigSettingsModel, reversing ExpandConfigSettings.
 func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsModel {
 	m := ConfigSettingsModel{
 		DisableScanPullRequests: types.BoolValue(c.DisableScanPullRequests),
@@ -210,9 +187,6 @@ func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsM
 	return m
 }
 
-// optionalString maps an API string into a nullable state value: an empty
-// string (attribute not set / not returned) becomes null so it matches an
-// unset Optional attribute and does not produce a spurious plan diff.
 func optionalString(v string) types.String {
 	if v == "" {
 		return types.StringNull()
@@ -220,10 +194,6 @@ func optionalString(v string) types.String {
 	return types.StringValue(v)
 }
 
-// MergeConfigSettings returns base with any explicitly-set (non-null, non-unknown)
-// fields from overlay applied on top. Used by adopt-existing resources to send a
-// complete configuration_settings object (the API requires all fields present)
-// while letting users specify only the fields they want to change.
 func MergeConfigSettings(base ConfigSettingsModel, overlay *ConfigSettingsModel) ConfigSettingsModel {
 	if overlay == nil {
 		return base

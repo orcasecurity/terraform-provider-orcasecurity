@@ -136,10 +136,6 @@ resource "orcasecurity_shift_left_policy" "container" {
 	})
 }
 
-// TestAccShiftLeftPolicyResource_FileSystemVulnerabilities exercises the
-// scoped policy_data write shape the file_system_* types require, including
-// all-controls expansion from the shared "file_system" catalog (these types
-// have no catalog routes of their own).
 func TestAccShiftLeftPolicyResource_FileSystemVulnerabilities(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -229,11 +225,7 @@ resource "orcasecurity_shift_left_policy" "scm" {
 	})
 }
 
-// builtinProjectsBaseline reads a built-in policy, captures its currently
-// attached project ids as a restorable baseline (restored via t.Cleanup), and
-// skips the test when the scratch project is already attached -- the tests
-// assert an exact "+1" attachment count, which is impossible to satisfy (and
-// unsafe to force by detaching) if the project is already on the policy.
+// Snapshots project attachments; restores via t.Cleanup.
 func builtinProjectsBaseline(t *testing.T, policyType, policyID, scratchProjectID string) (*api_client.ShiftLeftPolicy, []string) {
 	t.Helper()
 
@@ -286,21 +278,6 @@ func importPolicyID(resourceName string) resource.ImportStateIdFunc {
 	}
 }
 
-// TestAccShiftLeftPolicyResource_BuiltinAttachProjects exercises the relaxed
-// built-in guard: built-in policies cannot be Created by Terraform (Create
-// would POST a brand new policy), so the only way to exercise Update's
-// projects_ids-only allowance is an import-then-apply flow against a real
-// built-in policy that already exists in the org.
-//
-// The test captures the live policy's current attached projects before
-// mutating anything, only ever *adds* the scratch project (never replaces
-// the existing attachment list), and restores the original list afterward.
-// The final step uses a `removed` block (Terraform >= 1.7) instead of letting
-// the resource fall out of config, because a real `terraform destroy` on a
-// built-in policy is expected to always fail (Delete blocks it) -- forcing an
-// actual destroy here would make this test permanently red for reasons
-// unrelated to correctness, since terraform-plugin-testing always attempts a
-// final destroy of anything left in state at the end of resource.Test.
 func TestAccShiftLeftPolicyResource_BuiltinAttachProjects(t *testing.T) {
 	builtinType := os.Getenv("ORCA_TEST_BUILTIN_POLICY_TYPE")
 	builtinID := os.Getenv("ORCA_TEST_BUILTIN_POLICY_ID")
@@ -341,9 +318,6 @@ removed {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				// Import only: built-ins can't go through Create, so state is
-				// established the same way a real user would attach projects to
-				// an existing built-in -- import it, then apply projects_ids.
 				Config:             orcasecurity.TestProviderConfig + importConfig,
 				ResourceName:       "orcasecurity_shift_left_policy.builtin",
 				ImportState:        true,
@@ -351,8 +325,6 @@ removed {
 				ImportStateId:      builtinType + "/" + builtinID,
 			},
 			{
-				// Only projects_ids differs from the imported state; the relaxed
-				// built-in guard must allow this Update through.
 				Config: orcasecurity.TestProviderConfig + attachConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.builtin", "projects_ids.#", fmt.Sprintf("%d", len(originalProjectIDs)+1)),
@@ -360,25 +332,12 @@ removed {
 				),
 			},
 			{
-				// Forget the resource (do not destroy it -- built-in Delete is
-				// intentionally always blocked; see the doc comment above).
 				Config: orcasecurity.TestProviderConfig + forgetConfig,
 			},
 		},
 	})
 }
 
-// TestAccShiftLeftPolicy_MaliciousPackages exercises the malicious_packages
-// built-in policy type. Unlike licenses/sca/iac/etc, malicious_packages has no
-// controls and no type-specific block at all (policy_data is always {}), so
-// the config carries no `malicious_packages {}` block.
-//
-// Modeled on TestAccShiftLeftPolicyResource_BuiltinAttachProjects: built-ins
-// cannot be Created by Terraform, so the test imports the live policy,
-// attaches one scratch project via projects_ids (additively, never replacing
-// the existing attachment list), verifies, then restores the original
-// attachments and forgets the resource (a real destroy is expected to always
-// fail for built-ins).
 func TestAccShiftLeftPolicy_MaliciousPackages(t *testing.T) {
 	builtinID := os.Getenv("ORCA_TEST_MALICIOUS_PACKAGES_POLICY_ID")
 	if builtinID == "" {
@@ -418,9 +377,6 @@ removed {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				// Import only: built-ins can't go through Create, so state is
-				// established the same way a real user would attach projects to
-				// an existing built-in -- import it, then apply projects_ids.
 				Config:             orcasecurity.TestProviderConfig + importConfig,
 				ResourceName:       "orcasecurity_shift_left_policy.malicious_packages",
 				ImportState:        true,
@@ -428,8 +384,6 @@ removed {
 				ImportStateId:      "malicious_packages/" + builtinID,
 			},
 			{
-				// Only projects_ids differs from the imported state; the relaxed
-				// built-in guard must allow this Update through.
 				Config: orcasecurity.TestProviderConfig + attachConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.malicious_packages", "projects_ids.#", fmt.Sprintf("%d", len(originalProjectIDs)+1)),
@@ -437,8 +391,6 @@ removed {
 				),
 			},
 			{
-				// Forget the resource (do not destroy it -- built-in Delete is
-				// intentionally always blocked; see the doc comment above).
 				Config: orcasecurity.TestProviderConfig + forgetConfig,
 			},
 		},

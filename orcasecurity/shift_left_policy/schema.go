@@ -11,9 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// allControlsAttr is a section-level toggle that tells the provider to include
-// every catalog control for that section, so users don't need a data source or
-// to list controls manually.
 func allControlsAttr() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"all_controls": schema.BoolAttribute{

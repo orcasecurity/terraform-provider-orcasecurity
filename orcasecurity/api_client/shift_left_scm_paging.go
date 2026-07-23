@@ -5,37 +5,24 @@ import (
 	"fmt"
 )
 
-// scmEnvelope is the common enveloped list response for shift-left SCM endpoints.
 type scmEnvelope[T any] struct {
 	TotalItems int `json:"total_items"`
 	Data       []T `json:"data"`
 }
 
-// scmInstallationID is the minimal shape needed to drive the
-// installations -> integrated units fan-out.
 type scmInstallationID struct {
 	ID string `json:"id"`
 }
 
-// scmUnit is implemented by the SCM unit DTOs (GithubInstallation,
-// GitlabGroup, AzureDevopsAccount, BitbucketAccount) so the shared
-// list/find/update helpers can match a unit by id and stamp the parent
-// installation id onto it (the per-installation unit lists return
-// installation_id as null, so the client must fill it in).
 type scmUnit interface {
 	unitID() string
 	stampInstallationID(string)
 }
 
-// InvalidateScmListCache drops cached SCM list pages. Tests that share a
-// client with provider-driven deletes must call this before Find/Get so they
-// do not see stale rows after destroy.
 func (client *APIClient) InvalidateScmListCache() {
 	client.invalidateScmListCache()
 }
 
-// invalidateScmListCache drops cached list pages so the next Get/List after a
-// write re-fetches. Safe/no-op when unused.
 func (client *APIClient) invalidateScmListCache() {
 	client.scmListCache.Range(func(key, _ any) bool {
 		client.scmListCache.Delete(key)
@@ -43,12 +30,7 @@ func (client *APIClient) invalidateScmListCache() {
 	})
 }
 
-// listScmUnitsByInstallation fans out across every installation: it lists the
-// installations at installationsPath, then lists each installation's
-// integrated units at unitsPath(installationID), stamping the installation id
-// onto each unit. This is the only way to obtain the installation_id needed
-// to drive a per-unit config resource for_each; the global list endpoints
-// omit it.
+// listScmUnitsByInstallation is required to obtain installation_id for for_each; global lists omit it.
 func listScmUnitsByInstallation[T any, PT interface {
 	*T
 	scmUnit
@@ -75,10 +57,7 @@ func listScmUnitsByInstallation[T any, PT interface {
 	return all, nil
 }
 
-// findScmUnit pages through unitsPath and returns the unit with the given id
-// (stamped with installationID), or nil when absent so callers treat a
-// missing unit as remote drift. Reads use list-filter because the API defines
-// no single-unit GET routes for SCM units.
+// findScmUnit uses list-filter; the API defines no single-unit GET routes for SCM units.
 func findScmUnit[T any, PT interface {
 	*T
 	scmUnit
@@ -97,8 +76,6 @@ func findScmUnit[T any, PT interface {
 	return nil, nil
 }
 
-// updateScmUnit PUTs body to updatePath, invalidates the list cache, and
-// returns the refreshed unit read back via findScmUnit.
 func updateScmUnit[T any, PT interface {
 	*T
 	scmUnit
@@ -110,17 +87,8 @@ func updateScmUnit[T any, PT interface {
 	return findScmUnit[T, PT](client, unitsPath, installationID, unitID)
 }
 
-// getAllScmPages fetches every page of an enveloped {total_items,data} list.
-// basePath must already include a leading "/api" and no query string.
-//
-// Uses limit/start_at_index rather than limit/offset: the shift-left list
-// paginator only honors `start_at_index` (the `offset` param is ignored —
-// confirmed live on the projects endpoint), the same convention used by
-// /api/automations (see ListAutomationsV2).
-//
-// Results are cached on the client for the lifetime of an apply/refresh until
-// invalidateScmListCache is called (after every SCM PUT). That avoids O(n)
-// full-list re-fetches when many SCM resources refresh the same list.
+// getAllScmPages uses limit/start_at_index (offset is ignored on shift-left lists).
+// Results are cached until invalidateScmListCache runs after SCM writes.
 func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 	if cached, ok := client.scmListCache.Load(basePath); ok {
 		if pages, ok := cached.([]T); ok {

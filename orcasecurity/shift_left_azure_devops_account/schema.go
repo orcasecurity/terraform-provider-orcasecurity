@@ -10,7 +10,6 @@ import (
 
 func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.SharedScmConfigAttributes("Azure DevOps account/organization name.")
-	// SharedScmConfigAttributes already defines computed account_name — override to Required identity.
 	attrs["account_name"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Azure DevOps organization name (API `azure_account_name` on integrate).",

@@ -1,12 +1,3 @@
-// Package shift_left_repository implements the per-repository integration
-// resources (orcasecurity_shift_left_{github,gitlab,bitbucket,azure_devops}_repository).
-//
-// All four share the same lifecycle against different provider endpoints:
-// create POSTs to {provider}/integrated_repositories/ (empty response, so the
-// created row is re-found by its SCM-side id), config updates go through the
-// bulk PATCH with a single-id list, project moves through
-// repository_contexts/move_project/, and delete removes the repository
-// context (the integrated_repositories endpoints define no DELETE).
 package shift_left_repository
 
 import (
@@ -26,8 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// RepoConfigFields are the shared Terraform attributes every repository
-// resource carries beyond its provider-specific identity keys.
 type RepoConfigFields struct {
 	ID                      types.String `tfsdk:"id"`
 	Name                    types.String `tfsdk:"name"`
@@ -46,8 +35,6 @@ type RepoConfigFields struct {
 	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-// sharedRepoAttributes builds the shared attribute map. skipCheckRunsValues
-// differs per provider (GitLab only supports ALWAYS/NEVER).
 func sharedRepoAttributes(scmName string, skipCheckRunsValues []string) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"id": rschema.StringAttribute{
@@ -141,9 +128,6 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string) map[stri
 var fullSkipCheckRuns = []string{"ALWAYS", "ONLY_ON_INTERNAL_ISSUE", "NEVER"}
 var gitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
 
-// fromAPI refreshes the shared fields from a live row. prior supplies values
-// the API never echoes (branch always; skip_check_runs and
-// scm_posture_policy_id on providers whose list serializer omits them).
 func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository) RepoConfigFields {
 	out := RepoConfigFields{
 		ID:                     types.StringValue(api.ID),
@@ -174,8 +158,6 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository) RepoConfigFi
 	return out
 }
 
-// configUpdateBody assembles the bulk PATCH body for the set config fields.
-// Returns false when nothing is set (PATCH can be skipped).
 func configUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
 	body := api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}}
 	set := false
@@ -215,7 +197,6 @@ func known(v interface {
 	return !v.IsNull() && !v.IsUnknown()
 }
 
-// repoOps are the provider-specific operations behind the shared lifecycle.
 type repoOps struct {
 	client    *api_client.APIClient
 	scmName   string
@@ -224,10 +205,6 @@ type repoOps struct {
 	update    func(api_client.ScmRepositoryConfigUpdate) error
 }
 
-// The four provider resources differ only in identity attributes and API
-// calls; their CRUD entrypoints delegate here. M is the provider model,
-// ops builds the provider repoOps from it, and fields exposes its embedded
-// RepoConfigFields.
 
 func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
 	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
@@ -291,8 +268,6 @@ func repoDelete[M any](ctx context.Context, req resource.DeleteRequest, resp *re
 	deleteRepo(ops(&state), fields(&state), &resp.Diagnostics)
 }
 
-// createRepo runs the shared create flow: integrate, re-find the created row,
-// apply config overrides, and return the refreshed row.
 func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	if err := ops.integrate(); err != nil {
 		diags.AddError(fmt.Sprintf("Error integrating %s repository", ops.scmName), err.Error())
@@ -320,8 +295,6 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 	return row
 }
 
-// updateRepo runs the shared update flow: config PATCH plus an optional
-// project move, returning the refreshed row.
 func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
 		if err := ops.update(body); err != nil {
@@ -352,7 +325,6 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	return row
 }
 
-// deleteRepo un-integrates by deleting the repository context.
 func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
 	ctxID := state.RepositoryContextID.ValueString()
 	if ctxID == "" {

@@ -122,9 +122,6 @@ func policyDataFromRaw(raw json.RawMessage) map[string]interface{} {
 	return data
 }
 
-// rawScopeControls extracts policy_data[key]["controls"] as raw control maps
-// (the read-side counterpart of the scoped write shape used by the
-// file_system_* types). Returns nil when the scope section is absent.
 func rawScopeControls(data map[string]interface{}, key string) []map[string]interface{} {
 	section, ok := data[key].(map[string]interface{})
 	if !ok {

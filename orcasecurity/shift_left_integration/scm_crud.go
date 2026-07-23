@@ -8,10 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ErrUnitNotFound is returned by WriteAdopted when get() yields a nil unit.
 var ErrUnitNotFound = errors.New("scm unit not found")
 
-// ExistingFromAPI builds an ExistingUnit from the common SCM API fields.
 func ExistingFromAPI(
 	mode string,
 	defaultPolicies bool,
@@ -28,42 +26,30 @@ func ExistingFromAPI(
 	}
 }
 
-// ExistingFromCommon builds an ExistingUnit from the common fields every SCM
-// unit DTO embeds.
 func ExistingFromCommon(c api_client.ScmUnitCommonFields) ExistingUnit {
 	return ExistingFromAPI(c.InstallationMode, c.DefaultPolicies, c.Policies, c.Project, c.ConfigSettings)
 }
 
-// PolicyIDsFromRefs converts API policy references into a policies_ids set.
 func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
 	return PolicyIDsToSet(api_client.PolicyRefIDs(refs))
 }
 
-// AdoptWriteRequest carries the inputs for the shared adopt-existing
-// Create/Update path (WriteAdopted / AdoptWrite).
 type AdoptWriteRequest[T any] struct {
-	// Get loads the live unit, Update PUTs the adopted body (using the loaded
-	// unit for Orca identity when the plan has not yet stored id), Snapshot
-	// extracts the adoptable fields from the live unit.
 	Get      func() (*T, error)
 	Update   func(current *T, body api_client.ScmInstallationUpdate) (*T, error)
 	Snapshot func(*T) ExistingUnit
 
-	// Plan values; unset fields are hydrated from the live unit by Adopt.
 	PlanMode     types.String
 	PlanDefault  types.Bool
 	PlanPolicies types.Set
 	PlanConfig   *ConfigSettingsModel
 	Project      ProjectIntent
 
-	// Error copy used by AdoptWrite's diagnostics.
 	Labels          AdoptLabels
 	NotFoundMsg     string
 	WriteErrorTitle string
 }
 
-// WriteAdopted is the shared Create/Update path for adopt-existing SCM resources:
-// load the live unit, Adopt plan/config over it, PUT, return the refreshed unit.
 func WriteAdopted[T any](req AdoptWriteRequest[T]) (*T, error) {
 	current, err := req.Get()
 	if err != nil {

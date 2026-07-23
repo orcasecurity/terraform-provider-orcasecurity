@@ -6,8 +6,6 @@ import (
 )
 
 func TestGitlabInstallationWrite_AlwaysSendsReadOnly(t *testing.T) {
-	// The API defaults an omitted read_only to false on PATCH (it is not
-	// treated as "unchanged"), so the marshaled body must always carry it.
 	raw, _ := json.Marshal(GitlabInstallationWrite{Name: "n", AccessToken: "tok"})
 	var got map[string]any
 	_ = json.Unmarshal(raw, &got)

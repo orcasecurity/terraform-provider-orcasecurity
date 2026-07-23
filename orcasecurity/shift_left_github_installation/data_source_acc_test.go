@@ -9,8 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// TestAccGithubInstallationsDataSource_basic exercises the generic SCM unit
-// list data source end to end (schema + Read + root SetAttribute state write).
 func TestAccGithubInstallationsDataSource_basic(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")

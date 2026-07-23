@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// captureServer records the last request method, path+query, and JSON body,
-// and replies with the given payloads keyed by "METHOD path".
 func captureServer(t *testing.T, responses map[string]string) (*APIClient, *struct {
 	Method, Path string
 	Body         map[string]any
@@ -53,7 +51,6 @@ func TestIntegrateGithubRepository_BodyShape(t *testing.T) {
 	if last.Body["installation_id"] != "inst-1" {
 		t.Errorf("installation_id: %v", last.Body["installation_id"])
 	}
-	// configuration_settings is required by the API even when empty.
 	if _, ok := last.Body["configuration_settings"]; !ok {
 		t.Error("configuration_settings missing")
 	}
@@ -190,7 +187,6 @@ func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	if row.DisableScanPRs == nil || !*row.DisableScanPRs || row.CommentsOnPRs != "NEVER" {
 		t.Errorf("bad config normalization: %+v", row)
 	}
-	// Mismatched installation must not match.
 	client.invalidateScmListCache()
 	other, err := client.FindGithubRepository("inst-other", 42)
 	if err != nil || other != nil {

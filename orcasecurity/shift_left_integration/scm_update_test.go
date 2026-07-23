@@ -9,9 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// TestAdopt_HydratesPoliciesFromExisting asserts that when the user leaves
-// policies_ids unset, Adopt sends the unit's existing explicit policies rather
-// than wiping them (regression guard for the adopt-existing policies wipe).
 func TestAdopt_HydratesPoliciesFromExisting(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -33,7 +30,6 @@ func TestAdopt_HydratesPoliciesFromExisting(t *testing.T) {
 	}
 }
 
-// TestAdopt_UserPoliciesWin asserts explicit policies_ids override the existing ones.
 func TestAdopt_UserPoliciesWin(t *testing.T) {
 	ad := Adopt(
 		types.StringValue("SCAN_ALL"),
@@ -48,7 +44,6 @@ func TestAdopt_UserPoliciesWin(t *testing.T) {
 	}
 }
 
-// TestAdopt_DefaultPoliciesClearsPolicies asserts default_policies=true sends [].
 func TestAdopt_DefaultPoliciesClearsPolicies(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -66,8 +61,6 @@ func TestAdopt_DefaultPoliciesClearsPolicies(t *testing.T) {
 	}
 }
 
-// TestAdopt_PreservesProject asserts a project-bound unit keeps its scan-all
-// project (project_id echoed, policies dropped, matching the UI's XOR write).
 func TestAdopt_PreservesProject(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -89,8 +82,6 @@ func TestAdopt_PreservesProject(t *testing.T) {
 	}
 }
 
-// TestAdopt_BindsProjectFromConfig asserts a config project_id binds the unit
-// to that project (policies dropped) even when the unit had none before.
 func TestAdopt_BindsProjectFromConfig(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -108,8 +99,6 @@ func TestAdopt_BindsProjectFromConfig(t *testing.T) {
 	}
 }
 
-// TestAdopt_ClearsProjectWhenConfigEmpty asserts project_id="" clears an
-// existing binding and falls back to policies.
 func TestAdopt_ClearsProjectWhenConfigEmpty(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -127,8 +116,6 @@ func TestAdopt_ClearsProjectWhenConfigEmpty(t *testing.T) {
 	}
 }
 
-// TestAdopt_PoliciesIntentClearsProject asserts choosing policies in config
-// clears an existing project binding (mirrors the UI's XOR).
 func TestAdopt_PoliciesIntentClearsProject(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -146,9 +133,7 @@ func TestAdopt_PoliciesIntentClearsProject(t *testing.T) {
 	}
 }
 
-// TestAdopt_RemapsLegacyScanAllMode asserts that hydrating installation_mode
-// from a legacy unit stored as SCAN_ALL sends SELECTED_REPOSITORIES instead:
-// the API rejects SCAN_ALL on update, and the UI applies the same remap.
+// SCAN_ALL remap: API rejects legacy mode on update.
 func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(), // installation_mode unset in config
@@ -176,8 +161,6 @@ func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 	}
 }
 
-// TestAdopt_MergesConfigSettings asserts the user overlay merges on top of the
-// live configuration_settings rather than replacing them wholesale.
 func TestAdopt_MergesConfigSettings(t *testing.T) {
 	overlay := &ConfigSettingsModel{
 		PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES"),

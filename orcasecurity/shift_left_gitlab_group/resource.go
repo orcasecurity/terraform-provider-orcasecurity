@@ -39,7 +39,6 @@ func (r *gitlabGroupResource) Schema(_ context.Context, _ resource.SchemaRequest
 }
 
 func (r *gitlabGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// <installation_id>/<orca_uuid> or <installation_id>/<gitlab_group_id>
 	parts := splitImport(req.ID)
 	if parts == nil {
 		resp.Diagnostics.AddError("Invalid import ID", "expected <installation_id>/<group_uuid_or_gitlab_group_id>")

@@ -172,10 +172,6 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 }
 
-// applyCatalog runs the pre-write catalog steps for the plan's policy type:
-// all-controls expansion followed by control enrichment, both against the
-// handler's catalogType (types without a catalog skip both). Returns false
-// when a diagnostic was added.
 func (r *shiftLeftPolicyResource) applyCatalog(plan *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy, diags *diag.Diagnostics) bool {
 	catalogType := policyTypeHandlers[plan.Type.ValueString()].catalogType
 	if catalogType == "" {

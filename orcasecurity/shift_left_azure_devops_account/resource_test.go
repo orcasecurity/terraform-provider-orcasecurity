@@ -15,7 +15,6 @@ import (
 
 func TestAccAzureDevopsAccount_import(t *testing.T) {
 	installationID := os.Getenv("ORCA_TEST_AZ_INSTALLATION_ID")
-	// Prefer account name (stable SCM identity). Fall back to Orca UUID for older env setups.
 	accountName := os.Getenv("ORCA_TEST_AZ_ACCOUNT_NAME")
 	orcaAccountID := os.Getenv("ORCA_TEST_AZ_ACCOUNT_ID")
 	if installationID == "" || (accountName == "" && orcaAccountID == "") {

@@ -10,12 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 )
 
-// InstallationBaseAttrs returns the schema attributes every SCM
-// parent-installation resource (GitLab, Bitbucket, Azure DevOps) shares.
-// Provider resources add their own token-detail attributes on top.
-//   - scmName: display name, e.g. "GitLab".
-//   - cloudURL: the SaaS URL used when server_url is omitted.
-//   - tokenDesc: description of the access_token attribute.
 func InstallationBaseAttrs(scmName, cloudURL, tokenDesc string) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"id": rschema.StringAttribute{
@@ -53,24 +47,13 @@ func InstallationBaseAttrs(scmName, cloudURL, tokenDesc string) map[string]rsche
 	}
 }
 
-// InstallationLifecycle wires provider-specific API calls and state mapping
-// into the CRUD flow shared by the SCM parent-installation resources.
-// M is the tfsdk resource model, A the api_client DTO.
 type InstallationLifecycle[M any, A any] struct {
-	// SCMName appears in error titles, e.g. "GitLab installation".
-	SCMName string
-	// Create POSTs the plan and returns the created row.
-	Create func(plan *M) (*A, error)
-	// Get reads by id; nil means the installation no longer exists.
-	Get func(id string) (*A, error)
-	// Update PATCHes the plan; nil (without error) means the row vanished.
-	Update func(plan *M) (*A, error)
-	// Delete removes the installation by id.
-	Delete func(id string) error
-	// ID extracts the installation id from the model.
-	ID func(m *M) string
-	// SetState copies API values onto the model, leaving write-only fields
-	// (access_token) untouched.
+	SCMName  string
+	Create   func(plan *M) (*A, error)
+	Get      func(id string) (*A, error)
+	Update   func(plan *M) (*A, error)
+	Delete   func(id string) error
+	ID       func(m *M) string
 	SetState func(m *M, a *A)
 }
 

@@ -215,12 +215,6 @@ func TestAPIToState_ProjectsIdsNullWhenUnset(t *testing.T) {
 	}
 }
 
-// TestAPIToState_ProjectsIdsPopulatedFromInstance is the import-path case
-// (Step 5 of task-1b): once GetShiftLeftPolicy populates
-// api_client.ShiftLeftPolicy.ProjectsIds from the `projects` array (see
-// shift_left_policy.go's populateProjectsIds), apiToState must carry those
-// ids into the model. ImportState calls apiToState(instance, nil), so no
-// prior state exists to merge against.
 func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
 		ID:          "policy-1",
@@ -240,13 +234,8 @@ func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 	}
 }
 
-// TestAPIToState_ProjectsIdsAuthoritativeOnRead is the WASP-1483 task-1d fix:
-// on Read/refresh, projects_ids must reflect the API even when prior state
-// had none -- otherwise out-of-band attach/detach never surfaces as drift.
-// This replaces the non-asserting TestAPIToState_ProjectsIdsRefreshEntanglement
-// pseudo-test left by task-1b.
+// Read must reflect API projects_ids even when prior state had none.
 func TestAPIToState_ProjectsIdsAuthoritativeOnRead(t *testing.T) {
-	// prior state had NO projects; API now reports two attached (out-of-band attach)
 	existing := &shiftLeftPolicyResourceModel{
 		Type: types.StringValue("licenses"), ProjectsIds: types.SetNull(types.StringType),
 	}
@@ -260,10 +249,7 @@ func TestAPIToState_ProjectsIdsAuthoritativeOnRead(t *testing.T) {
 	}
 }
 
-// TestAPIToState_ProjectsIdsEmptyStaysNull ensures an unattached policy does
-// not churn null<->[] across reads.
 func TestAPIToState_ProjectsIdsEmptyStaysNull(t *testing.T) {
-	// unattached policy: API returns none -> null (no null-vs-[] churn)
 	existing := &shiftLeftPolicyResourceModel{Type: types.StringValue("licenses")}
 	api := &api_client.ShiftLeftPolicy{ID: "p1", Type: "licenses"}
 	state := apiToState(api, existing)
@@ -380,10 +366,7 @@ func TestPlanToAPI_Licenses(t *testing.T) {
 	}
 }
 
-// TestPlanToAPI_FileSystemVulnerabilities_ScopedShape pins the API contract
-// for the file_system_* types: flat policy_data.controls is rejected (400);
-// the write must be {"feature_scope": [scope], scope: {"controls": [...]}}
-// (confirmed live against /file_system_vulnerabilities/policies/).
+// file_system_* requires scoped policy_data; flat controls rejected (400).
 func TestPlanToAPI_FileSystemVulnerabilities_ScopedShape(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{
 		Type:                     types.StringValue("file_system_vulnerabilities"),
@@ -533,9 +516,6 @@ func TestAPIToState_Licenses(t *testing.T) {
 	}
 }
 
-// TestAPIToState_FileSystemVulnerabilities_ScopedRead pins the read side of
-// the scoped shape: live GET responses nest controls under
-// policy_data.vulnerabilities.controls with no top-level controls array.
 func TestAPIToState_FileSystemVulnerabilities_ScopedRead(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
 		ID:         "policy-1",
@@ -553,18 +533,15 @@ func TestAPIToState_FileSystemVulnerabilities_ScopedRead(t *testing.T) {
 }
 
 func TestValidateTypeBlock(t *testing.T) {
-	// Matching block present: no error.
 	model := &shiftLeftPolicyResourceModel{Sast: &sastBlockModel{}}
 	if diags := validateTypeBlock("sast", model); diags.HasError() {
 		t.Errorf("expected no error when sast block is present, got %v", diags)
 	}
 
-	// Missing block: error.
 	if diags := validateTypeBlock("sast", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error when sast block is missing")
 	}
 
-	// Unknown type: error.
 	if diags := validateTypeBlock("nope", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error for unknown policy type")
 	}

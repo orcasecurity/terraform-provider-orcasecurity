@@ -21,9 +21,7 @@ func (g *GitlabGroup) stampInstallationID(id string) {
 	}
 }
 
-// UnmarshalJSON maps the GitLab group name into AccountName. Unlike the other
-// providers, GitLab's API returns the unit name under `gitlab_group_name`
-// (there is no `account_name` field), so fall back to it.
+// GitLab returns gitlab_group_name, not account_name.
 func (g *GitlabGroup) UnmarshalJSON(b []byte) error {
 	type alias GitlabGroup
 	aux := struct {
@@ -40,10 +38,6 @@ func (g *GitlabGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// GitlabInstallation is a parent GitLab connection (token + server). The
-// access token is write-only: the API never echoes it back
-// (GitLabInstallationSerializer omits it), so reads carry only its
-// name/type metadata.
 type GitlabInstallation struct {
 	ID                string `json:"id"`
 	Name              string `json:"name"`
@@ -56,9 +50,7 @@ type GitlabInstallation struct {
 	CloudIntegration  bool   `json:"cloud_integration"`
 }
 
-// GitlabInstallationWrite is the POST/PATCH body. ReadOnly is always sent:
-// the API defaults an omitted read_only to false on PATCH (not "unchanged"),
-// so partial updates must echo the current value.
+// Omitted read_only defaults to false on PATCH, not "unchanged".
 type GitlabInstallationWrite struct {
 	AccessToken string `json:"access_token,omitempty"`
 	Name        string `json:"name,omitempty"`
@@ -74,7 +66,6 @@ func (client *APIClient) ListGitlabInstallations() ([]GitlabInstallation, error)
 	return getAllScmPages[GitlabInstallation](client, gitlabInstallationsPath)
 }
 
-// GetGitlabInstallation reads via list-filter. Returns nil when absent.
 func (client *APIClient) GetGitlabInstallation(id string) (*GitlabInstallation, error) {
 	return findScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, id)
 }
@@ -83,8 +74,6 @@ func (client *APIClient) CreateGitlabInstallation(body GitlabInstallationWrite) 
 	return createScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, body)
 }
 
-// UpdateGitlabInstallation PATCHes and re-reads (the PATCH response body is
-// empty).
 func (client *APIClient) UpdateGitlabInstallation(id string, body GitlabInstallationWrite) (*GitlabInstallation, error) {
 	return patchScmInstallationAndReread[GitlabInstallation](client, gitlabInstallationsPath, id, body)
 }
@@ -97,19 +86,14 @@ func gitlabGroupsPath(installationID string) string {
 	return fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_groups/", installationID)
 }
 
-// ListGitlabGroups fans out across every GitLab installation so each group
-// carries its installation_id (the global /gitlab/integrated_groups/ endpoint
-// omits it, which breaks the config-resource for_each workflow).
 func (client *APIClient) ListGitlabGroups() ([]GitlabGroup, error) {
 	return listScmUnitsByInstallation[GitlabGroup](client, "/api/shiftleft/gitlab/installations/", gitlabGroupsPath)
 }
 
-// GetGitlabGroup reads via list-filter on the installation-scoped list by Orca unit UUID.
 func (client *APIClient) GetGitlabGroup(installationID, orcaGroupID string) (*GitlabGroup, error) {
 	return findScmUnit[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, orcaGroupID)
 }
 
-// FindGitlabGroupByGitlabID reads via list-filter matching the GitLab-side numeric group id.
 func (client *APIClient) FindGitlabGroupByGitlabID(installationID string, gitlabGroupID int64) (*GitlabGroup, error) {
 	all, err := getAllScmPages[GitlabGroup](client, gitlabGroupsPath(installationID))
 	if err != nil {
@@ -125,9 +109,7 @@ func (client *APIClient) FindGitlabGroupByGitlabID(installationID string, gitlab
 }
 
 func (client *APIClient) UpdateGitlabGroup(installationID, orcaGroupID string, body ScmInstallationUpdate) (*GitlabGroup, error) {
-	// NOTE: the list endpoints are plural ("integrated_groups"), but the update
-	// endpoint is singular ("integrated_group"). This mismatch is intentional
-	// on the API side, not a typo here.
+	// List path is integrated_groups; update path is integrated_group.
 	updatePath := fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, orcaGroupID)
 	return updateScmUnit[GitlabGroup](client, updatePath, gitlabGroupsPath(installationID), installationID, orcaGroupID, body)
 }
@@ -137,7 +119,6 @@ func (client *APIClient) DeleteGitlabGroup(installationID, orcaGroupID string) e
 		fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, orcaGroupID))
 }
 
-// GitlabUnitIntegrate is the scan-all (empty repos) create body for a GitLab group.
 type GitlabUnitIntegrate struct {
 	InstallationID string
 	GitlabGroupID  int64

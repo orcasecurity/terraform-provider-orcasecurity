@@ -12,8 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// snapshotGitlabGroupForTest gates on the ORCA_TEST_GL_* env vars, snapshots
-// the live group, and registers a cleanup that restores its original config.
 func snapshotGitlabGroupForTest(t *testing.T) (*api_client.APIClient, string, string, *api_client.GitlabGroup) {
 	t.Helper()
 	installationID, gitlabGroupIDEnv, orcaGroupID := requireGitlabGroupTestEnv(t)
@@ -30,8 +28,6 @@ func snapshotGitlabGroupForTest(t *testing.T) (*api_client.APIClient, string, st
 	return client, installationID, groupID, original
 }
 
-// assertConditionsCleared accepts null or an empty {} object as a successful
-// clear; anything still carrying conditions fails.
 func assertConditionsCleared(t *testing.T, repos *api_client.ShiftLeftInstallationReposConfig) {
 	t.Helper()
 	if repos == nil {
@@ -44,15 +40,10 @@ func assertConditionsCleared(t *testing.T, repos *api_client.ShiftLeftInstallati
 	}
 }
 
-// TestAccGitlabGroup_clearsArchiveConditions verifies that an explicit empty
-// archive_conditions/unavailable_conditions overlay clears
-// installation_repositories_configuration on the live unit (finding #3).
-//
 // Requires ORCA_TEST_GL_INSTALLATION_ID and ORCA_TEST_GL_GROUP_ID.
 func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 	client, installationID, groupID, original := snapshotGitlabGroupForTest(t)
 
-	// 1) Set archive + unavailable conditions.
 	withConditions := original.ConfigSettings
 	withConditions.InstallationReposConfig = &api_client.ShiftLeftInstallationReposConfig{
 		ArchiveActions:     &api_client.ShiftLeftArchiveActions{Conditions: []string{"AVOID_SCAN", "DELETE_REPO"}},
@@ -68,7 +59,6 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 		t.Fatal("precondition failed: expected installation_repositories_configuration after set")
 	}
 
-	// 2) Adopt with explicit empty condition lists (terraform clear intent).
 	overlay := &shift_left_integration.ConfigSettingsModel{
 		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
 		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),

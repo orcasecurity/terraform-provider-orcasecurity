@@ -40,9 +40,7 @@ func TestBuiltinGuard_NameChangeRejected(t *testing.T) {
 	}
 }
 
-// The API locks only name (plus feature_scope / scm_posture scope) on
-// built-ins: description, disabled, warn_mode, priority_failure_threshold and
-// control overrides are all server-updatable and must pass the guard.
+// Non-name built-in fields remain updatable through the guard.
 func TestBuiltinGuard_ApiUpdatableFieldsAllowed(t *testing.T) {
 	state := baseBuiltin()
 	plan := baseBuiltin()

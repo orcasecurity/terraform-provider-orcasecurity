@@ -6,8 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ScmConfigFields are the shared Terraform attributes every SCM adopt-existing
-// resource carries (beyond provider-specific identity keys).
 type ScmConfigFields struct {
 	AccountName       types.String         `tfsdk:"account_name"`
 	IntegrationStatus types.String         `tfsdk:"integration_status"`
@@ -17,14 +15,11 @@ type ScmConfigFields struct {
 	ProjectID         types.String         `tfsdk:"project_id"`
 	ConfigSettings    *ConfigSettingsModel `tfsdk:"configuration_settings"`
 
-	// Read-only status fields surfaced from the API.
 	ScanAllState                types.String `tfsdk:"scan_all_state"`
 	IntegratedRepositoriesCount types.Int64  `tfsdk:"integrated_repositories_count"`
 	ScmPosturePolicyID          types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-// OptionalID maps an API id into state: empty becomes null so Optional+Computed
-// attributes do not drift between null (unset) and "".
 func OptionalID(id string) types.String {
 	if id == "" {
 		return types.StringNull()
@@ -32,7 +27,6 @@ func OptionalID(id string) types.String {
 	return types.StringValue(id)
 }
 
-// ScmConfigFieldsFromAPI builds the shared config fields from a live SCM unit.
 func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields) ScmConfigFields {
 	cs := FlattenConfigSettings(u.ConfigSettings)
 	return ScmConfigFields{

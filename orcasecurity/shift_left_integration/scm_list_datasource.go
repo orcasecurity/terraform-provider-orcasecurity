@@ -13,29 +13,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ScmUnitListSpec describes one provider's fleet-list data source over SCM
-// units (installations / groups / accounts). All rows expose the shared unit
-// attributes plus the provider's Extra identity attributes.
 type ScmUnitListSpec[A any] struct {
-	// TypeNameSuffix is appended to the provider type name,
-	// e.g. "_shift_left_bitbucket_accounts".
 	TypeNameSuffix string
 	Description    string
-	// CollectionKey is the single root attribute holding the rows,
-	// e.g. "accounts".
 	CollectionKey string
-	// Extra lists provider identity attributes beyond the shared ones. Only
-	// string and int64 types are used; all are Computed.
 	Extra map[string]attr.Type
-	// List fetches all rows.
 	List           func(*api_client.APIClient) ([]A, error)
 	ListErrorTitle string
-	// Row maps one API row to its account name, shared fields, and extras.
 	Row func(a *A) (accountName string, common api_client.ScmUnitCommonFields, extras map[string]attr.Value)
 }
 
-// ListValue converts API rows into the data source's list state value.
-// Exported through per-package wrappers for unit tests.
 func (s ScmUnitListSpec[A]) ListValue(rows []A) (types.List, diag.Diagnostics) {
 	attrTypes := SharedScmListUnitAttrTypes()
 	for k, t := range s.Extra {
@@ -53,7 +40,6 @@ func (s ScmUnitListSpec[A]) ListValue(rows []A) (types.List, diag.Diagnostics) {
 	return ObjectListFromValues(attrTypes, elems)
 }
 
-// NewScmUnitListDataSource builds the data source for a spec.
 func NewScmUnitListDataSource[A any](spec ScmUnitListSpec[A]) datasource.DataSource {
 	return &scmUnitListDataSource[A]{spec: spec}
 }

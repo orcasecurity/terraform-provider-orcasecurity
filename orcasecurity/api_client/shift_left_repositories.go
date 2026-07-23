@@ -2,27 +2,12 @@ package api_client
 
 import "fmt"
 
-// This file covers the per-repository integration lifecycle shared by all SCM
-// providers:
-//
-//   - integrate:  POST /api/shiftleft/{provider}/integrated_repositories/
-//     The response body is empty, so callers re-list and match by the
-//     SCM-side repository id. Unit-level fields on the POST body
-//     (installation_mode, project_id, policies, configuration_settings) only
-//     apply when the owning unit is being created by this call; integrating
-//     into an existing unit leaves the unit untouched.
-//   - update:     PATCH .../integrated_repositories/ with {ids: [...]} bulk
-//     config body. Null fields mean "leave unchanged".
-//   - remove:     DELETE /api/shiftleft/repository_contexts/{ctx}/ — the
-//     integrated_repositories endpoints define no DELETE route, and PATCHing
-//     disabled=true merely pauses scanning.
-//   - move:       POST /api/shiftleft/repository_contexts/move_project/.
+// POST integrate returns empty body; re-list by SCM-side id.
+// integrated_repositories has no DELETE — use repository_contexts.
 
-// ScmRepository is the provider-neutral view of one integrated repository;
-// each provider DTO normalizes into it.
 type ScmRepository struct {
 	ID                  string
-	UnitID              string // owning unit row (installation/group/account)
+	UnitID              string
 	ProjectID           string
 	RepositoryName      string
 	RepositoryURL       string
@@ -47,9 +32,6 @@ type scmIDRef struct {
 	ID string `json:"id"`
 }
 
-// ScmRepositoryConfigUpdate is the shared bulk PATCH body. Nil pointers are
-// omitted, which the API treats as "leave unchanged" (an explicit null can
-// therefore not clear an override).
 type ScmRepositoryConfigUpdate struct {
 	IDs                     []string `json:"ids"`
 	Disabled                *bool    `json:"disabled,omitempty"`
@@ -80,7 +62,6 @@ func (client *APIClient) integrateScmRepositories(provider string, body any) err
 	return err
 }
 
-// DeleteRepositoryContext un-integrates a repository entirely.
 func (client *APIClient) DeleteRepositoryContext(repositoryContextID string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/repository_contexts/%s/", repositoryContextID))
 	if err == nil {
@@ -89,8 +70,6 @@ func (client *APIClient) DeleteRepositoryContext(repositoryContextID string) err
 	return err
 }
 
-// MoveRepositoryContexts re-assigns repositories to another Shift Left
-// project.
 func (client *APIClient) MoveRepositoryContexts(targetProjectID string, repositoryContextIDs []string) error {
 	body := struct {
 		TargetProjectID      string   `json:"target_project_id"`
@@ -103,15 +82,12 @@ func (client *APIClient) MoveRepositoryContexts(targetProjectID string, reposito
 	return err
 }
 
-// scmRepositoryDescriptor is the shared shape of one repository entry in an
-// integrate POST. Provider-specific ids ride alongside in wrapper structs.
 type scmRepositoryDescriptor struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
 	Branch string `json:"branch,omitempty"`
 }
 
-// --- GitHub ---
 
 type githubRepositoryItem struct {
 	ID                      string     `json:"id"`
@@ -158,7 +134,6 @@ func projectID(ref *scmIDRef) string {
 	return ref.ID
 }
 
-// GithubRepositoryIntegrate is the create request for one GitHub repository.
 type GithubRepositoryIntegrate struct {
 	InstallationID     string
 	GithubRepositoryID int64
@@ -189,8 +164,6 @@ func (client *APIClient) IntegrateGithubRepository(req GithubRepositoryIntegrate
 	return client.integrateScmRepositories("github", body)
 }
 
-// FindGithubRepository locates an integrated repository by its GitHub-side id
-// within one installation. Returns nil when absent.
 func (client *APIClient) FindGithubRepository(installationID string, githubRepositoryID int64) (*ScmRepository, error) {
 	all, err := getAllScmPages[githubRepositoryItem](client, integratedRepositoriesPath("github"))
 	if err != nil {
@@ -209,7 +182,6 @@ func (client *APIClient) UpdateGithubRepositories(body ScmRepositoryConfigUpdate
 	return client.updateScmRepositories("github", body)
 }
 
-// --- GitLab ---
 
 type gitlabRepositoryItem struct {
 	ID                      string     `json:"id"`
@@ -251,8 +223,6 @@ func (r *gitlabRepositoryItem) common() ScmRepository {
 	}
 }
 
-// GitlabRepositoryIntegrate is the create request for one GitLab project
-// (repository). GitlabGroupID/GitlabProjectID are GitLab-side numeric ids.
 type GitlabRepositoryIntegrate struct {
 	InstallationID  string
 	GitlabGroupID   int64
@@ -286,8 +256,6 @@ func (client *APIClient) IntegrateGitlabRepository(req GitlabRepositoryIntegrate
 	return client.integrateScmRepositories("gitlab", body)
 }
 
-// FindGitlabRepository locates an integrated GitLab project by its
-// GitLab-side numeric id within one installation. Returns nil when absent.
 func (client *APIClient) FindGitlabRepository(installationID string, gitlabProjectID int64) (*ScmRepository, error) {
 	all, err := getAllScmPages[gitlabRepositoryItem](client, integratedRepositoriesPath("gitlab"))
 	if err != nil {
@@ -306,7 +274,6 @@ func (client *APIClient) UpdateGitlabRepositories(body ScmRepositoryConfigUpdate
 	return client.updateScmRepositories("gitlab", body)
 }
 
-// --- Bitbucket ---
 
 type bitbucketRepositoryItem struct {
 	ID                    string `json:"id"`
@@ -350,9 +317,6 @@ func (r *bitbucketRepositoryItem) common() ScmRepository {
 	}
 }
 
-// BitbucketRepositoryIntegrate is the create request for one Bitbucket
-// repository. AccountID is the workspace (cloud) or project (server) slug;
-// BitbucketRepositoryID/Slug are Bitbucket-side identifiers.
 type BitbucketRepositoryIntegrate struct {
 	InstallationID        string
 	AccountID             string
@@ -389,9 +353,6 @@ func (client *APIClient) IntegrateBitbucketRepository(req BitbucketRepositoryInt
 	return client.integrateScmRepositories("bitbucket", body)
 }
 
-// FindBitbucketRepository locates an integrated repository by its
-// Bitbucket-side id within one account (workspace/project slug). Returns nil
-// when absent.
 func (client *APIClient) FindBitbucketRepository(accountID, bitbucketRepositoryID string) (*ScmRepository, error) {
 	all, err := getAllScmPages[bitbucketRepositoryItem](client, integratedRepositoriesPath("bitbucket"))
 	if err != nil {
@@ -410,7 +371,6 @@ func (client *APIClient) UpdateBitbucketRepositories(body ScmRepositoryConfigUpd
 	return client.updateScmRepositories("bitbucket", body)
 }
 
-// --- Azure DevOps ---
 
 type azureRepositoryItem struct {
 	ID                       string `json:"id"`
@@ -453,9 +413,6 @@ func (r *azureRepositoryItem) common() ScmRepository {
 	}
 }
 
-// AzureRepositoryIntegrate is the create request for one Azure DevOps
-// repository. AzureRepositoryID/AzureProjectID are Azure-side UUIDs;
-// AccountName is the Azure DevOps organization name.
 type AzureRepositoryIntegrate struct {
 	InstallationID    string
 	AccountName       string
@@ -492,8 +449,6 @@ func (client *APIClient) IntegrateAzureRepository(req AzureRepositoryIntegrate) 
 	return client.integrateScmRepositories("azure_devops", body)
 }
 
-// FindAzureRepository locates an integrated repository by its Azure-side UUID
-// within one account (organization). Returns nil when absent.
 func (client *APIClient) FindAzureRepository(accountName, azureRepositoryID string) (*ScmRepository, error) {
 	all, err := getAllScmPages[azureRepositoryItem](client, integratedRepositoriesPath("azure_devops"))
 	if err != nil {

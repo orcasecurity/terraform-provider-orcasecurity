@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-// ShiftLeftPolicy represents an AppSec (Shift Left) policy from the API.
 type ShiftLeftPolicy struct {
 	ID                       string                   `json:"id,omitempty"`
 	Name                     string                   `json:"name"`
@@ -27,14 +26,11 @@ type ShiftLeftPolicy struct {
 	UpdatedBy                string                   `json:"updated_by,omitempty"`
 }
 
-// ShiftLeftPolicyProject is one entry of the read-only projects list the API
-// returns describing the projects this policy is attached to. The API returns
-// `projects: [{id,...}]`, not `projects_ids`, so it is mapped on read.
+// API returns projects[], not projects_ids; mapped on read.
 type ShiftLeftPolicyProject struct {
 	ID string `json:"id"`
 }
 
-// ShiftLeftPolicyCatalogControls holds the raw catalog API response.
 type ShiftLeftPolicyCatalogControls struct {
 	Body json.RawMessage
 }
@@ -47,14 +43,11 @@ func shiftLeftPolicyItemPath(policyType, id string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/policies/%s/", policyType, id)
 }
 
-// shiftLeftPolicyCatalogPath keeps the trailing slash: the API 301-redirects
-// the slashless form, costing an extra round trip per catalog call.
+// Trailing slash required; slashless path 301-redirects.
 func shiftLeftPolicyCatalogPath(policyType string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/catalog/controls/", policyType)
 }
 
-// populateProjectsIds fills ProjectsIds from the read-only `projects` array
-// the API returns, unless ProjectsIds was already set explicitly.
 func (p *ShiftLeftPolicy) populateProjectsIds() {
 	if len(p.ProjectsIds) > 0 || len(p.Projects) == 0 {
 		return
@@ -66,10 +59,7 @@ func (p *ShiftLeftPolicy) populateProjectsIds() {
 	p.ProjectsIds = ids
 }
 
-// GetShiftLeftPolicy reads a policy. Returns (nil, nil) when the policy does
-// not exist (404) so callers can treat nil as remote drift; any other failure
-// is an error. Reads always use GET: some policy type views (notably
-// scm_posture) 5xx on HEAD even when the policy exists.
+// 404 => (nil, nil). Use GET not HEAD — scm_posture 5xx on HEAD.
 func (client *APIClient) GetShiftLeftPolicy(policyType, id string) (*ShiftLeftPolicy, error) {
 	resp, err := client.Get(shiftLeftPolicyItemPath(policyType, id))
 	if resp != nil && resp.StatusCode() == 404 {

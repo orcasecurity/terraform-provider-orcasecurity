@@ -18,22 +18,15 @@ type ShiftLeftProject struct {
 	PolicyIds                        []string `json:"policies_ids,omitempty"`
 	ExceptionIds                     []string `json:"exceptions_ids,omitempty"`
 
-	// Policies is the read-only list the API returns describing the attached
-	// policies. The API never echoes the write-only `default_policies` flag, so
-	// it is derived from whether any built-in policy is attached (see
-	// GetShiftLeftProject). omitempty keeps it out of create/update payloads.
+	// API omits default_policies; derive from attached built-in policies.
 	Policies []ShiftLeftProjectPolicy `json:"policies,omitempty"`
 }
 
-// ShiftLeftProjectPolicy is a single entry of the read-only policies list the
-// API returns for a project. Only the fields the provider needs are modeled.
 type ShiftLeftProjectPolicy struct {
 	ID      string `json:"id"`
 	Builtin bool   `json:"builtin"`
 }
 
-// hasBuiltinPolicy reports whether any attached policy is an Orca built-in,
-// which is how the provider reconstructs the write-only default_policies flag.
 func hasBuiltinPolicy(policies []ShiftLeftProjectPolicy) bool {
 	for _, p := range policies {
 		if p.Builtin {
@@ -43,8 +36,6 @@ func hasBuiltinPolicy(policies []ShiftLeftProjectPolicy) bool {
 	return false
 }
 
-// GetShiftLeftProject returns the project or an error — never (nil, nil):
-// the underlying client errors on any non-OK response, including 404.
 func (client *APIClient) GetShiftLeftProject(id string) (*ShiftLeftProject, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/shiftleft/projects/%s/", id))
 	if err != nil {
@@ -56,8 +47,7 @@ func (client *APIClient) GetShiftLeftProject(id string) (*ShiftLeftProject, erro
 	if err != nil {
 		return nil, err
 	}
-	// The API does not return default_policies; reconstruct it from the
-	// presence of built-in policies so Read does not drift to false.
+	// API omits default_policies; derive from attached built-in policies.
 	response.DefaultPolicies = hasBuiltinPolicy(response.Policies)
 	return &response, nil
 }
@@ -67,9 +57,6 @@ func (client *APIClient) DoesShiftLeftProjectExist(id string) (bool, error) {
 	return resp.StatusCode() == 200, nil
 }
 
-// Project writes invalidate the SCM list cache: ListShiftLeftProjects pages
-// through the cached list helper, so a create/update/delete in the same apply
-// must not serve stale project pages to later reads.
 
 func (client *APIClient) CreateShiftLeftProject(shift_left_project ShiftLeftProject) (*ShiftLeftProject, error) {
 	resp, err := client.Post("/api/shiftleft/projects/", shift_left_project)

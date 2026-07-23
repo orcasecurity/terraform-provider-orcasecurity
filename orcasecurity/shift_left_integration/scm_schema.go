@@ -13,15 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// SharedScmConfigAttributes returns the configuration attributes common to every
-// SCM adopt-existing resource (GitHub/GitLab/Azure/Bitbucket). Callers merge
-// these with their provider-specific identity attributes (installation_id,
-// group_id/account_id, etc.).
-//
-// Schema follows the Shift-Left API contract (not the stricter per-provider UI
-// feature gates). Azure's UI hides skip_check_runs and archive actions, and
-// GitLab's UI often limits skip_check_runs to ALWAYS/NEVER, but the account-
-// level PUT accepts the full enums for all providers.
 func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"account_name": rschema.StringAttribute{

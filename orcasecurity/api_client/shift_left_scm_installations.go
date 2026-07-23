@@ -2,17 +2,12 @@ package api_client
 
 import "fmt"
 
-// Shared CRUD plumbing for SCM parent installations (GitLab, Bitbucket,
-// Azure DevOps). The API defines no single-item GET route for installations,
-// so reads go through the cached list and filter by id.
+// No single-item GET route for installations; reads use the cached list.
 
-// installationIDer is implemented by the parent-installation DTOs so the
-// shared helpers can match a row by id.
 type installationIDer interface {
 	installationID() string
 }
 
-// findScmInstallation reads via list-filter. Returns nil when absent.
 func findScmInstallation[T any, PT interface {
 	*T
 	installationIDer
@@ -29,8 +24,6 @@ func findScmInstallation[T any, PT interface {
 	return nil, nil
 }
 
-// createScmInstallation POSTs and decodes the created row (all providers echo
-// the full serializer, including id).
 func createScmInstallation[T any](client *APIClient, listPath string, body any) (*T, error) {
 	resp, err := client.Post(listPath, body)
 	if err != nil {
@@ -44,8 +37,7 @@ func createScmInstallation[T any](client *APIClient, listPath string, body any) 
 	return created, nil
 }
 
-// patchScmInstallationAndReread PATCHes and reads the row back via the list
-// (for providers whose PATCH returns an empty body: GitLab, Azure DevOps).
+// GitLab and Azure DevOps PATCH return an empty body; Bitbucket echoes the full serializer.
 func patchScmInstallationAndReread[T any, PT interface {
 	*T
 	installationIDer
@@ -57,8 +49,6 @@ func patchScmInstallationAndReread[T any, PT interface {
 	return findScmInstallation[T, PT](client, listPath, id)
 }
 
-// patchScmInstallation PATCHes and decodes the response body (for providers
-// whose PATCH echoes the full serializer: Bitbucket).
 func patchScmInstallation[T any](client *APIClient, listPath, id string, body any) (*T, error) {
 	resp, err := client.Patch(fmt.Sprintf("%s%s/", listPath, id), body)
 	if err != nil {
@@ -76,8 +66,7 @@ func deleteScmInstallation(client *APIClient, listPath, id string) error {
 	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", listPath, id))
 }
 
-// deleteScmPathIgnoring404 DELETEs path and treats 404 as success so Terraform
-// destroy stays idempotent when the unit is already gone.
+// Treat 404 as success so destroy stays idempotent when the unit is already gone.
 func deleteScmPathIgnoring404(client *APIClient, path string) error {
 	resp, err := client.Delete(path)
 	if resp != nil && resp.StatusCode() == 404 {

@@ -103,7 +103,6 @@ func TestExpandConfigSettings_UnavailableConditionsOnly(t *testing.T) {
 
 func TestConfigSettingsAttributes_ArchiveAlwaysPresent(t *testing.T) {
 	attrs := ConfigSettingsAttributes()
-	// base fields always present
 	for _, key := range []string{"disable_scan_pull_requests", "comments_on_pull_requests", "pr_summary_comment", "skip_check_runs", "config_file_support", "pr_summary_appendix", "archive_conditions", "unavailable_conditions"} {
 		if _, ok := attrs[key]; !ok {
 			t.Fatalf("expected field %q to always be present", key)
@@ -139,8 +138,6 @@ func TestFlattenConfigSettings_EmptyStringsBecomeNull(t *testing.T) {
 	}
 }
 
-// TestMergeConfigSettings_NilOverlayReturnsBase covers adopt-existing Create
-// calls where the user set no configuration_settings block at all.
 func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
 	base := ConfigSettingsModel{
 		DisableScanPullRequests: types.BoolValue(true),
@@ -155,12 +152,6 @@ func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
 	}
 }
 
-// TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly is the core
-// regression test for the "API requires a complete configuration_settings
-// object" bug: a partial overlay (only pr_summary_comment explicitly set)
-// must produce a fully-populated result where the overlay wins on the field
-// it set and the base (current server) values are kept for every other
-// field.
 func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 	base := ConfigSettingsModel{
 		DisableScanPullRequests: types.BoolValue(false),
@@ -185,14 +176,10 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 
 	merged := MergeConfigSettings(base, overlay)
 
-	// overlay wins on the field it explicitly set.
 	if merged.PrSummaryComment.ValueString() != "ONLY_ON_FAILED_ISSUES" {
 		t.Fatalf("expected overlay to win on PrSummaryComment, got: %v", merged.PrSummaryComment)
 	}
 
-	// base is preserved for every field overlay left null/unknown, and the
-	// result is a COMPLETE object (nothing null) so the API's required-field
-	// check is satisfied.
 	if merged.DisableScanPullRequests.ValueBool() != base.DisableScanPullRequests.ValueBool() {
 		t.Fatalf("expected base DisableScanPullRequests kept, got: %v", merged.DisableScanPullRequests)
 	}
@@ -218,8 +205,6 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 	}
 }
 
-// TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase confirms every
-// overlay-settable field is wired into the merge, not just PrSummaryComment.
 func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
 		DisableScanPullRequests: types.BoolValue(false),
@@ -270,9 +255,6 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 	}
 }
 
-// TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase guards
-// against treating an unknown (not-yet-planned) value as an explicit user
-// override; only non-null, non-unknown overlay fields should win.
 func TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
 		PrSummaryComment:  types.StringValue("ALWAYS"),

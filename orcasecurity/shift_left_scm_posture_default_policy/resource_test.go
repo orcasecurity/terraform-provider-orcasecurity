@@ -48,8 +48,6 @@ func TestAccScmPostureDefaultPolicy_adopt(t *testing.T) {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				// Adopt with the live disabled value: a fully deterministic
-				// no-op write against the org.
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_shift_left_scm_posture_default_policy" "t" {
   disabled = %t
@@ -65,8 +63,6 @@ resource "orcasecurity_shift_left_scm_posture_default_policy" "t" {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     original.ID,
-				// controls is config-anchored (null when omitted), which
-				// import cannot reproduce.
 				ImportStateVerifyIgnore: []string{"controls"},
 			},
 		},

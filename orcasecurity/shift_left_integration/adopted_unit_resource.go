@@ -13,34 +13,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// AdoptedUnitOps wires one provider's SCM unit resource (GitHub installation,
-// GitLab group, Bitbucket / Azure DevOps account) into the shared CRUD flow.
-// A is the api_client DTO; M is the tfsdk model embedding ScmConfigFields.
 type AdoptedUnitOps[A any, M any] struct {
 	Labels AdoptLabels
-	// UnitID extracts the unit id from the model (used in read diagnostics).
 	UnitID func(m *M) string
-	// Get loads the live unit using state/plan identity (Orca UUID and/or SCM id).
 	Get func(m *M) (*A, error)
-	// Update PUTs the adopted body. current is the unit returned by Get (use its
-	// Orca id — plan may not have id yet on first create-adopt).
 	Update func(m *M, current *A, body api_client.ScmInstallationUpdate) (*A, error)
-	// Integrate POSTs integrated_repositories to create a missing unit
-	// (scan-all + empty repos). Nil means adopt-only (GitHub App must exist).
 	Integrate func(m *M, body api_client.ScmInstallationUpdate) error
-	// Delete tears down the live unit. Required for destroy = teardown.
-	Delete func(m *M) error
-	// Snapshot extracts the adoptable fields from the live unit.
-	Snapshot func(*A) ExistingUnit
-	// ToState maps a live unit into a fresh model.
-	ToState func(*A) M
-	// Config exposes the model's embedded ScmConfigFields.
-	Config func(*M) *ScmConfigFields
-	// Describe renders the unit identity for not-found messages.
-	Describe func(m *M) string
-	// CreateHint tells the user how to make the unit exist when Integrate is nil.
+	Delete    func(m *M) error
+	Snapshot  func(*A) ExistingUnit
+	ToState   func(*A) M
+	Config    func(*M) *ScmConfigFields
+	Describe  func(m *M) string
 	CreateHint string
-	// CreateErrorTitle / UpdateErrorTitle / DeleteErrorTitle head diagnostics.
 	CreateErrorTitle string
 	UpdateErrorTitle string
 	DeleteErrorTitle string

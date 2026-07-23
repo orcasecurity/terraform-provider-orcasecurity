@@ -92,8 +92,6 @@ func TestListShiftLeftProjects_PagesUsingStartAtIndex(t *testing.T) {
 }
 
 func TestListShiftLeftProjects_StopsOnEmptyPage(t *testing.T) {
-	// Defensive: if the server claims more total_items than it returns, an
-	// empty page must terminate the loop rather than spin forever.
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,

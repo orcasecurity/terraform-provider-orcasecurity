@@ -4,11 +4,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// policyTypes are the policy types the API exposes typed CRUD routes for.
-// The legacy "file_system" and "sca" types are deliberately absent: the API
-// has no /sca/policies/ router at all, and POST /file_system/policies/
-// returns 405 (the type was superseded by file_system_vulnerabilities and
-// file_system_secret_detection), both confirmed live.
+// Legacy file_system and sca types have no typed CRUD routes.
 var policyTypes = []string{
 	"iac",
 	"sast",

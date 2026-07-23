@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// AdoptLabels carries provider-specific error copy for the shared adopt write path.
 type AdoptLabels struct {
 	NotFoundTitle  string
 	NilReadTitle   string
@@ -24,9 +23,6 @@ type AdoptLabels struct {
 	MissingWarn    string // sprintf: unit id
 }
 
-// NewAdoptLabels derives the standard adopt-resource error/log copy from a
-// unit display name (e.g. "GitHub installation", "Azure DevOps account"), so
-// per-provider packages declare one string instead of six formulaic messages.
 func NewAdoptLabels(displayName string) AdoptLabels {
 	lower := strings.ToLower(displayName)
 	return AdoptLabels{
@@ -39,7 +35,6 @@ func NewAdoptLabels(displayName string) AdoptLabels {
 	}
 }
 
-// ConfigureAPIClient extracts the API client from provider data.
 func ConfigureAPIClient(req resource.ConfigureRequest) *api_client.APIClient {
 	if req.ProviderData == nil {
 		return nil
@@ -47,7 +42,6 @@ func ConfigureAPIClient(req resource.ConfigureRequest) *api_client.APIClient {
 	return req.ProviderData.(*api_client.APIClient)
 }
 
-// ImportSlashPair parses "<left>/<right>" import IDs into two state attributes.
 func ImportSlashPair(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, leftAttr, rightAttr, expected string) {
 	parts := strings.SplitN(req.ID, "/", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -58,8 +52,7 @@ func ImportSlashPair(ctx context.Context, req resource.ImportStateRequest, resp 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(rightAttr), parts[1])...)
 }
 
-// LooksLikeUUID reports whether s is an 8-4-4-4-12 hex UUID (used to disambiguate
-// Orca unit ids from SCM-side slugs/names on import).
+// Disambiguates Orca unit UUIDs from SCM-side slugs/names on import.
 func LooksLikeUUID(s string) bool {
 	if len(s) != 36 {
 		return false
@@ -79,8 +72,6 @@ func LooksLikeUUID(s string) bool {
 	return true
 }
 
-// AdoptWrite runs WriteAdopted and maps errors into diagnostics. Returns nil
-// when diagnostics were added.
 func AdoptWrite[T any](diags *diag.Diagnostics, req AdoptWriteRequest[T]) *T {
 	unit, err := WriteAdopted(req)
 	if errors.Is(err, ErrUnitNotFound) {
@@ -98,7 +89,6 @@ func AdoptWrite[T any](diags *diag.Diagnostics, req AdoptWriteRequest[T]) *T {
 	return unit
 }
 
-// ReadUnit loads a unit for Read; removes the resource when missing remotely.
 func ReadUnit[T any](
 	ctx context.Context,
 	diags *diag.Diagnostics,
@@ -120,7 +110,6 @@ func ReadUnit[T any](
 	return unit
 }
 
-// DeleteNoop logs that the live SCM integration is left untouched.
 func DeleteNoop(ctx context.Context, labels AdoptLabels) {
 	tflog.Info(ctx, labels.DeleteLog)
 }

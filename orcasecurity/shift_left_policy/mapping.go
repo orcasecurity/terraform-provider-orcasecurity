@@ -22,8 +22,6 @@ func stringSliceFromTypes(values []types.String) []string {
 	return result
 }
 
-// stringSliceFromSet extracts the known string elements from a set attribute,
-// returning nil for a null/unknown set.
 func stringSliceFromSet(s types.Set) []string {
 	if s.IsNull() || s.IsUnknown() {
 		return nil
@@ -38,8 +36,6 @@ func stringSliceFromSet(s types.Set) []string {
 	return result
 }
 
-// setFromStringSlice builds a set attribute from ids, returning a null set for
-// an empty/nil input so an unattached policy reads as null rather than [].
 func setFromStringSlice(values []string) types.Set {
 	if len(values) == 0 {
 		return types.SetNull(types.StringType)
@@ -145,8 +141,6 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		ProjectsIds:              setFromStringSlice(apiPolicy.ProjectsIds),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
-	// scm_posture (and some other reads) omit priority_failure_threshold; keep the
-	// prior/planned value so Required config does not perpetual-drift on refresh.
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
 		!existing.PriorityFailureThreshold.IsNull() && !existing.PriorityFailureThreshold.IsUnknown() {
 		model.PriorityFailureThreshold = existing.PriorityFailureThreshold
@@ -170,8 +164,6 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 	return model
 }
 
-// stateFromPlanAfterWrite anchors post-create/update state on the applied plan.
-// Nested container controls in API responses are not reliably round-tripped immediately after write.
 func stateFromPlanAfterWrite(plan *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy) *shiftLeftPolicyResourceModel {
 	state := *plan
 	state.ID = types.StringValue(apiPolicy.ID)

@@ -9,8 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// SharedScmListUnitAttrs are the nested attributes common to every SCM list
-// data source element (plus provider-specific identity keys callers add).
 func SharedScmListUnitAttrs() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"account_name":      schema.StringAttribute{Computed: true},
@@ -35,7 +33,6 @@ func SharedScmListUnitAttrs() map[string]schema.Attribute {
 	}
 }
 
-// SharedScmListUnitAttrTypes matches SharedScmListUnitAttrs for ObjectValue builds.
 func SharedScmListUnitAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"account_name":                  types.StringType,
@@ -48,7 +45,6 @@ func SharedScmListUnitAttrTypes() map[string]attr.Type {
 	}
 }
 
-// SharedScmListUnitValues fills the shared keys for a list element.
 func SharedScmListUnitValues(accountName string, u api_client.ScmUnitCommonFields) map[string]attr.Value {
 	return map[string]attr.Value{
 		"account_name":                  types.StringValue(accountName),
@@ -61,7 +57,6 @@ func SharedScmListUnitValues(accountName string, u api_client.ScmUnitCommonField
 	}
 }
 
-// ObjectListFromValues builds a typed list of objects from per-element attr maps.
 func ObjectListFromValues(attrTypes map[string]attr.Type, elems []map[string]attr.Value) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	elemType := types.ObjectType{AttrTypes: attrTypes}

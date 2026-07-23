@@ -24,7 +24,6 @@ type AzureAccessTokenDetails struct {
 	AccountName string `json:"account_name,omitempty"`
 }
 
-// AzureDevopsInstallation is a parent Azure DevOps connection.
 type AzureDevopsInstallation struct {
 	ID                     string `json:"id"`
 	Name                   string `json:"name"`
@@ -36,7 +35,6 @@ type AzureDevopsInstallation struct {
 	CloudIntegration       bool   `json:"cloud_integration"`
 }
 
-// AzureDevopsInstallationWrite is the POST/PATCH body.
 type AzureDevopsInstallationWrite struct {
 	Name               string                   `json:"name,omitempty"`
 	ServerURL          string                   `json:"server_url,omitempty"`
@@ -51,7 +49,6 @@ func (client *APIClient) ListAzureDevopsInstallations() ([]AzureDevopsInstallati
 	return getAllScmPages[AzureDevopsInstallation](client, azureDevopsInstallationsPath)
 }
 
-// GetAzureDevopsInstallation reads via list-filter. Returns nil when absent.
 func (client *APIClient) GetAzureDevopsInstallation(id string) (*AzureDevopsInstallation, error) {
 	return findScmInstallation[AzureDevopsInstallation](client, azureDevopsInstallationsPath, id)
 }
@@ -60,8 +57,7 @@ func (client *APIClient) CreateAzureDevopsInstallation(body AzureDevopsInstallat
 	return createScmInstallation[AzureDevopsInstallation](client, azureDevopsInstallationsPath, body)
 }
 
-// UpdateAzureDevopsInstallation PATCHes and re-reads (the PATCH response body
-// is empty).
+// PATCH returns empty body; re-read after update.
 func (client *APIClient) UpdateAzureDevopsInstallation(id string, body AzureDevopsInstallationWrite) (*AzureDevopsInstallation, error) {
 	return patchScmInstallationAndReread[AzureDevopsInstallation](client, azureDevopsInstallationsPath, id, body)
 }
@@ -74,21 +70,15 @@ func azureDevopsAccountsPath(installationID string) string {
 	return fmt.Sprintf("/api/shiftleft/azure_devops/installations/%s/integrated_accounts/", installationID)
 }
 
-// ListAzureDevopsAccounts fans out across every Azure DevOps installation so
-// each account carries its installation_id (the global
-// /azure_devops/integrated_accounts/ endpoint omits it, which breaks the
-// config-resource for_each workflow).
+// Global integrated_accounts list omits installation_id; fan out per installation.
 func (client *APIClient) ListAzureDevopsAccounts() ([]AzureDevopsAccount, error) {
 	return listScmUnitsByInstallation[AzureDevopsAccount](client, "/api/shiftleft/azure_devops/installations/", azureDevopsAccountsPath)
 }
 
-// GetAzureDevopsAccount reads via list-filter on the installation-scoped list
-// by Orca unit UUID.
 func (client *APIClient) GetAzureDevopsAccount(installationID, orcaAccountID string) (*AzureDevopsAccount, error) {
 	return findScmUnit[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID), installationID, orcaAccountID)
 }
 
-// FindAzureDevopsAccountByName reads via list-filter matching Azure organization name.
 func (client *APIClient) FindAzureDevopsAccountByName(installationID, accountName string) (*AzureDevopsAccount, error) {
 	all, err := getAllScmPages[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID))
 	if err != nil {
@@ -112,7 +102,6 @@ func (client *APIClient) DeleteAzureDevopsAccount(installationID, orcaAccountID 
 	return deleteScmPathIgnoring404(client, fmt.Sprintf("%s%s/", azureDevopsAccountsPath(installationID), orcaAccountID))
 }
 
-// AzureDevopsUnitIntegrate is the scan-all (empty repos) create body for an Azure org.
 type AzureDevopsUnitIntegrate struct {
 	InstallationID string
 	AccountName    string

@@ -25,7 +25,6 @@ var (
 	_ resource.ResourceWithImportState = &defaultPolicyResource{}
 )
 
-// Diagnostic summaries shared by every CRUD path of the singleton.
 const (
 	errReadDefaultPolicy   = "Error reading SCM posture default policy"
 	errUpdateDefaultPolicy = "Error updating SCM posture default policy"
@@ -114,8 +113,6 @@ func (r *defaultPolicyResource) Schema(_ context.Context, _ resource.SchemaReque
 }
 
 func (r *defaultPolicyResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Singleton: any import ID works; state is fully populated by the
-	// follow-up Read.
 	live, err := r.apiClient.GetScmPostureDefaultPolicy()
 	if err != nil {
 		resp.Diagnostics.AddError(errReadDefaultPolicy, err.Error())
@@ -124,9 +121,6 @@ func (r *defaultPolicyResource) ImportState(ctx context.Context, _ resource.Impo
 	resp.Diagnostics.Append(resp.State.Set(ctx, apiToState(live))...)
 }
 
-// write adopts the plan over the live policy and PUTs it: unset plan fields
-// (disabled, controls) echo the live values so a partial config never wipes
-// server-side overrides.
 func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnostics) *resourceModel {
 	live, err := r.apiClient.GetScmPostureDefaultPolicy()
 	if err != nil {
@@ -150,8 +144,6 @@ func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnosti
 		return nil
 	}
 	state := apiToState(updated)
-	// Anchor controls on the plan when set: the API echoes what was sent, but
-	// preserving plan ordering/shape avoids inconsistent-result errors.
 	if plan.Controls != nil {
 		state.Controls = plan.Controls
 	}
@@ -183,8 +175,6 @@ func (r *defaultPolicyResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 	newState := apiToState(live)
-	// A config with controls omitted keeps a null controls state even though
-	// the live policy may carry overrides adopted at write time.
 	if state.Controls == nil && newState.Controls != nil {
 		newState.Controls = nil
 	}

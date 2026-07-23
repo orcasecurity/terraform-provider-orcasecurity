@@ -6,12 +6,6 @@ import (
 	"testing"
 )
 
-// Read-only live smoke check for the SCM installation / integrated
-// repository / scm-posture endpoints: verifies the DTOs parse real payloads
-// and that no write-only secret is ever echoed. Gated on TF_ACC like the
-// acceptance tests (this is a plain Go test, so the check is explicit rather
-// than via resource.Test) and uses the same ORCASECURITY_API_ENDPOINT/TOKEN
-// credentials; it never mutates the org.
 func TestAccLiveSmoke_NewEndpoints(t *testing.T) {
 	client := liveSmokeClient(t)
 
@@ -51,8 +45,6 @@ func TestAccLiveSmoke_NewEndpoints(t *testing.T) {
 	t.Run("scm_posture_default", func(t *testing.T) { smokeScmPostureDefault(t, client) })
 }
 
-// liveSmokeClient skips unless TF_ACC and credentials are set, then builds a
-// client against the live API.
 func liveSmokeClient(t *testing.T) *APIClient {
 	t.Helper()
 	if os.Getenv("TF_ACC") == "" {
@@ -110,8 +102,6 @@ func smokeAzureInstallations(t *testing.T, client *APIClient) {
 	}
 }
 
-// smokeRepoRows lists a provider's integrated repositories (validating the
-// DTO against live payloads) and logs the first few rows via describe.
 func smokeRepoRows[T any](t *testing.T, client *APIClient, provider string, describe func(*T) string) {
 	rows, err := getAllScmPages[T](client, integratedRepositoriesPath(provider))
 	if err != nil {

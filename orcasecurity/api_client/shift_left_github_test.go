@@ -33,8 +33,6 @@ func TestScmInstallationUpdate_MarshalShape(t *testing.T) {
 	if cs["pr_summary_comment"] != "ONLY_ON_FAILED_ISSUES" {
 		t.Errorf("configuration_settings.pr_summary_comment wrong: %v", cs["pr_summary_comment"])
 	}
-	// The API requires these on every PUT (UpdateConfigurationSettingsRequest),
-	// so the marshaled body must always carry them, even at zero values.
 	for _, k := range []string{
 		"disable_scan_pull_requests", "comments_on_pull_requests",
 		"pr_summary_comment", "skip_check_runs", "config_file_support",

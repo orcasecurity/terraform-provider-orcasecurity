@@ -12,14 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// TestAccGitlabGroup_preservesProject is a live, self-restoring integration
-// test for the project-preservation fix (#4). It binds a real project to the
-// test group, then runs the exact adopt-existing write path the resource uses
-// (shift_left_integration.Adopt) with only a config-settings overlay, and
-// asserts the project association survives the update instead of being wiped.
-//
-// Requires ORCA_TEST_GL_INSTALLATION_ID, ORCA_TEST_GL_GROUP_ID and
-// ORCA_TEST_GL_PROJECT_ID (a shift-left project id to bind).
+// Requires ORCA_TEST_GL_INSTALLATION_ID, ORCA_TEST_GL_GROUP_ID, ORCA_TEST_GL_PROJECT_ID.
 func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	installationID := os.Getenv("ORCA_TEST_GL_INSTALLATION_ID")
 	groupID := os.Getenv("ORCA_TEST_GL_GROUP_ID")
@@ -61,10 +54,6 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	}
 	t.Logf("group bound to project %q", projectID)
 
-	// 2) Run the resource's adopt-existing write path with only a config
-	//    overlay (installation_mode/default_policies/policies_ids all unset,
-	//    exactly like `terraform apply` on a unit whose HCL only sets
-	//    configuration_settings).
 	overlay := &shift_left_integration.ConfigSettingsModel{
 		PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES"),
 	}
@@ -88,7 +77,6 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 		t.Fatalf("adopt update failed: %s", err)
 	}
 
-	// 3) The project must still be bound, and the config overlay applied.
 	if got := api_client.ProjectRefID(updated.Project); got != projectID {
 		t.Fatalf("#4 regression: project dropped after adopt update, got %q", got)
 	}

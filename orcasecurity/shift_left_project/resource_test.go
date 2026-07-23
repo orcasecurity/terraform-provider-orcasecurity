@@ -11,13 +11,10 @@ import (
 )
 
 func TestAccShiftLeftCveExceptionListResource_Basic(t *testing.T) {
-	// Randomized key: a fixed key like "project-1" collides with pre-existing
-	// projects in shared orgs (the create returns 409 conflict).
 	key := fmt.Sprintf("tf-acc-%s", acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// create
 			{
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_shift_left_project" "shift_left_project_1" {
@@ -32,13 +29,11 @@ resource "orcasecurity_shift_left_project" "shift_left_project_1" {
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_project.shift_left_project_1", "description", "Project for all repos"),
 				),
 			},
-			// import
 			{
 				ResourceName:      "orcasecurity_shift_left_project.shift_left_project_1",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// update
 			{
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_shift_left_project" "shift_left_project_1" {
