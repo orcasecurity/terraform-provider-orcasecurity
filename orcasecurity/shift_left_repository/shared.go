@@ -10,6 +10,7 @@
 package shift_left_repository
 
 import (
+	"context"
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -215,10 +217,78 @@ func known(v interface {
 
 // repoOps are the provider-specific operations behind the shared lifecycle.
 type repoOps struct {
+	client    *api_client.APIClient
 	scmName   string
 	integrate func() error
 	find      func() (*api_client.ScmRepository, error)
 	update    func(api_client.ScmRepositoryConfigUpdate) error
+}
+
+// The four provider resources differ only in identity attributes and API
+// calls; their CRUD entrypoints delegate here. M is the provider model,
+// ops builds the provider repoOps from it, and fields exposes its embedded
+// RepoConfigFields.
+
+func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var plan M
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	row := createRepo(ops(&plan), fields(&plan), &resp.Diagnostics)
+	if row == nil {
+		return
+	}
+	*fields(&plan) = fromAPI(*fields(&plan), row)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var state M
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	o := ops(&state)
+	row, err := o.find()
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Error reading %s repository integration", o.scmName), err.Error())
+		return
+	}
+	if row == nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	*fields(&state) = fromAPI(*fields(&state), row)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var plan, state M
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	row := updateRepo(ops(&plan), fields(&plan), fields(&state), &resp.Diagnostics)
+	if row == nil {
+		return
+	}
+	*fields(&plan) = fromAPI(*fields(&plan), row)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func repoDelete[M any](ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var state M
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	deleteRepo(ops(&state), fields(&state), &resp.Diagnostics)
 }
 
 // createRepo runs the shared create flow: integrate, re-find the created row,
@@ -252,7 +322,7 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 
 // updateRepo runs the shared update flow: config PATCH plus an optional
 // project move, returning the refreshed row.
-func updateRepo(client *api_client.APIClient, ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
+func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
 		if err := ops.update(body); err != nil {
 			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.scmName), err.Error())
@@ -266,7 +336,7 @@ func updateRepo(client *api_client.APIClient, ops repoOps, plan, state *RepoConf
 				"repository_context_id is unknown; run terraform refresh and retry")
 			return nil
 		}
-		if err := client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
+		if err := ops.client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
 			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.scmName), err.Error())
 			return nil
 		}
@@ -283,7 +353,7 @@ func updateRepo(client *api_client.APIClient, ops repoOps, plan, state *RepoConf
 }
 
 // deleteRepo un-integrates by deleting the repository context.
-func deleteRepo(client *api_client.APIClient, ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
+func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
 	ctxID := state.RepositoryContextID.ValueString()
 	if ctxID == "" {
 		// Fall back to a live read; older state may predate the field.
@@ -297,7 +367,7 @@ func deleteRepo(client *api_client.APIClient, ops repoOps, state *RepoConfigFiel
 		}
 		ctxID = row.RepositoryContextID
 	}
-	if err := client.DeleteRepositoryContext(ctxID); err != nil {
+	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
 		diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.scmName), err.Error())
 	}
 }

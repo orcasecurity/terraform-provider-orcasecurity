@@ -7,7 +7,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
@@ -41,89 +40,42 @@ func (r *gitlabGroupResource) ImportState(ctx context.Context, req resource.Impo
 	shift_left_integration.ImportSlashPair(ctx, req, resp, "installation_id", "group_id", "<installation_id>/<group_id>")
 }
 
+func (r *gitlabGroupResource) ops() shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel] {
+	return shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel]{
+		Labels: gitlabLabels,
+		UnitID: func(m *resourceModel) string { return m.GroupID.ValueString() },
+		Get: func(m *resourceModel) (*api_client.GitlabGroup, error) {
+			return r.apiClient.GetGitlabGroup(m.InstallationID.ValueString(), m.GroupID.ValueString())
+		},
+		Update: func(m *resourceModel, body api_client.ScmInstallationUpdate) (*api_client.GitlabGroup, error) {
+			return r.apiClient.UpdateGitlabGroup(m.InstallationID.ValueString(), m.GroupID.ValueString(), body)
+		},
+		Snapshot: func(u *api_client.GitlabGroup) shift_left_integration.ExistingUnit {
+			return shift_left_integration.ExistingFromCommon(u.ScmUnitCommonFields)
+		},
+		ToState: apiToState,
+		Config:  func(m *resourceModel) *shift_left_integration.ScmConfigFields { return &m.ScmConfigFields },
+		Describe: func(m *resourceModel) string {
+			return fmt.Sprintf("Group %q on installation %q", m.GroupID.ValueString(), m.InstallationID.ValueString())
+		},
+		CreateHint:       "Integrate the Orca GitLab group first, then import.",
+		CreateErrorTitle: "Error configuring GitLab group",
+		UpdateErrorTitle: "Error updating GitLab group",
+	}
+}
+
 func (r *gitlabGroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan, config resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	installationID := plan.InstallationID.ValueString()
-	groupID := plan.GroupID.ValueString()
-	grp := r.adopt(&resp.Diagnostics, installationID, groupID, plan, config,
-		fmt.Sprintf("Group %q on installation %q does not exist. Integrate the Orca GitLab group first, then import.", groupID, installationID),
-		"Error configuring GitLab group")
-	if grp == nil {
-		return
-	}
-	state := apiToState(grp)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.ops().DoCreate(ctx, req, resp)
 }
 
 func (r *gitlabGroupResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	installationID := state.InstallationID.ValueString()
-	groupID := state.GroupID.ValueString()
-	grp := shift_left_integration.ReadUnit(ctx, &resp.Diagnostics, gitlabLabels, groupID,
-		func() (*api_client.GitlabGroup, error) {
-			return r.apiClient.GetGitlabGroup(installationID, groupID)
-		},
-		resp.State.RemoveResource,
-	)
-	if grp == nil {
-		return
-	}
-	newState := apiToState(grp)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	r.ops().DoRead(ctx, req, resp)
 }
 
 func (r *gitlabGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, config resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	installationID := plan.InstallationID.ValueString()
-	groupID := plan.GroupID.ValueString()
-	grp := r.adopt(&resp.Diagnostics, installationID, groupID, plan, config,
-		fmt.Sprintf("Group %q on installation %q was not found. It may have been removed; re-import.", groupID, installationID),
-		"Error updating GitLab group")
-	if grp == nil {
-		return
-	}
-	state := apiToState(grp)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.ops().DoUpdate(ctx, req, resp)
 }
 
-func (r *gitlabGroupResource) Delete(ctx context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
-	shift_left_integration.DeleteNoop(ctx, gitlabLabels)
-}
-
-func (r *gitlabGroupResource) adopt(
-	diags *diag.Diagnostics, installationID, groupID string, plan, config resourceModel, notFoundMsg, writeTitle string,
-) *api_client.GitlabGroup {
-	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.GitlabGroup]{
-		Get: func() (*api_client.GitlabGroup, error) {
-			return r.apiClient.GetGitlabGroup(installationID, groupID)
-		},
-		Update: func(body api_client.ScmInstallationUpdate) (*api_client.GitlabGroup, error) {
-			return r.apiClient.UpdateGitlabGroup(installationID, groupID, body)
-		},
-		Snapshot: func(u *api_client.GitlabGroup) shift_left_integration.ExistingUnit {
-			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
-		},
-		PlanMode:        plan.InstallationMode,
-		PlanDefault:     plan.DefaultPolicies,
-		PlanPolicies:    plan.PoliciesIds,
-		PlanConfig:      plan.ConfigSettings,
-		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-		Labels:          gitlabLabels,
-		NotFoundMsg:     notFoundMsg,
-		WriteErrorTitle: writeTitle,
-	})
+func (r *gitlabGroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	r.ops().DoDelete(ctx, req, resp)
 }

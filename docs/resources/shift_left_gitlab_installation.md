@@ -38,7 +38,7 @@ resource "orcasecurity_shift_left_gitlab_installation" "self_managed" {
 
 ### Required
 
-- `access_token` (String, Sensitive) GitLab access token. Write-only: never returned by the API.
+- `access_token` (String, Sensitive) GitLab access token. Orca validates it on create, so it must be a valid group or personal access token. Write-only: never returned by the API.
 - `name` (String) Display name for the installation.
 
 ### Optional

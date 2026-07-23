@@ -66,56 +66,31 @@ type GitlabInstallationWrite struct {
 	ReadOnly    bool   `json:"read_only"`
 }
 
+func (g *GitlabInstallation) installationID() string { return g.ID }
+
 const gitlabInstallationsPath = "/api/shiftleft/gitlab/installations/"
 
 func (client *APIClient) ListGitlabInstallations() ([]GitlabInstallation, error) {
 	return getAllScmPages[GitlabInstallation](client, gitlabInstallationsPath)
 }
 
-// GetGitlabInstallation reads via list-filter (the API defines no single-item
-// GET route for installations). Returns nil when absent.
+// GetGitlabInstallation reads via list-filter. Returns nil when absent.
 func (client *APIClient) GetGitlabInstallation(id string) (*GitlabInstallation, error) {
-	all, err := client.ListGitlabInstallations()
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == id {
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return findScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, id)
 }
 
 func (client *APIClient) CreateGitlabInstallation(body GitlabInstallationWrite) (*GitlabInstallation, error) {
-	resp, err := client.Post(gitlabInstallationsPath, body)
-	if err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	created := GitlabInstallation{}
-	if err := resp.ReadJSON(&created); err != nil {
-		return nil, err
-	}
-	return &created, nil
+	return createScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, body)
 }
 
 // UpdateGitlabInstallation PATCHes and re-reads (the PATCH response body is
 // empty).
 func (client *APIClient) UpdateGitlabInstallation(id string, body GitlabInstallationWrite) (*GitlabInstallation, error) {
-	if _, err := client.Patch(fmt.Sprintf("%s%s/", gitlabInstallationsPath, id), body); err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	return client.GetGitlabInstallation(id)
+	return patchScmInstallationAndReread[GitlabInstallation](client, gitlabInstallationsPath, id, body)
 }
 
 func (client *APIClient) DeleteGitlabInstallation(id string) error {
-	_, err := client.Delete(fmt.Sprintf("%s%s/", gitlabInstallationsPath, id))
-	if err == nil {
-		client.invalidateScmListCache()
-	}
-	return err
+	return deleteScmInstallation(client, gitlabInstallationsPath, id)
 }
 
 func gitlabGroupsPath(installationID string) string {

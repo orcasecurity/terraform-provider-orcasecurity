@@ -45,58 +45,31 @@ type BitbucketInstallationWrite struct {
 	AccessTokenDetails *BitbucketAccessTokenDetails `json:"access_token_details,omitempty"`
 }
 
+func (b *BitbucketInstallation) installationID() string { return b.ID }
+
 const bitbucketInstallationsPath = "/api/shiftleft/bitbucket/installations/"
 
 func (client *APIClient) ListBitbucketInstallations() ([]BitbucketInstallation, error) {
 	return getAllScmPages[BitbucketInstallation](client, bitbucketInstallationsPath)
 }
 
-// GetBitbucketInstallation reads via list-filter (no single-item GET route).
+// GetBitbucketInstallation reads via list-filter. Returns nil when absent.
 func (client *APIClient) GetBitbucketInstallation(id string) (*BitbucketInstallation, error) {
-	all, err := client.ListBitbucketInstallations()
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == id {
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return findScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, id)
 }
 
 func (client *APIClient) CreateBitbucketInstallation(body BitbucketInstallationWrite) (*BitbucketInstallation, error) {
-	resp, err := client.Post(bitbucketInstallationsPath, body)
-	if err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	created := BitbucketInstallation{}
-	if err := resp.ReadJSON(&created); err != nil {
-		return nil, err
-	}
-	return &created, nil
+	return createScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, body)
 }
 
+// UpdateBitbucketInstallation PATCHes and decodes the response (Bitbucket
+// echoes the full serializer on PATCH).
 func (client *APIClient) UpdateBitbucketInstallation(id string, body BitbucketInstallationWrite) (*BitbucketInstallation, error) {
-	resp, err := client.Patch(fmt.Sprintf("%s%s/", bitbucketInstallationsPath, id), body)
-	if err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	updated := BitbucketInstallation{}
-	if err := resp.ReadJSON(&updated); err != nil {
-		return nil, err
-	}
-	return &updated, nil
+	return patchScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, id, body)
 }
 
 func (client *APIClient) DeleteBitbucketInstallation(id string) error {
-	_, err := client.Delete(fmt.Sprintf("%s%s/", bitbucketInstallationsPath, id))
-	if err == nil {
-		client.invalidateScmListCache()
-	}
-	return err
+	return deleteScmInstallation(client, bitbucketInstallationsPath, id)
 }
 
 func bitbucketAccountsPath(installationID string) string {

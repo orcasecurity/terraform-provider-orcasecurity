@@ -9,8 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -48,56 +46,26 @@ func (r *installationResource) Configure(_ context.Context, req resource.Configu
 }
 
 func (r *installationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	attrs := shift_left_integration.InstallationBaseAttrs("Azure DevOps", "https://dev.azure.com",
+		"Azure DevOps personal access token.")
+	attrs["account_name"] = rschema.StringAttribute{
+		Optional: true,
+		Description: "Azure DevOps organization name the token is scoped to. " +
+			"Set it for a single-organization token; omit for an all-organizations token.",
+	}
+	attrs["access_token_type"] = rschema.StringAttribute{
+		Computed:    true,
+		Description: "Token scope as classified by Orca: `SINGLE_ACCOUNT` or `ALL_ACCOUNTS`.",
+	}
+	attrs["access_token_account_name"] = rschema.StringAttribute{
+		Computed:    true,
+		Description: "Organization name the token is scoped to, as reported by the API.",
+	}
 	resp.Schema = rschema.Schema{
 		Description: "Connects an Azure DevOps server or organization to Orca Shift Left by registering a personal access token " +
 			"(POST /api/shiftleft/azure_devops/installations/). The API never returns the token, so after `terraform import` " +
 			"the next apply re-sends the configured token.",
-		Attributes: map[string]rschema.Attribute{
-			"id": rschema.StringAttribute{
-				Computed:      true,
-				Description:   "Installation UUID.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"name": rschema.StringAttribute{
-				Required:    true,
-				Description: "Display name for the installation.",
-			},
-			"server_url": rschema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Azure DevOps server URL without a trailing slash. Omit for Azure DevOps cloud (https://dev.azure.com).",
-			},
-			"access_token": rschema.StringAttribute{
-				Required:    true,
-				Sensitive:   true,
-				Description: "Azure DevOps personal access token. Write-only: never returned by the API.",
-			},
-			"account_name": rschema.StringAttribute{
-				Optional: true,
-				Description: "Azure DevOps organization name the token is scoped to. " +
-					"Set it for a single-organization token; omit for an all-organizations token.",
-			},
-			"access_token_type": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Token scope as classified by Orca: `SINGLE_ACCOUNT` or `ALL_ACCOUNTS`.",
-			},
-			"access_token_account_name": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Organization name the token is scoped to, as reported by the API.",
-			},
-			"external_server_url": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Externally visible server URL, if different.",
-			},
-			"integration_status": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Health status. Empty when healthy; `DISABLED_DUE_TO_INVALID_TOKEN` or `INSTALLATION_UNREACHABLE` otherwise.",
-			},
-			"cloud_integration": rschema.BoolAttribute{
-				Computed:    true,
-				Description: "True when connected to Azure DevOps cloud.",
-			},
-		},
+		Attributes: attrs,
 	}
 }
 
@@ -127,66 +95,34 @@ func setState(m *resourceModel, api *api_client.AzureDevopsInstallation) {
 	m.CloudIntegration = types.BoolValue(api.CloudIntegration)
 }
 
+func (r *installationResource) lifecycle() shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation] {
+	return shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation]{
+		SCMName: "Azure DevOps",
+		Create: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {
+			return r.apiClient.CreateAzureDevopsInstallation(writeBody(plan))
+		},
+		Get: r.apiClient.GetAzureDevopsInstallation,
+		Update: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {
+			return r.apiClient.UpdateAzureDevopsInstallation(plan.ID.ValueString(), writeBody(plan))
+		},
+		Delete:   r.apiClient.DeleteAzureDevopsInstallation,
+		ID:       func(m *resourceModel) string { return m.ID.ValueString() },
+		SetState: setState,
+	}
+}
+
 func (r *installationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	created, err := r.apiClient.CreateAzureDevopsInstallation(writeBody(&plan))
-	if err != nil {
-		resp.Diagnostics.AddError("Error creating Azure DevOps installation", err.Error())
-		return
-	}
-	setState(&plan, created)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	r.lifecycle().DoCreate(ctx, req, resp)
 }
 
 func (r *installationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	live, err := r.apiClient.GetAzureDevopsInstallation(state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Azure DevOps installation", err.Error())
-		return
-	}
-	if live == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	setState(&state, live) // access_token stays as-is: the API never returns it
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.lifecycle().DoRead(ctx, req, resp)
 }
 
 func (r *installationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	updated, err := r.apiClient.UpdateAzureDevopsInstallation(plan.ID.ValueString(), writeBody(&plan))
-	if err != nil {
-		resp.Diagnostics.AddError("Error updating Azure DevOps installation", err.Error())
-		return
-	}
-	if updated == nil {
-		resp.Diagnostics.AddError("Error updating Azure DevOps installation", "installation disappeared after update")
-		return
-	}
-	setState(&plan, updated)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	r.lifecycle().DoUpdate(ctx, req, resp)
 }
 
 func (r *installationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if err := r.apiClient.DeleteAzureDevopsInstallation(state.ID.ValueString()); err != nil {
-		resp.Diagnostics.AddError("Error deleting Azure DevOps installation", err.Error())
-	}
+	r.lifecycle().DoDelete(ctx, req, resp)
 }

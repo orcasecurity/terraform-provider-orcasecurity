@@ -77,6 +77,7 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 	accountName := plan.AccountName.ValueString()
 	repoID := plan.AzureRepositoryID.ValueString()
 	return repoOps{
+		client:  r.apiClient,
 		scmName: "Azure DevOps",
 		integrate: func() error {
 			return r.apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{
@@ -97,61 +98,22 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 	}
 }
 
+func azureFields(m *azureRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
+
 func (r *azureRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan azureRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := createRepo(r.ops(&plan), &plan.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoCreate(ctx, req, resp, r.ops, azureFields)
 }
 
 func (r *azureRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state azureRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row, err := r.apiClient.FindAzureRepository(state.AccountName.ValueString(), state.AzureRepositoryID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Azure DevOps repository integration", err.Error())
-		return
-	}
-	if row == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	state.RepoConfigFields = fromAPI(state.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	repoRead(ctx, req, resp, r.ops, azureFields)
 }
 
 func (r *azureRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state azureRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := updateRepo(r.apiClient, r.ops(&plan), &plan.RepoConfigFields, &state.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoUpdate(ctx, req, resp, r.ops, azureFields)
 }
 
 func (r *azureRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state azureRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	deleteRepo(r.apiClient, r.ops(&state), &state.RepoConfigFields, &resp.Diagnostics)
+	repoDelete(ctx, req, resp, r.ops, azureFields)
 }
 
 func (r *azureRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -77,6 +77,7 @@ func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOp
 	accountID := plan.AccountID.ValueString()
 	repoID := plan.BitbucketRepositoryID.ValueString()
 	return repoOps{
+		client:  r.apiClient,
 		scmName: "Bitbucket",
 		integrate: func() error {
 			return r.apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
@@ -97,61 +98,22 @@ func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOp
 	}
 }
 
+func bitbucketFields(m *bitbucketRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
+
 func (r *bitbucketRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan bitbucketRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := createRepo(r.ops(&plan), &plan.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoCreate(ctx, req, resp, r.ops, bitbucketFields)
 }
 
 func (r *bitbucketRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state bitbucketRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row, err := r.apiClient.FindBitbucketRepository(state.AccountID.ValueString(), state.BitbucketRepositoryID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading Bitbucket repository integration", err.Error())
-		return
-	}
-	if row == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	state.RepoConfigFields = fromAPI(state.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	repoRead(ctx, req, resp, r.ops, bitbucketFields)
 }
 
 func (r *bitbucketRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state bitbucketRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := updateRepo(r.apiClient, r.ops(&plan), &plan.RepoConfigFields, &state.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoUpdate(ctx, req, resp, r.ops, bitbucketFields)
 }
 
 func (r *bitbucketRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state bitbucketRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	deleteRepo(r.apiClient, r.ops(&state), &state.RepoConfigFields, &resp.Diagnostics)
+	repoDelete(ctx, req, resp, r.ops, bitbucketFields)
 }
 
 func (r *bitbucketRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

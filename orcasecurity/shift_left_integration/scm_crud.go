@@ -28,6 +28,12 @@ func ExistingFromAPI(
 	}
 }
 
+// ExistingFromCommon builds an ExistingUnit from the common fields every SCM
+// unit DTO embeds.
+func ExistingFromCommon(c api_client.ScmUnitCommonFields) ExistingUnit {
+	return ExistingFromAPI(c.InstallationMode, c.DefaultPolicies, c.Policies, c.Project, c.ConfigSettings)
+}
+
 // PolicyIDsFromRefs converts API policy references into a policies_ids set.
 func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
 	return PolicyIDsToSet(api_client.PolicyRefIDs(refs))

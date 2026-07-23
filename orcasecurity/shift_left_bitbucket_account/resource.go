@@ -7,7 +7,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
@@ -41,89 +40,42 @@ func (r *bitbucketAccountResource) ImportState(ctx context.Context, req resource
 	shift_left_integration.ImportSlashPair(ctx, req, resp, "installation_id", "account_id", "<installation_id>/<account_id>")
 }
 
+func (r *bitbucketAccountResource) ops() shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel] {
+	return shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel]{
+		Labels: bitbucketLabels,
+		UnitID: func(m *resourceModel) string { return m.AccountID.ValueString() },
+		Get: func(m *resourceModel) (*api_client.BitbucketAccount, error) {
+			return r.apiClient.GetBitbucketAccount(m.InstallationID.ValueString(), m.AccountID.ValueString())
+		},
+		Update: func(m *resourceModel, body api_client.ScmInstallationUpdate) (*api_client.BitbucketAccount, error) {
+			return r.apiClient.UpdateBitbucketAccount(m.InstallationID.ValueString(), m.AccountID.ValueString(), body)
+		},
+		Snapshot: func(u *api_client.BitbucketAccount) shift_left_integration.ExistingUnit {
+			return shift_left_integration.ExistingFromCommon(u.ScmUnitCommonFields)
+		},
+		ToState: apiToState,
+		Config:  func(m *resourceModel) *shift_left_integration.ScmConfigFields { return &m.ScmConfigFields },
+		Describe: func(m *resourceModel) string {
+			return fmt.Sprintf("Account %q on installation %q", m.AccountID.ValueString(), m.InstallationID.ValueString())
+		},
+		CreateHint:       "Integrate the Orca Bitbucket account first, then import.",
+		CreateErrorTitle: "Error configuring Bitbucket account",
+		UpdateErrorTitle: "Error updating Bitbucket account",
+	}
+}
+
 func (r *bitbucketAccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan, config resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	installationID := plan.InstallationID.ValueString()
-	accountID := plan.AccountID.ValueString()
-	acc := r.adopt(&resp.Diagnostics, installationID, accountID, plan, config,
-		fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Bitbucket account first, then import.", accountID, installationID),
-		"Error configuring Bitbucket account")
-	if acc == nil {
-		return
-	}
-	state := apiToState(acc)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.ops().DoCreate(ctx, req, resp)
 }
 
 func (r *bitbucketAccountResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	installationID := state.InstallationID.ValueString()
-	accountID := state.AccountID.ValueString()
-	acc := shift_left_integration.ReadUnit(ctx, &resp.Diagnostics, bitbucketLabels, accountID,
-		func() (*api_client.BitbucketAccount, error) {
-			return r.apiClient.GetBitbucketAccount(installationID, accountID)
-		},
-		resp.State.RemoveResource,
-	)
-	if acc == nil {
-		return
-	}
-	newState := apiToState(acc)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	r.ops().DoRead(ctx, req, resp)
 }
 
 func (r *bitbucketAccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, config resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	installationID := plan.InstallationID.ValueString()
-	accountID := plan.AccountID.ValueString()
-	acc := r.adopt(&resp.Diagnostics, installationID, accountID, plan, config,
-		fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID),
-		"Error updating Bitbucket account")
-	if acc == nil {
-		return
-	}
-	state := apiToState(acc)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.ops().DoUpdate(ctx, req, resp)
 }
 
-func (r *bitbucketAccountResource) Delete(ctx context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
-	shift_left_integration.DeleteNoop(ctx, bitbucketLabels)
-}
-
-func (r *bitbucketAccountResource) adopt(
-	diags *diag.Diagnostics, installationID, accountID string, plan, config resourceModel, notFoundMsg, writeTitle string,
-) *api_client.BitbucketAccount {
-	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.BitbucketAccount]{
-		Get: func() (*api_client.BitbucketAccount, error) {
-			return r.apiClient.GetBitbucketAccount(installationID, accountID)
-		},
-		Update: func(body api_client.ScmInstallationUpdate) (*api_client.BitbucketAccount, error) {
-			return r.apiClient.UpdateBitbucketAccount(installationID, accountID, body)
-		},
-		Snapshot: func(u *api_client.BitbucketAccount) shift_left_integration.ExistingUnit {
-			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
-		},
-		PlanMode:        plan.InstallationMode,
-		PlanDefault:     plan.DefaultPolicies,
-		PlanPolicies:    plan.PoliciesIds,
-		PlanConfig:      plan.ConfigSettings,
-		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-		Labels:          bitbucketLabels,
-		NotFoundMsg:     notFoundMsg,
-		WriteErrorTitle: writeTitle,
-	})
+func (r *bitbucketAccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	r.ops().DoDelete(ctx, req, resp)
 }

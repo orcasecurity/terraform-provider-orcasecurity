@@ -75,6 +75,7 @@ func (r *gitlabRepositoryResource) ops(plan *gitlabRepositoryModel) repoOps {
 	installationID := plan.InstallationID.ValueString()
 	projectID := plan.GitlabProjectID.ValueInt64()
 	return repoOps{
+		client:  r.apiClient,
 		scmName: "GitLab",
 		integrate: func() error {
 			return r.apiClient.IntegrateGitlabRepository(api_client.GitlabRepositoryIntegrate{
@@ -94,61 +95,22 @@ func (r *gitlabRepositoryResource) ops(plan *gitlabRepositoryModel) repoOps {
 	}
 }
 
+func gitlabFields(m *gitlabRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
+
 func (r *gitlabRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan gitlabRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := createRepo(r.ops(&plan), &plan.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoCreate(ctx, req, resp, r.ops, gitlabFields)
 }
 
 func (r *gitlabRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state gitlabRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row, err := r.apiClient.FindGitlabRepository(state.InstallationID.ValueString(), state.GitlabProjectID.ValueInt64())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitLab repository integration", err.Error())
-		return
-	}
-	if row == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	state.RepoConfigFields = fromAPI(state.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	repoRead(ctx, req, resp, r.ops, gitlabFields)
 }
 
 func (r *gitlabRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state gitlabRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := updateRepo(r.apiClient, r.ops(&plan), &plan.RepoConfigFields, &state.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoUpdate(ctx, req, resp, r.ops, gitlabFields)
 }
 
 func (r *gitlabRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state gitlabRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	deleteRepo(r.apiClient, r.ops(&state), &state.RepoConfigFields, &resp.Diagnostics)
+	repoDelete(ctx, req, resp, r.ops, gitlabFields)
 }
 
 func (r *gitlabRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

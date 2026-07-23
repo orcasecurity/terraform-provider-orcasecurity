@@ -43,55 +43,31 @@ type AzureDevopsInstallationWrite struct {
 	AccessTokenDetails *AzureAccessTokenDetails `json:"access_token_details,omitempty"`
 }
 
+func (a *AzureDevopsInstallation) installationID() string { return a.ID }
+
 const azureDevopsInstallationsPath = "/api/shiftleft/azure_devops/installations/"
 
 func (client *APIClient) ListAzureDevopsInstallations() ([]AzureDevopsInstallation, error) {
 	return getAllScmPages[AzureDevopsInstallation](client, azureDevopsInstallationsPath)
 }
 
-// GetAzureDevopsInstallation reads via list-filter (no single-item GET route).
+// GetAzureDevopsInstallation reads via list-filter. Returns nil when absent.
 func (client *APIClient) GetAzureDevopsInstallation(id string) (*AzureDevopsInstallation, error) {
-	all, err := client.ListAzureDevopsInstallations()
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].ID == id {
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return findScmInstallation[AzureDevopsInstallation](client, azureDevopsInstallationsPath, id)
 }
 
 func (client *APIClient) CreateAzureDevopsInstallation(body AzureDevopsInstallationWrite) (*AzureDevopsInstallation, error) {
-	resp, err := client.Post(azureDevopsInstallationsPath, body)
-	if err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	created := AzureDevopsInstallation{}
-	if err := resp.ReadJSON(&created); err != nil {
-		return nil, err
-	}
-	return &created, nil
+	return createScmInstallation[AzureDevopsInstallation](client, azureDevopsInstallationsPath, body)
 }
 
 // UpdateAzureDevopsInstallation PATCHes and re-reads (the PATCH response body
 // is empty).
 func (client *APIClient) UpdateAzureDevopsInstallation(id string, body AzureDevopsInstallationWrite) (*AzureDevopsInstallation, error) {
-	if _, err := client.Patch(fmt.Sprintf("%s%s/", azureDevopsInstallationsPath, id), body); err != nil {
-		return nil, err
-	}
-	client.invalidateScmListCache()
-	return client.GetAzureDevopsInstallation(id)
+	return patchScmInstallationAndReread[AzureDevopsInstallation](client, azureDevopsInstallationsPath, id, body)
 }
 
 func (client *APIClient) DeleteAzureDevopsInstallation(id string) error {
-	_, err := client.Delete(fmt.Sprintf("%s%s/", azureDevopsInstallationsPath, id))
-	if err == nil {
-		client.invalidateScmListCache()
-	}
-	return err
+	return deleteScmInstallation(client, azureDevopsInstallationsPath, id)
 }
 
 func azureDevopsAccountsPath(installationID string) string {

@@ -7,7 +7,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
@@ -42,82 +41,42 @@ func (r *githubInstallationResource) ImportState(ctx context.Context, req resour
 	resource.ImportStatePassthroughID(ctx, path.Root("installation_id"), req, resp)
 }
 
+func (r *githubInstallationResource) ops() shift_left_integration.AdoptedUnitOps[api_client.GithubInstallation, resourceModel] {
+	return shift_left_integration.AdoptedUnitOps[api_client.GithubInstallation, resourceModel]{
+		Labels: githubLabels,
+		UnitID: func(m *resourceModel) string { return m.InstallationID.ValueString() },
+		Get: func(m *resourceModel) (*api_client.GithubInstallation, error) {
+			return r.apiClient.GetGithubInstallation(m.InstallationID.ValueString())
+		},
+		Update: func(m *resourceModel, body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
+			return r.apiClient.UpdateGithubInstallation(m.InstallationID.ValueString(), body)
+		},
+		Snapshot: func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
+			return shift_left_integration.ExistingFromCommon(u.ScmUnitCommonFields)
+		},
+		ToState: apiToState,
+		Config:  func(m *resourceModel) *shift_left_integration.ScmConfigFields { return &m.ScmConfigFields },
+		Describe: func(m *resourceModel) string {
+			return fmt.Sprintf("Installation %q", m.InstallationID.ValueString())
+		},
+		CreateHint:       "Install the Orca GitHub App first, then import.",
+		CreateErrorTitle: "Error configuring GitHub installation",
+		UpdateErrorTitle: "Error updating GitHub installation",
+	}
+}
+
 func (r *githubInstallationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan, config resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := plan.InstallationID.ValueString()
-	inst := r.adopt(&resp.Diagnostics, id, plan, config,
-		fmt.Sprintf("Installation %q does not exist. Install the Orca GitHub App first, then import.", id),
-		"Error configuring GitHub installation")
-	if inst == nil {
-		return
-	}
-	state := apiToState(inst)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.ops().DoCreate(ctx, req, resp)
 }
 
 func (r *githubInstallationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := state.InstallationID.ValueString()
-	inst := shift_left_integration.ReadUnit(ctx, &resp.Diagnostics, githubLabels, id,
-		func() (*api_client.GithubInstallation, error) { return r.apiClient.GetGithubInstallation(id) },
-		resp.State.RemoveResource,
-	)
-	if inst == nil {
-		return
-	}
-	newState := apiToState(inst)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	r.ops().DoRead(ctx, req, resp)
 }
 
 func (r *githubInstallationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, config resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := plan.InstallationID.ValueString()
-	inst := r.adopt(&resp.Diagnostics, id, plan, config,
-		fmt.Sprintf("Installation %q was not found. It may have been removed; re-import.", id),
-		"Error updating GitHub installation")
-	if inst == nil {
-		return
-	}
-	state := apiToState(inst)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.ops().DoUpdate(ctx, req, resp)
 }
 
-func (r *githubInstallationResource) Delete(ctx context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
-	shift_left_integration.DeleteNoop(ctx, githubLabels)
-}
-
-func (r *githubInstallationResource) adopt(
-	diags *diag.Diagnostics, id string, plan, config resourceModel, notFoundMsg, writeTitle string,
-) *api_client.GithubInstallation {
-	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.GithubInstallation]{
-		Get: func() (*api_client.GithubInstallation, error) { return r.apiClient.GetGithubInstallation(id) },
-		Update: func(body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
-			return r.apiClient.UpdateGithubInstallation(id, body)
-		},
-		Snapshot: func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
-			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
-		},
-		PlanMode:        plan.InstallationMode,
-		PlanDefault:     plan.DefaultPolicies,
-		PlanPolicies:    plan.PoliciesIds,
-		PlanConfig:      plan.ConfigSettings,
-		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-		Labels:          githubLabels,
-		NotFoundMsg:     notFoundMsg,
-		WriteErrorTitle: writeTitle,
-	})
+func (r *githubInstallationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	r.ops().DoDelete(ctx, req, resp)
 }

@@ -9,8 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -48,57 +46,27 @@ func (r *installationResource) Configure(_ context.Context, req resource.Configu
 }
 
 func (r *installationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	attrs := shift_left_integration.InstallationBaseAttrs("GitLab", "https://gitlab.com",
+		"GitLab access token. Orca validates it on create, so it must be a valid group or personal access token.")
+	attrs["read_only"] = rschema.BoolAttribute{
+		Optional:    true,
+		Computed:    true,
+		Description: "Whether the token grants read-only access. Defaults to `false`. Must match the actual token permissions.",
+	}
+	attrs["access_token_name"] = rschema.StringAttribute{
+		Computed:    true,
+		Description: "Name of the token as reported by GitLab.",
+	}
+	attrs["access_token_type"] = rschema.StringAttribute{
+		Computed:    true,
+		Description: "Type of the token as reported by GitLab.",
+	}
 	resp.Schema = rschema.Schema{
 		Description: "Connects a GitLab server to Orca Shift Left by registering an access token " +
 			"(POST /api/shiftleft/gitlab/installations/). Orca validates the token on create, so it must be a valid " +
 			"group access token or personal access token. The API never returns the token, so after `terraform import` " +
 			"the next apply re-sends the configured token.",
-		Attributes: map[string]rschema.Attribute{
-			"id": rschema.StringAttribute{
-				Computed:      true,
-				Description:   "Installation UUID.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"name": rschema.StringAttribute{
-				Required:    true,
-				Description: "Display name for the installation.",
-			},
-			"access_token": rschema.StringAttribute{
-				Required:    true,
-				Sensitive:   true,
-				Description: "GitLab access token. Write-only: never returned by the API.",
-			},
-			"server_url": rschema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "GitLab server URL without a trailing slash. Omit for GitLab cloud (https://gitlab.com).",
-			},
-			"read_only": rschema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether the token grants read-only access. Defaults to `false`. Must match the actual token permissions.",
-			},
-			"external_server_url": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Externally visible server URL, if different.",
-			},
-			"access_token_name": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Name of the token as reported by GitLab.",
-			},
-			"access_token_type": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Type of the token as reported by GitLab.",
-			},
-			"integration_status": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Health status. Empty when healthy; `DISABLED_DUE_TO_INVALID_TOKEN` or `INSTALLATION_UNREACHABLE` otherwise.",
-			},
-			"cloud_integration": rschema.BoolAttribute{
-				Computed:    true,
-				Description: "True when connected to GitLab cloud.",
-			},
-		},
+		Attributes: attrs,
 	}
 }
 
@@ -128,66 +96,34 @@ func setState(m *resourceModel, api *api_client.GitlabInstallation) {
 	m.CloudIntegration = types.BoolValue(api.CloudIntegration)
 }
 
+func (r *installationResource) lifecycle() shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation] {
+	return shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation]{
+		SCMName: "GitLab",
+		Create: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {
+			return r.apiClient.CreateGitlabInstallation(writeBody(plan))
+		},
+		Get: r.apiClient.GetGitlabInstallation,
+		Update: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {
+			return r.apiClient.UpdateGitlabInstallation(plan.ID.ValueString(), writeBody(plan))
+		},
+		Delete:   r.apiClient.DeleteGitlabInstallation,
+		ID:       func(m *resourceModel) string { return m.ID.ValueString() },
+		SetState: setState,
+	}
+}
+
 func (r *installationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	created, err := r.apiClient.CreateGitlabInstallation(writeBody(&plan))
-	if err != nil {
-		resp.Diagnostics.AddError("Error creating GitLab installation", err.Error())
-		return
-	}
-	setState(&plan, created)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	r.lifecycle().DoCreate(ctx, req, resp)
 }
 
 func (r *installationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	live, err := r.apiClient.GetGitlabInstallation(state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitLab installation", err.Error())
-		return
-	}
-	if live == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	setState(&state, live) // access_token stays as-is: the API never returns it
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.lifecycle().DoRead(ctx, req, resp)
 }
 
 func (r *installationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan resourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	updated, err := r.apiClient.UpdateGitlabInstallation(plan.ID.ValueString(), writeBody(&plan))
-	if err != nil {
-		resp.Diagnostics.AddError("Error updating GitLab installation", err.Error())
-		return
-	}
-	if updated == nil {
-		resp.Diagnostics.AddError("Error updating GitLab installation", "installation disappeared after update")
-		return
-	}
-	setState(&plan, updated)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	r.lifecycle().DoUpdate(ctx, req, resp)
 }
 
 func (r *installationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if err := r.apiClient.DeleteGitlabInstallation(state.ID.ValueString()); err != nil {
-		resp.Diagnostics.AddError("Error deleting GitLab installation", err.Error())
-	}
+	r.lifecycle().DoDelete(ctx, req, resp)
 }

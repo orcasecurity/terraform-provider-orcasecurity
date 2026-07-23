@@ -64,8 +64,11 @@ func (r *githubRepositoryResource) Schema(_ context.Context, _ resource.SchemaRe
 	}
 }
 
-func (r *githubRepositoryResource) ops(installationID string, githubRepositoryID int64, plan *githubRepositoryModel) repoOps {
+func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
+	installationID := plan.InstallationID.ValueString()
+	githubRepositoryID := plan.GithubRepositoryID.ValueInt64()
 	return repoOps{
+		client:  r.apiClient,
 		scmName: "GitHub",
 		integrate: func() error {
 			return r.apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{
@@ -84,61 +87,22 @@ func (r *githubRepositoryResource) ops(installationID string, githubRepositoryID
 	}
 }
 
+func githubFields(m *githubRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
+
 func (r *githubRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan githubRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := createRepo(r.ops(plan.InstallationID.ValueString(), plan.GithubRepositoryID.ValueInt64(), &plan), &plan.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoCreate(ctx, req, resp, r.ops, githubFields)
 }
 
 func (r *githubRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state githubRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row, err := r.apiClient.FindGithubRepository(state.InstallationID.ValueString(), state.GithubRepositoryID.ValueInt64())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading GitHub repository integration", err.Error())
-		return
-	}
-	if row == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	state.RepoConfigFields = fromAPI(state.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	repoRead(ctx, req, resp, r.ops, githubFields)
 }
 
 func (r *githubRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state githubRepositoryModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	row := updateRepo(r.apiClient, r.ops(plan.InstallationID.ValueString(), plan.GithubRepositoryID.ValueInt64(), &plan), &plan.RepoConfigFields, &state.RepoConfigFields, &resp.Diagnostics)
-	if row == nil {
-		return
-	}
-	plan.RepoConfigFields = fromAPI(plan.RepoConfigFields, row)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	repoUpdate(ctx, req, resp, r.ops, githubFields)
 }
 
 func (r *githubRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state githubRepositoryModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	deleteRepo(r.apiClient, r.ops(state.InstallationID.ValueString(), state.GithubRepositoryID.ValueInt64(), &state), &state.RepoConfigFields, &resp.Diagnostics)
+	repoDelete(ctx, req, resp, r.ops, githubFields)
 }
 
 func (r *githubRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
