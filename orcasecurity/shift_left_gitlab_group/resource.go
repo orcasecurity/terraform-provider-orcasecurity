@@ -69,10 +69,9 @@ func (r *gitlabGroupResource) Create(ctx context.Context, req resource.CreateReq
 			fmt.Sprintf("Group %q on installation %q does not exist. Integrate the Orca GitLab group first, then import.", groupID, installationID))
 		return
 	}
-	if plan.ConfigSettings == nil {
-		cs := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
-		plan.ConfigSettings = &cs
-	}
+	base := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
+	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
+	plan.ConfigSettings = &merged
 	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
 		plan.InstallationMode = types.StringValue(existing.InstallationMode)
 	}
@@ -120,6 +119,27 @@ func (r *gitlabGroupResource) Update(ctx context.Context, req resource.UpdateReq
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	installationID := plan.InstallationID.ValueString()
+	groupID := plan.GroupID.ValueString()
+	current, err := r.apiClient.GetGitlabGroup(installationID, groupID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading GitLab group before update", err.Error())
+		return
+	}
+	if current == nil {
+		resp.Diagnostics.AddError("GitLab group not found",
+			fmt.Sprintf("Group %q on installation %q was not found. It may have been removed; re-import.", groupID, installationID))
+		return
+	}
+	base := shift_left_integration.FlattenConfigSettings(current.ConfigSettings)
+	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
+	plan.ConfigSettings = &merged
+	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
+		plan.InstallationMode = types.StringValue(current.InstallationMode)
+	}
+	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
+		plan.DefaultPolicies = types.BoolValue(current.DefaultPolicies)
 	}
 	grp, err := r.apiClient.UpdateGitlabGroup(plan.InstallationID.ValueString(), plan.GroupID.ValueString(), expandUpdate(&plan))
 	if err != nil {

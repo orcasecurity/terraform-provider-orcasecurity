@@ -3,12 +3,14 @@ package shift_left_bitbucket_account
 import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -40,6 +42,9 @@ func resourceSchema() rschema.Schema {
 				Computed:      true,
 				Description:   "Scan mode, e.g. SCAN_ALL_INCLUDE_FUTURE.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators: []validator.String{
+					stringvalidator.OneOf("SCAN_ALL_INCLUDE_FUTURE", "SCAN_ALL", "SELECTED_REPOSITORIES"),
+				},
 			},
 			"default_policies": rschema.BoolAttribute{
 				Optional:      true,

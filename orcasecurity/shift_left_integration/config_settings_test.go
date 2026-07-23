@@ -14,13 +14,13 @@ func TestConfigSettingsRoundTrip(t *testing.T) {
 	m := &ConfigSettingsModel{
 		DisableScanPullRequests: types.BoolValue(false),
 		CommentsOnPullRequests:  types.StringValue("ONLY_ON_FAILED_ISSUES"),
-		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_SCAN"),
+		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
 		ConfigFileSupport:       types.StringValue("ENABLED"),
 		PrSummaryAppendix:       types.StringValue("note"),
 		ArchiveConditions:       types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	api := ExpandConfigSettings(m)
-	if api.CommentsOnPullRequests != "ONLY_ON_FAILED_ISSUES" || api.PrSummaryComment != "ONLY_ON_FAILED_SCAN" {
+	if api.CommentsOnPullRequests != "ONLY_ON_FAILED_ISSUES" || api.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" {
 		t.Fatalf("expand lost enum values: %+v", api)
 	}
 	if api.InstallationReposConfig == nil || len(api.InstallationReposConfig.ArchiveActions.Conditions) != 1 {
@@ -100,5 +100,159 @@ func TestFlattenConfigSettings_EmptyStringsBecomeNull(t *testing.T) {
 	}
 	if !back.ArchiveConditions.IsNull() || !back.UnavailableConditions.IsNull() {
 		t.Fatalf("expected null condition lists, got: %+v / %+v", back.ArchiveConditions, back.UnavailableConditions)
+	}
+}
+
+// TestMergeConfigSettings_NilOverlayReturnsBase covers adopt-existing Create
+// calls where the user set no configuration_settings block at all.
+func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
+	base := ConfigSettingsModel{
+		DisableScanPullRequests: types.BoolValue(true),
+		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+		PrSummaryComment:        types.StringValue("NEVER"),
+		SkipCheckRuns:           types.StringValue("ALWAYS"),
+		ConfigFileSupport:       types.StringValue("ENABLED"),
+	}
+	merged := MergeConfigSettings(base, nil)
+	if !merged.CommentsOnPullRequests.Equal(base.CommentsOnPullRequests) {
+		t.Fatalf("expected base returned unchanged, got: %+v", merged)
+	}
+}
+
+// TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly is the core
+// regression test for the "API requires a complete configuration_settings
+// object" bug: a partial overlay (only pr_summary_comment explicitly set)
+// must produce a fully-populated result where the overlay wins on the field
+// it set and the base (current server) values are kept for every other
+// field.
+func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
+	base := ConfigSettingsModel{
+		DisableScanPullRequests: types.BoolValue(false),
+		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+		PrSummaryComment:        types.StringValue("ALWAYS"),
+		SkipCheckRuns:           types.StringValue("ALWAYS"),
+		ConfigFileSupport:       types.StringValue("ENABLED"),
+		PrSummaryAppendix:       types.StringValue("base appendix"),
+		ArchiveConditions:       types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		UnavailableConditions:   types.ListNull(types.StringType),
+	}
+	overlay := &ConfigSettingsModel{
+		DisableScanPullRequests: types.BoolNull(),
+		CommentsOnPullRequests:  types.StringNull(),
+		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
+		SkipCheckRuns:           types.StringNull(),
+		ConfigFileSupport:       types.StringNull(),
+		PrSummaryAppendix:       types.StringNull(),
+		ArchiveConditions:       types.ListNull(types.StringType),
+		UnavailableConditions:   types.ListNull(types.StringType),
+	}
+
+	merged := MergeConfigSettings(base, overlay)
+
+	// overlay wins on the field it explicitly set.
+	if merged.PrSummaryComment.ValueString() != "ONLY_ON_FAILED_ISSUES" {
+		t.Fatalf("expected overlay to win on PrSummaryComment, got: %v", merged.PrSummaryComment)
+	}
+
+	// base is preserved for every field overlay left null/unknown, and the
+	// result is a COMPLETE object (nothing null) so the API's required-field
+	// check is satisfied.
+	if merged.DisableScanPullRequests.ValueBool() != base.DisableScanPullRequests.ValueBool() {
+		t.Fatalf("expected base DisableScanPullRequests kept, got: %v", merged.DisableScanPullRequests)
+	}
+	if !merged.CommentsOnPullRequests.Equal(base.CommentsOnPullRequests) {
+		t.Fatalf("expected base CommentsOnPullRequests kept, got: %v", merged.CommentsOnPullRequests)
+	}
+	if !merged.SkipCheckRuns.Equal(base.SkipCheckRuns) {
+		t.Fatalf("expected base SkipCheckRuns kept, got: %v", merged.SkipCheckRuns)
+	}
+	if !merged.ConfigFileSupport.Equal(base.ConfigFileSupport) {
+		t.Fatalf("expected base ConfigFileSupport kept, got: %v", merged.ConfigFileSupport)
+	}
+	if !merged.PrSummaryAppendix.Equal(base.PrSummaryAppendix) {
+		t.Fatalf("expected base PrSummaryAppendix kept, got: %v", merged.PrSummaryAppendix)
+	}
+	if !merged.ArchiveConditions.Equal(base.ArchiveConditions) {
+		t.Fatalf("expected base ArchiveConditions kept, got: %v", merged.ArchiveConditions)
+	}
+
+	if merged.CommentsOnPullRequests.IsNull() || merged.PrSummaryComment.IsNull() ||
+		merged.SkipCheckRuns.IsNull() || merged.ConfigFileSupport.IsNull() {
+		t.Fatalf("merged result must be complete (no required field left null): %+v", merged)
+	}
+}
+
+// TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase confirms every
+// overlay-settable field is wired into the merge, not just PrSummaryComment.
+func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
+	base := ConfigSettingsModel{
+		DisableScanPullRequests: types.BoolValue(false),
+		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+		PrSummaryComment:        types.StringValue("ALWAYS"),
+		SkipCheckRuns:           types.StringValue("ALWAYS"),
+		ConfigFileSupport:       types.StringValue("ENABLED"),
+		PrSummaryAppendix:       types.StringValue("base"),
+		ArchiveConditions:       types.ListNull(types.StringType),
+		UnavailableConditions:   types.ListNull(types.StringType),
+	}
+	overlay := &ConfigSettingsModel{
+		DisableScanPullRequests: types.BoolValue(true),
+		CommentsOnPullRequests:  types.StringValue("NEVER"),
+		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
+		SkipCheckRuns:           types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
+		ConfigFileSupport:       types.StringValue("DISABLED"),
+		PrSummaryAppendix:       types.StringValue("overlay"),
+		ArchiveConditions:       types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		UnavailableConditions:   types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+	}
+
+	merged := MergeConfigSettings(base, overlay)
+
+	if !merged.DisableScanPullRequests.Equal(overlay.DisableScanPullRequests) {
+		t.Fatalf("expected overlay DisableScanPullRequests, got: %v", merged.DisableScanPullRequests)
+	}
+	if !merged.CommentsOnPullRequests.Equal(overlay.CommentsOnPullRequests) {
+		t.Fatalf("expected overlay CommentsOnPullRequests, got: %v", merged.CommentsOnPullRequests)
+	}
+	if !merged.PrSummaryComment.Equal(overlay.PrSummaryComment) {
+		t.Fatalf("expected overlay PrSummaryComment, got: %v", merged.PrSummaryComment)
+	}
+	if !merged.SkipCheckRuns.Equal(overlay.SkipCheckRuns) {
+		t.Fatalf("expected overlay SkipCheckRuns, got: %v", merged.SkipCheckRuns)
+	}
+	if !merged.ConfigFileSupport.Equal(overlay.ConfigFileSupport) {
+		t.Fatalf("expected overlay ConfigFileSupport, got: %v", merged.ConfigFileSupport)
+	}
+	if !merged.PrSummaryAppendix.Equal(overlay.PrSummaryAppendix) {
+		t.Fatalf("expected overlay PrSummaryAppendix, got: %v", merged.PrSummaryAppendix)
+	}
+	if !merged.ArchiveConditions.Equal(overlay.ArchiveConditions) {
+		t.Fatalf("expected overlay ArchiveConditions, got: %v", merged.ArchiveConditions)
+	}
+	if !merged.UnavailableConditions.Equal(overlay.UnavailableConditions) {
+		t.Fatalf("expected overlay UnavailableConditions, got: %v", merged.UnavailableConditions)
+	}
+}
+
+// TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase guards
+// against treating an unknown (not-yet-planned) value as an explicit user
+// override; only non-null, non-unknown overlay fields should win.
+func TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase(t *testing.T) {
+	base := ConfigSettingsModel{
+		PrSummaryComment:  types.StringValue("ALWAYS"),
+		ArchiveConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+	}
+	overlay := &ConfigSettingsModel{
+		PrSummaryComment:  types.StringUnknown(),
+		ArchiveConditions: types.ListUnknown(types.StringType),
+	}
+
+	merged := MergeConfigSettings(base, overlay)
+
+	if !merged.PrSummaryComment.Equal(base.PrSummaryComment) {
+		t.Fatalf("expected base kept for unknown overlay PrSummaryComment, got: %v", merged.PrSummaryComment)
+	}
+	if !merged.ArchiveConditions.Equal(base.ArchiveConditions) {
+		t.Fatalf("expected base kept for unknown overlay ArchiveConditions, got: %v", merged.ArchiveConditions)
 	}
 }

@@ -54,7 +54,7 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 			Computed:    true,
 			Description: "When to post a pull request summary comment.",
 			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_FAILED_SCAN"),
+				stringvalidator.OneOf("ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"),
 			},
 		},
 		"skip_check_runs": schema.StringAttribute{
@@ -210,4 +210,35 @@ func optionalString(v string) types.String {
 		return types.StringNull()
 	}
 	return types.StringValue(v)
+}
+
+// MergeConfigSettings returns base with any explicitly-set (non-null, non-unknown)
+// fields from overlay applied on top. Used by adopt-existing resources to send a
+// complete configuration_settings object (the API requires all fields present)
+// while letting users specify only the fields they want to change.
+func MergeConfigSettings(base ConfigSettingsModel, overlay *ConfigSettingsModel) ConfigSettingsModel {
+	if overlay == nil {
+		return base
+	}
+	out := base
+	if !overlay.DisableScanPullRequests.IsNull() && !overlay.DisableScanPullRequests.IsUnknown() {
+		out.DisableScanPullRequests = overlay.DisableScanPullRequests
+	}
+	setStr := func(dst *types.String, src types.String) {
+		if !src.IsNull() && !src.IsUnknown() {
+			*dst = src
+		}
+	}
+	setStr(&out.CommentsOnPullRequests, overlay.CommentsOnPullRequests)
+	setStr(&out.PrSummaryComment, overlay.PrSummaryComment)
+	setStr(&out.SkipCheckRuns, overlay.SkipCheckRuns)
+	setStr(&out.ConfigFileSupport, overlay.ConfigFileSupport)
+	setStr(&out.PrSummaryAppendix, overlay.PrSummaryAppendix)
+	if !overlay.ArchiveConditions.IsNull() && !overlay.ArchiveConditions.IsUnknown() {
+		out.ArchiveConditions = overlay.ArchiveConditions
+	}
+	if !overlay.UnavailableConditions.IsNull() && !overlay.UnavailableConditions.IsUnknown() {
+		out.UnavailableConditions = overlay.UnavailableConditions
+	}
+	return out
 }

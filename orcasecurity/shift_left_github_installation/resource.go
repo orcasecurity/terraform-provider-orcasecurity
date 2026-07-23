@@ -61,10 +61,9 @@ func (r *githubInstallationResource) Create(ctx context.Context, req resource.Cr
 			fmt.Sprintf("Installation %q does not exist. Install the Orca GitHub App first, then import.", id))
 		return
 	}
-	if plan.ConfigSettings == nil {
-		cs := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
-		plan.ConfigSettings = &cs
-	}
+	base := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
+	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
+	plan.ConfigSettings = &merged
 	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
 		plan.InstallationMode = types.StringValue(existing.InstallationMode)
 	}
@@ -112,6 +111,26 @@ func (r *githubInstallationResource) Update(ctx context.Context, req resource.Up
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	id := plan.InstallationID.ValueString()
+	current, err := r.apiClient.GetGithubInstallation(id)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading GitHub installation before update", err.Error())
+		return
+	}
+	if current == nil {
+		resp.Diagnostics.AddError("GitHub installation not found",
+			fmt.Sprintf("Installation %q was not found. It may have been removed; re-import.", id))
+		return
+	}
+	base := shift_left_integration.FlattenConfigSettings(current.ConfigSettings)
+	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
+	plan.ConfigSettings = &merged
+	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
+		plan.InstallationMode = types.StringValue(current.InstallationMode)
+	}
+	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
+		plan.DefaultPolicies = types.BoolValue(current.DefaultPolicies)
 	}
 	inst, err := r.apiClient.UpdateGithubInstallation(plan.InstallationID.ValueString(), expandUpdate(&plan))
 	if err != nil {

@@ -19,7 +19,7 @@ resource "orcasecurity_shift_left_github_installation" "all" {
   installation_id = each.value.id
 
   configuration_settings = {
-    pr_summary_comment = "ONLY_ON_FAILED_SCAN"
+    pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }
 }
 ```

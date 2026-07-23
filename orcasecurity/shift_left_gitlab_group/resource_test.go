@@ -27,13 +27,13 @@ resource "orcasecurity_shift_left_gitlab_group" "t" {
   installation_id = %q
   group_id        = %q
   configuration_settings = {
-    pr_summary_comment = "ONLY_ON_FAILED_SCAN"
+    pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }
 }`, installationID, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_gitlab_group.t", "installation_id", installationID),
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_gitlab_group.t", "group_id", groupID),
-					resource.TestCheckResourceAttr("orcasecurity_shift_left_gitlab_group.t", "configuration_settings.pr_summary_comment", "ONLY_ON_FAILED_SCAN"),
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_gitlab_group.t", "configuration_settings.pr_summary_comment", "ONLY_ON_FAILED_ISSUES"),
 				),
 			},
 			{

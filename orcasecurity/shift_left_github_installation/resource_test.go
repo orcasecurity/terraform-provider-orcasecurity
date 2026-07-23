@@ -24,12 +24,12 @@ func TestAccGithubInstallation_import(t *testing.T) {
 resource "orcasecurity_shift_left_github_installation" "t" {
   installation_id = %q
   configuration_settings = {
-    pr_summary_comment = "ONLY_ON_FAILED_SCAN"
+    pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }
 }`, id),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_github_installation.t", "installation_id", id),
-					resource.TestCheckResourceAttr("orcasecurity_shift_left_github_installation.t", "configuration_settings.pr_summary_comment", "ONLY_ON_FAILED_SCAN"),
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_github_installation.t", "configuration_settings.pr_summary_comment", "ONLY_ON_FAILED_ISSUES"),
 				),
 			},
 			{

@@ -27,13 +27,13 @@ resource "orcasecurity_shift_left_azure_devops_account" "t" {
   installation_id = %q
   account_id      = %q
   configuration_settings = {
-    pr_summary_comment = "ONLY_ON_FAILED_SCAN"
+    pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }
 }`, installationID, accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_azure_devops_account.t", "installation_id", installationID),
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_azure_devops_account.t", "account_id", accountID),
-					resource.TestCheckResourceAttr("orcasecurity_shift_left_azure_devops_account.t", "configuration_settings.pr_summary_comment", "ONLY_ON_FAILED_SCAN"),
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_azure_devops_account.t", "configuration_settings.pr_summary_comment", "ONLY_ON_FAILED_ISSUES"),
 				),
 			},
 			{

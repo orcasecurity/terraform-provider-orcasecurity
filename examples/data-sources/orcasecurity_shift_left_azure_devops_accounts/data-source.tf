@@ -7,6 +7,6 @@ resource "orcasecurity_shift_left_azure_devops_account" "all" {
   account_id      = each.value.account_id
 
   configuration_settings = {
-    pr_summary_comment = "ONLY_ON_FAILED_SCAN"
+    pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }
 }

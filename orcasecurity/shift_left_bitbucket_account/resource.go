@@ -69,10 +69,9 @@ func (r *bitbucketAccountResource) Create(ctx context.Context, req resource.Crea
 			fmt.Sprintf("Account %q on installation %q does not exist. Integrate the Orca Bitbucket account first, then import.", accountID, installationID))
 		return
 	}
-	if plan.ConfigSettings == nil {
-		cs := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
-		plan.ConfigSettings = &cs
-	}
+	base := shift_left_integration.FlattenConfigSettings(existing.ConfigSettings)
+	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
+	plan.ConfigSettings = &merged
 	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
 		plan.InstallationMode = types.StringValue(existing.InstallationMode)
 	}
@@ -120,6 +119,27 @@ func (r *bitbucketAccountResource) Update(ctx context.Context, req resource.Upda
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	installationID := plan.InstallationID.ValueString()
+	accountID := plan.AccountID.ValueString()
+	current, err := r.apiClient.GetBitbucketAccount(installationID, accountID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading Bitbucket account before update", err.Error())
+		return
+	}
+	if current == nil {
+		resp.Diagnostics.AddError("Bitbucket account not found",
+			fmt.Sprintf("Account %q on installation %q was not found. It may have been removed; re-import.", accountID, installationID))
+		return
+	}
+	base := shift_left_integration.FlattenConfigSettings(current.ConfigSettings)
+	merged := shift_left_integration.MergeConfigSettings(base, plan.ConfigSettings)
+	plan.ConfigSettings = &merged
+	if plan.InstallationMode.IsNull() || plan.InstallationMode.IsUnknown() {
+		plan.InstallationMode = types.StringValue(current.InstallationMode)
+	}
+	if plan.DefaultPolicies.IsNull() || plan.DefaultPolicies.IsUnknown() {
+		plan.DefaultPolicies = types.BoolValue(current.DefaultPolicies)
 	}
 	acc, err := r.apiClient.UpdateBitbucketAccount(plan.InstallationID.ValueString(), plan.AccountID.ValueString(), expandUpdate(&plan))
 	if err != nil {
