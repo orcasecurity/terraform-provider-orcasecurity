@@ -1,6 +1,7 @@
 package shift_left_policy
 
 import (
+	"encoding/json"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -209,8 +210,51 @@ func TestAPIToState_ProjectsIdsNullWhenUnset(t *testing.T) {
 	}
 
 	state := apiToState(apiPolicy, plan)
-	if state.ProjectsIds != nil {
-		t.Errorf("expected nil projects_ids, got %#v", state.ProjectsIds)
+	if !state.ProjectsIds.IsNull() {
+		t.Errorf("expected null projects_ids, got %#v", state.ProjectsIds)
+	}
+}
+
+func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
+	apiPolicy := &api_client.ShiftLeftPolicy{
+		ID:          "policy-1",
+		Type:        "licenses",
+		Builtin:     true,
+		ProjectsIds: []string{"a", "b"},
+		PolicyData:  []byte(`{"controls":[]}`),
+	}
+
+	state := apiToState(apiPolicy, nil)
+	got := stringSliceFromSet(state.ProjectsIds)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 projects_ids, got %#v", got)
+	}
+	if got[0] != "a" || got[1] != "b" {
+		t.Errorf("expected [a b], got %#v", got)
+	}
+}
+
+// Read must reflect API projects_ids even when prior state had none.
+func TestAPIToState_ProjectsIdsAuthoritativeOnRead(t *testing.T) {
+	existing := &shiftLeftPolicyResourceModel{
+		Type: types.StringValue("licenses"), ProjectsIds: types.SetNull(types.StringType),
+	}
+	api := &api_client.ShiftLeftPolicy{
+		ID: "p1", Type: "licenses", ProjectsIds: []string{"proj-a", "proj-b"},
+	}
+	state := apiToState(api, existing)
+	got := stringSliceFromSet(state.ProjectsIds)
+	if len(got) != 2 {
+		t.Fatalf("expected refresh to reflect API projects [proj-a proj-b], got %v", got)
+	}
+}
+
+func TestAPIToState_ProjectsIdsEmptyStaysNull(t *testing.T) {
+	existing := &shiftLeftPolicyResourceModel{Type: types.StringValue("licenses")}
+	api := &api_client.ShiftLeftPolicy{ID: "p1", Type: "licenses"}
+	state := apiToState(api, existing)
+	if !state.ProjectsIds.IsNull() {
+		t.Fatalf("expected null, got %v", state.ProjectsIds)
 	}
 }
 
@@ -322,7 +366,9 @@ func TestPlanToAPI_Licenses(t *testing.T) {
 	}
 }
 
-func TestPlanToAPI_FileSystem(t *testing.T) {
+// Legacy aggregate file_system uses flat policy_data.controls (unlike the scoped
+// file_system_* sub-types), and round-trips back into the file_system block.
+func TestPlanToAPI_FileSystem_FlatShapeRoundTrip(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{
 		Type:                     types.StringValue("file_system"),
 		Name:                     types.StringValue("fs policy"),
@@ -331,8 +377,72 @@ func TestPlanToAPI_FileSystem(t *testing.T) {
 		PriorityFailureThreshold: types.StringValue("HIGH"),
 		FileSystem: &controlsBlockModel{
 			Controls: []baseControlModel{
+				{ID: types.StringValue("fs-1"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	if _, ok := pd["controls"].([]interface{}); !ok {
+		t.Fatalf("expected flat policy_data.controls, got %v", pd)
+	}
+	if _, scoped := pd["feature_scope"]; scoped {
+		t.Error("legacy file_system must not send feature_scope")
+	}
+
+	state := apiToState(&policy, nil)
+	if state.FileSystem == nil || len(state.FileSystem.Controls) != 1 {
+		t.Fatalf("file_system block did not round-trip, got %+v", state.FileSystem)
+	}
+}
+
+// Legacy sca round-trips through the licenses block shape.
+func TestPlanToAPI_Sca_RoundTrip(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("sca"),
+		Name:                     types.StringValue("sca policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		Sca: &licensesBlockModel{
+			Controls: []licenseControlModel{
+				{baseControlModel: baseControlModel{ID: types.StringValue("sca-1"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)}},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if len(policy.Controls) == 0 {
+		t.Error("expected controls to be set for sca")
+	}
+	state := apiToState(&policy, nil)
+	if state.Sca == nil || len(state.Sca.Controls) != 1 {
+		t.Fatalf("sca block did not round-trip, got %+v", state.Sca)
+	}
+}
+
+// file_system_* requires scoped policy_data; flat controls rejected (400).
+func TestPlanToAPI_FileSystemVulnerabilities_ScopedShape(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("file_system_vulnerabilities"),
+		Name:                     types.StringValue("fsv policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		FileSystemVulnerabilities: &controlsBlockModel{
+			Controls: []baseControlModel{
 				{
-					ID:       types.StringValue("fs-1"),
+					ID:       types.StringValue("fsv-1"),
 					Priority: types.StringValue("HIGH"),
 					Disabled: types.BoolValue(false),
 				},
@@ -344,8 +454,52 @@ func TestPlanToAPI_FileSystem(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	if len(policy.Controls) == 0 {
-		t.Error("expected controls to be set for file_system")
+
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	scopes, ok := pd["feature_scope"].([]interface{})
+	if !ok || len(scopes) != 1 || scopes[0] != "vulnerabilities" {
+		t.Fatalf("expected feature_scope [vulnerabilities], got %v", pd["feature_scope"])
+	}
+	scoped, ok := pd["vulnerabilities"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected scoped vulnerabilities section, got %v", pd)
+	}
+	controls, ok := scoped["controls"].([]interface{})
+	if !ok || len(controls) != 1 {
+		t.Fatalf("expected one scoped control, got %v", scoped)
+	}
+	if _, flat := pd["controls"]; flat {
+		t.Error("flat policy_data.controls must not be sent (API rejects it)")
+	}
+}
+
+func TestPlanToAPI_FileSystemSecretDetection_ScopedShape(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("file_system_secret_detection"),
+		Name:                     types.StringValue("fssd policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		FileSystemSecretDetection: &controlsBlockModel{
+			Controls: []baseControlModel{
+				{ID: types.StringValue("sd-1"), Priority: types.StringValue("LOW"), Disabled: types.BoolValue(true)},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	if _, ok := pd["secret_detection"].(map[string]interface{}); !ok {
+		t.Fatalf("expected scoped secret_detection section, got %v", pd)
 	}
 }
 
@@ -427,35 +581,32 @@ func TestAPIToState_Licenses(t *testing.T) {
 	}
 }
 
-func TestAPIToState_FileSystem(t *testing.T) {
+func TestAPIToState_FileSystemVulnerabilities_ScopedRead(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
-		ID:       "policy-1",
-		Type:     "file_system",
-		Controls: []byte(`[{"id":"fs-1","priority":"HIGH","disabled":false}]`),
+		ID:         "policy-1",
+		Type:       "file_system_vulnerabilities",
+		PolicyData: []byte(`{"feature_scope":["vulnerabilities"],"vulnerabilities":{"controls":[{"id":"fsv-1","priority":"HIGH","disabled":false}]}}`),
 	}
 
 	state := apiToState(apiPolicy, nil)
-	if state.FileSystem == nil || len(state.FileSystem.Controls) != 1 {
-		t.Fatalf("expected one file_system control, got %+v", state.FileSystem)
+	if state.FileSystemVulnerabilities == nil || len(state.FileSystemVulnerabilities.Controls) != 1 {
+		t.Fatalf("expected one file_system_vulnerabilities control, got %+v", state.FileSystemVulnerabilities)
 	}
-	if state.FileSystem.Controls[0].ID.ValueString() != "fs-1" {
-		t.Errorf("expected fs-1, got %s", state.FileSystem.Controls[0].ID.ValueString())
+	if state.FileSystemVulnerabilities.Controls[0].ID.ValueString() != "fsv-1" {
+		t.Errorf("expected fsv-1, got %s", state.FileSystemVulnerabilities.Controls[0].ID.ValueString())
 	}
 }
 
 func TestValidateTypeBlock(t *testing.T) {
-	// Matching block present: no error.
 	model := &shiftLeftPolicyResourceModel{Sast: &sastBlockModel{}}
 	if diags := validateTypeBlock("sast", model); diags.HasError() {
 		t.Errorf("expected no error when sast block is present, got %v", diags)
 	}
 
-	// Missing block: error.
 	if diags := validateTypeBlock("sast", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error when sast block is missing")
 	}
 
-	// Unknown type: error.
 	if diags := validateTypeBlock("nope", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error for unknown policy type")
 	}
@@ -577,5 +728,22 @@ func TestPlanToAPI_ScmPosture(t *testing.T) {
 	}
 	if len(policy.Scope) == 0 {
 		t.Error("expected scm scope to be encoded")
+	}
+}
+
+func TestPlanToAPI_MaliciousPackages_NoControls(t *testing.T) {
+	m := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("malicious_packages"),
+		Name:                     types.StringValue("MP"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+	}
+	policy, diags := planToAPI(m)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if policy.Type != "malicious_packages" {
+		t.Errorf("type mismatch: %s", policy.Type)
 	}
 }

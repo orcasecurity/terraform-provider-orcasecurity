@@ -1,0 +1,23 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **Singleton semantics:** every Orca org has exactly one built-in SCM posture policy; this resource adopts it rather than creating it. `terraform destroy` only removes it from state — the policy itself always remains. Omitted attributes (`disabled`, `controls`) keep their live values; set `controls = []` to explicitly clear all control overrides. For named, scoped SCM posture policies use the SCM posture policies API instead.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

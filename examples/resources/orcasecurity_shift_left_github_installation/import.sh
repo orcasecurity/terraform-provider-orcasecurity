@@ -1,0 +1,1 @@
+terraform import orcasecurity_shift_left_github_installation.example 11111111-1111-1111-1111-111111111111

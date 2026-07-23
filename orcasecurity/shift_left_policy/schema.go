@@ -5,14 +5,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// allControlsAttr is a section-level toggle that tells the provider to include
-// every catalog control for that section, so users don't need a data source or
-// to list controls manually.
 func allControlsAttr() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"all_controls": schema.BoolAttribute{
@@ -169,8 +167,19 @@ func scmPostureBlock() schema.Block {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"key": schema.StringAttribute{
-							Required:    true,
-							Description: "Scope key such as github_installations, github_repository_installations, gitlab_groups, gitlab_repositories.",
+							Required: true,
+							Description: "Scope key. One of: github_installations, github_repository_installations, " +
+								"gitlab_groups, gitlab_projects, azure_organizations, azure_projects.",
+							Validators: []validator.String{
+								stringvalidator.OneOf(
+									"github_installations",
+									"github_repository_installations",
+									"gitlab_groups",
+									"gitlab_projects",
+									"azure_organizations",
+									"azure_projects",
+								),
+							},
 						},
 						"ids": schema.ListAttribute{
 							ElementType: types.StringType,
@@ -260,14 +269,18 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 				stringvalidator.OneOf("LOW", "MEDIUM", "HIGH", "CRITICAL"),
 			},
 		},
-		"projects_ids": schema.ListAttribute{
+		"projects_ids": schema.SetAttribute{
 			ElementType: types.StringType,
 			Optional:    true,
-			Description: "Project IDs to attach this policy to.",
+			Computed:    true,
+			Description: "Project IDs to attach this policy to. Reflects the API on read; omit to leave the current attachment unchanged, or set to `[]` to detach from all projects.",
+			PlanModifiers: []planmodifier.Set{
+				setplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"builtin": schema.BoolAttribute{
 			Computed:    true,
-			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be updated or deleted via Terraform.",
+			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable.",
 			PlanModifiers: []planmodifier.Bool{
 				boolplanmodifier.UseStateForUnknown(),
 			},

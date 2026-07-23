@@ -9,7 +9,7 @@ description: |-
 
 Provides an AppSec (Shift Left) policy resource. Use this resource to create, update, and delete AppSec scan policies in Orca Security, and to import existing ones.
 
-Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`.
+Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`, `malicious_packages`. `file_system` and `sca` are legacy aggregate types (superseded by the scoped `file_system_*` types and by `licenses`); they remain supported for existing policies.
 
 ## Example Usage
 
@@ -56,7 +56,7 @@ resource "orcasecurity_shift_left_policy" "iac_by_id" {
 
 ### Include all catalog controls for a section
 
-Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system*`, `licenses`, `sca` blocks and on each `container_image` feature-scope block.
+Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `licenses`, `sca` blocks and on each `container_image` feature-scope block.
 
 ```terraform
 resource "orcasecurity_shift_left_policy" "container_all" {
@@ -128,10 +128,68 @@ resource "orcasecurity_shift_left_policy" "attached" {
 }
 ```
 
+### Attach a fleet of projects to a built-in policy
+
+Built-in Orca policies (for example the built-in "OSS Licenses Policy") cannot be
+created or renamed via Terraform, but -- matching what the Orca API allows -- you
+can attach projects, toggle `disabled`/`warn_mode`, change
+`priority_failure_threshold`, edit the description, and override controls on
+one. Import the built-in policy first, then apply your changes.
+
+```shell
+terraform import orcasecurity_shift_left_policy.licenses_builtin licenses/<policy-id>
+```
+
+```terraform
+resource "orcasecurity_shift_left_project" "fleet" {
+  for_each         = toset(["team-a", "team-b", "team-c"])
+  name             = each.value
+  key              = each.value
+  default_policies = false
+}
+
+resource "orcasecurity_shift_left_policy" "licenses_builtin" {
+  type                       = "licenses"
+  name                       = "OSS Licenses Policy"
+  description                = "Orca built-in open-source license compliance policy (Fail on disallowed or high-risk open source licenses)."
+  disabled                   = false
+  warn_mode                  = true
+  priority_failure_threshold = "HIGH"
+
+  # Bulk-attach the whole fleet by projecting ids out of a for_each collection.
+  projects_ids = [for p in orcasecurity_shift_left_project.fleet : p.id]
+
+  licenses {}
+}
+```
+
+### Attach projects to the built-in Malicious Packages policy
+
+`malicious_packages` has no controls and no type-specific block -- omit any
+`malicious_packages { ... }` block entirely.
+
+```shell
+terraform import orcasecurity_shift_left_policy.malicious_packages_builtin malicious_packages/<policy-id>
+```
+
+```terraform
+resource "orcasecurity_shift_left_policy" "malicious_packages_builtin" {
+  type                       = "malicious_packages"
+  name                       = "Malicious Packages"
+  description                = "Orca built-in malicious packages detection policy."
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
+
+  projects_ids = [orcasecurity_shift_left_project.example.id]
+}
+```
+
 ## Update and delete
 
 - **Update**: change any attribute (for example `name`, `description`, `warn_mode`, `priority_failure_threshold`, `disabled`, `projects_ids`, or the controls) and re-apply.
 - **Delete**: remove the resource from configuration (or run `terraform destroy`) and apply.
+- **Built-in policies**: `name` is immutable (as is `feature_scope` on `container_image` built-ins, and `description`/`scope` on `scm_posture` built-ins); everything else -- `description`, `disabled`, `warn_mode`, `priority_failure_threshold`, control overrides, and `projects_ids` -- can be changed, mirroring the Orca API contract. Built-in policies can never be deleted via Terraform.
 
 ## Import
 
@@ -147,7 +205,7 @@ terraform import orcasecurity_shift_left_policy.example iac/<policy-id>
 
 After importing, run `terraform plan` and copy the populated control blocks into your configuration so the plan is empty.
 
-~> **Note:** Built-in Orca policies cannot be updated or deleted via Terraform; import and manage only custom policies.
+~> **Note:** Built-in Orca policies cannot be renamed or deleted via Terraform (`feature_scope` is also locked on `container_image` built-ins, and `description`/`scope` on `scm_posture` built-ins); other attributes can be changed. Because built-ins already exist outside of Terraform, always `terraform import` a built-in before changing it -- Create would otherwise attempt to POST a brand new policy.
 
 -> **Note:** Custom controls are identified by their `title`. Keep custom control titles unique within a section, and do not reuse a catalog control title for a custom control (a matching title is resolved to the catalog control).
 
@@ -171,14 +229,14 @@ After importing, run `terraform plan` and copy the populated control blocks into
 - `file_system_vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities))
 - `iac` (Block, Optional) (see [below for nested schema](#nestedblock--iac))
 - `licenses` (Block, Optional) (see [below for nested schema](#nestedblock--licenses))
-- `projects_ids` (List of String) Project IDs to attach this policy to.
+- `projects_ids` (Set of String) Project IDs to attach this policy to. Reflects the API on read; omit to leave the current attachment unchanged, or set to `[]` to detach from all projects.
 - `sast` (Block, Optional) (see [below for nested schema](#nestedblock--sast))
 - `sca` (Block, Optional) (see [below for nested schema](#nestedblock--sca))
 - `scm_posture` (Block, Optional) (see [below for nested schema](#nestedblock--scm_posture))
 
 ### Read-Only
 
-- `builtin` (Boolean) Whether this is an Orca built-in policy. Built-in policies cannot be updated or deleted via Terraform.
+- `builtin` (Boolean) Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable.
 - `id` (String) AppSec policy ID.
 
 <a id="nestedblock--container_image"></a>
@@ -668,7 +726,7 @@ Optional:
 Required:
 
 - `ids` (List of String)
-- `key` (String) Scope key such as github_installations, github_repository_installations, gitlab_groups, gitlab_repositories.
+- `key` (String) Scope key. One of: github_installations, github_repository_installations, gitlab_groups, gitlab_projects, azure_organizations, azure_projects.
 
 
 

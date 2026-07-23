@@ -1,0 +1,1 @@
+terraform import orcasecurity_shift_left_gitlab_group.example <installation_id>/<gitlab_group_id_or_orca_uuid>

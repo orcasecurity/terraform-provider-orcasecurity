@@ -1,0 +1,405 @@
+package shift_left_repository
+
+import (
+	"context"
+	"fmt"
+
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+type RepoConfigFields struct {
+	ID                      types.String `tfsdk:"id"`
+	Name                    types.String `tfsdk:"name"`
+	URL                     types.String `tfsdk:"url"`
+	Branch                  types.String `tfsdk:"branch"`
+	ProjectID               types.String `tfsdk:"project_id"`
+	Disabled                types.Bool   `tfsdk:"disabled"`
+	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
+	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
+	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
+	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
+	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
+	Status                  types.String `tfsdk:"status"`
+	RepositoryContextID     types.String `tfsdk:"repository_context_id"`
+	IntegrationStatus       types.String `tfsdk:"integration_status"`
+	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
+}
+
+// branchAttribute renders the `branch` field. GitHub and GitLab reject an
+// integration request with no branch (API 400), so it is Required there; Azure
+// and Bitbucket accept an omitted branch and fall back to the default branch at
+// scan time, so it stays Optional.
+func branchAttribute(branchRequired bool) rschema.StringAttribute {
+	attr := rschema.StringAttribute{
+		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+	}
+	if branchRequired {
+		attr.Required = true
+		attr.Description = "Branch to scan. Required by this SCM's integration API. Create-only: the API neither " +
+			"returns nor updates it after integration, so changing it forces re-integration."
+	} else {
+		attr.Optional = true
+		attr.Description = "Branch to scan. Omit for the repository default branch. Create-only: the API neither returns " +
+			"nor updates it after integration, so changing it forces re-integration."
+	}
+	return attr
+}
+
+func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRequired bool) map[string]rschema.Attribute {
+	return map[string]rschema.Attribute{
+		"id": rschema.StringAttribute{
+			Computed:      true,
+			Description:   "Orca id of the integrated repository row.",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+		},
+		"name": rschema.StringAttribute{
+			Required:      true,
+			Description:   fmt.Sprintf("Repository name (path) as known to %s.", scmName),
+			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+		},
+		"url": rschema.StringAttribute{
+			Required:      true,
+			Description:   "Repository URL.",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+		},
+		"branch": branchAttribute(branchRequired),
+		"project_id": rschema.StringAttribute{
+			Optional: true,
+			Computed: true,
+			Description: "Shift Left project to place the repository in. When omitted on create, Orca creates a dedicated " +
+				"project for the repository. Changing it moves the repository between projects.",
+		},
+		"disabled": rschema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Pause scanning for this repository (the repository stays integrated).",
+		},
+		"disable_scan_pull_requests": rschema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Disable pull request scanning for this repository.",
+		},
+		"comments_on_pull_requests": rschema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "When to comment on pull requests.",
+			Validators: []validator.String{
+				stringvalidator.OneOf("ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"),
+			},
+		},
+		"pr_summary_comment": rschema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "When to add a summary comment on pull requests.",
+			Validators: []validator.String{
+				stringvalidator.OneOf("ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"),
+			},
+		},
+		"skip_check_runs": rschema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "When to skip creating SCM check runs.",
+			Validators: []validator.String{
+				stringvalidator.OneOf(skipCheckRunsValues...),
+			},
+		},
+		"config_file_support": rschema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Whether the in-repo Orca config file is honored.",
+			Validators: []validator.String{
+				stringvalidator.OneOf("ENABLED", "DISABLED"),
+			},
+		},
+		"status": rschema.StringAttribute{
+			Computed:    true,
+			Description: "Aggregated initial scan status.",
+		},
+		"repository_context_id": rschema.StringAttribute{
+			Computed:    true,
+			Description: "Repository context id; deleting this context is how the repository is un-integrated.",
+		},
+		"integration_status": rschema.StringAttribute{
+			Computed:    true,
+			Description: "Health status of the owning installation. Empty when healthy.",
+		},
+		"scm_posture_policy_id": rschema.StringAttribute{
+			Computed:    true,
+			Description: "SCM posture policy that applies to this repository, if any.",
+		},
+	}
+}
+
+var fullSkipCheckRuns = []string{"ALWAYS", "ONLY_ON_INTERNAL_ISSUE", "NEVER"}
+var gitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
+
+func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository) RepoConfigFields {
+	out := RepoConfigFields{
+		ID:                     types.StringValue(api.ID),
+		Name:                   types.StringValue(api.RepositoryName),
+		URL:                    types.StringValue(api.RepositoryURL),
+		Branch:                 prior.Branch,
+		ProjectID:              shift_left_integration.OptionalID(api.ProjectID),
+		Disabled:               types.BoolValue(api.Disabled),
+		CommentsOnPullRequests: shift_left_integration.OptionalID(api.CommentsOnPRs),
+		PrSummaryComment:       shift_left_integration.OptionalID(api.PrSummaryComment),
+		SkipCheckRuns:          shift_left_integration.OptionalID(api.SkipCheckRuns),
+		ConfigFileSupport:      shift_left_integration.OptionalID(api.ConfigFileSupport),
+		Status:                 shift_left_integration.OptionalID(api.Status),
+		RepositoryContextID:    shift_left_integration.OptionalID(api.RepositoryContextID),
+		IntegrationStatus:      shift_left_integration.OptionalID(api.IntegrationStatus),
+		ScmPosturePolicyID:     shift_left_integration.OptionalID(api.ScmPosturePolicyID),
+	}
+	if api.DisableScanPRs != nil {
+		out.DisableScanPullRequests = types.BoolValue(*api.DisableScanPRs)
+	} else {
+		out.DisableScanPullRequests = types.BoolNull()
+	}
+	// Azure's list serializer omits skip_check_runs entirely; keep the last
+	// written value instead of flapping to null.
+	if api.SkipCheckRuns == "" && !prior.SkipCheckRuns.IsNull() && !prior.SkipCheckRuns.IsUnknown() {
+		out.SkipCheckRuns = prior.SkipCheckRuns
+	}
+	return out
+}
+
+func configUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
+	body := api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}}
+	set := false
+	if known(plan.Disabled) {
+		v := plan.Disabled.ValueBool()
+		body.Disabled = &v
+		set = true
+	}
+	if known(plan.DisableScanPullRequests) {
+		v := plan.DisableScanPullRequests.ValueBool()
+		body.DisableScanPullRequests = &v
+		set = true
+	}
+	if known(plan.CommentsOnPullRequests) {
+		body.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
+		set = true
+	}
+	if known(plan.PrSummaryComment) {
+		body.PrSummaryComment = plan.PrSummaryComment.ValueString()
+		set = true
+	}
+	if known(plan.SkipCheckRuns) {
+		body.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
+		set = true
+	}
+	if known(plan.ConfigFileSupport) {
+		body.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
+		set = true
+	}
+	return body, set
+}
+
+func known(v interface {
+	IsNull() bool
+	IsUnknown() bool
+}) bool {
+	return !v.IsNull() && !v.IsUnknown()
+}
+
+// integrateConfig builds the batch configuration_settings sent with the
+// integration POST so config is applied atomically at integrate time. `disabled`
+// is excluded (GitHub's integrate endpoint rejects it) and is applied by the
+// post-integrate config update for all providers.
+func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig {
+	cfg := api_client.ScmRepoIntegrationConfig{}
+	if known(plan.DisableScanPullRequests) {
+		v := plan.DisableScanPullRequests.ValueBool()
+		cfg.DisableScanPullRequests = &v
+	}
+	if known(plan.CommentsOnPullRequests) {
+		cfg.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
+	}
+	if known(plan.PrSummaryComment) {
+		cfg.PrSummaryComment = plan.PrSummaryComment.ValueString()
+	}
+	if known(plan.SkipCheckRuns) {
+		cfg.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
+	}
+	if known(plan.ConfigFileSupport) {
+		cfg.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
+	}
+	return cfg
+}
+
+type repoOps struct {
+	client    *api_client.APIClient
+	scmName   string
+	integrate func() error
+	find      func() (*api_client.ScmRepository, error)
+	update    func(api_client.ScmRepositoryConfigUpdate) error
+}
+
+func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var plan M
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	row := createRepo(ops(&plan), fields(&plan), &resp.Diagnostics)
+	if row == nil {
+		return
+	}
+	*fields(&plan) = fromAPI(*fields(&plan), row)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var state M
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	o := ops(&state)
+	row, err := o.find()
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Error reading %s repository integration", o.scmName), err.Error())
+		return
+	}
+	if row == nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	*fields(&state) = fromAPI(*fields(&state), row)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var plan, state M
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	row := updateRepo(ops(&plan), fields(&plan), fields(&state), &resp.Diagnostics)
+	if row == nil {
+		return
+	}
+	*fields(&plan) = fromAPI(*fields(&plan), row)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func repoDelete[M any](ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	var state M
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	deleteRepo(ops(&state), fields(&state), &resp.Diagnostics)
+}
+
+func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
+	if err := ops.integrate(); err != nil {
+		diags.AddError(fmt.Sprintf("Error integrating %s repository", ops.scmName), err.Error())
+		return nil
+	}
+	row, err := ops.find()
+	if err == nil && row == nil {
+		err = fmt.Errorf("repository not found after integration; verify the repository identifiers")
+	}
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Error reading %s repository after integration", ops.scmName), err.Error())
+		return nil
+	}
+	if body, set := configUpdateBody(row.ID, plan); set {
+		if err := ops.update(body); err != nil {
+			// The repository was integrated but its configuration could not be
+			// applied. Roll back the integration so we do not leave an orphaned
+			// live integration that never made it into Terraform state.
+			rollbackIntegration(ops, row, diags)
+			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.scmName), err.Error())
+			return nil
+		}
+		row, err = ops.find()
+		if err != nil || row == nil {
+			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.scmName), fmt.Sprintf("%v", err))
+			return nil
+		}
+	}
+	return row
+}
+
+// rollbackIntegration removes a just-created repository context after a failed
+// post-integrate configuration step, so a partial create does not orphan a live
+// integration. A rollback failure is surfaced as a warning (the create error is
+// reported separately) so the user can reconcile manually.
+func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag.Diagnostics) {
+	ctxID := row.RepositoryContextID
+	if ctxID == "" {
+		return
+	}
+	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
+		diags.AddWarning(
+			fmt.Sprintf("Failed to roll back %s repository integration", ops.scmName),
+			fmt.Sprintf("The repository was integrated but configuration failed, and removing repository context %s during rollback also failed: %s. Remove the integration manually or re-run to reconcile.", ctxID, err.Error()),
+		)
+	}
+}
+
+func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
+	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
+		if err := ops.update(body); err != nil {
+			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.scmName), err.Error())
+			return nil
+		}
+	}
+	if known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString() {
+		ctxID := state.RepositoryContextID.ValueString()
+		if ctxID == "" {
+			diags.AddError(fmt.Sprintf("Error moving %s repository", ops.scmName),
+				"repository_context_id is unknown; run terraform refresh and retry")
+			return nil
+		}
+		if err := ops.client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
+			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.scmName), err.Error())
+			return nil
+		}
+	}
+	row, err := ops.find()
+	if err == nil && row == nil {
+		err = fmt.Errorf("repository disappeared during update")
+	}
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.scmName), fmt.Sprintf("%v", err))
+		return nil
+	}
+	return row
+}
+
+func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
+	ctxID := state.RepositoryContextID.ValueString()
+	if ctxID == "" {
+		// Fall back to a live read; older state may predate the field.
+		row, err := ops.find()
+		if err != nil {
+			diags.AddError(fmt.Sprintf("Error reading %s repository before delete", ops.scmName), err.Error())
+			return
+		}
+		if row == nil {
+			return // already gone
+		}
+		ctxID = row.RepositoryContextID
+	}
+	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
+		diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.scmName), err.Error())
+	}
+}

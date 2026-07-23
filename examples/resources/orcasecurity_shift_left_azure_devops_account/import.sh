@@ -1,0 +1,1 @@
+terraform import orcasecurity_shift_left_azure_devops_account.example <installation_id>/<account_name_or_orca_uuid>

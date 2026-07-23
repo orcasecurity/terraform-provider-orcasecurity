@@ -4,6 +4,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// file_system and sca are the legacy aggregate types (superseded by the scoped
+// file_system_* types and by licenses respectively); kept for backward
+// compatibility so existing policies keep importing/reading/updating.
 var policyTypes = []string{
 	"iac",
 	"sast",
@@ -14,6 +17,7 @@ var policyTypes = []string{
 	"scm_posture",
 	"licenses",
 	"sca",
+	"malicious_packages",
 }
 
 type conditionsModel struct {
@@ -120,15 +124,15 @@ type licensesBlockModel struct {
 }
 
 type shiftLeftPolicyResourceModel struct {
-	ID                       types.String   `tfsdk:"id"`
-	Type                     types.String   `tfsdk:"type"`
-	Name                     types.String   `tfsdk:"name"`
-	Description              types.String   `tfsdk:"description"`
-	Disabled                 types.Bool     `tfsdk:"disabled"`
-	WarnMode                 types.Bool     `tfsdk:"warn_mode"`
-	PriorityFailureThreshold types.String   `tfsdk:"priority_failure_threshold"`
-	ProjectsIds              []types.String `tfsdk:"projects_ids"`
-	Builtin                  types.Bool     `tfsdk:"builtin"`
+	ID                       types.String `tfsdk:"id"`
+	Type                     types.String `tfsdk:"type"`
+	Name                     types.String `tfsdk:"name"`
+	Description              types.String `tfsdk:"description"`
+	Disabled                 types.Bool   `tfsdk:"disabled"`
+	WarnMode                 types.Bool   `tfsdk:"warn_mode"`
+	PriorityFailureThreshold types.String `tfsdk:"priority_failure_threshold"`
+	ProjectsIds              types.Set    `tfsdk:"projects_ids"`
+	Builtin                  types.Bool   `tfsdk:"builtin"`
 
 	Iac                       *iacBlockModel            `tfsdk:"iac"`
 	Sast                      *sastBlockModel           `tfsdk:"sast"`

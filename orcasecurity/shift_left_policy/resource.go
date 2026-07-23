@@ -6,6 +6,7 @@ import (
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -81,12 +82,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	policyType := plan.Type.ValueString()
-	if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
-		resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
-		return
-	}
-	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
-		resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
+	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
 		return
 	}
 
@@ -110,20 +106,14 @@ func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadReq
 	policyType := state.Type.ValueString()
 	policyID := state.ID.ValueString()
 
-	exists, err := r.apiClient.DoesShiftLeftPolicyExist(policyType, policyID)
+	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading AppSec policy", fmt.Sprintf("Could not read policy %s/%s: %s", policyType, policyID, err.Error()))
 		return
 	}
-	if !exists {
+	if instance == nil {
 		tflog.Warn(ctx, fmt.Sprintf("AppSec policy %s/%s is missing on the remote side.", policyType, policyID))
 		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading AppSec policy", "Could not read policy: "+err.Error())
 		return
 	}
 
@@ -138,12 +128,20 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	if plan.Builtin.ValueBool() {
-		resp.Diagnostics.AddError(
-			"Cannot update built-in policy",
-			"Built-in Orca policies cannot be modified via Terraform. Import only custom policies.",
-		)
+	var state shiftLeftPolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if plan.Builtin.ValueBool() {
+		if field, changed := builtinLockedFieldChanged(&plan, &state); changed {
+			resp.Diagnostics.AddError(
+				"Cannot modify built-in policy",
+				fmt.Sprintf("Field %q is immutable on built-in Orca policies (the API locks it); other fields such as disabled, warn_mode, priority_failure_threshold, control overrides and projects_ids can be changed.", field),
+			)
+			return
+		}
 	}
 
 	apiPolicy, diags := planToAPI(&plan)
@@ -152,14 +150,14 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
+	// Project associations are managed through the dedicated projects endpoint,
+	// never the main policy body: projects_ids is omitempty there, so an empty
+	// slice is dropped and detach-all (N->0) would be impossible.
+	apiPolicy.ProjectsIds = nil
+
 	policyType := plan.Type.ValueString()
 	policyID := plan.ID.ValueString()
-	if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
-		resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
-		return
-	}
-	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
-		resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
+	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
 		return
 	}
 
@@ -169,14 +167,39 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
+	// Sync projects only when the user manages them (known value). An
+	// unknown/null projects_ids means "leave associations as-is".
+	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, stringSliceFromSet(plan.ProjectsIds)); err != nil {
+			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
+			return
+		}
+	}
+
 	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading AppSec policy after update", err.Error())
 		return
 	}
 
-	state := stateFromPlanAfterWrite(&plan, instance)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	newState := stateFromPlanAfterWrite(&plan, instance)
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+}
+
+func (r *shiftLeftPolicyResource) applyCatalog(plan *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy, diags *diag.Diagnostics) bool {
+	catalogType := policyTypeHandlers[plan.Type.ValueString()].catalogType
+	if catalogType == "" {
+		return true
+	}
+	if err := r.apiClient.AddAllCatalogControls(catalogType, apiPolicy, allControlsScopeKeys(plan)); err != nil {
+		diags.AddError("Error expanding catalog controls", err.Error())
+		return false
+	}
+	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(catalogType, apiPolicy); err != nil {
+		diags.AddError("Error enriching AppSec policy from catalog", err.Error())
+		return false
+	}
+	return true
 }
 
 func (r *shiftLeftPolicyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

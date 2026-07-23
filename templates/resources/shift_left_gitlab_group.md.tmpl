@@ -1,0 +1,27 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **API vs UI:** This resource follows the Shift-Left **API** contract. The GitLab UI may offer fewer `skip_check_runs` values than the account-level PUT accepts. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+
+-> **Destroy:** `terraform destroy` DELETEs the integrated group (UI parity). That also removes its integrated repositories.
+
+-> **Coverage:** Browse remote groups, `check_availability`, and scan-now are UI operations and are not managed here.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}
