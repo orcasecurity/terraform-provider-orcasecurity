@@ -75,9 +75,11 @@ type GithubInstallation struct {
 
 func (g *GithubInstallation) unitID() string { return g.ID }
 
-// stampInstallationID is a no-op: GitHub installations are themselves the
-// units, with no parent installation id to carry.
-func (g *GithubInstallation) stampInstallationID(string) {}
+func (g *GithubInstallation) stampInstallationID(string) {
+	// No-op: GitHub installations are themselves the units, with no parent
+	// installation id to carry (unlike GitLab groups and Azure/Bitbucket
+	// accounts, which hang off a parent installation).
+}
 
 const githubInstallationsPath = "/api/shiftleft/github/installations/"
 
