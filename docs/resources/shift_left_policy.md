@@ -207,7 +207,7 @@ After importing, run `terraform plan` and copy the populated control blocks into
 - `file_system_vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities))
 - `iac` (Block, Optional) (see [below for nested schema](#nestedblock--iac))
 - `licenses` (Block, Optional) (see [below for nested schema](#nestedblock--licenses))
-- `projects_ids` (List of String) Project IDs to attach this policy to.
+- `projects_ids` (Set of String) Project IDs to attach this policy to.
 - `sast` (Block, Optional) (see [below for nested schema](#nestedblock--sast))
 - `sca` (Block, Optional) (see [below for nested schema](#nestedblock--sca))
 - `scm_posture` (Block, Optional) (see [below for nested schema](#nestedblock--scm_posture))

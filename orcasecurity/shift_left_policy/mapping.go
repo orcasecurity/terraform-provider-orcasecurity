@@ -706,17 +706,7 @@ func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
 	}
 }
 
-func mergeProjectsIdsFromPlan(state, plan *shiftLeftPolicyResourceModel) {
-	if len(plan.ProjectsIds) == 0 {
-		state.ProjectsIds = nil
-	} else if len(state.ProjectsIds) == 0 {
-		state.ProjectsIds = plan.ProjectsIds
-	}
-}
-
 func mergeStateFromPlan(state, plan *shiftLeftPolicyResourceModel) {
-	mergeProjectsIdsFromPlan(state, plan)
-
 	switch plan.Type.ValueString() {
 	case "iac":
 		mergeIacBlockFromPlan(state.Iac, plan.Iac)
@@ -979,6 +969,10 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 
 	if existing != nil {
 		mergeStateFromPlan(model, existing)
+	}
+
+	if len(model.ProjectsIds) == 0 {
+		model.ProjectsIds = nil
 	}
 
 	return model

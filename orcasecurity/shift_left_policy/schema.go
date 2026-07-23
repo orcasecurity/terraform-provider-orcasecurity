@@ -260,7 +260,7 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 				stringvalidator.OneOf("LOW", "MEDIUM", "HIGH", "CRITICAL"),
 			},
 		},
-		"projects_ids": schema.ListAttribute{
+		"projects_ids": schema.SetAttribute{
 			ElementType: types.StringType,
 			Optional:    true,
 			Description: "Project IDs to attach this policy to.",
