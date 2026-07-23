@@ -243,6 +243,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		user_preferences.NewUserPreferencesDataSource,
 		rbac_role.NewRbacRolesDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
+		shift_left_github_installation.NewInstallationsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		automation_v2_priorities.NewAutomationPrioritiesDataSource,
 	}
