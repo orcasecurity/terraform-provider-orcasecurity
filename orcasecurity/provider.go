@@ -43,6 +43,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/servicenow"
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_itsm_template"
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_sir_template"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_azure_devops_account"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_github_installation"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_gitlab_group"
@@ -244,6 +245,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		user_preferences.NewUserPreferencesDataSource,
 		rbac_role.NewRbacRolesDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
+		shift_left_azure_devops_account.NewAccountsDataSource,
 		shift_left_github_installation.NewInstallationsDataSource,
 		shift_left_gitlab_group.NewGroupsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
@@ -293,6 +295,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		shift_left_project.NewShiftLeftProjectResource,
 		shift_left_policy.NewShiftLeftPolicyResource,
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
+		shift_left_azure_devops_account.NewResource,
 		shift_left_github_installation.NewResource,
 		shift_left_gitlab_group.NewResource,
 		system_sonar_alert.NewSystemSonarAlertResource,
