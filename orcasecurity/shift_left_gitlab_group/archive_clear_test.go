@@ -6,6 +6,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -25,7 +26,7 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 	}
 
 	orcasecurity.TestAccPreCheck(t)
-	client := orcasecurity.TestAPIClient(t)
+	client := acctest.APIClient(t)
 
 	original, err := client.GetGitlabGroup(installationID, groupID)
 	if err != nil {
@@ -35,7 +36,7 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 		t.Skipf("gitlab group %s/%s not found", installationID, groupID)
 	}
 	t.Cleanup(func() {
-		if _, err := client.UpdateGitlabGroup(installationID, groupID, orcasecurity.RestoreScmBody(
+		if _, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
 			original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings,
 		)); err != nil {
 			t.Errorf("restore failed for %s/%s: %s", installationID, groupID, err)
@@ -48,7 +49,7 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 		ArchiveActions:     &api_client.ShiftLeftArchiveActions{Conditions: []string{"AVOID_SCAN", "DELETE_REPO"}},
 		UnavailableActions: &api_client.ShiftLeftArchiveActions{Conditions: []string{"DELETE_REPO"}},
 	}
-	set, err := client.UpdateGitlabGroup(installationID, groupID, orcasecurity.RestoreScmBody(
+	set, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
 		original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, withConditions,
 	))
 	if err != nil {

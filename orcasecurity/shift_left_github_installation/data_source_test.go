@@ -10,7 +10,7 @@ import (
 
 func TestInstallationsToListValue(t *testing.T) {
 	insts := []api_client.GithubInstallation{
-		{ID: "i-1", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"},
+		{ID: "i-1", AccountName: "acme", ScmUnitCommonFields: api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}},
 		{ID: "i-2", AccountName: "beta"},
 	}
 	list, diags := installationsToListValue(insts)

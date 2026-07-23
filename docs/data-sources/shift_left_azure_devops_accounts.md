@@ -43,4 +43,7 @@ Read-Only:
 - `id` (String)
 - `installation_id` (String)
 - `installation_mode` (String)
+- `integrated_repositories_count` (Number) Count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API when present.
+- `scan_all_state` (String) State of the scan-all onboarding flow when present.
+- `scm_posture_policy_id` (String) ID of the SCM posture policy attached to this unit when present.

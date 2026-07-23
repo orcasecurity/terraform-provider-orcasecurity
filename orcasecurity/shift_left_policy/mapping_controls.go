@@ -264,5 +264,3 @@ func buildScmScope(block *scmPostureBlockModel) (json.RawMessage, []map[string]i
 	}
 	return scopeRaw, scmControlsToMaps(block.Controls), diags
 }
-
-// buildControlsAndData dispatches per policy type, returning the controls slice and policy_data map.

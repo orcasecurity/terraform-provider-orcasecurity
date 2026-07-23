@@ -107,18 +107,23 @@ func (r *bitbucketAccountResource) Delete(ctx context.Context, _ resource.Delete
 func (r *bitbucketAccountResource) adopt(
 	diags *diag.Diagnostics, installationID, accountID string, plan, config resourceModel, notFoundMsg, writeTitle string,
 ) *api_client.BitbucketAccount {
-	return shift_left_integration.AdoptWrite(
-		diags, bitbucketLabels, notFoundMsg, writeTitle,
-		func() (*api_client.BitbucketAccount, error) {
+	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.BitbucketAccount]{
+		Get: func() (*api_client.BitbucketAccount, error) {
 			return r.apiClient.GetBitbucketAccount(installationID, accountID)
 		},
-		func(body api_client.ScmInstallationUpdate) (*api_client.BitbucketAccount, error) {
+		Update: func(body api_client.ScmInstallationUpdate) (*api_client.BitbucketAccount, error) {
 			return r.apiClient.UpdateBitbucketAccount(installationID, accountID, body)
 		},
-		func(u *api_client.BitbucketAccount) shift_left_integration.ExistingUnit {
+		Snapshot: func(u *api_client.BitbucketAccount) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
 		},
-		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings,
-		shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-	)
+		PlanMode:        plan.InstallationMode,
+		PlanDefault:     plan.DefaultPolicies,
+		PlanPolicies:    plan.PoliciesIds,
+		PlanConfig:      plan.ConfigSettings,
+		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
+		Labels:          bitbucketLabels,
+		NotFoundMsg:     notFoundMsg,
+		WriteErrorTitle: writeTitle,
+	})
 }

@@ -2,37 +2,45 @@ package shift_left_policy
 
 import "reflect"
 
-// builtinNonProjectFieldChanged reports the first managed field other than
-// projects_ids that differs between plan and state. The UI allows built-in
-// policies to change only their attached projects via the same PUT; every
-// other field is read-only for built-ins, including every control block
-// (iac/sast/file_system/.../sca) — changing a control inside any of those
-// blocks must be rejected just like changing name/description/etc.
-func builtinNonProjectFieldChanged(plan, state *shiftLeftPolicyResourceModel) (string, bool) {
-	switch {
-	case !plan.Name.Equal(state.Name):
+// builtinLockedFieldChanged reports the first field that the API forbids
+// changing on a built-in policy, mirroring the server contract
+// (typed_policy_view / scm_posture_policy_service in shiftleft-core):
+//
+//   - every built-in: `name` is immutable (and deletion is blocked, enforced
+//     separately in Delete);
+//   - container_image built-ins: `feature_scope` is additionally immutable;
+//   - scm_posture built-ins: `description` and `scope` are additionally
+//     immutable (they are org-global policies).
+//
+// Everything else — description (non-scm_posture), disabled, warn_mode,
+// priority_failure_threshold, control overrides, and projects_ids — is
+// updatable on built-ins, matching what the API accepts and the UI exposes.
+func builtinLockedFieldChanged(plan, state *shiftLeftPolicyResourceModel) (string, bool) {
+	if !plan.Name.Equal(state.Name) {
 		return "name", true
-	case !plan.Description.Equal(state.Description):
-		return "description", true
-	case !plan.Disabled.Equal(state.Disabled):
-		return "disabled", true
-	case !plan.WarnMode.Equal(state.WarnMode):
-		return "warn_mode", true
-	case !plan.PriorityFailureThreshold.Equal(state.PriorityFailureThreshold):
-		return "priority_failure_threshold", true
 	}
-
-	// Compare every type block via the shared handler table (policyTypes keeps
-	// the iteration order deterministic so the reported field name is stable).
-	for _, name := range policyTypes {
-		h := policyTypeHandlers[name]
-		if h.block == nil {
-			continue
+	switch plan.Type.ValueString() {
+	case "container_image":
+		if plan.ContainerImage != nil && state.ContainerImage != nil &&
+			!reflect.DeepEqual(plan.ContainerImage.FeatureScope, state.ContainerImage.FeatureScope) {
+			return "container_image.feature_scope", true
 		}
-		if !reflect.DeepEqual(h.block(plan), h.block(state)) {
-			return name, true
+	case "scm_posture":
+		if !plan.Description.Equal(state.Description) {
+			return "description", true
+		}
+		planScope := scmScopeOf(plan)
+		stateScope := scmScopeOf(state)
+		if !reflect.DeepEqual(planScope, stateScope) {
+			return "scm_posture.scope", true
 		}
 	}
-
 	return "", false
+}
+
+func scmScopeOf(m *shiftLeftPolicyResourceModel) []scmScopeEntryModel {
+	if m.ScmPosture == nil {
+		return nil
+	}
+	return m.ScmPosture.Scope
 }

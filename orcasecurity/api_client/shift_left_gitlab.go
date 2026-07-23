@@ -6,15 +6,11 @@ import (
 )
 
 type GitlabGroup struct {
-	ID                string                  `json:"id"`
-	InstallationID    string                  `json:"installation_id,omitempty"`
-	AccountName       string                  `json:"account_name"`
-	InstallationMode  string                  `json:"installation_mode,omitempty"`
-	DefaultPolicies   bool                    `json:"default_policies"`
-	Policies          []ScmPolicyRef          `json:"policies,omitempty"`
-	Project           *ScmProjectRef          `json:"project,omitempty"`
-	IntegrationStatus string                  `json:"integration_status,omitempty"`
-	ConfigSettings    ShiftLeftConfigSettings `json:"configuration_settings"`
+	ID             string `json:"id"`
+	InstallationID string `json:"installation_id,omitempty"`
+	AccountName    string `json:"account_name"`
+	GitlabGroupID  int64  `json:"gitlab_group_id,omitempty"`
+	ScmUnitCommonFields
 }
 
 func (g *GitlabGroup) unitID() string { return g.ID }
@@ -42,6 +38,84 @@ func (g *GitlabGroup) UnmarshalJSON(b []byte) error {
 		g.AccountName = aux.GitlabGroupName
 	}
 	return nil
+}
+
+// GitlabInstallation is a parent GitLab connection (token + server). The
+// access token is write-only: the API never echoes it back
+// (GitLabInstallationSerializer omits it), so reads carry only its
+// name/type metadata.
+type GitlabInstallation struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	ServerURL         string `json:"server_url,omitempty"`
+	ExternalServerURL string `json:"external_server_url,omitempty"`
+	AccessTokenName   string `json:"access_token_name,omitempty"`
+	AccessTokenType   string `json:"access_token_type,omitempty"`
+	ReadOnly          bool   `json:"read_only"`
+	IntegrationStatus string `json:"integration_status,omitempty"`
+	CloudIntegration  bool   `json:"cloud_integration"`
+}
+
+// GitlabInstallationWrite is the POST/PATCH body. ReadOnly is always sent:
+// the API defaults an omitted read_only to false on PATCH (not "unchanged"),
+// so partial updates must echo the current value.
+type GitlabInstallationWrite struct {
+	AccessToken string `json:"access_token,omitempty"`
+	Name        string `json:"name,omitempty"`
+	ServerURL   string `json:"server_url,omitempty"`
+	ReadOnly    bool   `json:"read_only"`
+}
+
+const gitlabInstallationsPath = "/api/shiftleft/gitlab/installations/"
+
+func (client *APIClient) ListGitlabInstallations() ([]GitlabInstallation, error) {
+	return getAllScmPages[GitlabInstallation](client, gitlabInstallationsPath)
+}
+
+// GetGitlabInstallation reads via list-filter (the API defines no single-item
+// GET route for installations). Returns nil when absent.
+func (client *APIClient) GetGitlabInstallation(id string) (*GitlabInstallation, error) {
+	all, err := client.ListGitlabInstallations()
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].ID == id {
+			return &all[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (client *APIClient) CreateGitlabInstallation(body GitlabInstallationWrite) (*GitlabInstallation, error) {
+	resp, err := client.Post(gitlabInstallationsPath, body)
+	if err != nil {
+		return nil, err
+	}
+	client.invalidateScmListCache()
+	created := GitlabInstallation{}
+	if err := resp.ReadJSON(&created); err != nil {
+		return nil, err
+	}
+	return &created, nil
+}
+
+// UpdateGitlabInstallation PATCHes and re-reads (the PATCH response body is
+// empty).
+func (client *APIClient) UpdateGitlabInstallation(id string, body GitlabInstallationWrite) (*GitlabInstallation, error) {
+	if _, err := client.Patch(fmt.Sprintf("%s%s/", gitlabInstallationsPath, id), body); err != nil {
+		return nil, err
+	}
+	client.invalidateScmListCache()
+	return client.GetGitlabInstallation(id)
+}
+
+func (client *APIClient) DeleteGitlabInstallation(id string) error {
+	_, err := client.Delete(fmt.Sprintf("%s%s/", gitlabInstallationsPath, id))
+	if err == nil {
+		client.invalidateScmListCache()
+	}
+	return err
 }
 
 func gitlabGroupsPath(installationID string) string {

@@ -44,6 +44,7 @@ func groupAttrTypes() map[string]attr.Type {
 	attrs["id"] = types.StringType
 	attrs["installation_id"] = types.StringType
 	attrs["group_id"] = types.StringType
+	attrs["gitlab_group_id"] = types.Int64Type
 	return attrs
 }
 
@@ -52,6 +53,7 @@ func (ds *groupsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 	nested["id"] = dschema.StringAttribute{Computed: true}
 	nested["installation_id"] = dschema.StringAttribute{Computed: true}
 	nested["group_id"] = dschema.StringAttribute{Computed: true}
+	nested["gitlab_group_id"] = dschema.Int64Attribute{Computed: true}
 	resp.Schema = dschema.Schema{
 		Description: "Lists all Orca GitLab shift-left integrated groups for fleet-wide for_each.",
 		Attributes: map[string]dschema.Attribute{
@@ -69,10 +71,11 @@ func groupsToListValue(grps []api_client.GitlabGroup) (types.List, diag.Diagnost
 	attrTypes := groupAttrTypes()
 	elems := make([]map[string]attr.Value, len(grps))
 	for i, g := range grps {
-		m := shift_left_integration.SharedScmListUnitValues(g.AccountName, g.InstallationMode, g.IntegrationStatus, g.DefaultPolicies)
+		m := shift_left_integration.SharedScmListUnitValues(g.AccountName, g.ScmUnitCommonFields)
 		m["id"] = types.StringValue(g.ID)
 		m["installation_id"] = types.StringValue(g.InstallationID)
 		m["group_id"] = types.StringValue(g.ID)
+		m["gitlab_group_id"] = types.Int64Value(g.GitlabGroupID)
 		elems[i] = m
 	}
 	return shift_left_integration.ObjectListFromValues(attrTypes, elems)

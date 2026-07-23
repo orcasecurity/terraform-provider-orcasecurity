@@ -48,16 +48,29 @@ type ScmInstallationUpdate struct {
 	ConfigSettings   ShiftLeftConfigSettings `json:"configuration_settings"`
 }
 
+// ScmUnitCommonFields are the fields every integrated SCM unit (GitHub
+// installation, GitLab group, Azure DevOps / Bitbucket account) shares on
+// read; the provider-specific DTOs embed it.
+type ScmUnitCommonFields struct {
+	InstallationMode  string                  `json:"installation_mode,omitempty"`
+	DefaultPolicies   bool                    `json:"default_policies"`
+	Policies          []ScmPolicyRef          `json:"policies,omitempty"`
+	Project           *ScmProjectRef          `json:"project,omitempty"`
+	IntegrationStatus string                  `json:"integration_status,omitempty"`
+	ConfigSettings    ShiftLeftConfigSettings `json:"configuration_settings"`
+
+	// Read-only status fields (confirmed live on the integrated unit lists).
+	ScanAllState                string `json:"scan_all_state,omitempty"`
+	IntegratedRepositoriesCount int64  `json:"integrated_repositories_count,omitempty"`
+	ScmPosturePolicyID          string `json:"scm_posture_policy_id,omitempty"`
+}
+
 type GithubInstallation struct {
-	ID                   string                  `json:"id"`
-	GithubInstallationID int64                   `json:"github_installation_id,omitempty"`
-	AccountName          string                  `json:"account_name"`
-	InstallationMode     string                  `json:"installation_mode,omitempty"`
-	DefaultPolicies      bool                    `json:"default_policies"`
-	Policies             []ScmPolicyRef          `json:"policies,omitempty"`
-	Project              *ScmProjectRef          `json:"project,omitempty"`
-	IntegrationStatus    string                  `json:"integration_status,omitempty"`
-	ConfigSettings       ShiftLeftConfigSettings `json:"configuration_settings"`
+	ID                   string `json:"id"`
+	GithubInstallationID int64  `json:"github_installation_id,omitempty"`
+	AccountName          string `json:"account_name"`
+	GithubAppSettingsURL string `json:"github_app_settings_url,omitempty"`
+	ScmUnitCommonFields
 }
 
 func (g *GithubInstallation) unitID() string { return g.ID }
@@ -73,7 +86,8 @@ func (client *APIClient) ListGithubInstallations() ([]GithubInstallation, error)
 }
 
 // GetGithubInstallation reads via list-filter; the API defines no single-unit
-// GET route for SCM installations (GET on the item path is a 405).
+// GET route for SCM installations (GET on the item path errors — 500 as of
+// 2026-07, confirmed live).
 func (client *APIClient) GetGithubInstallation(id string) (*GithubInstallation, error) {
 	return findScmUnit[GithubInstallation](client, githubInstallationsPath, "", id)
 }

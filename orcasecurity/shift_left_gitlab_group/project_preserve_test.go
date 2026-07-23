@@ -6,6 +6,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -28,7 +29,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	}
 
 	orcasecurity.TestAccPreCheck(t)
-	client := orcasecurity.TestAPIClient(t)
+	client := acctest.APIClient(t)
 
 	original, err := client.GetGitlabGroup(installationID, groupID)
 	if err != nil {
@@ -40,7 +41,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	// Always restore the group to exactly how we found it (policies + config,
 	// no project) once the test finishes.
 	t.Cleanup(func() {
-		if _, err := client.UpdateGitlabGroup(installationID, groupID, orcasecurity.RestoreScmBody(
+		if _, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
 			original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings,
 		)); err != nil {
 			t.Errorf("restore failed for %s/%s: %s", installationID, groupID, err)
@@ -48,7 +49,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	})
 
 	// 1) Bind a project (project_id XOR policies, mirroring the UI).
-	bound, err := client.UpdateGitlabGroup(installationID, groupID, orcasecurity.RestoreScmBody(
+	bound, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
 		original.InstallationMode, original.DefaultPolicies, original.Policies,
 		&api_client.ScmProjectRef{ID: projectID}, original.ConfigSettings,
 	))

@@ -10,9 +10,12 @@ import (
 
 func TestApiToState_MirrorsAccountID(t *testing.T) {
 	inst := &api_client.AzureDevopsAccount{
-		ID: "abc", InstallationID: "inst-1", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
-		IntegrationStatus: "DISABLED_DUE_TO_INVALID_TOKEN",
-		Policies:          []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		ID: "abc", InstallationID: "inst-1", AccountName: "acme",
+		ScmUnitCommonFields: api_client.ScmUnitCommonFields{
+			InstallationMode:  "SCAN_ALL_INCLUDE_FUTURE",
+			IntegrationStatus: "DISABLED_DUE_TO_INVALID_TOKEN",
+			Policies:          []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		},
 	}
 	st := apiToState(inst)
 	if st.ID.ValueString() != "abc" || st.AccountID.ValueString() != "abc" {

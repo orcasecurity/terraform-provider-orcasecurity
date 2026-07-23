@@ -6,6 +6,7 @@ import (
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -81,17 +82,8 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	policyType := plan.Type.ValueString()
-	// malicious_packages has no controls and no catalog endpoint (policy_data is
-	// always {}), so skip catalog expansion/enrichment which would 404 for it.
-	if policyType != "malicious_packages" {
-		if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
-			resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
-			return
-		}
-		if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
-			resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
-			return
-		}
+	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
+		return
 	}
 
 	instance, err := r.apiClient.CreateShiftLeftPolicy(policyType, apiPolicy)
@@ -143,10 +135,10 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	}
 
 	if plan.Builtin.ValueBool() {
-		if field, changed := builtinNonProjectFieldChanged(&plan, &state); changed {
+		if field, changed := builtinLockedFieldChanged(&plan, &state); changed {
 			resp.Diagnostics.AddError(
 				"Cannot modify built-in policy",
-				fmt.Sprintf("Built-in Orca policies allow changing only projects_ids via Terraform; field %q cannot be modified.", field),
+				fmt.Sprintf("Field %q is immutable on built-in Orca policies (the API locks it); other fields such as disabled, warn_mode, priority_failure_threshold, control overrides and projects_ids can be changed.", field),
 			)
 			return
 		}
@@ -160,17 +152,8 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 
 	policyType := plan.Type.ValueString()
 	policyID := plan.ID.ValueString()
-	// malicious_packages has no controls and no catalog endpoint (policy_data is
-	// always {}), so skip catalog expansion/enrichment which would 404 for it.
-	if policyType != "malicious_packages" {
-		if err := r.apiClient.AddAllCatalogControls(policyType, &apiPolicy, allControlsScopeKeys(&plan)); err != nil {
-			resp.Diagnostics.AddError("Error expanding catalog controls", err.Error())
-			return
-		}
-		if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(policyType, &apiPolicy); err != nil {
-			resp.Diagnostics.AddError("Error enriching AppSec policy from catalog", err.Error())
-			return
-		}
+	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
+		return
 	}
 
 	_, err := r.apiClient.UpdateShiftLeftPolicy(policyType, policyID, apiPolicy)
@@ -187,6 +170,26 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 
 	newState := stateFromPlanAfterWrite(&plan, instance)
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+}
+
+// applyCatalog runs the pre-write catalog steps for the plan's policy type:
+// all-controls expansion followed by control enrichment, both against the
+// handler's catalogType (types without a catalog skip both). Returns false
+// when a diagnostic was added.
+func (r *shiftLeftPolicyResource) applyCatalog(plan *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy, diags *diag.Diagnostics) bool {
+	catalogType := policyTypeHandlers[plan.Type.ValueString()].catalogType
+	if catalogType == "" {
+		return true
+	}
+	if err := r.apiClient.AddAllCatalogControls(catalogType, apiPolicy, allControlsScopeKeys(plan)); err != nil {
+		diags.AddError("Error expanding catalog controls", err.Error())
+		return false
+	}
+	if err := r.apiClient.EnrichShiftLeftPolicyFromCatalog(catalogType, apiPolicy); err != nil {
+		diags.AddError("Error enriching AppSec policy from catalog", err.Error())
+		return false
+	}
+	return true
 }
 
 func (r *shiftLeftPolicyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

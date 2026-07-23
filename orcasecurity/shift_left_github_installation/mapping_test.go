@@ -10,9 +10,12 @@ import (
 
 func TestApiToState_MirrorsInstallationID(t *testing.T) {
 	inst := &api_client.GithubInstallation{
-		ID: "abc", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
-		IntegrationStatus: "ENABLED",
-		Policies:          []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		ID: "abc", AccountName: "acme",
+		ScmUnitCommonFields: api_client.ScmUnitCommonFields{
+			InstallationMode:  "SCAN_ALL_INCLUDE_FUTURE",
+			IntegrationStatus: "ENABLED",
+			Policies:          []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		},
 	}
 	st := apiToState(inst)
 	if st.ID.ValueString() != "abc" || st.InstallationID.ValueString() != "abc" {

@@ -69,7 +69,7 @@ func accountsToListValue(accs []api_client.AzureDevopsAccount) (types.List, diag
 	attrTypes := accountAttrTypes()
 	elems := make([]map[string]attr.Value, len(accs))
 	for i, a := range accs {
-		m := shift_left_integration.SharedScmListUnitValues(a.AccountName, a.InstallationMode, a.IntegrationStatus, a.DefaultPolicies)
+		m := shift_left_integration.SharedScmListUnitValues(a.AccountName, a.ScmUnitCommonFields)
 		m["id"] = types.StringValue(a.ID)
 		m["installation_id"] = types.StringValue(a.InstallationID)
 		m["account_id"] = types.StringValue(a.ID)

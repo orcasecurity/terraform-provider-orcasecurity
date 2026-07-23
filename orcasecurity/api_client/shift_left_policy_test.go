@@ -8,15 +8,6 @@ import (
 	"testing"
 )
 
-func TestShiftLeftPolicyTypePath(t *testing.T) {
-	if ShiftLeftPolicyTypePath("scm_posture") != "scm_posture" {
-		t.Errorf("expected scm_posture path segment")
-	}
-	if ShiftLeftPolicyTypePath("iac") != "iac" {
-		t.Errorf("expected iac path segment")
-	}
-}
-
 func TestGetShiftLeftPolicy(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "GET" {
@@ -202,7 +193,8 @@ func TestGetShiftLeftPolicy_PopulatesProjectsIdsFromProjects(t *testing.T) {
 
 func TestGetShiftLeftPolicyCatalogControls(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		if req.URL.Path != "/api/shiftleft/iac/catalog/controls" {
+		// Trailing slash matters: the slashless form 301-redirects.
+		if req.URL.Path != "/api/shiftleft/iac/catalog/controls/" {
 			t.Errorf("unexpected path: %s", req.URL.Path)
 		}
 		return &http.Response{

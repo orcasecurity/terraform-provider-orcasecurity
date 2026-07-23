@@ -16,6 +16,12 @@ import (
 // entry here (plus its schema block) instead of editing parallel switch
 // statements across the mapping files.
 type policyTypeHandler struct {
+	// catalogType is the API type segment whose catalog is used for
+	// all-controls expansion and control enrichment. Usually the policy type
+	// itself, but the file_system_* types share the "file_system" catalog
+	// (they have no catalog routes of their own). Empty means the type has no
+	// catalog (malicious_packages) and expansion/enrichment is skipped.
+	catalogType string
 	// block returns the type's config block pointer from a model (a typed nil
 	// when unset). nil for types with no type-specific block
 	// (malicious_packages), which also exempts them from the block-required
@@ -58,9 +64,48 @@ func singleScopeAll(requested func(m *shiftLeftPolicyResourceModel) bool) func(m
 	}
 }
 
+// fsScopedHandler builds the full handler for a file_system_* policy type.
+// These types keep a flat controls block in the Terraform schema, but the API
+// requires container-style scoped policy_data
+// ({"feature_scope": [scope], scope: {"controls": [...]}}; flat
+// policy_data.controls is rejected with a 400) and their catalog lives under
+// the shared "file_system" catalog, grouped by the same scope keys.
+func fsScopedHandler(
+	scope string,
+	get func(m *shiftLeftPolicyResourceModel) *controlsBlockModel,
+	set func(m *shiftLeftPolicyResourceModel, b *controlsBlockModel),
+) policyTypeHandler {
+	return policyTypeHandler{
+		catalogType: "file_system",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return get(m) },
+		allControlsScopes: func(m *shiftLeftPolicyResourceModel) []string {
+			if b := get(m); b != nil && boolIsTrue(b.AllControls) {
+				return []string{scope}
+			}
+			return nil
+		},
+		buildWrite: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, policyData map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
+			controls := controlsBlockToMaps(get(m))
+			policyData["feature_scope"] = []string{scope}
+			policyData[scope] = scopeControlsWrapper(controls)
+			return controls, nil
+		},
+		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, policyData map[string]interface{}, controls []map[string]interface{}) {
+			if scoped := rawScopeControls(policyData, scope); scoped != nil {
+				controls = scoped
+			}
+			set(m, buildControlsBlock(controls))
+		},
+		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
+			mergeControlsBlockFromPlan(get(state), get(plan))
+		},
+	}
+}
+
 var policyTypeHandlers = map[string]policyTypeHandler{
 	"iac": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.Iac },
+		catalogType: "iac",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Iac },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Iac != nil && boolIsTrue(m.Iac.AllControls)
 		}),
@@ -73,7 +118,8 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) { mergeIacBlockFromPlan(state.Iac, plan.Iac) },
 	},
 	"sast": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.Sast },
+		catalogType: "sast",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Sast },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Sast != nil && boolIsTrue(m.Sast.AllControls)
 		}),
@@ -85,53 +131,17 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) { mergeSastBlockFromPlan(state.Sast, plan.Sast) },
 	},
-	"file_system": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.FileSystem },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.FileSystem != nil && boolIsTrue(m.FileSystem.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return controlsBlockToMaps(m.FileSystem)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.FileSystem = buildControlsBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeControlsBlockFromPlan(state.FileSystem, plan.FileSystem)
-		},
-	},
-	"file_system_vulnerabilities": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.FileSystemVulnerabilities },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.FileSystemVulnerabilities != nil && boolIsTrue(m.FileSystemVulnerabilities.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return controlsBlockToMaps(m.FileSystemVulnerabilities)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.FileSystemVulnerabilities = buildControlsBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeControlsBlockFromPlan(state.FileSystemVulnerabilities, plan.FileSystemVulnerabilities)
-		},
-	},
-	"file_system_secret_detection": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.FileSystemSecretDetection },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.FileSystemSecretDetection != nil && boolIsTrue(m.FileSystemSecretDetection.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return controlsBlockToMaps(m.FileSystemSecretDetection)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.FileSystemSecretDetection = buildControlsBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeControlsBlockFromPlan(state.FileSystemSecretDetection, plan.FileSystemSecretDetection)
-		},
-	},
+	"file_system_vulnerabilities": fsScopedHandler("vulnerabilities",
+		func(m *shiftLeftPolicyResourceModel) *controlsBlockModel { return m.FileSystemVulnerabilities },
+		func(m *shiftLeftPolicyResourceModel, b *controlsBlockModel) { m.FileSystemVulnerabilities = b },
+	),
+	"file_system_secret_detection": fsScopedHandler("secret_detection",
+		func(m *shiftLeftPolicyResourceModel) *controlsBlockModel { return m.FileSystemSecretDetection },
+		func(m *shiftLeftPolicyResourceModel, b *controlsBlockModel) { m.FileSystemSecretDetection = b },
+	),
 	"container_image": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.ContainerImage },
+		catalogType: "container_image",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.ContainerImage },
 		allControlsScopes: func(m *shiftLeftPolicyResourceModel) []string {
 			return containerAllControlsScopes(m.ContainerImage)
 		},
@@ -146,8 +156,25 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 	},
 	"scm_posture": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.ScmPosture },
+		catalogType: "scm_posture",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.ScmPosture },
 		buildWrite: func(m *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
+			// Built-in scm_posture policies are org-global: the API requires
+			// them to have no scope (only controls/disabled are updatable), so
+			// scope is omitted from the write instead of being required.
+			if m.Builtin.ValueBool() {
+				var diags diag.Diagnostics
+				if len(m.ScmPosture.Scope) > 0 {
+					diags.AddError(
+						"Invalid scope for built-in policy",
+						"Built-in scm_posture policies are global and cannot have a scope.",
+					)
+					return nil, diags
+				}
+				scmControls := scmControlsToMaps(m.ScmPosture.Controls)
+				policyData["controls"] = scmControls
+				return scmControls, diags
+			}
 			scopeRaw, scmControls, diags := buildScmScope(m.ScmPosture)
 			if diags.HasError() {
 				return nil, diags
@@ -164,7 +191,8 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 	},
 	"licenses": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.Licenses },
+		catalogType: "licenses",
+		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Licenses },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Licenses != nil && boolIsTrue(m.Licenses.AllControls)
 		}),
@@ -178,23 +206,9 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 			mergeLicensesBlockFromPlan(state.Licenses, plan.Licenses)
 		},
 	},
-	"sca": {
-		block: func(m *shiftLeftPolicyResourceModel) any { return m.Sca },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.Sca != nil && boolIsTrue(m.Sca.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return licenseControlsToMaps(m.Sca.Controls)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.Sca = buildLicensesBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
-		},
-	},
 	// malicious_packages has no controls, no type block, and no catalog
-	// endpoint; policy_data is always {} and reads populate nothing.
+	// endpoint (catalogType ""); policy_data is always {} and reads populate
+	// nothing.
 	"malicious_packages": {
 		buildWrite: func(*shiftLeftPolicyResourceModel, *api_client.ShiftLeftPolicy, map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
 			return nil, nil

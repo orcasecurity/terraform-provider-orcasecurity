@@ -1,0 +1,23 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

@@ -10,7 +10,7 @@ import (
 
 func TestAccountsToListValue(t *testing.T) {
 	accs := []api_client.AzureDevopsAccount{
-		{ID: "a-1", InstallationID: "i-1", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"},
+		{ID: "a-1", InstallationID: "i-1", AccountName: "acme", ScmUnitCommonFields: api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}},
 		{ID: "a-2", InstallationID: "i-1", AccountName: "beta"},
 	}
 	list, diags := accountsToListValue(accs)

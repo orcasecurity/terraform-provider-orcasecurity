@@ -9,11 +9,10 @@ import (
 
 func apiToState(inst *api_client.GithubInstallation) resourceModel {
 	return resourceModel{
-		ID:             types.StringValue(inst.ID),
-		InstallationID: types.StringValue(inst.ID),
-		ScmConfigFields: shift_left_integration.ScmConfigFieldsFromAPI(
-			inst.AccountName, inst.IntegrationStatus, inst.InstallationMode,
-			inst.DefaultPolicies, inst.Policies, inst.Project, inst.ConfigSettings,
-		),
+		ID:                   types.StringValue(inst.ID),
+		InstallationID:       types.StringValue(inst.ID),
+		GithubInstallationID: types.Int64Value(inst.GithubInstallationID),
+		GithubAppSettingsURL: shift_left_integration.OptionalID(inst.GithubAppSettingsURL),
+		ScmConfigFields:      shift_left_integration.ScmConfigFieldsFromAPI(inst.AccountName, inst.ScmUnitCommonFields),
 	}
 }

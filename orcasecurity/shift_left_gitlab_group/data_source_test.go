@@ -10,7 +10,7 @@ import (
 
 func TestGroupsToListValue(t *testing.T) {
 	grps := []api_client.GitlabGroup{
-		{ID: "g-1", InstallationID: "i-1", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"},
+		{ID: "g-1", InstallationID: "i-1", AccountName: "acme", ScmUnitCommonFields: api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}},
 		{ID: "g-2", InstallationID: "i-1", AccountName: "beta"},
 	}
 	list, diags := groupsToListValue(grps)

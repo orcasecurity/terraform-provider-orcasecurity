@@ -1,7 +1,6 @@
 package shift_left_policy_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -137,6 +136,58 @@ resource "orcasecurity_shift_left_policy" "container" {
 	})
 }
 
+// TestAccShiftLeftPolicyResource_FileSystemVulnerabilities exercises the
+// scoped policy_data write shape the file_system_* types require, including
+// all-controls expansion from the shared "file_system" catalog (these types
+// have no catalog routes of their own).
+func TestAccShiftLeftPolicyResource_FileSystemVulnerabilities(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_shift_left_policy" "fsv" {
+  type                       = "file_system_vulnerabilities"
+  name                       = "tf-fsv-policy"
+  description                = "Terraform managed source-code vulnerabilities policy"
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
+
+  file_system_vulnerabilities {
+    all_controls = true
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.fsv", "type", "file_system_vulnerabilities"),
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.fsv", "name", "tf-fsv-policy"),
+					resource.TestCheckResourceAttrSet("orcasecurity_shift_left_policy.fsv", "id"),
+				),
+			},
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_shift_left_policy" "fsv" {
+  type                       = "file_system_vulnerabilities"
+  name                       = "tf-fsv-policy"
+  description                = "Terraform managed source-code vulnerabilities policy"
+  disabled                   = false
+  warn_mode                  = true
+  priority_failure_threshold = "HIGH"
+
+  file_system_vulnerabilities {
+    all_controls = true
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.fsv", "warn_mode", "true"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccShiftLeftPolicyResource_ScmPosture(t *testing.T) {
 	installationID := os.Getenv("ORCASECURITY_ACC_SCM_INSTALLATION_ID")
 	if installationID == "" {
@@ -178,6 +229,51 @@ resource "orcasecurity_shift_left_policy" "scm" {
 	})
 }
 
+// builtinProjectsBaseline reads a built-in policy, captures its currently
+// attached project ids as a restorable baseline (restored via t.Cleanup), and
+// skips the test when the scratch project is already attached -- the tests
+// assert an exact "+1" attachment count, which is impossible to satisfy (and
+// unsafe to force by detaching) if the project is already on the policy.
+func builtinProjectsBaseline(t *testing.T, policyType, policyID, scratchProjectID string) (*api_client.ShiftLeftPolicy, []string) {
+	t.Helper()
+
+	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
+	token := os.Getenv("ORCASECURITY_API_TOKEN")
+	client, err := api_client.NewAPIClient(&endpoint, &token)
+	if err != nil {
+		t.Fatalf("failed to build a setup API client: %s", err)
+	}
+
+	original, err := client.GetShiftLeftPolicy(policyType, policyID)
+	if err != nil || original == nil {
+		t.Fatalf("failed to read built-in policy %s/%s before test: %v", policyType, policyID, err)
+	}
+
+	originalProjectIDs := append([]string{}, original.ProjectsIds...)
+	for _, id := range originalProjectIDs {
+		if id == scratchProjectID {
+			t.Skipf("scratch project %s is already attached to built-in policy %s/%s; pick an unattached project via ORCA_TEST_PROJECT_ID", scratchProjectID, policyType, policyID)
+		}
+	}
+
+	t.Cleanup(func() {
+		restore := *original
+		restore.ProjectsIds = originalProjectIDs
+		if _, err := client.UpdateShiftLeftPolicy(policyType, policyID, restore); err != nil {
+			t.Errorf("failed to restore built-in policy %s/%s project attachments after test: %s", policyType, policyID, err)
+		}
+	})
+	return original, originalProjectIDs
+}
+
+func quoteAll(ids []string) string {
+	quoted := make([]string, len(ids))
+	for i, id := range ids {
+		quoted[i] = fmt.Sprintf("%q", id)
+	}
+	return strings.Join(quoted, ", ")
+}
+
 func importPolicyID(resourceName string) resource.ImportStateIdFunc {
 	return func(s *terraform.State) (string, error) {
 		rs, ok := s.RootModule().Resources[resourceName]
@@ -212,58 +308,11 @@ func TestAccShiftLeftPolicyResource_BuiltinAttachProjects(t *testing.T) {
 	if builtinType == "" || builtinID == "" || projectID == "" {
 		t.Skip("Set ORCA_TEST_BUILTIN_POLICY_TYPE, ORCA_TEST_BUILTIN_POLICY_ID and ORCA_TEST_PROJECT_ID to run the built-in projects-attach acceptance test")
 	}
-	if builtinType != "licenses" && builtinType != "sca" {
-		t.Skipf("this test only knows how to render the type-specific block for licenses/sca built-ins, got %q", builtinType)
+	if builtinType != "licenses" {
+		t.Skipf("this test only knows how to render the type-specific block for licenses built-ins, got %q", builtinType)
 	}
 
-	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
-	token := os.Getenv("ORCASECURITY_API_TOKEN")
-	client, err := api_client.NewAPIClient(&endpoint, &token)
-	if err != nil {
-		t.Fatalf("failed to build a setup API client: %s", err)
-	}
-
-	original, err := client.GetShiftLeftPolicy(builtinType, builtinID)
-	if err != nil || original == nil {
-		t.Fatalf("failed to read built-in policy %s/%s before test: %v", builtinType, builtinID, err)
-	}
-
-	// GetShiftLeftPolicy's ProjectsIds field never populates from the read API
-	// shape (GET returns nested "projects": [{id,name,key}] objects, while the
-	// write side accepts "projects_ids": [ids]), so read the currently attached
-	// project ids directly from the raw body to capture a restorable baseline.
-	rawResp, err := client.Get(fmt.Sprintf("/api/shiftleft/%s/policies/%s/", builtinType, builtinID))
-	if err != nil {
-		t.Fatalf("failed to read raw built-in policy body: %s", err)
-	}
-	var raw struct {
-		Projects []struct {
-			ID string `json:"id"`
-		} `json:"projects"`
-	}
-	if err := json.Unmarshal(rawResp.Body(), &raw); err != nil {
-		t.Fatalf("failed to parse raw built-in policy body: %s", err)
-	}
-	originalProjectIDs := make([]string, 0, len(raw.Projects))
-	for _, p := range raw.Projects {
-		originalProjectIDs = append(originalProjectIDs, p.ID)
-	}
-
-	t.Cleanup(func() {
-		restore := *original
-		restore.ProjectsIds = originalProjectIDs
-		if _, err := client.UpdateShiftLeftPolicy(builtinType, builtinID, restore); err != nil {
-			t.Errorf("failed to restore built-in policy %s/%s project attachments after test: %s", builtinType, builtinID, err)
-		}
-	})
-
-	quoteAll := func(ids []string) string {
-		quoted := make([]string, len(ids))
-		for i, id := range ids {
-			quoted[i] = fmt.Sprintf("%q", id)
-		}
-		return strings.Join(quoted, ", ")
-	}
+	original, originalProjectIDs := builtinProjectsBaseline(t, builtinType, builtinID, projectID)
 
 	baseConfig := fmt.Sprintf(`
 resource "orcasecurity_shift_left_policy" "builtin" {
@@ -342,54 +391,7 @@ func TestAccShiftLeftPolicy_MaliciousPackages(t *testing.T) {
 		t.Skip("Set ORCA_TEST_PROJECT_ID to run the malicious_packages acceptance test")
 	}
 
-	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
-	token := os.Getenv("ORCASECURITY_API_TOKEN")
-	client, err := api_client.NewAPIClient(&endpoint, &token)
-	if err != nil {
-		t.Fatalf("failed to build a setup API client: %s", err)
-	}
-
-	original, err := client.GetShiftLeftPolicy("malicious_packages", builtinID)
-	if err != nil || original == nil {
-		t.Fatalf("failed to read built-in malicious_packages policy %s before test: %v", builtinID, err)
-	}
-
-	// GetShiftLeftPolicy's ProjectsIds field never populates from the read API
-	// shape (GET returns nested "projects": [{id,name,key}] objects, while the
-	// write side accepts "projects_ids": [ids]), so read the currently attached
-	// project ids directly from the raw body to capture a restorable baseline.
-	rawResp, err := client.Get(fmt.Sprintf("/api/shiftleft/malicious_packages/policies/%s/", builtinID))
-	if err != nil {
-		t.Fatalf("failed to read raw built-in policy body: %s", err)
-	}
-	var raw struct {
-		Projects []struct {
-			ID string `json:"id"`
-		} `json:"projects"`
-	}
-	if err := json.Unmarshal(rawResp.Body(), &raw); err != nil {
-		t.Fatalf("failed to parse raw built-in policy body: %s", err)
-	}
-	originalProjectIDs := make([]string, 0, len(raw.Projects))
-	for _, p := range raw.Projects {
-		originalProjectIDs = append(originalProjectIDs, p.ID)
-	}
-
-	t.Cleanup(func() {
-		restore := *original
-		restore.ProjectsIds = originalProjectIDs
-		if _, err := client.UpdateShiftLeftPolicy("malicious_packages", builtinID, restore); err != nil {
-			t.Errorf("failed to restore built-in malicious_packages policy %s project attachments after test: %s", builtinID, err)
-		}
-	})
-
-	quoteAll := func(ids []string) string {
-		quoted := make([]string, len(ids))
-		for i, id := range ids {
-			quoted[i] = fmt.Sprintf("%q", id)
-		}
-		return strings.Join(quoted, ", ")
-	}
+	original, originalProjectIDs := builtinProjectsBaseline(t, "malicious_packages", builtinID, projectID)
 
 	baseConfig := fmt.Sprintf(`
 resource "orcasecurity_shift_left_policy" "malicious_packages" {

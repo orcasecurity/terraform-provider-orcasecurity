@@ -67,11 +67,16 @@ func (client *APIClient) DoesShiftLeftProjectExist(id string) (bool, error) {
 	return resp.StatusCode() == 200, nil
 }
 
+// Project writes invalidate the SCM list cache: ListShiftLeftProjects pages
+// through the cached list helper, so a create/update/delete in the same apply
+// must not serve stale project pages to later reads.
+
 func (client *APIClient) CreateShiftLeftProject(shift_left_project ShiftLeftProject) (*ShiftLeftProject, error) {
 	resp, err := client.Post("/api/shiftleft/projects/", shift_left_project)
 	if err != nil {
 		return nil, err
 	}
+	client.invalidateScmListCache()
 
 	response := ShiftLeftProject{}
 	err = resp.ReadJSON(&response)
@@ -86,6 +91,7 @@ func (client *APIClient) UpdateShiftLeftProject(ID string, data ShiftLeftProject
 	if err != nil {
 		return nil, err
 	}
+	client.invalidateScmListCache()
 
 	response := ShiftLeftProject{}
 	err = json.Unmarshal(resp.Body(), &response)
@@ -97,5 +103,8 @@ func (client *APIClient) UpdateShiftLeftProject(ID string, data ShiftLeftProject
 
 func (client *APIClient) DeleteShiftLeftProject(ID string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/projects/%s/", ID))
+	if err == nil {
+		client.invalidateScmListCache()
+	}
 	return err
 }

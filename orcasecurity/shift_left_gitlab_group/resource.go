@@ -107,18 +107,23 @@ func (r *gitlabGroupResource) Delete(ctx context.Context, _ resource.DeleteReque
 func (r *gitlabGroupResource) adopt(
 	diags *diag.Diagnostics, installationID, groupID string, plan, config resourceModel, notFoundMsg, writeTitle string,
 ) *api_client.GitlabGroup {
-	return shift_left_integration.AdoptWrite(
-		diags, gitlabLabels, notFoundMsg, writeTitle,
-		func() (*api_client.GitlabGroup, error) {
+	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.GitlabGroup]{
+		Get: func() (*api_client.GitlabGroup, error) {
 			return r.apiClient.GetGitlabGroup(installationID, groupID)
 		},
-		func(body api_client.ScmInstallationUpdate) (*api_client.GitlabGroup, error) {
+		Update: func(body api_client.ScmInstallationUpdate) (*api_client.GitlabGroup, error) {
 			return r.apiClient.UpdateGitlabGroup(installationID, groupID, body)
 		},
-		func(u *api_client.GitlabGroup) shift_left_integration.ExistingUnit {
+		Snapshot: func(u *api_client.GitlabGroup) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
 		},
-		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings,
-		shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-	)
+		PlanMode:        plan.InstallationMode,
+		PlanDefault:     plan.DefaultPolicies,
+		PlanPolicies:    plan.PoliciesIds,
+		PlanConfig:      plan.ConfigSettings,
+		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
+		Labels:          gitlabLabels,
+		NotFoundMsg:     notFoundMsg,
+		WriteErrorTitle: writeTitle,
+	})
 }

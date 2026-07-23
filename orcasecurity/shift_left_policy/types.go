@@ -4,16 +4,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// policyTypes are the policy types the API exposes typed CRUD routes for.
+// The legacy "file_system" and "sca" types are deliberately absent: the API
+// has no /sca/policies/ router at all, and POST /file_system/policies/
+// returns 405 (the type was superseded by file_system_vulnerabilities and
+// file_system_secret_detection), both confirmed live.
 var policyTypes = []string{
 	"iac",
 	"sast",
-	"file_system",
 	"file_system_vulnerabilities",
 	"file_system_secret_detection",
 	"container_image",
 	"scm_posture",
 	"licenses",
-	"sca",
 	"malicious_packages",
 }
 
@@ -133,11 +136,9 @@ type shiftLeftPolicyResourceModel struct {
 
 	Iac                       *iacBlockModel            `tfsdk:"iac"`
 	Sast                      *sastBlockModel           `tfsdk:"sast"`
-	FileSystem                *controlsBlockModel       `tfsdk:"file_system"`
 	FileSystemVulnerabilities *controlsBlockModel       `tfsdk:"file_system_vulnerabilities"`
 	FileSystemSecretDetection *controlsBlockModel       `tfsdk:"file_system_secret_detection"`
 	ContainerImage            *containerImageBlockModel `tfsdk:"container_image"`
 	ScmPosture                *scmPostureBlockModel     `tfsdk:"scm_posture"`
 	Licenses                  *licensesBlockModel       `tfsdk:"licenses"`
-	Sca                       *licensesBlockModel       `tfsdk:"sca"`
 }

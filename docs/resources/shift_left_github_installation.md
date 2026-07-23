@@ -54,8 +54,13 @@ resource "orcasecurity_shift_left_github_installation" "project_bound" {
 ### Read-Only
 
 - `account_name` (String) GitHub account/organization name.
+- `github_app_settings_url` (String) URL of the Orca GitHub App settings page on GitHub (null when the API omits it).
+- `github_installation_id` (Number) GitHub-side numeric installation ID of the Orca GitHub App.
 - `id` (String) Installation UUID (mirrors installation_id).
+- `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
+- `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
+- `scm_posture_policy_id` (String) Read-only ID of the SCM posture policy attached to this unit (null when none).
 
 <a id="nestedatt--configuration_settings"></a>
 ### Nested Schema for `configuration_settings`

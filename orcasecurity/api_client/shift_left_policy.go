@@ -39,21 +39,18 @@ type ShiftLeftPolicyCatalogControls struct {
 	Body json.RawMessage
 }
 
-// ShiftLeftPolicyTypePath returns the API path segment for a policy type.
-func ShiftLeftPolicyTypePath(policyType string) string {
-	return policyType
-}
-
 func shiftLeftPolicyBasePath(policyType string) string {
-	return fmt.Sprintf("/api/shiftleft/%s/policies/", ShiftLeftPolicyTypePath(policyType))
+	return fmt.Sprintf("/api/shiftleft/%s/policies/", policyType)
 }
 
 func shiftLeftPolicyItemPath(policyType, id string) string {
-	return fmt.Sprintf("/api/shiftleft/%s/policies/%s/", ShiftLeftPolicyTypePath(policyType), id)
+	return fmt.Sprintf("/api/shiftleft/%s/policies/%s/", policyType, id)
 }
 
+// shiftLeftPolicyCatalogPath keeps the trailing slash: the API 301-redirects
+// the slashless form, costing an extra round trip per catalog call.
 func shiftLeftPolicyCatalogPath(policyType string) string {
-	return fmt.Sprintf("/api/shiftleft/%s/catalog/controls", ShiftLeftPolicyTypePath(policyType))
+	return fmt.Sprintf("/api/shiftleft/%s/catalog/controls/", policyType)
 }
 
 // populateProjectsIds fills ProjectsIds from the read-only `projects` array

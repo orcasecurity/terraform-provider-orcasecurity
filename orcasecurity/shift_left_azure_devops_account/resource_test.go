@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -22,7 +23,7 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 	// units are not TF-owned (Delete is a no-op), so without this the applied
 	// config would leak into the lab environment.
 	orcasecurity.TestAccPreCheck(t)
-	client := orcasecurity.TestAPIClient(t)
+	client := acctest.APIClient(t)
 	original, err := client.GetAzureDevopsAccount(installationID, accountID)
 	if err != nil {
 		t.Fatalf("failed to snapshot azure devops account %s/%s: %s", installationID, accountID, err)
@@ -31,7 +32,7 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 		t.Skipf("azure devops account %s/%s not found; cannot run adopt test", installationID, accountID)
 	}
 	t.Cleanup(func() {
-		if _, err := client.UpdateAzureDevopsAccount(installationID, accountID, orcasecurity.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
+		if _, err := client.UpdateAzureDevopsAccount(installationID, accountID, acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
 			t.Errorf("failed to restore azure devops account %s/%s to its original config: %s", installationID, accountID, err)
 		}
 	})

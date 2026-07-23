@@ -18,15 +18,17 @@ type fakeUnit struct {
 }
 
 func TestWriteAdopted_NotFound(t *testing.T) {
-	_, err := WriteAdopted(
-		func() (*fakeUnit, error) { return nil, nil },
-		func(api_client.ScmInstallationUpdate) (*fakeUnit, error) {
+	_, err := WriteAdopted(AdoptWriteRequest[fakeUnit]{
+		Get: func() (*fakeUnit, error) { return nil, nil },
+		Update: func(api_client.ScmInstallationUpdate) (*fakeUnit, error) {
 			t.Fatal("update should not be called")
 			return nil, nil
 		},
-		func(*fakeUnit) ExistingUnit { return ExistingUnit{} },
-		types.StringNull(), types.BoolNull(), types.SetNull(types.StringType), nil, ProjectIntent{},
-	)
+		Snapshot:     func(*fakeUnit) ExistingUnit { return ExistingUnit{} },
+		PlanMode:     types.StringNull(),
+		PlanDefault:  types.BoolNull(),
+		PlanPolicies: types.SetNull(types.StringType),
+	})
 	if !errors.Is(err, ErrUnitNotFound) {
 		t.Fatalf("expected ErrUnitNotFound, got %v", err)
 	}
@@ -34,27 +36,26 @@ func TestWriteAdopted_NotFound(t *testing.T) {
 
 func TestWriteAdopted_AdoptsAndUpdates(t *testing.T) {
 	var gotBody api_client.ScmInstallationUpdate
-	out, err := WriteAdopted(
-		func() (*fakeUnit, error) {
+	out, err := WriteAdopted(AdoptWriteRequest[fakeUnit]{
+		Get: func() (*fakeUnit, error) {
 			return &fakeUnit{
 				Mode:     "SCAN_ALL_INCLUDE_FUTURE",
 				Policies: []api_client.ScmPolicyRef{{ID: "pol-1"}},
 				Cfg:      api_client.ShiftLeftConfigSettings{PrSummaryComment: "ALWAYS"},
 			}, nil
 		},
-		func(body api_client.ScmInstallationUpdate) (*fakeUnit, error) {
+		Update: func(body api_client.ScmInstallationUpdate) (*fakeUnit, error) {
 			gotBody = body
 			return &fakeUnit{Mode: body.InstallationMode}, nil
 		},
-		func(u *fakeUnit) ExistingUnit {
+		Snapshot: func(u *fakeUnit) ExistingUnit {
 			return ExistingFromAPI(u.Mode, false, u.Policies, u.Project, u.Cfg)
 		},
-		types.StringNull(),
-		types.BoolValue(false),
-		types.SetNull(types.StringType),
-		&ConfigSettingsModel{PrSummaryComment: types.StringValue("NEVER")},
-		ProjectIntent{},
-	)
+		PlanMode:     types.StringNull(),
+		PlanDefault:  types.BoolValue(false),
+		PlanPolicies: types.SetNull(types.StringType),
+		PlanConfig:   &ConfigSettingsModel{PrSummaryComment: types.StringValue("NEVER")},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

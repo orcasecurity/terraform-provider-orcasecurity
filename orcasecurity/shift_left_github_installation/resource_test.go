@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -20,7 +21,7 @@ func TestAccGithubInstallation_import(t *testing.T) {
 	// units are not TF-owned (Delete is a no-op), so without this the applied
 	// config would leak into the lab environment.
 	orcasecurity.TestAccPreCheck(t)
-	client := orcasecurity.TestAPIClient(t)
+	client := acctest.APIClient(t)
 	original, err := client.GetGithubInstallation(id)
 	if err != nil {
 		t.Fatalf("failed to snapshot github installation %s: %s", id, err)
@@ -29,7 +30,7 @@ func TestAccGithubInstallation_import(t *testing.T) {
 		t.Skipf("github installation %s not found; cannot run adopt test", id)
 	}
 	t.Cleanup(func() {
-		if _, err := client.UpdateGithubInstallation(id, orcasecurity.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
+		if _, err := client.UpdateGithubInstallation(id, acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
 			t.Errorf("failed to restore github installation %s to its original config: %s", id, err)
 		}
 	})

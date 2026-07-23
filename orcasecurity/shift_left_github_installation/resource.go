@@ -103,16 +103,21 @@ func (r *githubInstallationResource) Delete(ctx context.Context, _ resource.Dele
 func (r *githubInstallationResource) adopt(
 	diags *diag.Diagnostics, id string, plan, config resourceModel, notFoundMsg, writeTitle string,
 ) *api_client.GithubInstallation {
-	return shift_left_integration.AdoptWrite(
-		diags, githubLabels, notFoundMsg, writeTitle,
-		func() (*api_client.GithubInstallation, error) { return r.apiClient.GetGithubInstallation(id) },
-		func(body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
+	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.GithubInstallation]{
+		Get: func() (*api_client.GithubInstallation, error) { return r.apiClient.GetGithubInstallation(id) },
+		Update: func(body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
 			return r.apiClient.UpdateGithubInstallation(id, body)
 		},
-		func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
+		Snapshot: func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
 		},
-		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings,
-		shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-	)
+		PlanMode:        plan.InstallationMode,
+		PlanDefault:     plan.DefaultPolicies,
+		PlanPolicies:    plan.PoliciesIds,
+		PlanConfig:      plan.ConfigSettings,
+		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
+		Labels:          githubLabels,
+		NotFoundMsg:     notFoundMsg,
+		WriteErrorTitle: writeTitle,
+	})
 }

@@ -1,6 +1,7 @@
 package shift_left_policy
 
 import (
+	"encoding/json"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -379,17 +380,21 @@ func TestPlanToAPI_Licenses(t *testing.T) {
 	}
 }
 
-func TestPlanToAPI_FileSystem(t *testing.T) {
+// TestPlanToAPI_FileSystemVulnerabilities_ScopedShape pins the API contract
+// for the file_system_* types: flat policy_data.controls is rejected (400);
+// the write must be {"feature_scope": [scope], scope: {"controls": [...]}}
+// (confirmed live against /file_system_vulnerabilities/policies/).
+func TestPlanToAPI_FileSystemVulnerabilities_ScopedShape(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{
-		Type:                     types.StringValue("file_system"),
-		Name:                     types.StringValue("fs policy"),
+		Type:                     types.StringValue("file_system_vulnerabilities"),
+		Name:                     types.StringValue("fsv policy"),
 		Disabled:                 types.BoolValue(false),
 		WarnMode:                 types.BoolValue(false),
 		PriorityFailureThreshold: types.StringValue("HIGH"),
-		FileSystem: &controlsBlockModel{
+		FileSystemVulnerabilities: &controlsBlockModel{
 			Controls: []baseControlModel{
 				{
-					ID:       types.StringValue("fs-1"),
+					ID:       types.StringValue("fsv-1"),
 					Priority: types.StringValue("HIGH"),
 					Disabled: types.BoolValue(false),
 				},
@@ -401,8 +406,52 @@ func TestPlanToAPI_FileSystem(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	if len(policy.Controls) == 0 {
-		t.Error("expected controls to be set for file_system")
+
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	scopes, ok := pd["feature_scope"].([]interface{})
+	if !ok || len(scopes) != 1 || scopes[0] != "vulnerabilities" {
+		t.Fatalf("expected feature_scope [vulnerabilities], got %v", pd["feature_scope"])
+	}
+	scoped, ok := pd["vulnerabilities"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected scoped vulnerabilities section, got %v", pd)
+	}
+	controls, ok := scoped["controls"].([]interface{})
+	if !ok || len(controls) != 1 {
+		t.Fatalf("expected one scoped control, got %v", scoped)
+	}
+	if _, flat := pd["controls"]; flat {
+		t.Error("flat policy_data.controls must not be sent (API rejects it)")
+	}
+}
+
+func TestPlanToAPI_FileSystemSecretDetection_ScopedShape(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("file_system_secret_detection"),
+		Name:                     types.StringValue("fssd policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		FileSystemSecretDetection: &controlsBlockModel{
+			Controls: []baseControlModel{
+				{ID: types.StringValue("sd-1"), Priority: types.StringValue("LOW"), Disabled: types.BoolValue(true)},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	if _, ok := pd["secret_detection"].(map[string]interface{}); !ok {
+		t.Fatalf("expected scoped secret_detection section, got %v", pd)
 	}
 }
 
@@ -484,19 +533,22 @@ func TestAPIToState_Licenses(t *testing.T) {
 	}
 }
 
-func TestAPIToState_FileSystem(t *testing.T) {
+// TestAPIToState_FileSystemVulnerabilities_ScopedRead pins the read side of
+// the scoped shape: live GET responses nest controls under
+// policy_data.vulnerabilities.controls with no top-level controls array.
+func TestAPIToState_FileSystemVulnerabilities_ScopedRead(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
-		ID:       "policy-1",
-		Type:     "file_system",
-		Controls: []byte(`[{"id":"fs-1","priority":"HIGH","disabled":false}]`),
+		ID:         "policy-1",
+		Type:       "file_system_vulnerabilities",
+		PolicyData: []byte(`{"feature_scope":["vulnerabilities"],"vulnerabilities":{"controls":[{"id":"fsv-1","priority":"HIGH","disabled":false}]}}`),
 	}
 
 	state := apiToState(apiPolicy, nil)
-	if state.FileSystem == nil || len(state.FileSystem.Controls) != 1 {
-		t.Fatalf("expected one file_system control, got %+v", state.FileSystem)
+	if state.FileSystemVulnerabilities == nil || len(state.FileSystemVulnerabilities.Controls) != 1 {
+		t.Fatalf("expected one file_system_vulnerabilities control, got %+v", state.FileSystemVulnerabilities)
 	}
-	if state.FileSystem.Controls[0].ID.ValueString() != "fs-1" {
-		t.Errorf("expected fs-1, got %s", state.FileSystem.Controls[0].ID.ValueString())
+	if state.FileSystemVulnerabilities.Controls[0].ID.ValueString() != "fsv-1" {
+		t.Errorf("expected fsv-1, got %s", state.FileSystemVulnerabilities.Controls[0].ID.ValueString())
 	}
 }
 

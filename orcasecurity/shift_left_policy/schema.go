@@ -283,7 +283,7 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 		},
 		"builtin": schema.BoolAttribute{
 			Computed:    true,
-			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be updated or deleted via Terraform.",
+			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable.",
 			PlanModifiers: []planmodifier.Bool{
 				boolplanmodifier.UseStateForUnknown(),
 			},
@@ -295,12 +295,10 @@ func resourceSchemaBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"iac":                          iacBlock(),
 		"sast":                         sastBlock(),
-		"file_system":                  controlsOnlyBlock(),
 		"file_system_vulnerabilities":  controlsOnlyBlock(),
 		"file_system_secret_detection": controlsOnlyBlock(),
 		"container_image":              containerImageBlock(),
 		"scm_posture":                  scmPostureBlock(),
 		"licenses":                     licensesBlock(),
-		"sca":                          licensesBlock(),
 	}
 }

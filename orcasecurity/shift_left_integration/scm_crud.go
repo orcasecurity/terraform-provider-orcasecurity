@@ -33,25 +33,38 @@ func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
 	return PolicyIDsToSet(api_client.PolicyRefIDs(refs))
 }
 
+// AdoptWriteRequest carries the inputs for the shared adopt-existing
+// Create/Update path (WriteAdopted / AdoptWrite).
+type AdoptWriteRequest[T any] struct {
+	// Get loads the live unit, Update PUTs the adopted body, Snapshot extracts
+	// the adoptable fields from the live unit.
+	Get      func() (*T, error)
+	Update   func(api_client.ScmInstallationUpdate) (*T, error)
+	Snapshot func(*T) ExistingUnit
+
+	// Plan values; unset fields are hydrated from the live unit by Adopt.
+	PlanMode     types.String
+	PlanDefault  types.Bool
+	PlanPolicies types.Set
+	PlanConfig   *ConfigSettingsModel
+	Project      ProjectIntent
+
+	// Error copy used by AdoptWrite's diagnostics.
+	Labels          AdoptLabels
+	NotFoundMsg     string
+	WriteErrorTitle string
+}
+
 // WriteAdopted is the shared Create/Update path for adopt-existing SCM resources:
 // load the live unit, Adopt plan/config over it, PUT, return the refreshed unit.
-func WriteAdopted[T any](
-	get func() (*T, error),
-	update func(api_client.ScmInstallationUpdate) (*T, error),
-	snapshot func(*T) ExistingUnit,
-	planMode types.String,
-	planDefault types.Bool,
-	planPolicies types.Set,
-	planConfig *ConfigSettingsModel,
-	project ProjectIntent,
-) (*T, error) {
-	current, err := get()
+func WriteAdopted[T any](req AdoptWriteRequest[T]) (*T, error) {
+	current, err := req.Get()
 	if err != nil {
 		return nil, err
 	}
 	if current == nil {
 		return nil, ErrUnitNotFound
 	}
-	ad := Adopt(planMode, planDefault, planPolicies, planConfig, project, snapshot(current))
-	return update(ad.Body)
+	ad := Adopt(req.PlanMode, req.PlanDefault, req.PlanPolicies, req.PlanConfig, req.Project, req.Snapshot(current))
+	return req.Update(ad.Body)
 }

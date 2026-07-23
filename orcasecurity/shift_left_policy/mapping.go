@@ -3,6 +3,7 @@ package shift_left_policy
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -198,10 +199,9 @@ func boolValueFromMap(m map[string]interface{}, key string) types.Bool {
 }
 
 func parseImportID(id string) (policyType, policyID string, err error) {
-	for i := 0; i < len(id); i++ {
-		if id[i] == '/' {
-			return id[:i], id[i+1:], nil
-		}
+	policyType, policyID, ok := strings.Cut(id, "/")
+	if !ok || policyType == "" || policyID == "" {
+		return "", "", fmt.Errorf("import ID must be in the format <type>/<id>, got %q", id)
 	}
-	return "", "", fmt.Errorf("import ID must be in the format <type>/<id>, got %q", id)
+	return policyType, policyID, nil
 }

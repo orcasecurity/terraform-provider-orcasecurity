@@ -1,0 +1,23 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **Write-only token:** the API never returns `access_token`. Terraform keeps the configured value in state; on `terraform import` the token is unknown and the next apply re-sends it. Setting `account_name` scopes the token to one organization (`SINGLE_ACCOUNT`); omitting it registers an all-organizations token (`ALL_ACCOUNTS`).
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

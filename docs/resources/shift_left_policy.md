@@ -9,7 +9,7 @@ description: |-
 
 Provides an AppSec (Shift Left) policy resource. Use this resource to create, update, and delete AppSec scan policies in Orca Security, and to import existing ones.
 
-Supported policy `type` values: `iac`, `sast`, `file_system`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `sca`, `malicious_packages`.
+Supported policy `type` values: `iac`, `sast`, `file_system_vulnerabilities`, `file_system_secret_detection`, `container_image`, `scm_posture`, `licenses`, `malicious_packages`.
 
 ## Example Usage
 
@@ -56,7 +56,7 @@ resource "orcasecurity_shift_left_policy" "iac_by_id" {
 
 ### Include all catalog controls for a section
 
-Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system*`, `licenses`, `sca` blocks and on each `container_image` feature-scope block.
+Set `all_controls = true` on a section to automatically include every catalog control for it (no data source, no enumerating IDs). Available on the `iac`, `sast`, `file_system_vulnerabilities`, `file_system_secret_detection`, `licenses` blocks and on each `container_image` feature-scope block.
 
 ```terraform
 resource "orcasecurity_shift_left_policy" "container_all" {
@@ -131,10 +131,10 @@ resource "orcasecurity_shift_left_policy" "attached" {
 ### Attach a fleet of projects to a built-in policy
 
 Built-in Orca policies (for example the built-in "OSS Licenses Policy") cannot be
-created, renamed, or otherwise edited via Terraform, but -- just like in the Orca
-UI -- you can attach projects to one. Import the built-in policy first, then
-apply a configuration that changes only `projects_ids`; every other attribute
-must match the policy's current values exactly or the apply is rejected.
+created or renamed via Terraform, but -- matching what the Orca API allows -- you
+can attach projects, toggle `disabled`/`warn_mode`, change
+`priority_failure_threshold`, edit the description, and override controls on
+one. Import the built-in policy first, then apply your changes.
 
 ```shell
 terraform import orcasecurity_shift_left_policy.licenses_builtin licenses/<policy-id>
@@ -189,7 +189,7 @@ resource "orcasecurity_shift_left_policy" "malicious_packages_builtin" {
 
 - **Update**: change any attribute (for example `name`, `description`, `warn_mode`, `priority_failure_threshold`, `disabled`, `projects_ids`, or the controls) and re-apply.
 - **Delete**: remove the resource from configuration (or run `terraform destroy`) and apply.
-- **Built-in policies**: only `projects_ids` can be changed via Terraform (mirroring what the Orca UI allows); changing any other attribute is rejected, and built-in policies can never be deleted via Terraform.
+- **Built-in policies**: `name` is immutable (as is `feature_scope` on `container_image` built-ins, and `description`/`scope` on `scm_posture` built-ins); everything else -- `description`, `disabled`, `warn_mode`, `priority_failure_threshold`, control overrides, and `projects_ids` -- can be changed, mirroring the Orca API contract. Built-in policies can never be deleted via Terraform.
 
 ## Import
 
@@ -205,7 +205,7 @@ terraform import orcasecurity_shift_left_policy.example iac/<policy-id>
 
 After importing, run `terraform plan` and copy the populated control blocks into your configuration so the plan is empty.
 
-~> **Note:** Built-in Orca policies can only have `projects_ids` changed via Terraform; every other attribute is read-only for built-ins and any other change is rejected. Built-in policies can never be deleted via Terraform. Because built-ins already exist outside of Terraform, always `terraform import` a built-in before changing its `projects_ids` -- Create would otherwise attempt to POST a brand new policy.
+~> **Note:** Built-in Orca policies cannot be renamed or deleted via Terraform (`feature_scope` is also locked on `container_image` built-ins, and `description`/`scope` on `scm_posture` built-ins); other attributes can be changed. Because built-ins already exist outside of Terraform, always `terraform import` a built-in before changing it -- Create would otherwise attempt to POST a brand new policy.
 
 -> **Note:** Custom controls are identified by their `title`. Keep custom control titles unique within a section, and do not reuse a catalog control title for a custom control (a matching title is resolved to the catalog control).
 
@@ -224,19 +224,17 @@ After importing, run `terraform plan` and copy the populated control blocks into
 
 - `container_image` (Block, Optional) (see [below for nested schema](#nestedblock--container_image))
 - `description` (String) Policy description.
-- `file_system` (Block, Optional) (see [below for nested schema](#nestedblock--file_system))
 - `file_system_secret_detection` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_secret_detection))
 - `file_system_vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities))
 - `iac` (Block, Optional) (see [below for nested schema](#nestedblock--iac))
 - `licenses` (Block, Optional) (see [below for nested schema](#nestedblock--licenses))
 - `projects_ids` (Set of String) Project IDs to attach this policy to. Reflects the API on read; omit to leave the current attachment unchanged, or set to `[]` to detach from all projects.
 - `sast` (Block, Optional) (see [below for nested schema](#nestedblock--sast))
-- `sca` (Block, Optional) (see [below for nested schema](#nestedblock--sca))
 - `scm_posture` (Block, Optional) (see [below for nested schema](#nestedblock--scm_posture))
 
 ### Read-Only
 
-- `builtin` (Boolean) Whether this is an Orca built-in policy. Built-in policies cannot be updated or deleted via Terraform.
+- `builtin` (Boolean) Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable.
 - `id` (String) AppSec policy ID.
 
 <a id="nestedblock--container_image"></a>
@@ -403,44 +401,6 @@ Optional:
 - `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
 - `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
-
-
-
-
-<a id="nestedblock--file_system"></a>
-### Nested Schema for `file_system`
-
-Optional:
-
-- `all_controls` (Boolean) When true, include every catalog control for this section automatically (no need to list controls or use a data source).
-- `controls` (Block List) (see [below for nested schema](#nestedblock--file_system--controls))
-
-<a id="nestedblock--file_system--controls"></a>
-### Nested Schema for `file_system.controls`
-
-Required:
-
-- `disabled` (Boolean)
-- `priority` (String)
-
-Optional:
-
-- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--file_system--controls--conditions))
-- `id` (String) Catalog control ID. Omit to define a custom control identified by its title and conditions.
-- `title` (String) Control title. Informational for catalog controls (filled from the Orca catalog); required to identify a custom control when no id is set.
-
-<a id="nestedblock--file_system--controls--conditions"></a>
-### Nested Schema for `file_system.controls.conditions`
-
-Optional:
-
-- `days_from_discovery` (Number)
-- `days_from_fix` (Number)
-- `fix_available` (Boolean)
-- `from_base_image` (Boolean)
-- `has_exploit` (Boolean)
-- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
-- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
 
 
 
@@ -637,51 +597,6 @@ Optional:
 
 <a id="nestedblock--sast--controls--conditions"></a>
 ### Nested Schema for `sast.controls.conditions`
-
-Optional:
-
-- `days_from_discovery` (Number)
-- `days_from_fix` (Number)
-- `fix_available` (Boolean)
-- `from_base_image` (Boolean)
-- `has_exploit` (Boolean)
-- `severities_operator` (String) Severity filter operator (e.g. IN, NOT_IN).
-- `severities_values` (List of String) Severity values for the filter (e.g. CRITICAL, HIGH).
-
-
-
-
-<a id="nestedblock--sca"></a>
-### Nested Schema for `sca`
-
-Optional:
-
-- `all_controls` (Boolean) When true, include every catalog control for this section automatically (no need to list controls or use a data source).
-- `controls` (Block List) (see [below for nested schema](#nestedblock--sca--controls))
-
-<a id="nestedblock--sca--controls"></a>
-### Nested Schema for `sca.controls`
-
-Required:
-
-- `disabled` (Boolean)
-- `priority` (String)
-
-Optional:
-
-- `additional_info` (List of String)
-- `conditions` (Block, Optional) (see [below for nested schema](#nestedblock--sca--controls--conditions))
-- `id` (String) Catalog control ID. Omit to define a custom control identified by its title and conditions.
-- `is_deprecated` (Boolean)
-- `is_fsf_libre` (Boolean)
-- `is_osi_approved` (Boolean)
-- `license_category` (String)
-- `license_id` (String)
-- `title` (String) Control title. Informational for catalog controls (filled from the Orca catalog); required to identify a custom control when no id is set.
-- `url` (String)
-
-<a id="nestedblock--sca--controls--conditions"></a>
-### Nested Schema for `sca.controls.conditions`
 
 Optional:
 

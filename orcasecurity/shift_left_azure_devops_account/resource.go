@@ -107,18 +107,23 @@ func (r *azureDevopsAccountResource) Delete(ctx context.Context, _ resource.Dele
 func (r *azureDevopsAccountResource) adopt(
 	diags *diag.Diagnostics, installationID, accountID string, plan, config resourceModel, notFoundMsg, writeTitle string,
 ) *api_client.AzureDevopsAccount {
-	return shift_left_integration.AdoptWrite(
-		diags, azureLabels, notFoundMsg, writeTitle,
-		func() (*api_client.AzureDevopsAccount, error) {
+	return shift_left_integration.AdoptWrite(diags, shift_left_integration.AdoptWriteRequest[api_client.AzureDevopsAccount]{
+		Get: func() (*api_client.AzureDevopsAccount, error) {
 			return r.apiClient.GetAzureDevopsAccount(installationID, accountID)
 		},
-		func(body api_client.ScmInstallationUpdate) (*api_client.AzureDevopsAccount, error) {
+		Update: func(body api_client.ScmInstallationUpdate) (*api_client.AzureDevopsAccount, error) {
 			return r.apiClient.UpdateAzureDevopsAccount(installationID, accountID, body)
 		},
-		func(u *api_client.AzureDevopsAccount) shift_left_integration.ExistingUnit {
+		Snapshot: func(u *api_client.AzureDevopsAccount) shift_left_integration.ExistingUnit {
 			return shift_left_integration.ExistingFromAPI(u.InstallationMode, u.DefaultPolicies, u.Policies, u.Project, u.ConfigSettings)
 		},
-		plan.InstallationMode, plan.DefaultPolicies, plan.PoliciesIds, plan.ConfigSettings,
-		shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
-	)
+		PlanMode:        plan.InstallationMode,
+		PlanDefault:     plan.DefaultPolicies,
+		PlanPolicies:    plan.PoliciesIds,
+		PlanConfig:      plan.ConfigSettings,
+		Project:         shift_left_integration.ProjectIntentFrom(config.ProjectID, config.PoliciesIds, config.DefaultPolicies),
+		Labels:          azureLabels,
+		NotFoundMsg:     notFoundMsg,
+		WriteErrorTitle: writeTitle,
+	})
 }

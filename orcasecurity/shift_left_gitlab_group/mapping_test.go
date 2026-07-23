@@ -10,8 +10,11 @@ import (
 
 func TestApiToState_MirrorsGroupID(t *testing.T) {
 	inst := &api_client.GitlabGroup{
-		ID: "abc", InstallationID: "inst-1", AccountName: "acme", InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
-		Policies: []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		ID: "abc", InstallationID: "inst-1", AccountName: "acme",
+		ScmUnitCommonFields: api_client.ScmUnitCommonFields{
+			InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
+			Policies:         []api_client.ScmPolicyRef{{ID: "pol-1"}},
+		},
 	}
 	st := apiToState(inst)
 	if st.ID.ValueString() != "abc" || st.GroupID.ValueString() != "abc" {

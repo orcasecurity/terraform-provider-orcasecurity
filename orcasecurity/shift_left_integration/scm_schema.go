@@ -70,5 +70,17 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			Attributes:    ConfigSettingsAttributes(),
 			PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 		},
+		"scan_all_state": rschema.StringAttribute{
+			Computed:    true,
+			Description: "Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).",
+		},
+		"integrated_repositories_count": rschema.Int64Attribute{
+			Computed:    true,
+			Description: "Read-only count of repositories integrated under this unit.",
+		},
+		"scm_posture_policy_id": rschema.StringAttribute{
+			Computed:    true,
+			Description: "Read-only ID of the SCM posture policy attached to this unit (null when none).",
+		},
 	}
 }

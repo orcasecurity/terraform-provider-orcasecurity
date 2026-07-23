@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -61,31 +60,18 @@ func ImportSlashPair(ctx context.Context, req resource.ImportStateRequest, resp 
 
 // AdoptWrite runs WriteAdopted and maps errors into diagnostics. Returns nil
 // when diagnostics were added.
-func AdoptWrite[T any](
-	diags *diag.Diagnostics,
-	labels AdoptLabels,
-	notFoundMsg string,
-	writeErrorTitle string,
-	get func() (*T, error),
-	update func(api_client.ScmInstallationUpdate) (*T, error),
-	snapshot func(*T) ExistingUnit,
-	planMode types.String,
-	planDefault types.Bool,
-	planPolicies types.Set,
-	planConfig *ConfigSettingsModel,
-	project ProjectIntent,
-) *T {
-	unit, err := WriteAdopted(get, update, snapshot, planMode, planDefault, planPolicies, planConfig, project)
+func AdoptWrite[T any](diags *diag.Diagnostics, req AdoptWriteRequest[T]) *T {
+	unit, err := WriteAdopted(req)
 	if errors.Is(err, ErrUnitNotFound) {
-		diags.AddError(labels.NotFoundTitle, notFoundMsg)
+		diags.AddError(req.Labels.NotFoundTitle, req.NotFoundMsg)
 		return nil
 	}
 	if err != nil {
-		diags.AddError(writeErrorTitle, err.Error())
+		diags.AddError(req.WriteErrorTitle, err.Error())
 		return nil
 	}
 	if unit == nil {
-		diags.AddError(labels.NilReadTitle, labels.NilReadDetail)
+		diags.AddError(req.Labels.NilReadTitle, req.Labels.NilReadDetail)
 		return nil
 	}
 	return unit

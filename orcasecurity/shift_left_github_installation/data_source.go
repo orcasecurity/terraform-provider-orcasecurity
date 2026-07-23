@@ -43,6 +43,8 @@ func installationAttrTypes() map[string]attr.Type {
 	attrs := shift_left_integration.SharedScmListUnitAttrTypes()
 	attrs["id"] = types.StringType
 	attrs["installation_id"] = types.StringType
+	attrs["github_installation_id"] = types.Int64Type
+	attrs["github_app_settings_url"] = types.StringType
 	return attrs
 }
 
@@ -50,6 +52,8 @@ func (ds *installationsDataSource) Schema(_ context.Context, _ datasource.Schema
 	nested := shift_left_integration.SharedScmListUnitAttrs()
 	nested["id"] = dschema.StringAttribute{Computed: true}
 	nested["installation_id"] = dschema.StringAttribute{Computed: true}
+	nested["github_installation_id"] = dschema.Int64Attribute{Computed: true}
+	nested["github_app_settings_url"] = dschema.StringAttribute{Computed: true}
 	resp.Schema = dschema.Schema{
 		Description: "Lists all Orca GitHub shift-left installations for fleet-wide for_each.",
 		Attributes: map[string]dschema.Attribute{
@@ -67,9 +71,11 @@ func installationsToListValue(insts []api_client.GithubInstallation) (types.List
 	attrTypes := installationAttrTypes()
 	elems := make([]map[string]attr.Value, len(insts))
 	for i, in := range insts {
-		m := shift_left_integration.SharedScmListUnitValues(in.AccountName, in.InstallationMode, in.IntegrationStatus, in.DefaultPolicies)
+		m := shift_left_integration.SharedScmListUnitValues(in.AccountName, in.ScmUnitCommonFields)
 		m["id"] = types.StringValue(in.ID)
 		m["installation_id"] = types.StringValue(in.ID)
+		m["github_installation_id"] = types.Int64Value(in.GithubInstallationID)
+		m["github_app_settings_url"] = shift_left_integration.OptionalID(in.GithubAppSettingsURL)
 		elems[i] = m
 	}
 	return shift_left_integration.ObjectListFromValues(attrTypes, elems)

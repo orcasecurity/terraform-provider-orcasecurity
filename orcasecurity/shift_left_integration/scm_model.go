@@ -16,6 +16,11 @@ type ScmConfigFields struct {
 	PoliciesIds       types.Set            `tfsdk:"policies_ids"`
 	ProjectID         types.String         `tfsdk:"project_id"`
 	ConfigSettings    *ConfigSettingsModel `tfsdk:"configuration_settings"`
+
+	// Read-only status fields surfaced from the API.
+	ScanAllState                types.String `tfsdk:"scan_all_state"`
+	IntegratedRepositoriesCount types.Int64  `tfsdk:"integrated_repositories_count"`
+	ScmPosturePolicyID          types.String `tfsdk:"scm_posture_policy_id"`
 }
 
 // OptionalID maps an API id into state: empty becomes null so Optional+Computed
@@ -28,23 +33,19 @@ func OptionalID(id string) types.String {
 }
 
 // ScmConfigFieldsFromAPI builds the shared config fields from a live SCM unit.
-func ScmConfigFieldsFromAPI(
-	accountName string,
-	integrationStatus string,
-	mode string,
-	defaultPolicies bool,
-	policies []api_client.ScmPolicyRef,
-	project *api_client.ScmProjectRef,
-	cfg api_client.ShiftLeftConfigSettings,
-) ScmConfigFields {
-	cs := FlattenConfigSettings(cfg)
+func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields) ScmConfigFields {
+	cs := FlattenConfigSettings(u.ConfigSettings)
 	return ScmConfigFields{
 		AccountName:       types.StringValue(accountName),
-		IntegrationStatus: OptionalID(integrationStatus),
-		InstallationMode:  types.StringValue(mode),
-		DefaultPolicies:   types.BoolValue(defaultPolicies),
-		PoliciesIds:       PolicyIDsFromRefs(policies),
-		ProjectID:         OptionalID(api_client.ProjectRefID(project)),
+		IntegrationStatus: OptionalID(u.IntegrationStatus),
+		InstallationMode:  types.StringValue(u.InstallationMode),
+		DefaultPolicies:   types.BoolValue(u.DefaultPolicies),
+		PoliciesIds:       PolicyIDsFromRefs(u.Policies),
+		ProjectID:         OptionalID(api_client.ProjectRefID(u.Project)),
 		ConfigSettings:    &cs,
+
+		ScanAllState:                OptionalID(u.ScanAllState),
+		IntegratedRepositoriesCount: types.Int64Value(u.IntegratedRepositoriesCount),
+		ScmPosturePolicyID:          OptionalID(u.ScmPosturePolicyID),
 	}
 }

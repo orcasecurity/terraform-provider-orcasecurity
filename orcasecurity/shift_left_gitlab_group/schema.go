@@ -25,6 +25,10 @@ func resourceSchema() rschema.Schema {
 		Description:   "Orca GitLab integrated group UUID.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
+	attrs["gitlab_group_id"] = rschema.Int64Attribute{
+		Computed:    true,
+		Description: "GitLab-side numeric group ID.",
+	}
 	return rschema.Schema{
 		Description: "Configures an existing Orca GitLab shift-left integrated group (default policies, scan mode, PR/MR settings). The group must already be integrated (created by installing the Orca GitLab integration). Adopt via `terraform import`. Schema follows the Shift-Left API; the GitLab UI may expose fewer `skip_check_runs` values than the account-level PUT accepts.",
 		Attributes:  attrs,
