@@ -5,13 +5,14 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestExpandUpdate_DefaultPoliciesClearsIds(t *testing.T) {
 	m := &resourceModel{
 		DefaultPolicies: types.BoolValue(true),
-		PoliciesIds:     []types.String{types.StringValue("pol-1")},
+		PoliciesIds:     types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-1")}),
 	}
 	body := expandUpdate(m)
 	if len(body.Policies) != 0 {
@@ -25,7 +26,7 @@ func TestExpandUpdate_DefaultPoliciesClearsIds(t *testing.T) {
 func TestExpandUpdate_ExplicitPolicies(t *testing.T) {
 	m := &resourceModel{
 		DefaultPolicies: types.BoolValue(false),
-		PoliciesIds:     []types.String{types.StringValue("pol-1"), types.StringValue("pol-2")},
+		PoliciesIds:     types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-1"), types.StringValue("pol-2")}),
 	}
 	body := expandUpdate(m)
 	if len(body.Policies) != 2 {
@@ -42,7 +43,8 @@ func TestApiToState_MirrorsInstallationID(t *testing.T) {
 	if st.ID.ValueString() != "abc" || st.InstallationID.ValueString() != "abc" {
 		t.Errorf("id/installation_id mismatch: %+v", st)
 	}
-	if len(st.PoliciesIds) != 1 || st.PoliciesIds[0].ValueString() != "pol-1" {
+	elems := st.PoliciesIds.Elements()
+	if len(elems) != 1 || elems[0].(types.String).ValueString() != "pol-1" {
 		t.Errorf("policies_ids wrong: %+v", st.PoliciesIds)
 	}
 }

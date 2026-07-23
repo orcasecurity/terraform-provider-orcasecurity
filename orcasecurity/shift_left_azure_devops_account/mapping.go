@@ -4,33 +4,38 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func policyIdsFromTypes(vals []types.String) []string {
-	out := make([]string, 0, len(vals))
-	for _, v := range vals {
-		if !v.IsNull() && !v.IsUnknown() {
+func policyIdsFromSet(s types.Set) []string {
+	if s.IsNull() || s.IsUnknown() {
+		return nil
+	}
+	elems := s.Elements()
+	out := make([]string, 0, len(elems))
+	for _, e := range elems {
+		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
 			out = append(out, v.ValueString())
 		}
 	}
 	return out
 }
 
-func policyIdsToTypes(refs []api_client.ScmPolicyRef) []types.String {
+func policyIdsToTypes(refs []api_client.ScmPolicyRef) types.Set {
 	if len(refs) == 0 {
-		return nil
+		return types.SetNull(types.StringType)
 	}
-	out := make([]types.String, 0, len(refs))
+	elems := make([]attr.Value, 0, len(refs))
 	for _, r := range refs {
-		out = append(out, types.StringValue(r.ID))
+		elems = append(elems, types.StringValue(r.ID))
 	}
-	return out
+	return types.SetValueMust(types.StringType, elems)
 }
 
 // expandUpdate builds the PUT body. policies = default_policies ? [] : ids.
 func expandUpdate(m *resourceModel) api_client.ScmInstallationUpdate {
-	ids := policyIdsFromTypes(m.PoliciesIds)
+	ids := policyIdsFromSet(m.PoliciesIds)
 	if m.DefaultPolicies.ValueBool() {
 		ids = []string{}
 	}
