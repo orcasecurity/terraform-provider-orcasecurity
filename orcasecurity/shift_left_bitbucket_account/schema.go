@@ -14,7 +14,7 @@ import (
 
 func resourceSchema() rschema.Schema {
 	return rschema.Schema{
-		Description: "Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via `terraform import`. Archive/unavailable repository actions are not supported for Bitbucket.",
+		Description: "Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via `terraform import`. Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.",
 		Attributes: map[string]rschema.Attribute{
 			"id": rschema.StringAttribute{
 				Computed:      true,
@@ -58,7 +58,7 @@ func resourceSchema() rschema.Schema {
 				Optional:      true,
 				Computed:      true,
 				Description:   "PR advanced settings.",
-				Attributes:    shift_left_integration.ConfigSettingsAttributes(shift_left_integration.FieldGate{ArchiveActions: false}),
+				Attributes:    shift_left_integration.ConfigSettingsAttributes(),
 				PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 			},
 		},

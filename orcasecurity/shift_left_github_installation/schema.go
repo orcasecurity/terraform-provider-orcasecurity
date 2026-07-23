@@ -53,7 +53,7 @@ func resourceSchema() rschema.Schema {
 				Optional:      true,
 				Computed:      true,
 				Description:   "PR/MR advanced settings.",
-				Attributes:    shift_left_integration.ConfigSettingsAttributes(shift_left_integration.FieldGate{ArchiveActions: true}),
+				Attributes:    shift_left_integration.ConfigSettingsAttributes(),
 				PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 			},
 		},

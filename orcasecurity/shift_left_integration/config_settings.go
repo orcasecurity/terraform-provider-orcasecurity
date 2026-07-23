@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -16,35 +17,24 @@ import (
 // ConfigSettingsModel is the Terraform representation of the
 // configuration_settings object sent/received by the Orca SCM integration
 // API. It is embedded as a nested attribute on each per-provider resource
-// schema (github/gitlab/azure/bitbucket), gated via FieldGate for fields that
-// are not supported by every provider.
+// schema (github/gitlab/azure/bitbucket).
 type ConfigSettingsModel struct {
-	DisableScanPullRequests types.Bool     `tfsdk:"disable_scan_pull_requests"`
-	CommentsOnPullRequests  types.String   `tfsdk:"comments_on_pull_requests"`
-	PrSummaryComment        types.String   `tfsdk:"pr_summary_comment"`
-	SkipCheckRuns           types.String   `tfsdk:"skip_check_runs"`
-	ConfigFileSupport       types.String   `tfsdk:"config_file_support"`
-	PrSummaryAppendix       types.String   `tfsdk:"pr_summary_appendix"`
-	ArchiveConditions       []types.String `tfsdk:"archive_conditions"`
-	UnavailableConditions   []types.String `tfsdk:"unavailable_conditions"`
-}
-
-// FieldGate controls which configuration_settings fields are exposed by a
-// given per-provider resource schema, since not every SCM integration
-// supports every field:
-//   - ArchiveActions: gates both archive_conditions and unavailable_conditions
-//     (installation_repositories_configuration), which are only meaningful for
-//     providers that model installation/repository access changes.
-type FieldGate struct {
-	ArchiveActions bool
+	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
+	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
+	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
+	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
+	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
+	PrSummaryAppendix       types.String `tfsdk:"pr_summary_appendix"`
+	ArchiveConditions       types.List   `tfsdk:"archive_conditions"`
+	UnavailableConditions   types.List   `tfsdk:"unavailable_conditions"`
 }
 
 // ConfigSettingsAttributes returns the nested attribute map for the
-// configuration_settings object, omitting fields not enabled by opts. All
-// attributes are Optional+Computed: the server always returns a value for
-// every field, and per-provider resources adopt existing units, so the
-// server is authoritative and null-vs-config plan drift must be avoided.
-func ConfigSettingsAttributes(opts FieldGate) map[string]schema.Attribute {
+// configuration_settings object. All attributes are Optional+Computed: the
+// server always returns a value for every field, and per-provider resources
+// adopt existing units, so the server is authoritative and null-vs-config
+// plan drift must be avoided.
+func ConfigSettingsAttributes() map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"disable_scan_pull_requests": schema.BoolAttribute{
 			Optional:    true,
@@ -90,57 +80,61 @@ func ConfigSettingsAttributes(opts FieldGate) map[string]schema.Attribute {
 		},
 	}
 
-	if opts.ArchiveActions {
-		attrs["archive_conditions"] = schema.ListAttribute{
-			Optional:    true,
-			Computed:    true,
-			ElementType: types.StringType,
-			Description: "Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions).",
-			Validators: []validator.List{
-				listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
-			},
-		}
-		attrs["unavailable_conditions"] = schema.ListAttribute{
-			Optional:    true,
-			Computed:    true,
-			ElementType: types.StringType,
-			Description: "Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions).",
-			Validators: []validator.List{
-				listvalidator.ValueStringsAre(stringvalidator.OneOf("DELETE_REPO")),
-			},
-		}
+	attrs["archive_conditions"] = schema.ListAttribute{
+		Optional:    true,
+		Computed:    true,
+		ElementType: types.StringType,
+		Description: "Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions).",
+		Validators: []validator.List{
+			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
+		},
+	}
+	attrs["unavailable_conditions"] = schema.ListAttribute{
+		Optional:    true,
+		Computed:    true,
+		ElementType: types.StringType,
+		Description: "Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions).",
+		Validators: []validator.List{
+			listvalidator.ValueStringsAre(stringvalidator.OneOf("DELETE_REPO")),
+		},
 	}
 
 	return attrs
 }
 
-// stringSliceFromTypes converts a []types.String into a []string, dropping
-// null/unknown entries.
-func stringSliceFromTypes(values []types.String) []string {
-	if len(values) == 0 {
+// stringSliceFromList converts a types.List of types.String elements into a
+// []string, skipping a null/unknown list and any null/unknown elements.
+func stringSliceFromList(l types.List) []string {
+	if l.IsNull() || l.IsUnknown() {
 		return nil
 	}
-	result := make([]string, 0, len(values))
-	for _, v := range values {
-		if !v.IsNull() && !v.IsUnknown() {
-			result = append(result, v.ValueString())
+	elements := l.Elements()
+	if len(elements) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(elements))
+	for _, e := range elements {
+		s, ok := e.(types.String)
+		if !ok || s.IsNull() || s.IsUnknown() {
+			continue
 		}
+		result = append(result, s.ValueString())
 	}
 	return result
 }
 
-// stringSliceToTypes converts a []string into a []types.String. Returns nil
-// for an empty input so the resulting model attribute stays null rather than
-// an empty list.
-func stringSliceToTypes(values []string) []types.String {
+// stringSliceToList converts a []string into a types.List of types.String
+// elements. Returns a null list for an empty/nil input so the resulting
+// model attribute stays null rather than an empty list.
+func stringSliceToList(values []string) types.List {
 	if len(values) == 0 {
-		return nil
+		return types.ListNull(types.StringType)
 	}
-	result := make([]types.String, 0, len(values))
+	elems := make([]attr.Value, 0, len(values))
 	for _, v := range values {
-		result = append(result, types.StringValue(v))
+		elems = append(elems, types.StringValue(v))
 	}
-	return result
+	return types.ListValueMust(types.StringType, elems)
 }
 
 // ExpandConfigSettings converts a ConfigSettingsModel into the API payload
@@ -161,8 +155,8 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 		PrSummaryAppendix:       m.PrSummaryAppendix.ValueString(),
 	}
 
-	archiveConditions := stringSliceFromTypes(m.ArchiveConditions)
-	unavailableConditions := stringSliceFromTypes(m.UnavailableConditions)
+	archiveConditions := stringSliceFromList(m.ArchiveConditions)
+	unavailableConditions := stringSliceFromList(m.UnavailableConditions)
 
 	if len(archiveConditions) > 0 || len(unavailableConditions) > 0 {
 		installationReposConfig := &api_client.ShiftLeftInstallationReposConfig{}
@@ -192,14 +186,16 @@ func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsM
 		SkipCheckRuns:           optionalString(c.SkipCheckRuns),
 		ConfigFileSupport:       optionalString(c.ConfigFileSupport),
 		PrSummaryAppendix:       optionalString(c.PrSummaryAppendix),
+		ArchiveConditions:       types.ListNull(types.StringType),
+		UnavailableConditions:   types.ListNull(types.StringType),
 	}
 
 	if c.InstallationReposConfig != nil {
 		if c.InstallationReposConfig.ArchiveActions != nil {
-			m.ArchiveConditions = stringSliceToTypes(c.InstallationReposConfig.ArchiveActions.Conditions)
+			m.ArchiveConditions = stringSliceToList(c.InstallationReposConfig.ArchiveActions.Conditions)
 		}
 		if c.InstallationReposConfig.UnavailableActions != nil {
-			m.UnavailableConditions = stringSliceToTypes(c.InstallationReposConfig.UnavailableActions.Conditions)
+			m.UnavailableConditions = stringSliceToList(c.InstallationReposConfig.UnavailableActions.Conditions)
 		}
 	}
 

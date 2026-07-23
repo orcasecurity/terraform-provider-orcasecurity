@@ -1,14 +1,14 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_account Resource - orcasecurity"
 description: |-
-  Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via terraform import. Archive/unavailable repository actions are not supported for Bitbucket.
+  Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via terraform import. Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.
 ---
 
 # orcasecurity_shift_left_bitbucket_account (Resource)
 
-Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via `terraform import`. Archive/unavailable repository actions are not supported for Bitbucket.
+Configures an existing Orca Bitbucket shift-left integrated account (default policies, scan mode, PR settings). The account must already be integrated (created by installing the Orca Bitbucket integration). Adopt via `terraform import`. Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.
 
--> Archive/unavailable repository actions are not supported for Bitbucket.
+-> Archive/unavailable repository actions are accepted in configuration_settings but may be ignored by the Bitbucket API.
 
 ## Example Usage
 
@@ -53,12 +53,14 @@ resource "orcasecurity_shift_left_bitbucket_account" "example" {
 
 Optional:
 
+- `archive_conditions` (List of String) Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions).
 - `comments_on_pull_requests` (String) When to post scan result comments on pull requests.
 - `config_file_support` (String) Whether in-repo Orca config file support is enabled.
 - `disable_scan_pull_requests` (Boolean) Disable scanning pull requests.
 - `pr_summary_appendix` (String) Additional free-text appendix appended to the pull request summary comment.
 - `pr_summary_comment` (String) When to post a pull request summary comment.
 - `skip_check_runs` (String) When to skip posting check runs.
+- `unavailable_conditions` (List of String) Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions).
 
 ## Import
 
