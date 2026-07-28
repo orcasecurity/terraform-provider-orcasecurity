@@ -8,9 +8,7 @@ import (
 	"strings"
 )
 
-// UserAccess maps to the POST/PUT/DELETE /api/rbac/access/user payloads. Unlike
-// the group variant, this endpoint has no /<id> route: the record id travels in
-// the request body, and reads are served by listing the collection.
+// No /<id> route: id in body. User list is one-shot (ignores pagination params).
 const apiRBACUserAccessPath = "/api/rbac/access/user"
 
 type UserAccess struct {
@@ -91,11 +89,6 @@ func (client *APIClient) CreateUserAccess(data UserAccess) (*UserAccess, error) 
 	return &out, nil
 }
 
-// pageAllUserAccess returns the whole /api/rbac/access/user collection. Unlike
-// the group endpoint, this one ignores user_id, limit and start_at_index and
-// carries no total_items, returning every row in a single response. A high
-// limit is sent only as insurance against a future server-side page cap; the
-// rows are filtered client-side by the caller.
 func (client *APIClient) pageAllUserAccess() ([]UserAccess, error) {
 	q := url.Values{}
 	q.Set("limit", strconv.Itoa(rbacAccessMaxLimit))
@@ -166,10 +159,6 @@ func pickMatchingUserAccess(list []UserAccess, userID string, want UserAccess) *
 	return &picked
 }
 
-// FindUserAccess returns the assignment matching id (preferred) or role+scope
-// (fallback when the id has changed server-side). When want.UserID is unset
-// (import, where only the id is known) it scans the whole collection. Returns
-// nil when nothing matches.
 func (client *APIClient) FindUserAccess(assignmentID string, want UserAccess) (*UserAccess, error) {
 	var list []UserAccess
 	var err error
@@ -181,7 +170,6 @@ func (client *APIClient) FindUserAccess(assignmentID string, want UserAccess) (*
 	if err != nil {
 		return nil, err
 	}
-	// Exact id match first.
 	for _, item := range list {
 		if item.ID == assignmentID {
 			picked := item
@@ -200,7 +188,6 @@ func (client *APIClient) UpdateUserAccess(data UserAccess) (*UserAccess, error) 
 	if _, err := client.Put(apiRBACUserAccessPath, data); err != nil {
 		return nil, err
 	}
-	// The PUT response nests user/role; re-read the canonical row instead.
 	refreshed, err := client.FindUserAccess(data.ID, data)
 	if err != nil {
 		return nil, err

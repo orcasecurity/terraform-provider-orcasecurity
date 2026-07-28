@@ -10,17 +10,11 @@ import (
 	"strings"
 )
 
-// The endpoint has no /<id> route (GET/PUT/DELETE on /<id> all 404): the id
-// travels in the request body, and reads page the collection and filter
-// client-side because the server ignores the group_id/id query params.
+// No /<id> route: id in body. Group list paginates (default 10) — page all, filter client-side.
 const (
 	apiRBACGroupAccessPath = "/api/rbac/access/group"
-	// rbacAccessPageLimit is the page size for the group list, which paginates
-	// (default 10 rows) and honours limit + start_at_index.
-	rbacAccessPageLimit = 300
-	// rbacAccessMaxLimit is a single-request ceiling for the user list, which
-	// ignores start_at_index and returns the whole collection at once.
-	rbacAccessMaxLimit = 10000
+	rbacAccessPageLimit    = 300
+	rbacAccessMaxLimit     = 10000 // user list is one-shot, not offset-pageable
 )
 
 type GroupAccess struct {
@@ -175,15 +169,10 @@ func pickMatchingGroupAccess(list []GroupAccess, groupID string, want GroupAcces
 	return &picked
 }
 
-// pageAllGroupAccess pages the whole /api/rbac/access/group collection. The
-// server ignores the group_id query param and paginates (default 10 rows), so
-// every page must be fetched and filtered client-side.
 func (client *APIClient) pageAllGroupAccess() ([]GroupAccess, error) {
 	var out []GroupAccess
 	fetched := 0
 	for {
-		// Offset by rows received, not page count, so a short page under-fetches
-		// safely instead of skipping rows.
 		q := url.Values{}
 		q.Set("limit", strconv.Itoa(rbacAccessPageLimit))
 		q.Set("start_at_index", strconv.Itoa(fetched))
@@ -223,9 +212,6 @@ func (client *APIClient) ListGroupAccessForGroup(groupID string) ([]GroupAccess,
 	return out, nil
 }
 
-// FindGroupAccess returns the row matching assignmentID, falling back to
-// role+scope when the id has changed server-side. When want.GroupID is unset
-// (import, where only the id is known) it scans the whole collection.
 func (client *APIClient) FindGroupAccess(assignmentID string, want GroupAccess) (*GroupAccess, error) {
 	var list []GroupAccess
 	var err error
@@ -247,8 +233,6 @@ func (client *APIClient) FindGroupAccess(assignmentID string, want GroupAccess) 
 	return pickMatchingGroupAccess(list, want.GroupID, want), nil
 }
 
-// UpdateGroupAccess updates an existing assignment. The id is carried in the
-// body; the PUT response nests group/role, so re-read the canonical row.
 func (client *APIClient) UpdateGroupAccess(data GroupAccess) (*GroupAccess, error) {
 	if data.ID == "" {
 		return nil, fmt.Errorf("update group access: id is required")

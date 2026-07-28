@@ -61,8 +61,7 @@ func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
 	}
 }
 
-// The target grant lives on page 2 (start_at_index > 0); before pagination the
-// read only saw page 1 and reported it "gone".
+// Grant on page 2 — pagination must not stop at page 1.
 func TestListGroupAccessForGroup_PagesUntilTotalItems(t *testing.T) {
 	const targetGroupID = "g-target"
 
@@ -105,8 +104,7 @@ func TestListGroupAccessForGroup_PagesUntilTotalItems(t *testing.T) {
 	}
 }
 
-// FindGroupAccess must resolve a grant whose id changed server-side by matching
-// role+scope, and must never hit a by-id URL (that route 404s).
+// No by-id URL; match by role+scope when id changed.
 func TestFindGroupAccess_MatchesByScopeAcrossPages(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != apiRBACGroupAccessPath {
@@ -144,8 +142,7 @@ func TestFindGroupAccess_MatchesByScopeAcrossPages(t *testing.T) {
 	}
 }
 
-// On import only the id is known (want.GroupID empty); Find must scan the whole
-// collection and still resolve the grant.
+// Import: only assignment id known — scan whole collection.
 func TestFindGroupAccess_ScansAllWhenGroupUnknown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -224,8 +221,6 @@ func TestCreateGroupAccess_ParsesWrappedDataID(t *testing.T) {
 	}
 }
 
-// Update PUTs to the collection path with the id in the body (never /<id>) and
-// re-reads the canonical row, since the PUT response nests group/role.
 func TestUpdateGroupAccess_UsesCollectionPathAndReReads(t *testing.T) {
 	var putBody map[string]interface{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -272,8 +267,7 @@ func TestUpdateGroupAccess_RequiresID(t *testing.T) {
 	}
 }
 
-// Delete must DELETE the collection path with body {"id": …}; the by-id URL 404s
-// and silently deletes nothing.
+// Delete: id in body on collection path (by-id URL 404s).
 func TestDeleteGroupAccess_UsesBodyNotByID(t *testing.T) {
 	var gotPath, gotMethod string
 	var gotBody map[string]string

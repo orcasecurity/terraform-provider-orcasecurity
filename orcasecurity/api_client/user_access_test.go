@@ -113,9 +113,7 @@ func TestFindUserAccess(t *testing.T) {
 	}
 }
 
-// The user endpoint returns the whole collection in one response (it ignores
-// user_id/limit/start_at_index and carries no total_items); the client fetches
-// once with a high limit and filters by nested user id.
+// User list is one-shot; filter client-side by nested user id.
 func TestListUserAccessForUser_FetchesAllInOneRequest(t *testing.T) {
 	requests := 0
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
@@ -143,8 +141,7 @@ func TestListUserAccessForUser_FetchesAllInOneRequest(t *testing.T) {
 	}
 }
 
-// On import only the id is known (want.UserID empty); Find must scan the whole
-// collection and still resolve the grant.
+// Import: only assignment id known — scan whole collection.
 func TestFindUserAccess_ScansAllWhenUserUnknown(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{

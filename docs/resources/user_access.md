@@ -58,7 +58,7 @@ resource "orcasecurity_business_unit" "example" {
 
 ## Import
 
-Import is supported using the following syntax. The id is the Orca assignment id (the `id` attribute of the resource).
+Import is supported using the following syntax (id = Orca assignment id):
 
 ```shell
 terraform import orcasecurity_user_access.example ASSIGNMENT_ID

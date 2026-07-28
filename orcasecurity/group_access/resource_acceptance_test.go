@@ -14,9 +14,6 @@ import (
 
 const testAccGroupAccessResourceName = "orcasecurity_group_access.acc"
 
-// testAccGroupAccessClient builds an API client from the acceptance env vars so
-// CheckDestroy can confirm a grant is actually gone (the by-id DELETE used to
-// 404 and silently delete nothing).
 func testAccGroupAccessClient(t *testing.T) *api_client.APIClient {
 	t.Helper()
 	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
@@ -28,8 +25,6 @@ func testAccGroupAccessClient(t *testing.T) *api_client.APIClient {
 	return c
 }
 
-// testAccCheckGroupAccessDestroyed lists the group's live assignments and fails
-// if the tracked id is still present after destroy.
 func testAccCheckGroupAccessDestroyed(t *testing.T) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[testAccGroupAccessResourceName]
@@ -72,8 +67,6 @@ resource "orcasecurity_group_access" "acc" {
 	}
 
 	steps := []resource.TestStep{
-		// Create. A clean plan after apply proves the read path resolves the
-		// grant instead of dropping it and planning a re-create.
 		{
 			Config: cfg(fid),
 			Check: resource.ComposeAggregateTestCheckFunc(
@@ -84,7 +77,6 @@ resource "orcasecurity_group_access" "acc" {
 				resource.TestCheckResourceAttrSet(testAccGroupAccessResourceName, "id"),
 			),
 		},
-		// Import round-trips through the list-and-filter read.
 		{
 			ResourceName:      testAccGroupAccessResourceName,
 			ImportState:       true,
@@ -92,9 +84,7 @@ resource "orcasecurity_group_access" "acc" {
 		},
 	}
 
-	// In-place update (swap the scoped filter) exercises the collection-path PUT.
-	// Needs a second filter id; all_cloud_accounts and the scope lists are
-	// mutually exclusive server-side, so the update stays within one scope type.
+	// Optional update step; set ORCASECURITY_ACC_GROUP_ACCESS_USER_FILTER_ID_2.
 	if fid2 := os.Getenv("ORCASECURITY_ACC_GROUP_ACCESS_USER_FILTER_ID_2"); fid2 != "" {
 		steps = append(steps, resource.TestStep{
 			Config: cfg(fid2),
