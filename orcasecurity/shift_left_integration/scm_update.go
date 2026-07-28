@@ -73,7 +73,7 @@ func hasExplicitPolicies(policies types.Set) bool {
 	return !policies.IsNull() && !policies.IsUnknown()
 }
 
-func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set, _ types.Bool) ProjectIntent {
+func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set) ProjectIntent {
 	return ProjectIntent{
 		FromConfig:     configProjectID,
 		PoliciesIntent: hasExplicitPolicies(configPolicies),

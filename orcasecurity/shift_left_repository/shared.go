@@ -317,6 +317,8 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 		err = fmt.Errorf("repository not found after integration; verify the repository identifiers")
 	}
 	if err != nil {
+		// Integrated live but not read back — roll back so it isn't orphaned.
+		rollbackUnconfirmedIntegration(ops, diags)
 		diags.AddError(fmt.Sprintf("Error reading %s repository after integration", ops.scmName), err.Error())
 		return nil
 	}
@@ -353,6 +355,17 @@ func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag
 			fmt.Sprintf("The repository was integrated but configuration failed, and removing repository context %s during rollback also failed: %s. Remove the integration manually or re-run to reconcile.", ctxID, err.Error()),
 		)
 	}
+}
+
+func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
+	if row, err := ops.find(); err == nil && row != nil {
+		rollbackIntegration(ops, row, diags)
+		return
+	}
+	diags.AddWarning(
+		fmt.Sprintf("Possible orphaned %s repository integration", ops.scmName),
+		"The integration request succeeded but the repository could not be read back, so it is not tracked in Terraform state. If a live integration persists, remove it manually or re-run to reconcile.",
+	)
 }
 
 func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {

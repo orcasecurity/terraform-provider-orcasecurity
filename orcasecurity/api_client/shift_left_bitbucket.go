@@ -109,26 +109,8 @@ type BitbucketUnitIntegrate struct {
 
 func (client *APIClient) IntegrateBitbucketUnit(req BitbucketUnitIntegrate) error {
 	body := struct {
-		InstallationID        string                  `json:"installation_id"`
-		AccountID             string                  `json:"account_id"`
-		InstallationMode      string                  `json:"installation_mode,omitempty"`
-		DefaultPolicies       bool                    `json:"default_policies"`
-		Policies              []string                `json:"policies"`
-		ProjectID             string                  `json:"project_id,omitempty"`
-		ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
-		Repositories          []struct{}              `json:"repositories"`
-	}{
-		InstallationID:        req.InstallationID,
-		AccountID:             req.AccountID,
-		InstallationMode:      req.Body.InstallationMode,
-		DefaultPolicies:       req.Body.DefaultPolicies,
-		Policies:              req.Body.Policies,
-		ProjectID:             req.Body.ProjectID,
-		ConfigurationSettings: req.Body.ConfigSettings,
-		Repositories:          []struct{}{},
-	}
-	if req.Body.ProjectID != "" {
-		body.Policies = nil
-	}
+		scmUnitIntegrateBody
+		AccountID string `json:"account_id"`
+	}{newScmUnitIntegrateBody(req.InstallationID, req.Body), req.AccountID}
 	return client.integrateScmRepositories("bitbucket", body)
 }

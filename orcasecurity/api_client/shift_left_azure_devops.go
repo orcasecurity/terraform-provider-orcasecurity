@@ -110,26 +110,8 @@ type AzureDevopsUnitIntegrate struct {
 
 func (client *APIClient) IntegrateAzureDevopsUnit(req AzureDevopsUnitIntegrate) error {
 	body := struct {
-		InstallationID        string                  `json:"installation_id"`
-		AzureAccountName      string                  `json:"azure_account_name"`
-		InstallationMode      string                  `json:"installation_mode,omitempty"`
-		DefaultPolicies       bool                    `json:"default_policies"`
-		Policies              []string                `json:"policies"`
-		ProjectID             string                  `json:"project_id,omitempty"`
-		ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
-		Repositories          []struct{}              `json:"repositories"`
-	}{
-		InstallationID:        req.InstallationID,
-		AzureAccountName:      req.AccountName,
-		InstallationMode:      req.Body.InstallationMode,
-		DefaultPolicies:       req.Body.DefaultPolicies,
-		Policies:              req.Body.Policies,
-		ProjectID:             req.Body.ProjectID,
-		ConfigurationSettings: req.Body.ConfigSettings,
-		Repositories:          []struct{}{},
-	}
-	if req.Body.ProjectID != "" {
-		body.Policies = nil
-	}
+		scmUnitIntegrateBody
+		AzureAccountName string `json:"azure_account_name"`
+	}{newScmUnitIntegrateBody(req.InstallationID, req.Body), req.AccountName}
 	return client.integrateScmRepositories("azure_devops", body)
 }

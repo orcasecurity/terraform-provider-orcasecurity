@@ -103,6 +103,18 @@ type scmRepositoryDescriptor struct {
 	Branch string `json:"branch,omitempty"`
 }
 
+// scmRepoIntegrateCommon holds the top-level fields every provider's repository
+// integrate POST shares; providers embed it and add their key plus repositories.
+type scmRepoIntegrateCommon struct {
+	InstallationID        string                   `json:"installation_id"`
+	ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
+	ProjectID             string                   `json:"project_id,omitempty"`
+}
+
+func newScmRepoIntegrateCommon(installationID, projectID string, cfg ScmRepoIntegrationConfig) scmRepoIntegrateCommon {
+	return scmRepoIntegrateCommon{InstallationID: installationID, ConfigurationSettings: cfg, ProjectID: projectID}
+}
+
 type githubRepositoryItem struct {
 	ID                      string     `json:"id"`
 	GithubRepositoryID      int64      `json:"github_repository_id"`
@@ -122,23 +134,14 @@ type githubRepositoryItem struct {
 }
 
 func (r *githubRepositoryItem) common() ScmRepository {
-	return ScmRepository{
-		ID:                  r.ID,
-		UnitID:              r.GithubInstallation.ID,
-		ProjectID:           projectID(r.Project),
-		RepositoryName:      r.Repository.Name,
-		RepositoryURL:       r.Repository.URL,
-		Disabled:            r.Disabled,
-		DisableScanPRs:      r.DisableScanPullRequests,
-		CommentsOnPRs:       r.CommentsOnPullRequests,
-		PrSummaryComment:    r.PrSummaryComment,
-		SkipCheckRuns:       r.SkipCheckRuns,
-		ConfigFileSupport:   r.ConfigFileSupport,
-		Status:              r.Status,
-		RepositoryContextID: r.RepositoryContextID,
-		IntegrationStatus:   r.IntegrationStatus,
-		ScmPosturePolicyID:  r.ScmPosturePolicyID,
-	}
+	return scmRepository(r.ID, r.GithubInstallation.ID, r.Project, r.Repository, scmRepoConfig{
+		Disabled:          r.Disabled,
+		DisableScanPRs:    r.DisableScanPullRequests,
+		CommentsOnPRs:     r.CommentsOnPullRequests,
+		PrSummaryComment:  r.PrSummaryComment,
+		SkipCheckRuns:     r.SkipCheckRuns,
+		ConfigFileSupport: r.ConfigFileSupport,
+	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID)
 }
 
 func projectID(ref *scmIDRef) string {
@@ -146,6 +149,36 @@ func projectID(ref *scmIDRef) string {
 		return ""
 	}
 	return ref.ID
+}
+
+type scmRepoConfig struct {
+	Disabled          bool
+	DisableScanPRs    *bool
+	CommentsOnPRs     string
+	PrSummaryComment  string
+	SkipCheckRuns     string
+	ConfigFileSupport string
+}
+
+func scmRepository(id, unitID string, project *scmIDRef, repo scmRepoRef, cfg scmRepoConfig,
+	status, ctxID, integrationStatus, posturePolicyID string) ScmRepository {
+	return ScmRepository{
+		ID:                  id,
+		UnitID:              unitID,
+		ProjectID:           projectID(project),
+		RepositoryName:      repo.Name,
+		RepositoryURL:       repo.URL,
+		Disabled:            cfg.Disabled,
+		DisableScanPRs:      cfg.DisableScanPRs,
+		CommentsOnPRs:       cfg.CommentsOnPRs,
+		PrSummaryComment:    cfg.PrSummaryComment,
+		SkipCheckRuns:       cfg.SkipCheckRuns,
+		ConfigFileSupport:   cfg.ConfigFileSupport,
+		Status:              status,
+		RepositoryContextID: ctxID,
+		IntegrationStatus:   integrationStatus,
+		ScmPosturePolicyID:  posturePolicyID,
+	}
 }
 
 type GithubRepositoryIntegrate struct {
@@ -164,15 +197,11 @@ func (client *APIClient) IntegrateGithubRepository(req GithubRepositoryIntegrate
 		GithubRepositoryID int64 `json:"github_repository_id"`
 	}
 	body := struct {
-		InstallationID        string                   `json:"installation_id"`
-		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
-		ProjectID             string                   `json:"project_id,omitempty"`
-		Repositories          []repoEntry              `json:"repositories"`
+		scmRepoIntegrateCommon
+		Repositories []repoEntry `json:"repositories"`
 	}{
-		InstallationID:        req.InstallationID,
-		ConfigurationSettings: req.Config,
-		ProjectID:             req.ProjectID,
-		Repositories: []repoEntry{{
+		newScmRepoIntegrateCommon(req.InstallationID, req.ProjectID, req.Config),
+		[]repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.GithubRepositoryID,
 		}},
@@ -219,23 +248,14 @@ type gitlabRepositoryItem struct {
 }
 
 func (r *gitlabRepositoryItem) common() ScmRepository {
-	return ScmRepository{
-		ID:                  r.ID,
-		UnitID:              r.GroupInstallationID,
-		ProjectID:           projectID(r.Project),
-		RepositoryName:      r.Repository.Name,
-		RepositoryURL:       r.Repository.URL,
-		Disabled:            r.Disabled,
-		DisableScanPRs:      r.DisableScanPullRequests,
-		CommentsOnPRs:       r.CommentsOnPullRequests,
-		PrSummaryComment:    r.PrSummaryComment,
-		SkipCheckRuns:       r.SkipCheckRuns,
-		ConfigFileSupport:   r.ConfigFileSupport,
-		Status:              r.Status,
-		RepositoryContextID: r.RepositoryContextID,
-		IntegrationStatus:   r.IntegrationStatus,
-		ScmPosturePolicyID:  r.ScmPosturePolicyID,
-	}
+	return scmRepository(r.ID, r.GroupInstallationID, r.Project, r.Repository, scmRepoConfig{
+		Disabled:          r.Disabled,
+		DisableScanPRs:    r.DisableScanPullRequests,
+		CommentsOnPRs:     r.CommentsOnPullRequests,
+		PrSummaryComment:  r.PrSummaryComment,
+		SkipCheckRuns:     r.SkipCheckRuns,
+		ConfigFileSupport: r.ConfigFileSupport,
+	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID)
 }
 
 type GitlabRepositoryIntegrate struct {
@@ -255,17 +275,13 @@ func (client *APIClient) IntegrateGitlabRepository(req GitlabRepositoryIntegrate
 		ID int64 `json:"id"`
 	}
 	body := struct {
-		InstallationID        string                   `json:"installation_id"`
-		GroupID               int64                    `json:"group_id"`
-		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
-		ProjectID             string                   `json:"project_id,omitempty"`
-		Repositories          []repoEntry              `json:"repositories"`
+		scmRepoIntegrateCommon
+		GroupID      int64       `json:"group_id"`
+		Repositories []repoEntry `json:"repositories"`
 	}{
-		InstallationID:        req.InstallationID,
-		GroupID:               req.GitlabGroupID,
-		ConfigurationSettings: req.Config,
-		ProjectID:             req.ProjectID,
-		Repositories: []repoEntry{{
+		newScmRepoIntegrateCommon(req.InstallationID, req.ProjectID, req.Config),
+		req.GitlabGroupID,
+		[]repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.GitlabProjectID,
 		}},
@@ -315,22 +331,14 @@ type bitbucketRepositoryItem struct {
 }
 
 func (r *bitbucketRepositoryItem) common() ScmRepository {
-	return ScmRepository{
-		ID:                  r.ID,
-		UnitID:              r.AccountInstallation.ID,
-		ProjectID:           projectID(r.Project),
-		RepositoryName:      r.Repository.Name,
-		RepositoryURL:       r.Repository.URL,
-		Disabled:            r.Disabled,
-		DisableScanPRs:      r.ConfigurationSettings.DisableScanPullRequests,
-		CommentsOnPRs:       r.ConfigurationSettings.CommentsOnPullRequests,
-		PrSummaryComment:    r.ConfigurationSettings.PrSummaryComment,
-		SkipCheckRuns:       r.ConfigurationSettings.SkipCheckRuns,
-		ConfigFileSupport:   r.ConfigurationSettings.ConfigFileSupport,
-		Status:              r.Status,
-		RepositoryContextID: r.RepositoryContextID,
-		IntegrationStatus:   r.IntegrationStatus,
-	}
+	return scmRepository(r.ID, r.AccountInstallation.ID, r.Project, r.Repository, scmRepoConfig{
+		Disabled:          r.Disabled,
+		DisableScanPRs:    r.ConfigurationSettings.DisableScanPullRequests,
+		CommentsOnPRs:     r.ConfigurationSettings.CommentsOnPullRequests,
+		PrSummaryComment:  r.ConfigurationSettings.PrSummaryComment,
+		SkipCheckRuns:     r.ConfigurationSettings.SkipCheckRuns,
+		ConfigFileSupport: r.ConfigurationSettings.ConfigFileSupport,
+	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, "")
 }
 
 type BitbucketRepositoryIntegrate struct {
@@ -352,17 +360,13 @@ func (client *APIClient) IntegrateBitbucketRepository(req BitbucketRepositoryInt
 		Slug string `json:"slug"`
 	}
 	body := struct {
-		InstallationID        string                   `json:"installation_id"`
-		AccountID             string                   `json:"account_id"`
-		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
-		ProjectID             string                   `json:"project_id,omitempty"`
-		Repositories          []repoEntry              `json:"repositories"`
+		scmRepoIntegrateCommon
+		AccountID    string      `json:"account_id"`
+		Repositories []repoEntry `json:"repositories"`
 	}{
-		InstallationID:        req.InstallationID,
-		AccountID:             req.AccountID,
-		ConfigurationSettings: req.Config,
-		ProjectID:             req.ProjectID,
-		Repositories: []repoEntry{{
+		newScmRepoIntegrateCommon(req.InstallationID, req.ProjectID, req.Config),
+		req.AccountID,
+		[]repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.BitbucketRepositoryID,
 			req.Slug,
@@ -424,22 +428,13 @@ type azureRepositoryItem struct {
 }
 
 func (r *azureRepositoryItem) common() ScmRepository {
-	return ScmRepository{
-		ID:                  r.ID,
-		UnitID:              r.AzureAccountInstallation.ID,
-		ProjectID:           projectID(r.Project),
-		RepositoryName:      r.Repository.Name,
-		RepositoryURL:       r.Repository.URL,
-		Disabled:            r.ManagedRepoProperies.Disabled,
-		DisableScanPRs:      r.DisableScanPullRequests,
-		CommentsOnPRs:       r.CommentsOnPullRequests,
-		PrSummaryComment:    r.PrSummaryComment,
-		ConfigFileSupport:   r.ManagedRepoProperies.ConfigFileSupport,
-		Status:              r.Status,
-		RepositoryContextID: r.RepositoryContextID,
-		IntegrationStatus:   r.IntegrationStatus,
-		ScmPosturePolicyID:  r.ScmPosturePolicyID,
-	}
+	return scmRepository(r.ID, r.AzureAccountInstallation.ID, r.Project, r.Repository, scmRepoConfig{
+		Disabled:          r.ManagedRepoProperies.Disabled,
+		DisableScanPRs:    r.DisableScanPullRequests,
+		CommentsOnPRs:     r.CommentsOnPullRequests,
+		PrSummaryComment:  r.PrSummaryComment,
+		ConfigFileSupport: r.ManagedRepoProperies.ConfigFileSupport,
+	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID)
 }
 
 type AzureRepositoryIntegrate struct {
@@ -461,17 +456,13 @@ func (client *APIClient) IntegrateAzureRepository(req AzureRepositoryIntegrate) 
 		AzureProjectID string `json:"azure_project_id"`
 	}
 	body := struct {
-		InstallationID        string                   `json:"installation_id"`
-		AzureAccountName      string                   `json:"azure_account_name"`
-		ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
-		ProjectID             string                   `json:"project_id,omitempty"`
-		Repositories          []repoEntry              `json:"repositories"`
+		scmRepoIntegrateCommon
+		AzureAccountName string      `json:"azure_account_name"`
+		Repositories     []repoEntry `json:"repositories"`
 	}{
-		InstallationID:        req.InstallationID,
-		AzureAccountName:      req.AccountName,
-		ConfigurationSettings: req.Config,
-		ProjectID:             req.ProjectID,
-		Repositories: []repoEntry{{
+		newScmRepoIntegrateCommon(req.InstallationID, req.ProjectID, req.Config),
+		req.AccountName,
+		[]repoEntry{{
 			scmRepositoryDescriptor{Name: req.Name, URL: req.URL, Branch: req.Branch},
 			req.AzureRepositoryID,
 			req.AzureProjectID,

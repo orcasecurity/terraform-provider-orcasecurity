@@ -9,6 +9,30 @@ type ShiftLeftInstallationReposConfig struct {
 	UnavailableActions *ShiftLeftArchiveActions `json:"unavailable_actions,omitempty"`
 }
 
+// scmUnitIntegrateBody holds the fields shared by every provider's unit
+// integrate POST; providers embed it and add their one identifying key.
+type scmUnitIntegrateBody struct {
+	InstallationID        string                  `json:"installation_id"`
+	InstallationMode      string                  `json:"installation_mode,omitempty"`
+	DefaultPolicies       bool                    `json:"default_policies"`
+	Policies              []string                `json:"policies"`
+	ProjectID             string                  `json:"project_id,omitempty"`
+	ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
+	Repositories          []struct{}              `json:"repositories"`
+}
+
+func newScmUnitIntegrateBody(installationID string, b ScmInstallationUpdate) scmUnitIntegrateBody {
+	return scmUnitIntegrateBody{
+		InstallationID:        installationID,
+		InstallationMode:      b.InstallationMode,
+		DefaultPolicies:       b.DefaultPolicies,
+		Policies:              b.Policies,
+		ProjectID:             b.ProjectID,
+		ConfigurationSettings: b.ConfigSettings,
+		Repositories:          []struct{}{},
+	}
+}
+
 type ShiftLeftConfigSettings struct {
 	DisableScanPullRequests bool                              `json:"disable_scan_pull_requests"`
 	CommentsOnPullRequests  string                            `json:"comments_on_pull_requests"`

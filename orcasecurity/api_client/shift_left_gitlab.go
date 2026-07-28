@@ -127,26 +127,8 @@ type GitlabUnitIntegrate struct {
 
 func (client *APIClient) IntegrateGitlabUnit(req GitlabUnitIntegrate) error {
 	body := struct {
-		InstallationID        string                  `json:"installation_id"`
-		GroupID               int64                   `json:"group_id"`
-		InstallationMode      string                  `json:"installation_mode,omitempty"`
-		DefaultPolicies       bool                    `json:"default_policies"`
-		Policies              []string                `json:"policies"`
-		ProjectID             string                  `json:"project_id,omitempty"`
-		ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
-		Repositories          []struct{}              `json:"repositories"`
-	}{
-		InstallationID:        req.InstallationID,
-		GroupID:               req.GitlabGroupID,
-		InstallationMode:      req.Body.InstallationMode,
-		DefaultPolicies:       req.Body.DefaultPolicies,
-		Policies:              req.Body.Policies,
-		ProjectID:             req.Body.ProjectID,
-		ConfigurationSettings: req.Body.ConfigSettings,
-		Repositories:          []struct{}{},
-	}
-	if req.Body.ProjectID != "" {
-		body.Policies = nil
-	}
+		scmUnitIntegrateBody
+		GroupID int64 `json:"group_id"`
+	}{newScmUnitIntegrateBody(req.InstallationID, req.Body), req.GitlabGroupID}
 	return client.integrateScmRepositories("gitlab", body)
 }

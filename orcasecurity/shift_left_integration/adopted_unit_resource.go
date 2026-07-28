@@ -66,7 +66,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	}
 
 	ad := CreateUnitBody(mode, planFields.DefaultPolicies, planFields.PoliciesIds, planFields.ConfigSettings,
-		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds, configFields.DefaultPolicies))
+		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
 	if err := o.Integrate(&plan, ad.Body); err != nil {
 		resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
 		return
@@ -151,7 +151,7 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 		PlanDefault:     planFields.DefaultPolicies,
 		PlanPolicies:    planFields.PoliciesIds,
 		PlanConfig:      planFields.ConfigSettings,
-		Project:         ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds, configFields.DefaultPolicies),
+		Project:         ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
 		Labels:          o.Labels,
 		NotFoundMsg:     notFoundMsg,
 		WriteErrorTitle: title,

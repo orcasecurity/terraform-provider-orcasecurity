@@ -13,8 +13,10 @@ import (
 	"time"
 )
 
+// Off by default: request/response bodies carry secrets (API tokens).
 const httpDebugEnvVar = "ORCASECURITY_HTTP_DEBUG"
 
+// Logs to stderr only — stdout is the go-plugin channel Terraform speaks over.
 func (c *APIClient) debugf(format string, a ...any) {
 	if os.Getenv(httpDebugEnvVar) == "" {
 		return
@@ -158,6 +160,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 
 	response, err := c.doRequest(*req)
 	if err != nil {
+		// Never append the payload — it carries secrets and surfaces in diagnostics.
 		return nil, fmt.Errorf("request failed: %v, URL: %s", err, fullURL)
 	}
 

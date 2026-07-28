@@ -180,12 +180,12 @@ func TestAdopt_DefaultPoliciesKeepsProject(t *testing.T) {
 }
 
 func TestProjectIntentFrom_OnlyExplicitPoliciesCount(t *testing.T) {
-	pi := ProjectIntentFrom(types.StringNull(), types.SetNull(types.StringType), types.BoolValue(true))
+	pi := ProjectIntentFrom(types.StringNull(), types.SetNull(types.StringType))
 	if pi.PoliciesIntent {
 		t.Error("default_policies alone must not count as explicit-policies intent")
 	}
 	pi = ProjectIntentFrom(types.StringNull(),
-		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("p")}), types.BoolNull())
+		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("p")}))
 	if !pi.PoliciesIntent {
 		t.Error("explicit policies_ids must set PoliciesIntent")
 	}

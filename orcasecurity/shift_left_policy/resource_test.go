@@ -229,6 +229,12 @@ resource "orcasecurity_shift_left_policy" "scm" {
 func builtinProjectsBaseline(t *testing.T, policyType, policyID, scratchProjectID string) (*api_client.ShiftLeftPolicy, []string) {
 	t.Helper()
 
+	// This runs a live snapshot before resource.Test, which would otherwise fire
+	// even when the acceptance run is skipped for lack of TF_ACC.
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set; skipping live built-in policy baseline")
+	}
+
 	endpoint := os.Getenv("ORCASECURITY_API_ENDPOINT")
 	token := os.Getenv("ORCASECURITY_API_TOKEN")
 	client, err := api_client.NewAPIClient(&endpoint, &token)
@@ -340,14 +346,9 @@ removed {
 
 func TestAccShiftLeftPolicy_MaliciousPackages(t *testing.T) {
 	builtinID := os.Getenv("ORCA_TEST_MALICIOUS_PACKAGES_POLICY_ID")
-	if builtinID == "" {
-		// Live built-in "Malicious Packages" policy id, per progress notes.
-		// Re-confirm this is still current before relying on it.
-		builtinID = "019efa3e-d809-797a-9b4b-eae491fc4e66"
-	}
 	projectID := os.Getenv("ORCA_TEST_PROJECT_ID")
-	if projectID == "" {
-		t.Skip("Set ORCA_TEST_PROJECT_ID to run the malicious_packages acceptance test")
+	if builtinID == "" || projectID == "" {
+		t.Skip("Set ORCA_TEST_MALICIOUS_PACKAGES_POLICY_ID and ORCA_TEST_PROJECT_ID to run the malicious_packages acceptance test")
 	}
 
 	original, originalProjectIDs := builtinProjectsBaseline(t, "malicious_packages", builtinID, projectID)

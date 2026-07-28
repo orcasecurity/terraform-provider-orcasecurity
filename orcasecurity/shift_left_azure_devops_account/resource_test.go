@@ -45,6 +45,10 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 		t.Skipf("azure devops account %s has %d integrated repositories; point ORCA_TEST_AZ_* at a disposable empty account (destroy removes repositories and they are not restored)",
 			original.ID, original.IntegratedRepositoriesCount)
 	}
+	// Destroy DELETEs the Orca Azure DevOps account; restore only re-integrates the empty unit.
+	if os.Getenv("ORCA_TEST_AZ_ALLOW_DESTROY") == "" {
+		t.Skip("ORCA_TEST_AZ_ALLOW_DESTROY not set; refuse to DELETE a shared lab Azure DevOps account")
+	}
 	accountName = original.AccountName
 	t.Cleanup(func() {
 		restoreAzureAccount(t, client, installationID, accountName, original)
