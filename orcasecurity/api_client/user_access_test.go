@@ -90,8 +90,8 @@ func TestFindUserAccess(t *testing.T) {
 		if req.Method != "GET" {
 			t.Errorf("expected GET, got %s", req.Method)
 		}
-		if req.URL.Query().Get("limit") == "" {
-			t.Errorf("expected a paginated list request, got %s", req.URL.RawQuery)
+		if req.URL.RawQuery != "" {
+			t.Errorf("user endpoint is one-shot; expected no query params, got %s", req.URL.RawQuery)
 		}
 		return &http.Response{
 			StatusCode: 200,
@@ -118,8 +118,8 @@ func TestListUserAccessForUser_FetchesAllInOneRequest(t *testing.T) {
 	requests := 0
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		requests++
-		if req.URL.Query().Get("limit") == "" {
-			t.Errorf("expected a high limit to be sent")
+		if req.URL.RawQuery != "" {
+			t.Errorf("user endpoint ignores pagination params; expected none, got %s", req.URL.RawQuery)
 		}
 		return &http.Response{
 			StatusCode: 200,
