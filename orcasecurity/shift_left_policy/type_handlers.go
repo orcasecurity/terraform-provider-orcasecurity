@@ -2,7 +2,6 @@ package shift_left_policy
 
 import (
 	"fmt"
-	"reflect"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -11,7 +10,7 @@ import (
 
 type policyTypeHandler struct {
 	catalogType       string
-	block             func(m *shiftLeftPolicyResourceModel) any
+	present           func(m *shiftLeftPolicyResourceModel) bool
 	allControlsScopes func(m *shiftLeftPolicyResourceModel) []string
 	buildWrite        func(m *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics)
 	applyRead         func(m *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy, policyData map[string]interface{}, controls []map[string]interface{})
@@ -43,7 +42,7 @@ func fsScopedHandler(
 ) policyTypeHandler {
 	return policyTypeHandler{
 		catalogType: "file_system",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return get(m) },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return get(m) != nil },
 		allControlsScopes: func(m *shiftLeftPolicyResourceModel) []string {
 			if b := get(m); b != nil && boolIsTrue(b.AllControls) {
 				return []string{scope}
@@ -71,7 +70,7 @@ func fsScopedHandler(
 var policyTypeHandlers = map[string]policyTypeHandler{
 	"iac": {
 		catalogType: "iac",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Iac },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Iac != nil },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Iac != nil && boolIsTrue(m.Iac.AllControls)
 		}),
@@ -85,7 +84,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	},
 	"sast": {
 		catalogType: "sast",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Sast },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Sast != nil },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Sast != nil && boolIsTrue(m.Sast.AllControls)
 		}),
@@ -101,7 +100,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	// the scoped file_system_* sub-types. Kept for backward compatibility.
 	"file_system": {
 		catalogType: "file_system",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.FileSystem },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.FileSystem != nil },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.FileSystem != nil && boolIsTrue(m.FileSystem.AllControls)
 		}),
@@ -125,7 +124,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	),
 	"container_image": {
 		catalogType: "container_image",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.ContainerImage },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.ContainerImage != nil },
 		allControlsScopes: func(m *shiftLeftPolicyResourceModel) []string {
 			return containerAllControlsScopes(m.ContainerImage)
 		},
@@ -141,7 +140,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	},
 	"scm_posture": {
 		catalogType: "scm_posture",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.ScmPosture },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.ScmPosture != nil },
 		buildWrite: func(m *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
 			// Built-in scm_posture policies are org-global: the API requires
 			// them to have no scope (only controls/disabled are updatable), so
@@ -176,7 +175,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	},
 	"licenses": {
 		catalogType: "licenses",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Licenses },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Licenses != nil },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Licenses != nil && boolIsTrue(m.Licenses.AllControls)
 		}),
@@ -194,7 +193,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	// Kept for backward compatibility.
 	"sca": {
 		catalogType: "sca",
-		block:       func(m *shiftLeftPolicyResourceModel) any { return m.Sca },
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Sca != nil },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			return m.Sca != nil && boolIsTrue(m.Sca.AllControls)
 		}),
@@ -209,16 +208,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 	},
 	// malicious_packages: no controls, no catalog, policy_data always {}.
-	"malicious_packages": {
-		buildWrite: func(*shiftLeftPolicyResourceModel, *api_client.ShiftLeftPolicy, map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
-			return nil, nil
-		},
-	},
-}
-
-// Typed-nil block pointers are not == nil when wrapped in any.
-func blockIsUnset(v any) bool {
-	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+	"malicious_packages": {},
 }
 
 func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) diag.Diagnostics {
@@ -228,7 +218,7 @@ func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) d
 		diags.AddError("Unsupported policy type", fmt.Sprintf("Unknown policy type %q.", policyType))
 		return diags
 	}
-	if h.block != nil && blockIsUnset(h.block(model)) {
+	if h.present != nil && !h.present(model) {
 		diags.AddError("Missing type configuration block", fmt.Sprintf("Policy type %q requires the %q block to be set.", policyType, policyType))
 	}
 	return diags
@@ -236,7 +226,11 @@ func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) d
 
 func buildControlsAndData(model *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy) ([]map[string]interface{}, map[string]interface{}, diag.Diagnostics) {
 	policyData := map[string]interface{}{}
-	controls, diags := policyTypeHandlers[model.Type.ValueString()].buildWrite(model, policy, policyData)
+	buildWrite := policyTypeHandlers[model.Type.ValueString()].buildWrite
+	if buildWrite == nil {
+		return nil, policyData, nil
+	}
+	controls, diags := buildWrite(model, policy, policyData)
 	if diags.HasError() {
 		return nil, nil, diags
 	}

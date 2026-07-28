@@ -82,6 +82,9 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	policyType := plan.Type.ValueString()
+	// Projects are synced through the dedicated endpoint, never the policy body
+	// (projects_ids is omitempty there), so Create and Update share one path.
+	apiPolicy.ProjectsIds = nil
 	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
 		return
 	}
@@ -90,6 +93,18 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating AppSec policy", "Could not create policy: "+err.Error())
 		return
+	}
+
+	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, instance.ID, stringSliceFromSet(plan.ProjectsIds)); err != nil {
+			resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
+			return
+		}
+		instance, err = r.apiClient.GetShiftLeftPolicy(policyType, instance.ID)
+		if err != nil {
+			resp.Diagnostics.AddError("Error reading AppSec policy after project attach", err.Error())
+			return
+		}
 	}
 
 	state := stateFromPlanAfterWrite(&plan, instance)
