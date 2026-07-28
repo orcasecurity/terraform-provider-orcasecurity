@@ -63,7 +63,9 @@ resource "orcasecurity_group" "example" {
 
 ## Import
 
-Import is supported using the following syntax (id = Orca assignment id):
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
 terraform import orcasecurity_group_access.example ASSIGNMENT_ID
