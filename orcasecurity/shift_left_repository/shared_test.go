@@ -163,60 +163,64 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 }
 
 func TestConfigUpdateBody(t *testing.T) {
-	t.Run("nothing set", func(t *testing.T) {
-		body, set := configUpdateBody("row-1", &RepoConfigFields{})
-		if set {
-			t.Errorf("no known fields must yield set=false, got body %+v", body)
-		}
-		if len(body.IDs) != 1 || body.IDs[0] != "row-1" {
-			t.Errorf("IDs must always carry the row id: %+v", body.IDs)
-		}
-	})
+	t.Run("nothing set", testConfigUpdateBodyNothingSet)
+	t.Run("all fields set", testConfigUpdateBodyAllSet)
+	t.Run("null and unknown fields skipped", testConfigUpdateBodyNullUnknownSkipped)
+}
 
-	t.Run("all fields set", func(t *testing.T) {
-		plan := &RepoConfigFields{
-			Disabled:                types.BoolValue(true),
-			DisableScanPullRequests: types.BoolValue(false),
-			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
-			PrSummaryComment:        types.StringValue("NEVER"),
-			SkipCheckRuns:           types.StringValue("ALWAYS"),
-			ConfigFileSupport:       types.StringValue("ENABLED"),
-		}
-		body, set := configUpdateBody("row-1", plan)
-		if !set {
-			t.Fatal("expected set=true")
-		}
-		if body.Disabled == nil || *body.Disabled != true {
-			t.Errorf("disabled: %v", body.Disabled)
-		}
-		if body.DisableScanPullRequests == nil || *body.DisableScanPullRequests != false {
-			t.Errorf("disable_scan_pull_requests: %v", body.DisableScanPullRequests)
-		}
-		if body.CommentsOnPullRequests != "ALWAYS" || body.PrSummaryComment != "NEVER" {
-			t.Errorf("comment fields: %+v", body)
-		}
-		if body.SkipCheckRuns != "ALWAYS" || body.ConfigFileSupport != "ENABLED" {
-			t.Errorf("skip/config: %+v", body)
-		}
-	})
+func testConfigUpdateBodyNothingSet(t *testing.T) {
+	body, set := configUpdateBody("row-1", &RepoConfigFields{})
+	if set {
+		t.Errorf("no known fields must yield set=false, got body %+v", body)
+	}
+	if len(body.IDs) != 1 || body.IDs[0] != "row-1" {
+		t.Errorf("IDs must always carry the row id: %+v", body.IDs)
+	}
+}
 
-	t.Run("null and unknown fields skipped", func(t *testing.T) {
-		plan := &RepoConfigFields{
-			Disabled:               types.BoolValue(true), // only this is known
-			CommentsOnPullRequests: types.StringNull(),
-			PrSummaryComment:       types.StringUnknown(),
-		}
-		body, set := configUpdateBody("row-1", plan)
-		if !set {
-			t.Fatal("expected set=true (disabled is known)")
-		}
-		if body.DisableScanPullRequests != nil {
-			t.Errorf("unset disable_scan_pull_requests must stay nil: %v", body.DisableScanPullRequests)
-		}
-		if body.CommentsOnPullRequests != "" || body.PrSummaryComment != "" {
-			t.Errorf("null/unknown strings must stay empty: %+v", body)
-		}
-	})
+func testConfigUpdateBodyAllSet(t *testing.T) {
+	plan := &RepoConfigFields{
+		Disabled:                types.BoolValue(true),
+		DisableScanPullRequests: types.BoolValue(false),
+		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+		PrSummaryComment:        types.StringValue("NEVER"),
+		SkipCheckRuns:           types.StringValue("ALWAYS"),
+		ConfigFileSupport:       types.StringValue("ENABLED"),
+	}
+	body, set := configUpdateBody("row-1", plan)
+	if !set {
+		t.Fatal("expected set=true")
+	}
+	if body.Disabled == nil || *body.Disabled != true {
+		t.Errorf("disabled: %v", body.Disabled)
+	}
+	if body.DisableScanPullRequests == nil || *body.DisableScanPullRequests != false {
+		t.Errorf("disable_scan_pull_requests: %v", body.DisableScanPullRequests)
+	}
+	if body.CommentsOnPullRequests != "ALWAYS" || body.PrSummaryComment != "NEVER" {
+		t.Errorf("comment fields: %+v", body)
+	}
+	if body.SkipCheckRuns != "ALWAYS" || body.ConfigFileSupport != "ENABLED" {
+		t.Errorf("skip/config: %+v", body)
+	}
+}
+
+func testConfigUpdateBodyNullUnknownSkipped(t *testing.T) {
+	plan := &RepoConfigFields{
+		Disabled:               types.BoolValue(true), // only this is known
+		CommentsOnPullRequests: types.StringNull(),
+		PrSummaryComment:       types.StringUnknown(),
+	}
+	body, set := configUpdateBody("row-1", plan)
+	if !set {
+		t.Fatal("expected set=true (disabled is known)")
+	}
+	if body.DisableScanPullRequests != nil {
+		t.Errorf("unset disable_scan_pull_requests must stay nil: %v", body.DisableScanPullRequests)
+	}
+	if body.CommentsOnPullRequests != "" || body.PrSummaryComment != "" {
+		t.Errorf("null/unknown strings must stay empty: %+v", body)
+	}
 }
 
 func TestIntegrateConfig(t *testing.T) {

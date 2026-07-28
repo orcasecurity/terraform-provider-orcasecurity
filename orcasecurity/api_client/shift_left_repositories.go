@@ -141,7 +141,7 @@ func (r *githubRepositoryItem) common() ScmRepository {
 		PrSummaryComment:  r.PrSummaryComment,
 		SkipCheckRuns:     r.SkipCheckRuns,
 		ConfigFileSupport: r.ConfigFileSupport,
-	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID)
+	}, scmRepoStatus{r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID})
 }
 
 func projectID(ref *scmIDRef) string {
@@ -160,8 +160,14 @@ type scmRepoConfig struct {
 	ConfigFileSupport string
 }
 
-func scmRepository(id, unitID string, project *scmIDRef, repo scmRepoRef, cfg scmRepoConfig,
-	status, ctxID, integrationStatus, posturePolicyID string) ScmRepository {
+type scmRepoStatus struct {
+	Status              string
+	RepositoryContextID string
+	IntegrationStatus   string
+	ScmPosturePolicyID  string
+}
+
+func scmRepository(id, unitID string, project *scmIDRef, repo scmRepoRef, cfg scmRepoConfig, st scmRepoStatus) ScmRepository {
 	return ScmRepository{
 		ID:                  id,
 		UnitID:              unitID,
@@ -174,10 +180,10 @@ func scmRepository(id, unitID string, project *scmIDRef, repo scmRepoRef, cfg sc
 		PrSummaryComment:    cfg.PrSummaryComment,
 		SkipCheckRuns:       cfg.SkipCheckRuns,
 		ConfigFileSupport:   cfg.ConfigFileSupport,
-		Status:              status,
-		RepositoryContextID: ctxID,
-		IntegrationStatus:   integrationStatus,
-		ScmPosturePolicyID:  posturePolicyID,
+		Status:              st.Status,
+		RepositoryContextID: st.RepositoryContextID,
+		IntegrationStatus:   st.IntegrationStatus,
+		ScmPosturePolicyID:  st.ScmPosturePolicyID,
 	}
 }
 
@@ -255,7 +261,7 @@ func (r *gitlabRepositoryItem) common() ScmRepository {
 		PrSummaryComment:  r.PrSummaryComment,
 		SkipCheckRuns:     r.SkipCheckRuns,
 		ConfigFileSupport: r.ConfigFileSupport,
-	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID)
+	}, scmRepoStatus{r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID})
 }
 
 type GitlabRepositoryIntegrate struct {
@@ -338,7 +344,7 @@ func (r *bitbucketRepositoryItem) common() ScmRepository {
 		PrSummaryComment:  r.ConfigurationSettings.PrSummaryComment,
 		SkipCheckRuns:     r.ConfigurationSettings.SkipCheckRuns,
 		ConfigFileSupport: r.ConfigurationSettings.ConfigFileSupport,
-	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, "")
+	}, scmRepoStatus{r.Status, r.RepositoryContextID, r.IntegrationStatus, ""})
 }
 
 type BitbucketRepositoryIntegrate struct {
@@ -434,7 +440,7 @@ func (r *azureRepositoryItem) common() ScmRepository {
 		CommentsOnPRs:     r.CommentsOnPullRequests,
 		PrSummaryComment:  r.PrSummaryComment,
 		ConfigFileSupport: r.ManagedRepoProperies.ConfigFileSupport,
-	}, r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID)
+	}, scmRepoStatus{r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID})
 }
 
 type AzureRepositoryIntegrate struct {
