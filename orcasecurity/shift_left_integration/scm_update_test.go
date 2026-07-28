@@ -161,6 +161,36 @@ func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 	}
 }
 
+// default_policies is orthogonal to project_id: it must not clear a bound project.
+func TestAdopt_DefaultPoliciesKeepsProject(t *testing.T) {
+	ad := Adopt(
+		types.StringNull(),
+		types.BoolValue(true),           // default_policies=true
+		types.SetNull(types.StringType), // no explicit policies list
+		nil,
+		ProjectIntent{}, // no explicit-policies intent, project_id omitted in config
+		ExistingUnit{ProjectID: "proj-1", PolicyIDs: []string{"pol-1"}},
+	)
+	if ad.Body.ProjectID != "proj-1" {
+		t.Fatalf("expected project preserved with default_policies, got %q", ad.Body.ProjectID)
+	}
+	if !ad.Body.DefaultPolicies {
+		t.Error("expected default_policies=true sent alongside project_id")
+	}
+}
+
+func TestProjectIntentFrom_OnlyExplicitPoliciesCount(t *testing.T) {
+	pi := ProjectIntentFrom(types.StringNull(), types.SetNull(types.StringType), types.BoolValue(true))
+	if pi.PoliciesIntent {
+		t.Error("default_policies alone must not count as explicit-policies intent")
+	}
+	pi = ProjectIntentFrom(types.StringNull(),
+		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("p")}), types.BoolNull())
+	if !pi.PoliciesIntent {
+		t.Error("explicit policies_ids must set PoliciesIntent")
+	}
+}
+
 func TestAdopt_MergesConfigSettings(t *testing.T) {
 	overlay := &ConfigSettingsModel{
 		PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES"),

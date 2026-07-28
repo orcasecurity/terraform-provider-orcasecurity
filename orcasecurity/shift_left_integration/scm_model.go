@@ -32,11 +32,12 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 	return ScmConfigFields{
 		AccountName:       types.StringValue(accountName),
 		IntegrationStatus: OptionalID(u.IntegrationStatus),
-		InstallationMode:  types.StringValue(u.InstallationMode),
-		DefaultPolicies:   types.BoolValue(u.DefaultPolicies),
-		PoliciesIds:       PolicyIDsFromRefs(u.Policies),
-		ProjectID:         OptionalID(api_client.ProjectRefID(u.Project)),
-		ConfigSettings:    &cs,
+		// API returns legacy SCAN_ALL on old units but rejects it on update; normalize on Read.
+		InstallationMode: types.StringValue(normalizeInstallationMode(u.InstallationMode)),
+		DefaultPolicies:  types.BoolValue(u.DefaultPolicies),
+		PoliciesIds:      PolicyIDsFromRefs(u.Policies),
+		ProjectID:        OptionalID(api_client.ProjectRefID(u.Project)),
+		ConfigSettings:   &cs,
 
 		ScanAllState:                OptionalID(u.ScanAllState),
 		IntegratedRepositoriesCount: types.Int64Value(u.IntegratedRepositoriesCount),

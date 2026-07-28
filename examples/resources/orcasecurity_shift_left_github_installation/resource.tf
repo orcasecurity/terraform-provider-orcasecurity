@@ -11,9 +11,9 @@ resource "orcasecurity_shift_left_github_installation" "example" {
   }
 }
 
-# Alternatively, bind the installation to a scan-all project instead of policies
-# project_id is mutually exclusive with
-# default_policies and policies_ids.
+# Alternatively, bind the installation to a scan-all project.
+# project_id is mutually exclusive with policies_ids;
+# default_policies may still apply alongside it.
 resource "orcasecurity_shift_left_github_installation" "project_bound" {
   installation_id   = "55555555-5555-5555-5555-555555555555"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"

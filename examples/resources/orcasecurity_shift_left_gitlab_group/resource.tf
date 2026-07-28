@@ -12,9 +12,9 @@ resource "orcasecurity_shift_left_gitlab_group" "example" {
   }
 }
 
-# Alternatively, bind the group to a scan-all project instead of policies
-# project_id is mutually exclusive with
-# default_policies and policies_ids.
+# Alternatively, bind the group to a scan-all project.
+# project_id is mutually exclusive with policies_ids;
+# default_policies may still apply alongside it.
 resource "orcasecurity_shift_left_gitlab_group" "project_bound" {
   installation_id   = "11111111-1111-1111-1111-111111111111"
   gitlab_group_id   = 11223344

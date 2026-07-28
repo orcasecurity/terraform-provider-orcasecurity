@@ -67,15 +67,16 @@ type ProjectIntent struct {
 	PoliciesIntent bool
 }
 
-func policiesIntent(policies types.Set, defaultPolicies types.Bool) bool {
-	return (!policies.IsNull() && !policies.IsUnknown()) ||
-		(!defaultPolicies.IsNull() && !defaultPolicies.IsUnknown())
+// hasExplicitPolicies reports an explicit policies_ids list in config. Only an
+// explicit list is mutually exclusive with project_id; default_policies is not.
+func hasExplicitPolicies(policies types.Set) bool {
+	return !policies.IsNull() && !policies.IsUnknown()
 }
 
-func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set, configDefault types.Bool) ProjectIntent {
+func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set, _ types.Bool) ProjectIntent {
 	return ProjectIntent{
 		FromConfig:     configProjectID,
-		PoliciesIntent: policiesIntent(configPolicies, configDefault),
+		PoliciesIntent: hasExplicitPolicies(configPolicies),
 	}
 }
 
@@ -98,48 +99,18 @@ func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 	}
 }
 
+// CreateUnitBody is Adopt seeded with API defaults for a new unit.
 func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) Adopted {
-	base := FlattenConfigSettings(defaultConfigSettings())
-	merged := MergeConfigSettings(base, planConfig)
-
-	defaultPolicies := planDefault
-	if defaultPolicies.IsNull() || defaultPolicies.IsUnknown() {
-		if project.PoliciesIntent {
-			defaultPolicies = types.BoolValue(false)
-		} else {
-			defaultPolicies = types.BoolValue(true)
-		}
+	seed := ExistingUnit{
+		InstallationMode: mode.ValueString(),
+		DefaultPolicies:  !project.PoliciesIntent,
+		ConfigSettings:   defaultConfigSettings(),
 	}
-	policies := planPolicies
-	if policies.IsNull() || policies.IsUnknown() {
-		policies = PolicyIDsToSet(nil)
-	}
-
-	projectID := ""
-	switch {
-	case project.PoliciesIntent:
-		projectID = ""
-	case !project.FromConfig.IsNull() && !project.FromConfig.IsUnknown():
-		projectID = project.FromConfig.ValueString()
-	}
-
-	body := ExpandUpdate(mode, defaultPolicies, policies, &merged)
-	if projectID != "" {
-		body.ProjectID = projectID
-		body.Policies = nil
-	}
-
-	return Adopted{
-		InstallationMode: mode,
-		DefaultPolicies:  defaultPolicies,
-		PoliciesIds:      policies,
-		ConfigSettings:   &merged,
-		Body:             body,
-	}
+	return Adopt(mode, planDefault, planPolicies, planConfig, project, seed)
 }
 
-// Adopt hydrates unset plan fields from the live unit so apply never wipes server-managed state.
-// The PUT sends project_id XOR policies, matching the UI.
+// Adopt hydrates unset plan fields from the live unit (seed on create).
+// PUT sends project_id XOR explicit policies; default_policies may accompany project_id.
 func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent, ex ExistingUnit) Adopted {
 	base := FlattenConfigSettings(ex.ConfigSettings)
 	merged := MergeConfigSettings(base, planConfig)
@@ -159,10 +130,10 @@ func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set
 
 	projectID := ex.ProjectID
 	switch {
+	case !project.FromConfig.IsNull() && !project.FromConfig.IsUnknown():
+		projectID = project.FromConfig.ValueString() // explicit project_id wins (may be "" to clear)
 	case project.PoliciesIntent:
 		projectID = ""
-	case !project.FromConfig.IsNull() && !project.FromConfig.IsUnknown():
-		projectID = project.FromConfig.ValueString()
 	}
 
 	body := ExpandUpdate(mode, defaultPolicies, policies, &merged)

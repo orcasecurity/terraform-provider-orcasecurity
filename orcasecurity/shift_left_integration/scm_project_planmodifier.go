@@ -28,13 +28,11 @@ func (projectIDPlanModifier) PlanModifyString(ctx context.Context, req planmodif
 
 	var policies types.Set
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("policies_ids"), &policies)...)
-	var defaultPolicies types.Bool
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("default_policies"), &defaultPolicies)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if policiesIntent(policies, defaultPolicies) && !req.StateValue.IsNull() && req.StateValue.ValueString() != "" {
+	if hasExplicitPolicies(policies) && !req.StateValue.IsNull() && req.StateValue.ValueString() != "" {
 		resp.PlanValue = types.StringUnknown()
 		return
 	}

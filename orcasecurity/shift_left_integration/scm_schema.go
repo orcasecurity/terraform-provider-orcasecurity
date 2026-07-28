@@ -35,23 +35,23 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 		"default_policies": rschema.BoolAttribute{
 			Optional:      true,
 			Computed:      true,
-			Description:   "Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with project_id.",
+			Description:   "Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with policies_ids; may accompany project_id.",
 			PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 		},
 		"policies_ids": rschema.SetAttribute{
 			Optional:      true,
 			Computed:      true,
 			ElementType:   types.StringType,
-			Description:   "Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id.",
+			Description:   "Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies.",
 			PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
 		},
 		"project_id": rschema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
-			Description:   "Bind this unit to a scan-all project instead of policies. Mutually exclusive with policies_ids and default_policies. Set to an empty string to clear the binding; omit to leave it unchanged.",
+			Description:   "Bind this unit to a scan-all project. Mutually exclusive with policies_ids (the API rejects both); default_policies may still apply. Set to an empty string to clear the binding; omit to leave it unchanged.",
 			PlanModifiers: []planmodifier.String{ProjectIDPlanModifier()},
 			Validators: []validator.String{
-				stringvalidator.ConflictsWith(path.MatchRoot("policies_ids"), path.MatchRoot("default_policies")),
+				stringvalidator.ConflictsWith(path.MatchRoot("policies_ids")),
 			},
 		},
 		"configuration_settings": rschema.SingleNestedAttribute{

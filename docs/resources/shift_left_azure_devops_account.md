@@ -50,10 +50,10 @@ resource "orcasecurity_shift_left_azure_devops_account" "project_bound" {
 ### Optional
 
 - `configuration_settings` (Attributes) PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose. (see [below for nested schema](#nestedatt--configuration_settings))
-- `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with project_id.
+- `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with policies_ids; may accompany project_id.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.
-- `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id.
-- `project_id` (String) Bind this unit to a scan-all project instead of policies. Mutually exclusive with policies_ids and default_policies. Set to an empty string to clear the binding; omit to leave it unchanged.
+- `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies.
+- `project_id` (String) Bind this unit to a scan-all project. Mutually exclusive with policies_ids (the API rejects both); default_policies may still apply. Set to an empty string to clear the binding; omit to leave it unchanged.
 
 ### Read-Only
 
