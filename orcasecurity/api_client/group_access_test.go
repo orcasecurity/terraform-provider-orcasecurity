@@ -21,10 +21,8 @@ func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
 		if r.Method != http.MethodGet || r.URL.Path != apiRBACGroupAccessPath {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		if r.URL.Query().Get("group_id") != targetGroupID {
-			t.Fatalf("query group_id = %q", r.URL.Query().Get("group_id"))
-		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"total_items": 2,
 			"data": []map[string]interface{}{
 				{
 					"id": "asg-other", "all_cloud_accounts": true,
@@ -63,39 +61,72 @@ func TestListGroupAccessForGroup_FiltersByNestedGroupID(t *testing.T) {
 	}
 }
 
-func TestFindGroupAccess_FallsBackToListOn404(t *testing.T) {
+// The target grant lives on page 2 (start_at_index > 0); before pagination the
+// read only saw page 1 and reported it "gone".
+func TestListGroupAccessForGroup_PagesUntilTotalItems(t *testing.T) {
+	const targetGroupID = "g-target"
+
+	var starts []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/rbac/access/group/stale-id":
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = io.WriteString(w, `{"message":"not found"}`)
-		case r.Method == http.MethodGet && r.URL.Path == apiRBACGroupAccessPath:
-			if r.URL.Query().Get("group_id") != "g1" {
-				t.Fatalf("group_id %q", r.URL.Query().Get("group_id"))
-			}
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": []map[string]interface{}{
-					{
-						"id": "asg-live", "all_cloud_accounts": false,
-						"group":              map[string]string{"id": "g1"},
-						"role":               map[string]string{"id": "r1"},
-						"cloud_accounts":     []interface{}{},
-						"user_filters":       []string{"bu1"},
-						"shiftleft_projects": []string{},
-					},
-				},
-			})
-		default:
-			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		start := r.URL.Query().Get("start_at_index")
+		starts = append(starts, start)
+		if r.URL.Query().Get("limit") == "" {
+			t.Fatalf("expected an explicit limit, got none")
 		}
+		var rows []map[string]interface{}
+		if start == "0" || start == "" {
+			rows = []map[string]interface{}{{
+				"id": "asg-other", "group": map[string]string{"id": "g-other"},
+				"role": map[string]string{"id": "r1"},
+			}}
+		} else {
+			rows = []map[string]interface{}{{
+				"id": "asg-want", "group": map[string]string{"id": targetGroupID},
+				"role": map[string]string{"id": "r2"},
+			}}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"total_items": 2,
+			"data":        rows,
+		})
 	}))
 	defer srv.Close()
 
-	c := &APIClient{
-		APIEndpoint: srv.URL,
-		APIToken:    "tok",
-		HTTPClient:  srv.Client(),
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	got, err := c.ListGroupAccessForGroup(targetGroupID)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if len(got) != 1 || got[0].ID != "asg-want" {
+		t.Fatalf("target row on a later page not returned: %+v", got)
+	}
+	if len(starts) < 2 || starts[1] != "1" {
+		t.Fatalf("expected offset to advance by rows received, got starts=%v", starts)
+	}
+}
+
+// FindGroupAccess must resolve a grant whose id changed server-side by matching
+// role+scope, and must never hit a by-id URL (that route 404s).
+func TestFindGroupAccess_MatchesByScopeAcrossPages(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != apiRBACGroupAccessPath {
+			t.Fatalf("unexpected path %s (by-id routes 404)", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"total_items": 1,
+			"data": []map[string]interface{}{{
+				"id": "asg-new", "all_cloud_accounts": false,
+				"group":              map[string]string{"id": "g1"},
+				"role":               map[string]string{"id": "r1"},
+				"cloud_accounts":     []interface{}{},
+				"user_filters":       []string{"bu1"},
+				"shiftleft_projects": []string{},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
 	want := GroupAccess{
 		GroupID:           "g1",
 		RoleID:            "r1",
@@ -108,8 +139,48 @@ func TestFindGroupAccess_FallsBackToListOn404(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.ID != "asg-live" {
+	if got == nil || got.ID != "asg-new" {
 		t.Fatalf(errFmtTestGotValue, got)
+	}
+}
+
+// On import only the id is known (want.GroupID empty); Find must scan the whole
+// collection and still resolve the grant.
+func TestFindGroupAccess_ScansAllWhenGroupUnknown(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"total_items": 2,
+			"data": []map[string]interface{}{
+				{"id": "asg-other", "group": map[string]string{"id": "g-other"}, "role": map[string]string{"id": "r9"}},
+				{"id": "asg-import", "group": map[string]string{"id": "g1"}, "role": map[string]string{"id": "r1"}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	got, err := c.FindGroupAccess("asg-import", GroupAccess{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.ID != "asg-import" || got.GroupID != "g1" {
+		t.Fatalf(errFmtTestGotValue, got)
+	}
+}
+
+func TestFindGroupAccess_NotFoundReturnsNil(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"total_items": 0, "data": []interface{}{}})
+	}))
+	defer srv.Close()
+
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	got, err := c.FindGroupAccess("gone", GroupAccess{GroupID: "g1", RoleID: "r1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Fatalf(errFmtTestExpectedNilGot, got)
 	}
 }
 
@@ -153,57 +224,76 @@ func TestCreateGroupAccess_ParsesWrappedDataID(t *testing.T) {
 	}
 }
 
-func TestGetGroupAccess_404ReturnsNil(t *testing.T) {
+// Update PUTs to the collection path with the id in the body (never /<id>) and
+// re-reads the canonical row, since the PUT response nests group/role.
+func TestUpdateGroupAccess_UsesCollectionPathAndReReads(t *testing.T) {
+	var putBody map[string]interface{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = io.WriteString(w, `{"message":"not found"}`)
+		if r.URL.Path != apiRBACGroupAccessPath {
+			t.Fatalf("unexpected path %s (by-id routes 404)", r.URL.Path)
+		}
+		switch r.Method {
+		case http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &putBody)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "data": map[string]interface{}{}})
+		case http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"total_items": 1,
+				"data": []map[string]interface{}{{
+					"id": "asg-1", "group": map[string]string{"id": "g1"},
+					"role": map[string]string{"id": "r2"},
+				}},
+			})
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
 	}))
 	defer srv.Close()
 
-	c := &APIClient{
-		APIEndpoint: srv.URL,
-		APIToken:    "tok",
-		HTTPClient:  srv.Client(),
-	}
-	got, err := c.GetGroupAccess("missing-id")
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	got, err := c.UpdateGroupAccess(GroupAccess{ID: "asg-1", GroupID: "g1", RoleID: "r2"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != nil {
-		t.Fatalf(errFmtTestExpectedNilGot, got)
+	if putBody["id"] != "asg-1" {
+		t.Fatalf("PUT body must carry id, got %+v", putBody)
+	}
+	if got == nil || got.ID != "asg-1" || got.RoleID != "r2" {
+		t.Fatalf("re-read row wrong: %+v", got)
 	}
 }
 
-func TestGetGroupAccess_OK(t *testing.T) {
+func TestUpdateGroupAccess_RequiresID(t *testing.T) {
+	c := &APIClient{APIEndpoint: "http://unused", APIToken: "t", HTTPClient: http.DefaultClient}
+	_, err := c.UpdateGroupAccess(GroupAccess{})
+	if err == nil || !strings.Contains(err.Error(), "id is required") {
+		t.Fatalf("expected id required error, got %v", err)
+	}
+}
+
+// Delete must DELETE the collection path with body {"id": …}; the by-id URL 404s
+// and silently deletes nothing.
+func TestDeleteGroupAccess_UsesBodyNotByID(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotBody map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/rbac/access/group/asg-1" {
-			t.Fatalf("path %s", r.URL.Path)
-		}
-		_ = json.NewEncoder(w).Encode(groupAccessAPIResponseType{
-			Data: GroupAccess{
-				ID:                "asg-1",
-				GroupID:           "g1",
-				RoleID:            "r1",
-				AllCloudAccounts:  false,
-				UserFilters:       []string{"f1"},
-				CloudAccounts:     []string{},
-				ShiftleftProjects: []string{},
-			},
-		})
+		gotPath, gotMethod = r.URL.Path, r.Method
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "data": map[string]interface{}{}})
 	}))
 	defer srv.Close()
 
-	c := &APIClient{
-		APIEndpoint: srv.URL,
-		APIToken:    "tok",
-		HTTPClient:  srv.Client(),
-	}
-	got, err := c.GetGroupAccess("asg-1")
-	if err != nil {
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	if err := c.DeleteGroupAccess("asg-1"); err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.ID != "asg-1" {
-		t.Fatalf(errFmtTestGotValue, got)
+	if gotMethod != http.MethodDelete || gotPath != apiRBACGroupAccessPath {
+		t.Fatalf("expected DELETE %s, got %s %s", apiRBACGroupAccessPath, gotMethod, gotPath)
+	}
+	if gotBody["id"] != "asg-1" {
+		t.Fatalf("expected id in body, got %+v", gotBody)
 	}
 }
 
@@ -220,13 +310,5 @@ func TestDeleteGroupAccess_404Ignored(t *testing.T) {
 	}
 	if err := c.DeleteGroupAccess("gone"); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestUpdateGroupAccess_RequiresID(t *testing.T) {
-	c := &APIClient{APIEndpoint: "http://unused", APIToken: "t", HTTPClient: http.DefaultClient}
-	_, err := c.UpdateGroupAccess(GroupAccess{})
-	if err == nil || !strings.Contains(err.Error(), "id is required") {
-		t.Fatalf("expected id required error, got %v", err)
 	}
 }

@@ -6,15 +6,23 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 )
 
+// The endpoint has no /<id> route (GET/PUT/DELETE on /<id> all 404): the id
+// travels in the request body, and reads page the collection and filter
+// client-side because the server ignores the group_id/id query params.
 const (
-	apiRBACGroupAccessPath    = "/api/rbac/access/group"
-	apiRBACGroupAccessByIDFmt = "/api/rbac/access/group/%s"
+	apiRBACGroupAccessPath = "/api/rbac/access/group"
+	// rbacAccessPageLimit is the page size for the group list, which paginates
+	// (default 10 rows) and honours limit + start_at_index.
+	rbacAccessPageLimit = 300
+	// rbacAccessMaxLimit is a single-request ceiling for the user list, which
+	// ignores start_at_index and returns the whole collection at once.
+	rbacAccessMaxLimit = 10000
 )
 
-// GroupAccess maps to POST/PUT /api/rbac/access/group payloads.
 type GroupAccess struct {
 	ID                string   `json:"id,omitempty"`
 	AllCloudAccounts  bool     `json:"all_cloud_accounts"`
@@ -58,28 +66,6 @@ func (client *APIClient) CreateGroupAccess(data GroupAccess) (*GroupAccess, erro
 	}
 
 	return nil, fmt.Errorf("create group access: could not parse assignment id from response: %s", string(body))
-}
-
-// GetGroupAccess fetches a group–role assignment by its Orca assignment id.
-func (client *APIClient) GetGroupAccess(id string) (*GroupAccess, error) {
-	resp, err := client.Get(fmt.Sprintf(apiRBACGroupAccessByIDFmt, id))
-	if err != nil {
-		if strings.Contains(err.Error(), "status: 404") {
-			return nil, nil
-		}
-		return nil, err
-	}
-	body := resp.Body()
-
-	var wrapped groupAccessAPIResponseType
-	if err := json.Unmarshal(body, &wrapped); err != nil {
-		return nil, err
-	}
-	out := wrapped.Data
-	if out.ID == "" {
-		out.ID = id
-	}
-	return &out, nil
 }
 
 type groupAccessListRow struct {
@@ -189,81 +175,101 @@ func pickMatchingGroupAccess(list []GroupAccess, groupID string, want GroupAcces
 	return &picked
 }
 
-// ListGroupAccessForGroup calls GET /api/rbac/access/group?group_id=… and returns rows whose
-// nested group id equals groupID (the API may include other groups in the payload).
+// pageAllGroupAccess pages the whole /api/rbac/access/group collection. The
+// server ignores the group_id query param and paginates (default 10 rows), so
+// every page must be fetched and filtered client-side.
+func (client *APIClient) pageAllGroupAccess() ([]GroupAccess, error) {
+	var out []GroupAccess
+	fetched := 0
+	for {
+		// Offset by rows received, not page count, so a short page under-fetches
+		// safely instead of skipping rows.
+		q := url.Values{}
+		q.Set("limit", strconv.Itoa(rbacAccessPageLimit))
+		q.Set("start_at_index", strconv.Itoa(fetched))
+		resp, err := client.Get(apiRBACGroupAccessPath + "?" + q.Encode())
+		if err != nil {
+			return nil, err
+		}
+		var envelope struct {
+			TotalItems int                  `json:"total_items"`
+			Data       []groupAccessListRow `json:"data"`
+		}
+		if err := json.Unmarshal(resp.Body(), &envelope); err != nil {
+			return nil, err
+		}
+		for _, row := range envelope.Data {
+			out = append(out, groupAccessFromListRow(row))
+		}
+		fetched += len(envelope.Data)
+		if len(envelope.Data) == 0 || fetched >= envelope.TotalItems {
+			return out, nil
+		}
+	}
+}
+
+// ListGroupAccessForGroup returns the assignments whose nested group id equals groupID.
 func (client *APIClient) ListGroupAccessForGroup(groupID string) ([]GroupAccess, error) {
-	q := url.Values{}
-	q.Set("group_id", groupID)
-	path := apiRBACGroupAccessPath + "?" + q.Encode()
-	resp, err := client.Get(path)
+	all, err := client.pageAllGroupAccess()
 	if err != nil {
 		return nil, err
 	}
-	body := resp.Body()
-	var envelope struct {
-		Data []groupAccessListRow `json:"data"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, err
-	}
-	out := make([]GroupAccess, 0, len(envelope.Data))
-	for _, row := range envelope.Data {
-		ga := groupAccessFromListRow(row)
-		if ga.GroupID != groupID {
-			continue
+	out := make([]GroupAccess, 0, len(all))
+	for _, ga := range all {
+		if ga.GroupID == groupID {
+			out = append(out, ga)
 		}
-		out = append(out, ga)
 	}
 	return out, nil
 }
 
-// FindGroupAccess resolves an assignment by id via GET; if that returns 404, it lists
-// assignments for want.GroupID and returns the row matching role and scope (same as want).
-// want.ID is used only to break ties when multiple API rows match the same scope.
+// FindGroupAccess returns the row matching assignmentID, falling back to
+// role+scope when the id has changed server-side. When want.GroupID is unset
+// (import, where only the id is known) it scans the whole collection.
 func (client *APIClient) FindGroupAccess(assignmentID string, want GroupAccess) (*GroupAccess, error) {
-	byID, err := client.GetGroupAccess(assignmentID)
-	if err != nil {
-		return nil, err
-	}
-	if byID != nil {
-		return byID, nil
-	}
+	var list []GroupAccess
+	var err error
 	if want.GroupID == "" {
-		return nil, nil
+		list, err = client.pageAllGroupAccess()
+	} else {
+		list, err = client.ListGroupAccessForGroup(want.GroupID)
 	}
-	list, err := client.ListGroupAccessForGroup(want.GroupID)
 	if err != nil {
 		return nil, err
+	}
+	for _, item := range list {
+		if item.ID == assignmentID {
+			picked := item
+			return &picked, nil
+		}
 	}
 	want.ID = assignmentID
 	return pickMatchingGroupAccess(list, want.GroupID, want), nil
 }
 
-// UpdateGroupAccess updates an existing assignment (same payload shape as create).
+// UpdateGroupAccess updates an existing assignment. The id is carried in the
+// body; the PUT response nests group/role, so re-read the canonical row.
 func (client *APIClient) UpdateGroupAccess(data GroupAccess) (*GroupAccess, error) {
 	if data.ID == "" {
 		return nil, fmt.Errorf("update group access: id is required")
 	}
-	resp, err := client.Put(fmt.Sprintf(apiRBACGroupAccessByIDFmt, data.ID), data)
+	if _, err := client.Put(apiRBACGroupAccessPath, data); err != nil {
+		return nil, err
+	}
+	refreshed, err := client.FindGroupAccess(data.ID, data)
 	if err != nil {
 		return nil, err
 	}
-	body := resp.Body()
-
-	var wrapped groupAccessAPIResponseType
-	if err := json.Unmarshal(body, &wrapped); err != nil {
-		return nil, err
+	if refreshed != nil {
+		return refreshed, nil
 	}
-	out := wrapped.Data
-	if out.ID == "" {
-		out.ID = data.ID
-	}
+	out := data
 	return &out, nil
 }
 
-// DeleteGroupAccess removes a group–role assignment.
+// DeleteGroupAccess removes a group–role assignment (id carried in the body).
 func (client *APIClient) DeleteGroupAccess(id string) error {
-	_, err := client.Delete(fmt.Sprintf(apiRBACGroupAccessByIDFmt, id))
+	_, err := client.DeleteWithBody(apiRBACGroupAccessPath, map[string]string{"id": id})
 	if err != nil && strings.Contains(err.Error(), "status: 404") {
 		return nil
 	}

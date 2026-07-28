@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -90,11 +91,14 @@ func (client *APIClient) CreateUserAccess(data UserAccess) (*UserAccess, error) 
 	return &out, nil
 }
 
-// ListUserAccessForUser calls GET /api/rbac/access/user?user_id=… and returns the
-// rows whose nested user id equals userID (the API may include other users).
-func (client *APIClient) ListUserAccessForUser(userID string) ([]UserAccess, error) {
+// pageAllUserAccess returns the whole /api/rbac/access/user collection. Unlike
+// the group endpoint, this one ignores user_id, limit and start_at_index and
+// carries no total_items, returning every row in a single response. A high
+// limit is sent only as insurance against a future server-side page cap; the
+// rows are filtered client-side by the caller.
+func (client *APIClient) pageAllUserAccess() ([]UserAccess, error) {
 	q := url.Values{}
-	q.Set("user_id", userID)
+	q.Set("limit", strconv.Itoa(rbacAccessMaxLimit))
 	resp, err := client.Get(apiRBACUserAccessPath + "?" + q.Encode())
 	if err != nil {
 		return nil, err
@@ -107,11 +111,22 @@ func (client *APIClient) ListUserAccessForUser(userID string) ([]UserAccess, err
 	}
 	out := make([]UserAccess, 0, len(envelope.Data))
 	for _, row := range envelope.Data {
-		ua := userAccessFromListRow(row)
-		if ua.UserID != userID {
-			continue
+		out = append(out, userAccessFromListRow(row))
+	}
+	return out, nil
+}
+
+// ListUserAccessForUser returns the assignments whose nested user id equals userID.
+func (client *APIClient) ListUserAccessForUser(userID string) ([]UserAccess, error) {
+	all, err := client.pageAllUserAccess()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]UserAccess, 0, len(all))
+	for _, ua := range all {
+		if ua.UserID == userID {
+			out = append(out, ua)
 		}
-		out = append(out, ua)
 	}
 	return out, nil
 }
@@ -151,14 +166,18 @@ func pickMatchingUserAccess(list []UserAccess, userID string, want UserAccess) *
 	return &picked
 }
 
-// FindUserAccess resolves an assignment by listing the user's assignments and
-// returning the row matching id (preferred) or role+scope (as a fallback when
-// the id has changed server-side). Returns nil when nothing matches.
+// FindUserAccess returns the assignment matching id (preferred) or role+scope
+// (fallback when the id has changed server-side). When want.UserID is unset
+// (import, where only the id is known) it scans the whole collection. Returns
+// nil when nothing matches.
 func (client *APIClient) FindUserAccess(assignmentID string, want UserAccess) (*UserAccess, error) {
+	var list []UserAccess
+	var err error
 	if want.UserID == "" {
-		return nil, nil
+		list, err = client.pageAllUserAccess()
+	} else {
+		list, err = client.ListUserAccessForUser(want.UserID)
 	}
-	list, err := client.ListUserAccessForUser(want.UserID)
 	if err != nil {
 		return nil, err
 	}

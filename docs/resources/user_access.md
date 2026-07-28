@@ -55,3 +55,11 @@ resource "orcasecurity_business_unit" "example" {
 ### Read-Only
 
 - `id` (String) Orca assignment id returned by the API.
+
+## Import
+
+Import is supported using the following syntax. The id is the Orca assignment id (the `id` attribute of the resource).
+
+```shell
+terraform import orcasecurity_user_access.example ASSIGNMENT_ID
+```
