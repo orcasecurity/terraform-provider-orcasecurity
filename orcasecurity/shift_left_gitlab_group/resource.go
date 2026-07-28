@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
@@ -58,16 +59,11 @@ func (r *gitlabGroupResource) ImportState(ctx context.Context, req resource.Impo
 }
 
 func splitImport(id string) []string {
-	for i := 0; i < len(id); i++ {
-		if id[i] == '/' {
-			left, right := id[:i], id[i+1:]
-			if left == "" || right == "" {
-				return nil
-			}
-			return []string{left, right}
-		}
+	left, right, ok := strings.Cut(id, "/")
+	if !ok || left == "" || right == "" {
+		return nil
 	}
-	return nil
+	return []string{left, right}
 }
 
 func (r *gitlabGroupResource) ops() shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel] {

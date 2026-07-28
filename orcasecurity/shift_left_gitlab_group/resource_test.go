@@ -2,6 +2,7 @@ package shift_left_gitlab_group_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
@@ -13,12 +14,19 @@ import (
 
 func TestAccGitlabGroup_import(t *testing.T) {
 	installationID, gitlabGroupIDEnv, orcaGroupID := requireGitlabGroupTestEnv(t)
+	// resource.Test always destroys on teardown, and this resource adopts a
+	// pre-existing group it did not create; require an explicit opt-in before
+	// tearing down a shared-lab group.
+	if os.Getenv("ORCA_TEST_GL_ALLOW_DESTROY") == "" {
+		t.Skip("ORCA_TEST_GL_ALLOW_DESTROY not set; refuse to DELETE a shared lab GitLab group")
+	}
 
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 	client.InvalidateScmListCache()
 
 	original := fetchGitlabGroupForTest(t, client, installationID, gitlabGroupIDEnv, orcaGroupID)
+	requireDisposableGroup(t, original) // even with opt-in, only tear down an empty group
 	gitlabGroupID := original.GitlabGroupID
 	t.Cleanup(func() {
 		restoreGitlabGroup(t, client, installationID, gitlabGroupID, original)
