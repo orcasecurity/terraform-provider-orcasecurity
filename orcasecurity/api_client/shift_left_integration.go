@@ -18,7 +18,6 @@ type scmUnitIntegrateBody struct {
 	Policies              []string                `json:"policies"`
 	ProjectID             string                  `json:"project_id,omitempty"`
 	ConfigurationSettings ShiftLeftConfigSettings `json:"configuration_settings"`
-	Repositories          []struct{}              `json:"repositories"`
 }
 
 func newScmUnitIntegrateBody(installationID string, b ScmInstallationUpdate) scmUnitIntegrateBody {
@@ -29,7 +28,6 @@ func newScmUnitIntegrateBody(installationID string, b ScmInstallationUpdate) scm
 		Policies:              b.Policies,
 		ProjectID:             b.ProjectID,
 		ConfigurationSettings: b.ConfigSettings,
-		Repositories:          []struct{}{},
 	}
 }
 

@@ -105,16 +105,16 @@ func (r *githubRepositoryResource) Delete(ctx context.Context, req resource.Dele
 }
 
 func (r *githubRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	installationID, repoID, ok := strings.Cut(req.ID, ":")
-	if !ok {
+	parts := strings.Split(req.ID, ":")
+	if len(parts) != 2 {
 		resp.Diagnostics.AddError("Invalid import ID", "expected format installation_id:github_repository_id")
 		return
 	}
-	numericID, err := strconv.ParseInt(repoID, 10, 64)
+	numericID, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", fmt.Sprintf("github_repository_id must be numeric: %s", err))
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), installationID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("github_repository_id"), numericID)...)
 }

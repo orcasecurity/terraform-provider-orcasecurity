@@ -64,6 +64,50 @@ func TestIntegrateGithubRepository_BodyShape(t *testing.T) {
 	}
 }
 
+// Asserts the actual configuration_settings wire contents (not just that the
+// key exists), and the documented invariant that `disabled` is never part of
+// it — GitHub's integrate endpoint rejects it, so it is applied post-integrate.
+func TestIntegrateGithubRepository_ConfigurationSettingsContents(t *testing.T) {
+	client, last := captureServer(t, nil)
+	dspr := true
+	err := client.IntegrateGithubRepository(GithubRepositoryIntegrate{
+		InstallationID:     "inst-1",
+		GithubRepositoryID: 42,
+		Name:               "acme/repo",
+		URL:                "https://github.com/acme/repo",
+		Branch:             "main",
+		Config: ScmRepoIntegrationConfig{
+			DisableScanPullRequests: &dspr,
+			CommentsOnPullRequests:  "NEVER",
+			PrSummaryComment:        "ALWAYS",
+			SkipCheckRuns:           "ONLY_ON_INTERNAL_ISSUE",
+			ConfigFileSupport:       "DISABLED",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, ok := last.Body["configuration_settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("configuration_settings missing or wrong type: %v", last.Body["configuration_settings"])
+	}
+	want := map[string]any{
+		"disable_scan_pull_requests": true,
+		"comments_on_pull_requests":  "NEVER",
+		"pr_summary_comment":         "ALWAYS",
+		"skip_check_runs":            "ONLY_ON_INTERNAL_ISSUE",
+		"config_file_support":        "DISABLED",
+	}
+	for k, v := range want {
+		if cs[k] != v {
+			t.Errorf("configuration_settings[%q] = %v, want %v", k, cs[k], v)
+		}
+	}
+	if _, ok := cs["disabled"]; ok {
+		t.Error("disabled must never be part of configuration_settings on integrate")
+	}
+}
+
 func TestIntegrateGitlabRepository_BodyShape(t *testing.T) {
 	client, last := captureServer(t, nil)
 	err := client.IntegrateGitlabRepository(GitlabRepositoryIntegrate{
@@ -142,6 +186,36 @@ func TestIntegrateAzureRepository_BodyShape(t *testing.T) {
 	}
 }
 
+// No test previously called Update{Github,Gitlab,Bitbucket,Azure}Repositories;
+// a typo'd provider segment or wrong verb would have shipped undetected.
+func TestUpdateXRepositories_PatchesRightPath(t *testing.T) {
+	cases := []struct {
+		name   string
+		update func(*APIClient, ScmRepositoryConfigUpdate) error
+		path   string
+	}{
+		{"github", (*APIClient).UpdateGithubRepositories, "/api/shiftleft/github/integrated_repositories/"},
+		{"gitlab", (*APIClient).UpdateGitlabRepositories, "/api/shiftleft/gitlab/integrated_repositories/"},
+		{"bitbucket", (*APIClient).UpdateBitbucketRepositories, "/api/shiftleft/bitbucket/integrated_repositories/"},
+		{"azure_devops", (*APIClient).UpdateAzureRepositories, "/api/shiftleft/azure_devops/integrated_repositories/"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, last := captureServer(t, nil)
+			if err := tc.update(client, ScmRepositoryConfigUpdate{IDs: []string{"row-1"}}); err != nil {
+				t.Fatal(err)
+			}
+			if last.Method != "PATCH" || last.Path != tc.path {
+				t.Fatalf("expected PATCH %s, got %s %s", tc.path, last.Method, last.Path)
+			}
+			ids, ok := last.Body["ids"].([]any)
+			if !ok || len(ids) != 1 || ids[0] != "row-1" {
+				t.Errorf("bad ids in body: %v", last.Body["ids"])
+			}
+		})
+	}
+}
+
 func TestScmRepositoryConfigUpdate_MarshalOmitsUnset(t *testing.T) {
 	f := false
 	raw, _ := json.Marshal(ScmRepositoryConfigUpdate{
@@ -189,6 +263,40 @@ func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	}
 	client.invalidateScmListCache()
 	other, err := client.FindGithubRepository("inst-other", 42)
+	if err != nil || other != nil {
+		t.Errorf("expected no match for other installation, got %+v (%v)", other, err)
+	}
+}
+
+func TestFindGitlabRepository_NormalizesFlatItem(t *testing.T) {
+	list := `{"total_items":1,"data":[{
+		"id":"row-1","gitlab_project_id":99,
+		"gitlab_installation":{"id":"inst-1"},
+		"project":{"id":"proj-1"},
+		"repository":{"name":"grp/proj","url":"https://gitlab.com/grp/proj"},
+		"disabled":false,"disable_scan_pull_requests":true,
+		"comments_on_pull_requests":"NEVER","pr_summary_comment":"ALWAYS",
+		"skip_check_runs":"ALWAYS","config_file_support":"ENABLED",
+		"status":"SUCCESS","repository_context_id":"ctx-1",
+		"integration_status":null,"scm_posture_policy_id":"scm-pol-1"}]}`
+	client, _ := captureServer(t, map[string]string{
+		"GET /api/shiftleft/gitlab/integrated_repositories/": list,
+	})
+	row, err := client.FindGitlabRepository("inst-1", 99)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row == nil {
+		t.Fatal("row not found")
+	}
+	if row.ProjectID != "proj-1" || row.RepositoryContextID != "ctx-1" {
+		t.Errorf("bad normalization: %+v", row)
+	}
+	if row.DisableScanPRs == nil || !*row.DisableScanPRs || row.CommentsOnPRs != "NEVER" {
+		t.Errorf("bad config normalization: %+v", row)
+	}
+	client.invalidateScmListCache()
+	other, err := client.FindGitlabRepository("inst-other", 99)
 	if err != nil || other != nil {
 		t.Errorf("expected no match for other installation, got %+v (%v)", other, err)
 	}

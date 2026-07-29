@@ -55,7 +55,7 @@ func (index catalogControlIndex) indexWalk(node interface{}) {
 	}
 }
 
-func buildCatalogControlIndex(catalogRaw json.RawMessage, policyType string) (catalogControlIndex, error) {
+func buildCatalogControlIndex(catalogRaw json.RawMessage) (catalogControlIndex, error) {
 	index := catalogControlIndex{}
 	if len(catalogRaw) == 0 {
 		return index, nil
@@ -212,7 +212,7 @@ func (client *APIClient) EnrichShiftLeftPolicyFromCatalog(policyType string, pol
 		return err
 	}
 
-	index, err := buildCatalogControlIndex(catalog.Body, policyType)
+	index, err := buildCatalogControlIndex(catalog.Body)
 	if err != nil {
 		return err
 	}
@@ -411,7 +411,7 @@ type CatalogControlSummary struct {
 
 // FlattenCatalogControls extracts control summaries from a nested catalog response.
 func FlattenCatalogControls(catalogRaw json.RawMessage) []CatalogControlSummary {
-	index, _ := buildCatalogControlIndex(catalogRaw, "")
+	index, _ := buildCatalogControlIndex(catalogRaw)
 	controls := make([]CatalogControlSummary, 0, len(index))
 	for id, control := range index {
 		c := CatalogControlSummary{ID: id}
