@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -70,6 +71,16 @@ func TestBitbucketImportState_RejectsMalformedID(t *testing.T) {
 		if !importErr(t, r, id) {
 			t.Errorf("bitbucket import %q should have errored", id)
 		}
+	}
+}
+
+// Import cannot set slug (absent from the import ID); Read must backfill it or
+// a RequiresReplace attribute stays null and the next plan destroys/recreates.
+func TestBitbucketSyncSlug_BackfillsFromAPI(t *testing.T) {
+	m := &bitbucketRepositoryModel{}
+	bitbucketSyncSlug(m, &api_client.ScmRepository{Slug: "my-repo-slug"})
+	if m.Slug.ValueString() != "my-repo-slug" {
+		t.Errorf("expected slug backfilled from API, got %q", m.Slug.ValueString())
 	}
 }
 
