@@ -181,7 +181,7 @@ func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	if row == nil {
 		t.Fatal("row not found")
 	}
-	if row.UnitID != "inst-1" || row.ProjectID != "proj-1" || row.RepositoryContextID != "ctx-1" {
+	if row.ProjectID != "proj-1" || row.RepositoryContextID != "ctx-1" {
 		t.Errorf("bad normalization: %+v", row)
 	}
 	if row.DisableScanPRs == nil || !*row.DisableScanPRs || row.CommentsOnPRs != "NEVER" {

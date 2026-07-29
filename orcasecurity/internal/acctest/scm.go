@@ -20,7 +20,7 @@ func RestoreScmBody(mode string, defaultPolicies bool, policies []api_client.Scm
 		nil,
 		shift_left_integration.ProjectIntent{},
 		shift_left_integration.ExistingFromAPI(mode, defaultPolicies, policies, project, cfg),
-	).Body
+	)
 }
 
 // APIClient reads ORCASECURITY_API_* for live-state snapshot/restore tests.

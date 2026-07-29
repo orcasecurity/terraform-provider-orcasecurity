@@ -6,11 +6,12 @@ import "fmt"
 // integrated_repositories has no DELETE — use repository_contexts.
 
 type ScmRepository struct {
-	ID                  string
-	UnitID              string
-	ProjectID           string
-	RepositoryName      string
-	RepositoryURL       string
+	ID             string
+	ProjectID      string
+	RepositoryName string
+	RepositoryURL  string
+	// Slug is Bitbucket-only; empty for the other providers.
+	Slug                string
 	Disabled            bool
 	DisableScanPRs      *bool
 	CommentsOnPRs       string
@@ -61,27 +62,24 @@ func integratedRepositoriesPath(provider string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/integrated_repositories/", provider)
 }
 
+// SCM write helpers invalidate the list cache unconditionally: a PATCH/POST/DELETE
+// that reached the server before erroring (e.g. a timeout) must not leave stale
+// list data that the following find() would read back into state.
 func (client *APIClient) updateScmRepositories(provider string, body ScmRepositoryConfigUpdate) error {
 	_, err := client.Patch(integratedRepositoriesPath(provider), body)
-	if err == nil {
-		client.invalidateScmListCache()
-	}
+	client.invalidateScmListCache()
 	return err
 }
 
 func (client *APIClient) integrateScmRepositories(provider string, body any) error {
 	_, err := client.Post(integratedRepositoriesPath(provider), body)
-	if err == nil {
-		client.invalidateScmListCache()
-	}
+	client.invalidateScmListCache()
 	return err
 }
 
 func (client *APIClient) DeleteRepositoryContext(repositoryContextID string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/repository_contexts/%s/", repositoryContextID))
-	if err == nil {
-		client.invalidateScmListCache()
-	}
+	client.invalidateScmListCache()
 	return err
 }
 
@@ -91,9 +89,7 @@ func (client *APIClient) MoveRepositoryContexts(targetProjectID string, reposito
 		RepositoryContextIDs []string `json:"repository_context_ids"`
 	}{targetProjectID, repositoryContextIDs}
 	_, err := client.Post("/api/shiftleft/repository_contexts/move_project/", body)
-	if err == nil {
-		client.invalidateScmListCache()
-	}
+	client.invalidateScmListCache()
 	return err
 }
 
@@ -134,7 +130,7 @@ type githubRepositoryItem struct {
 }
 
 func (r *githubRepositoryItem) common() ScmRepository {
-	return scmRepository(r.ID, r.GithubInstallation.ID, r.Project, r.Repository, scmRepoConfig{
+	return scmRepository(r.ID, r.Project, r.Repository, scmRepoConfig{
 		Disabled:          r.Disabled,
 		DisableScanPRs:    r.DisableScanPullRequests,
 		CommentsOnPRs:     r.CommentsOnPullRequests,
@@ -167,10 +163,9 @@ type scmRepoStatus struct {
 	ScmPosturePolicyID  string
 }
 
-func scmRepository(id, unitID string, project *scmIDRef, repo scmRepoRef, cfg scmRepoConfig, st scmRepoStatus) ScmRepository {
+func scmRepository(id string, project *scmIDRef, repo scmRepoRef, cfg scmRepoConfig, st scmRepoStatus) ScmRepository {
 	return ScmRepository{
 		ID:                  id,
-		UnitID:              unitID,
 		ProjectID:           projectID(project),
 		RepositoryName:      repo.Name,
 		RepositoryURL:       repo.URL,
@@ -237,8 +232,6 @@ type gitlabRepositoryItem struct {
 	ID                      string     `json:"id"`
 	GitlabProjectID         int64      `json:"gitlab_project_id"`
 	GitlabInstallation      scmIDRef   `json:"gitlab_installation"`
-	GitlabGroup             scmIDRef   `json:"gitlab_group"`
-	GroupInstallationID     string     `json:"gitlab_group_installation_id"`
 	Project                 *scmIDRef  `json:"project"`
 	Repository              scmRepoRef `json:"repository"`
 	Disabled                bool       `json:"disabled"`
@@ -254,7 +247,7 @@ type gitlabRepositoryItem struct {
 }
 
 func (r *gitlabRepositoryItem) common() ScmRepository {
-	return scmRepository(r.ID, r.GroupInstallationID, r.Project, r.Repository, scmRepoConfig{
+	return scmRepository(r.ID, r.Project, r.Repository, scmRepoConfig{
 		Disabled:          r.Disabled,
 		DisableScanPRs:    r.DisableScanPullRequests,
 		CommentsOnPRs:     r.CommentsOnPullRequests,
@@ -337,7 +330,7 @@ type bitbucketRepositoryItem struct {
 }
 
 func (r *bitbucketRepositoryItem) common() ScmRepository {
-	return scmRepository(r.ID, r.AccountInstallation.ID, r.Project, r.Repository, scmRepoConfig{
+	c := scmRepository(r.ID, r.Project, r.Repository, scmRepoConfig{
 		Disabled:          r.Disabled,
 		DisableScanPRs:    r.ConfigurationSettings.DisableScanPullRequests,
 		CommentsOnPRs:     r.ConfigurationSettings.CommentsOnPullRequests,
@@ -345,6 +338,8 @@ func (r *bitbucketRepositoryItem) common() ScmRepository {
 		SkipCheckRuns:     r.ConfigurationSettings.SkipCheckRuns,
 		ConfigFileSupport: r.ConfigurationSettings.ConfigFileSupport,
 	}, scmRepoStatus{r.Status, r.RepositoryContextID, r.IntegrationStatus, ""})
+	c.Slug = r.BitbucketRepoSlug
+	return c
 }
 
 type BitbucketRepositoryIntegrate struct {
@@ -434,7 +429,7 @@ type azureRepositoryItem struct {
 }
 
 func (r *azureRepositoryItem) common() ScmRepository {
-	return scmRepository(r.ID, r.AzureAccountInstallation.ID, r.Project, r.Repository, scmRepoConfig{
+	return scmRepository(r.ID, r.Project, r.Repository, scmRepoConfig{
 		Disabled:          r.ManagedRepoProperties.Disabled,
 		DisableScanPRs:    r.DisableScanPullRequests,
 		CommentsOnPRs:     r.CommentsOnPullRequests,

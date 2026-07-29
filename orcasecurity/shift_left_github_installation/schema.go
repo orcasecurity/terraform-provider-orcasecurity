@@ -9,7 +9,7 @@ import (
 )
 
 func resourceSchema() rschema.Schema {
-	attrs := shift_left_integration.SharedScmConfigAttributes("GitHub account/organization name.")
+	attrs := shift_left_integration.SharedScmConfigAttributes("GitHub account/organization name.", shift_left_integration.FullSkipCheckRuns)
 	attrs["id"] = rschema.StringAttribute{
 		Computed:      true,
 		Description:   "Installation UUID (mirrors installation_id).",

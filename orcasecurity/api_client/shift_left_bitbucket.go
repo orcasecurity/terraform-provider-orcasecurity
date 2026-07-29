@@ -79,17 +79,8 @@ func (client *APIClient) GetBitbucketAccount(installationID, orcaAccountID strin
 }
 
 func (client *APIClient) FindBitbucketAccountBySlug(installationID, slug string) (*BitbucketAccount, error) {
-	all, err := getAllScmPages[BitbucketAccount](client, bitbucketAccountsPath(installationID))
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].AccountID == slug {
-			all[i].stampInstallationID(installationID)
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return findScmUnitBy[BitbucketAccount](client, bitbucketAccountsPath(installationID), installationID,
+		func(a *BitbucketAccount) bool { return a.AccountID == slug })
 }
 
 func (client *APIClient) UpdateBitbucketAccount(installationID, orcaAccountID string, body ScmInstallationUpdate) (*BitbucketAccount, error) {

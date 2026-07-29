@@ -1,13 +1,17 @@
 package api_client
 
 import (
-	"encoding/json"
 	"fmt"
+	"slices"
 )
 
+// Data is a pointer so a missing/null data key is an error, not a silent empty
+// slice (which findScmUnit would read as "deleted" and drop from state).
+// TotalItems is a pointer so an absent total_items (nil) is not read as 0, which
+// would falsely terminate paging after a full first page.
 type scmEnvelope[T any] struct {
-	TotalItems int `json:"total_items"`
-	Data       []T `json:"data"`
+	TotalItems *int `json:"total_items"`
+	Data       *[]T `json:"data"`
 }
 
 type scmInstallationID struct {
@@ -52,7 +56,8 @@ func loadScmListCache[T any](client *APIClient, basePath string, gen uint64) ([]
 	if !ok {
 		return nil, false
 	}
-	return pages, true
+	// Clone: callers stamp elements in place; sharing the cached array races.
+	return slices.Clone(pages), true
 }
 
 func storeScmListCacheIfCurrent[T any](client *APIClient, basePath string, startGen uint64, all []T) {
@@ -88,23 +93,31 @@ func listScmUnitsByInstallation[T any, PT interface {
 	return all, nil
 }
 
-// findScmUnit uses list-filter; the API defines no single-unit GET routes for SCM units.
-func findScmUnit[T any, PT interface {
+// findScmUnitBy list-filters; the API has no single-unit GET route for SCM units.
+func findScmUnitBy[T any, PT interface {
 	*T
 	scmUnit
-}](client *APIClient, unitsPath, installationID, unitID string) (*T, error) {
+}](client *APIClient, unitsPath, installationID string, match func(*T) bool) (*T, error) {
 	all, err := getAllScmPages[T](client, unitsPath)
 	if err != nil {
 		return nil, err
 	}
 	for i := range all {
-		pt := PT(&all[i])
-		if pt.unitID() == unitID {
-			pt.stampInstallationID(installationID)
+		if match(&all[i]) {
+			PT(&all[i]).stampInstallationID(installationID)
 			return &all[i], nil
 		}
 	}
 	return nil, nil
+}
+
+func findScmUnit[T any, PT interface {
+	*T
+	scmUnit
+}](client *APIClient, unitsPath, installationID, unitID string) (*T, error) {
+	return findScmUnitBy[T, PT](client, unitsPath, installationID, func(u *T) bool {
+		return PT(u).unitID() == unitID
+	})
 }
 
 func updateScmUnit[T any, PT interface {
@@ -130,18 +143,28 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 	}
 
 	const pageLimit = 200
+	const maxScmPages = 500 // backstop against an inflated/bogus total_items with full pages
 	var all []T
-	for {
+	for page := 0; ; page++ {
+		if page >= maxScmPages {
+			return nil, fmt.Errorf("%s: exceeded %d pages; aborting to avoid unbounded paging", basePath, maxScmPages)
+		}
 		resp, err := client.Get(fmt.Sprintf("%s?limit=%d&start_at_index=%d", basePath, pageLimit, len(all)))
 		if err != nil {
 			return nil, err
 		}
 		var env scmEnvelope[T]
-		if err := json.Unmarshal(resp.Body(), &env); err != nil {
-			return nil, err
+		if err := resp.ReadJSON(&env); err != nil {
+			return nil, fmt.Errorf("%s: %w", basePath, err)
 		}
-		all = append(all, env.Data...)
-		if len(env.Data) == 0 || len(all) >= env.TotalItems {
+		if env.Data == nil {
+			return nil, fmt.Errorf("%s: response missing data key: %s", basePath, resp.Body())
+		}
+		data := *env.Data
+		all = append(all, data...)
+		// Terminate on an empty page, or once a known total is reached. An absent
+		// total_items (nil) falls through to empty-page termination.
+		if len(data) == 0 || (env.TotalItems != nil && len(all) >= *env.TotalItems) {
 			// Only cache if no invalidation happened during the fetch; otherwise
 			// these pages predate the write and must not be resurrected.
 			storeScmListCacheIfCurrent(client, basePath, startGen, all)

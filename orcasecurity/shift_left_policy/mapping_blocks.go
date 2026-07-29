@@ -2,6 +2,7 @@ package shift_left_policy
 
 import (
 	"encoding/json"
+	"sort"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -286,10 +287,16 @@ func buildScmPostureBlock(apiPolicy *api_client.ShiftLeftPolicy, controls []map[
 	if len(apiPolicy.Scope) > 0 {
 		var scope map[string][]string
 		_ = json.Unmarshal(apiPolicy.Scope, &scope)
-		for key, ids := range scope {
+		// Sort keys: scope is an unordered JSON object; map range order flaps → perpetual diff.
+		keys := make([]string, 0, len(scope))
+		for key := range scope {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
 			block.Scope = append(block.Scope, scmScopeEntryModel{
 				Key: types.StringValue(key),
-				Ids: stringSliceToTypes(ids),
+				Ids: stringSliceToTypes(scope[key]),
 			})
 		}
 	}

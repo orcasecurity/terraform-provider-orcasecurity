@@ -2,6 +2,7 @@ package shift_left_integration
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -21,27 +22,20 @@ type ScmConfigFields struct {
 	ScmPosturePolicyID          types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-func OptionalID(id string) types.String {
-	if id == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(id)
-}
-
 func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields) ScmConfigFields {
 	cs := FlattenConfigSettings(u.ConfigSettings)
 	return ScmConfigFields{
 		AccountName:       types.StringValue(accountName),
-		IntegrationStatus: OptionalID(u.IntegrationStatus),
+		IntegrationStatus: tfconv.StringOrNull(u.IntegrationStatus),
 		// API returns legacy SCAN_ALL on old units but rejects it on update; normalize on Read.
 		InstallationMode: types.StringValue(normalizeInstallationMode(u.InstallationMode)),
 		DefaultPolicies:  types.BoolValue(u.DefaultPolicies),
 		PoliciesIds:      PolicyIDsFromRefs(u.Policies),
-		ProjectID:        OptionalID(api_client.ProjectRefID(u.Project)),
+		ProjectID:        tfconv.StringOrNull(api_client.ProjectRefID(u.Project)),
 		ConfigSettings:   &cs,
 
-		ScanAllState:                OptionalID(u.ScanAllState),
+		ScanAllState:                tfconv.StringOrNull(u.ScanAllState),
 		IntegratedRepositoriesCount: types.Int64Value(u.IntegratedRepositoriesCount),
-		ScmPosturePolicyID:          OptionalID(u.ScmPosturePolicyID),
+		ScmPosturePolicyID:          tfconv.StringOrNull(u.ScmPosturePolicyID),
 	}
 }

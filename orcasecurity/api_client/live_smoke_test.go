@@ -16,15 +16,15 @@ func TestAccLiveSmoke_NewEndpoints(t *testing.T) {
 	t.Run("github_repositories", func(t *testing.T) {
 		smokeRepoRows(t, client, "github", (*githubRepositoryItem).common, func(r *githubRepositoryItem) string {
 			c := r.common()
-			return fmt.Sprintf("gh row id=%s unit=%s ghid=%d name=%q proj=%s ctx=%s status=%s disabled=%v comments=%q",
-				c.ID, c.UnitID, r.GithubRepositoryID, c.RepositoryName, c.ProjectID, c.RepositoryContextID, c.Status, c.Disabled, c.CommentsOnPRs)
+			return fmt.Sprintf("gh row id=%s inst=%s ghid=%d name=%q proj=%s ctx=%s status=%s disabled=%v comments=%q",
+				c.ID, r.GithubInstallation.ID, r.GithubRepositoryID, c.RepositoryName, c.ProjectID, c.RepositoryContextID, c.Status, c.Disabled, c.CommentsOnPRs)
 		})
 	})
 	t.Run("gitlab_repositories", func(t *testing.T) {
 		smokeRepoRows(t, client, "gitlab", (*gitlabRepositoryItem).common, func(r *gitlabRepositoryItem) string {
 			c := r.common()
-			return fmt.Sprintf("gl row id=%s inst=%s unit=%s glid=%d name=%q proj=%s ctx=%s disabled=%v",
-				c.ID, r.GitlabInstallation.ID, c.UnitID, r.GitlabProjectID, c.RepositoryName, c.ProjectID, c.RepositoryContextID, c.Disabled)
+			return fmt.Sprintf("gl row id=%s inst=%s glid=%d name=%q proj=%s ctx=%s disabled=%v",
+				c.ID, r.GitlabInstallation.ID, r.GitlabProjectID, c.RepositoryName, c.ProjectID, c.RepositoryContextID, c.Disabled)
 		})
 	})
 	t.Run("bitbucket_repositories", func(t *testing.T) {

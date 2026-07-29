@@ -1,6 +1,9 @@
 package api_client
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // No single-item GET route for installations; reads use the cached list.
 
@@ -26,10 +29,13 @@ func findScmInstallation[T any, PT interface {
 
 func createScmInstallation[T any](client *APIClient, listPath string, body any) (*T, error) {
 	resp, err := client.Post(listPath, body)
+	client.invalidateScmListCache()
 	if err != nil {
 		return nil, err
 	}
-	client.invalidateScmListCache()
+	if len(resp.Body()) == 0 {
+		return nil, fmt.Errorf("create at %s returned an empty body; installation may exist in Orca but is untracked, run terraform refresh", listPath)
+	}
 	created := new(T)
 	if err := resp.ReadJSON(created); err != nil {
 		return nil, err
@@ -42,19 +48,23 @@ func patchScmInstallationAndReread[T any, PT interface {
 	*T
 	installationIDer
 }](client *APIClient, listPath, id string, body any) (*T, error) {
-	if _, err := client.Patch(fmt.Sprintf("%s%s/", listPath, id), body); err != nil {
+	_, err := client.Patch(fmt.Sprintf("%s%s/", listPath, id), body)
+	client.invalidateScmListCache()
+	if err != nil {
 		return nil, err
 	}
-	client.invalidateScmListCache()
 	return findScmInstallation[T, PT](client, listPath, id)
 }
 
 func patchScmInstallation[T any](client *APIClient, listPath, id string, body any) (*T, error) {
 	resp, err := client.Patch(fmt.Sprintf("%s%s/", listPath, id), body)
+	client.invalidateScmListCache()
 	if err != nil {
 		return nil, err
 	}
-	client.invalidateScmListCache()
+	if len(resp.Body()) == 0 {
+		return nil, fmt.Errorf("update at %s%s/ returned an empty body; run terraform refresh to reconcile", listPath, id)
+	}
 	updated := new(T)
 	if err := resp.ReadJSON(updated); err != nil {
 		return nil, err
@@ -67,14 +77,28 @@ func deleteScmInstallation(client *APIClient, listPath, id string) error {
 }
 
 // Treat 404 as success so destroy stays idempotent when the unit is already gone.
+// The cache is invalidated unconditionally: a write that reached the server before
+// erroring must not leave stale list data behind.
 func deleteScmPathIgnoring404(client *APIClient, path string) error {
 	resp, err := client.Delete(path)
-	if resp != nil && resp.StatusCode() == 404 {
-		client.invalidateScmListCache()
+	client.invalidateScmListCache()
+	if resp != nil && (resp.StatusCode() == 404 || scmDeleteAlreadyInert(resp)) {
 		return nil
 	}
-	if err == nil {
-		client.invalidateScmListCache()
-	}
 	return err
+}
+
+// A suspended GitHub App installation returns 400 github_installation_suspended
+// instead of 404/204; the integration is already inert, so treat it as deleted.
+func scmDeleteAlreadyInert(resp *APIResponse) bool {
+	if resp.StatusCode() != 400 {
+		return false
+	}
+	var body struct {
+		ErrorCode string `json:"error_code"`
+	}
+	if err := json.Unmarshal(resp.Body(), &body); err != nil {
+		return false
+	}
+	return body.ErrorCode == "github_installation_suspended"
 }

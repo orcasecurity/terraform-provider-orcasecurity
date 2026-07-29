@@ -75,13 +75,13 @@ func TestCreateUnitBody_DefaultsScanAllAndPolicies(t *testing.T) {
 		nil,
 		ProjectIntent{},
 	)
-	if ad.Body.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
-		t.Errorf("mode: %q", ad.Body.InstallationMode)
+	if ad.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
+		t.Errorf("mode: %q", ad.InstallationMode)
 	}
-	if !ad.Body.DefaultPolicies {
+	if !ad.DefaultPolicies {
 		t.Error("expected default_policies true when unset")
 	}
-	if ad.Body.ConfigSettings.CommentsOnPullRequests != "ALWAYS" {
-		t.Errorf("expected default comments ALWAYS, got %+v", ad.Body.ConfigSettings)
+	if ad.ConfigSettings.CommentsOnPullRequests != "ALWAYS" {
+		t.Errorf("expected default comments ALWAYS, got %+v", ad.ConfigSettings)
 	}
 }

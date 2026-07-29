@@ -141,13 +141,29 @@ func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
 	}
 }
 
+// All per-control fields are config-owned: the API enriches scm/entity/threat
+// from the control catalog, so keeping the API values would drift against a
+// config that omits them. Take them from state; the index-wise loop still
+// surfaces controls the API added or removed.
+func mergeScmControlFromPlan(dst *scmControlModel, src scmControlModel) {
+	dst.ID = src.ID
+	dst.Priority = src.Priority
+	dst.Disabled = src.Disabled
+	dst.Scm = src.Scm
+	dst.Entity = src.Entity
+	dst.Threat = src.Threat
+}
+
 func mergeScmPostureBlockFromPlan(dst, src *scmPostureBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	if len(src.Controls) > 0 {
-		dst.Controls = src.Controls
+	for i := range dst.Controls {
+		if i < len(src.Controls) {
+			mergeScmControlFromPlan(&dst.Controls[i], src.Controls[i])
+		}
 	}
+	// Scope is an unordered map on the wire; keep config order from state to avoid a diff.
 	if len(src.Scope) > 0 {
 		dst.Scope = src.Scope
 	}

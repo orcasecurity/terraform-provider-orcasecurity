@@ -80,17 +80,8 @@ func (client *APIClient) GetAzureDevopsAccount(installationID, orcaAccountID str
 }
 
 func (client *APIClient) FindAzureDevopsAccountByName(installationID, accountName string) (*AzureDevopsAccount, error) {
-	all, err := getAllScmPages[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID))
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].AccountName == accountName {
-			all[i].stampInstallationID(installationID)
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return findScmUnitBy[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID), installationID,
+		func(a *AzureDevopsAccount) bool { return a.AccountName == accountName })
 }
 
 func (client *APIClient) UpdateAzureDevopsAccount(installationID, orcaAccountID string, body ScmInstallationUpdate) (*AzureDevopsAccount, error) {

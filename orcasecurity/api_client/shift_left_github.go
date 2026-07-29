@@ -31,9 +31,10 @@ func ProjectRefID(p *ScmProjectRef) string {
 	return p.ID
 }
 
-// PUT sends project_id XOR policies.
+// PUT sends project_id XOR policies. installation_mode has no server default,
+// so the key is always sent (no omitempty); an absent mode is a 400.
 type ScmInstallationUpdate struct {
-	InstallationMode string                  `json:"installation_mode,omitempty"`
+	InstallationMode string                  `json:"installation_mode"`
 	DefaultPolicies  bool                    `json:"default_policies"`
 	Policies         []string                `json:"policies"`
 	ProjectID        string                  `json:"project_id,omitempty"`

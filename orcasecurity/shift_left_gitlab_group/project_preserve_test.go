@@ -68,11 +68,11 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 			ProjectID:        api_client.ProjectRefID(bound.Project),
 		},
 	)
-	if ad.Body.ProjectID != projectID {
-		t.Fatalf("Adopt dropped project from PUT body: got project_id=%q", ad.Body.ProjectID)
+	if ad.ProjectID != projectID {
+		t.Fatalf("Adopt dropped project from PUT body: got project_id=%q", ad.ProjectID)
 	}
 
-	updated, err := client.UpdateGitlabGroup(installationID, groupID, ad.Body)
+	updated, err := client.UpdateGitlabGroup(installationID, groupID, ad)
 	if err != nil {
 		t.Fatalf("adopt update failed: %s", err)
 	}

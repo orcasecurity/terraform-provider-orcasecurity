@@ -68,11 +68,11 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 		shift_left_integration.ProjectIntent{},
 		shift_left_integration.ExistingFromAPI(set.InstallationMode, set.DefaultPolicies, set.Policies, set.Project, set.ConfigSettings),
 	)
-	if ad.Body.ConfigSettings.InstallationReposConfig == nil {
+	if ad.ConfigSettings.InstallationReposConfig == nil {
 		t.Fatal("Expand must send explicit empty installation_repositories_configuration on clear")
 	}
 
-	cleared, err := client.UpdateGitlabGroup(installationID, groupID, ad.Body)
+	cleared, err := client.UpdateGitlabGroup(installationID, groupID, ad)
 	if err != nil {
 		t.Fatalf("clear update failed: %s", err)
 	}

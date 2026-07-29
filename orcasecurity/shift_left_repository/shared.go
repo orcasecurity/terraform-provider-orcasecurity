@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -149,16 +149,16 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository) RepoConfigFi
 		Name:                   types.StringValue(api.RepositoryName),
 		URL:                    types.StringValue(api.RepositoryURL),
 		Branch:                 prior.Branch,
-		ProjectID:              shift_left_integration.OptionalID(api.ProjectID),
+		ProjectID:              tfconv.StringOrNull(api.ProjectID),
 		Disabled:               types.BoolValue(api.Disabled),
-		CommentsOnPullRequests: shift_left_integration.OptionalID(api.CommentsOnPRs),
-		PrSummaryComment:       shift_left_integration.OptionalID(api.PrSummaryComment),
-		SkipCheckRuns:          shift_left_integration.OptionalID(api.SkipCheckRuns),
-		ConfigFileSupport:      shift_left_integration.OptionalID(api.ConfigFileSupport),
-		Status:                 shift_left_integration.OptionalID(api.Status),
-		RepositoryContextID:    shift_left_integration.OptionalID(api.RepositoryContextID),
-		IntegrationStatus:      shift_left_integration.OptionalID(api.IntegrationStatus),
-		ScmPosturePolicyID:     shift_left_integration.OptionalID(api.ScmPosturePolicyID),
+		CommentsOnPullRequests: tfconv.StringOrNull(api.CommentsOnPRs),
+		PrSummaryComment:       tfconv.StringOrNull(api.PrSummaryComment),
+		SkipCheckRuns:          tfconv.StringOrNull(api.SkipCheckRuns),
+		ConfigFileSupport:      tfconv.StringOrNull(api.ConfigFileSupport),
+		Status:                 tfconv.StringOrNull(api.Status),
+		RepositoryContextID:    tfconv.StringOrNull(api.RepositoryContextID),
+		IntegrationStatus:      tfconv.StringOrNull(api.IntegrationStatus),
+		ScmPosturePolicyID:     tfconv.StringOrNull(api.ScmPosturePolicyID),
 	}
 	if api.DisableScanPRs != nil {
 		out.DisableScanPullRequests = types.BoolValue(*api.DisableScanPRs)
@@ -260,8 +260,9 @@ func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *re
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
+// syncIdentity backfills identity attrs outside RepoConfigFields not in the import ID (Bitbucket slug).
 func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
-	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields, syncIdentity ...func(*M, *api_client.ScmRepository)) {
 	var state M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -278,6 +279,9 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 		return
 	}
 	*fields(&state) = fromAPI(*fields(&state), row)
+	for _, sync := range syncIdentity {
+		sync(&state, row)
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -324,18 +328,23 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 	}
 	if body, set := configUpdateBody(row.ID, plan); set {
 		if err := ops.update(body); err != nil {
-			// The repository was integrated but its configuration could not be
-			// applied. Roll back the integration so we do not leave an orphaned
-			// live integration that never made it into Terraform state.
+			// Integrated but config could not be applied; roll back so we do not
+			// orphan a live integration that never made it into Terraform state.
 			rollbackIntegration(ops, row, diags)
 			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.scmName), err.Error())
 			return nil
 		}
-		row, err = ops.find()
-		if err != nil || row == nil {
-			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.scmName), fmt.Sprintf("%v", err))
+		reread, err := ops.find()
+		if err == nil && reread == nil {
+			err = fmt.Errorf("repository disappeared after configuration update")
+		}
+		if err != nil {
+			// Roll back using the row from the first find (its context id is known).
+			rollbackIntegration(ops, row, diags)
+			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.scmName), err.Error())
 			return nil
 		}
+		row = reread
 	}
 	return row
 }
@@ -358,6 +367,11 @@ func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag
 }
 
 func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
+	// The first find already cached the list; drop it so the retry re-fetches and
+	// can see an eventually-consistent row the first find missed.
+	if ops.client != nil {
+		ops.client.InvalidateScmListCache()
+	}
 	if row, err := ops.find(); err == nil && row != nil {
 		rollbackIntegration(ops, row, diags)
 		return
@@ -369,13 +383,11 @@ func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
 }
 
 func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
-	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
-		if err := ops.update(body); err != nil {
-			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.scmName), err.Error())
-			return nil
-		}
-	}
-	if known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString() {
+	// Do the move first: it has a checkable precondition (repository_context_id), so
+	// validate it up front. If config were applied first and the move then failed,
+	// remote config would be ahead of the unwritten Terraform state.
+	moveNeeded := known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString()
+	if moveNeeded {
 		ctxID := state.RepositoryContextID.ValueString()
 		if ctxID == "" {
 			diags.AddError(fmt.Sprintf("Error moving %s repository", ops.scmName),
@@ -384,6 +396,12 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 		}
 		if err := ops.client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
 			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.scmName), err.Error())
+			return nil
+		}
+	}
+	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
+		if err := ops.update(body); err != nil {
+			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.scmName), err.Error())
 			return nil
 		}
 	}

@@ -69,12 +69,14 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		return
 	}
 	if existing != nil {
-		if guardAdopt(o.Snapshot(existing).RepoCount, o.Config(&plan).AdoptExisting) {
-			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), o.Snapshot(existing).RepoCount))
+		snap := o.Snapshot(existing)
+		if guardAdopt(snap.RepoCount, o.Config(&plan).AdoptExisting) {
+			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), snap.RepoCount))
 			return
 		}
+		// Reuse the unit already fetched above instead of re-reading it in the write.
 		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State,
-			o.Describe(&plan)+" does not exist. "+o.CreateHint, o.CreateErrorTitle)
+			o.Describe(&plan)+" does not exist. "+o.CreateHint, o.CreateErrorTitle, existing)
 		return
 	}
 
@@ -94,9 +96,9 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		mode = types.StringValue("SELECTED_REPOSITORIES")
 	}
 
-	ad := CreateUnitBody(mode, planFields.DefaultPolicies, planFields.PoliciesIds, planFields.ConfigSettings,
+	body := CreateUnitBody(mode, planFields.DefaultPolicies, planFields.PoliciesIds, planFields.ConfigSettings,
 		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
-	if err := o.Integrate(&plan, ad.Body); err != nil {
+	if err := o.Integrate(&plan, body); err != nil {
 		resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
 		return
 	}
@@ -110,9 +112,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		resp.Diagnostics.AddError(o.Labels.NilReadTitle, o.Labels.NilReadDetail)
 		return
 	}
-	newState := o.ToState(created)
-	o.Config(&newState).AdoptExisting = o.Config(&plan).AdoptExisting
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	o.setAdoptedState(ctx, &resp.Diagnostics, &resp.State, created, &plan)
 }
 
 func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -124,7 +124,15 @@ func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateR
 	}
 	o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State,
 		o.Describe(&plan)+" was not found. It may have been removed; re-import.",
-		o.UpdateErrorTitle)
+		o.UpdateErrorTitle, nil)
+}
+
+// setAdoptedState maps the API unit to state, carrying adopt_existing over from
+// the prior model (it is a local intent flag, not part of the API unit).
+func (o AdoptedUnitOps[A, M]) setAdoptedState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, unit *A, prior *M) {
+	newState := o.ToState(unit)
+	o.Config(&newState).AdoptExisting = o.Config(prior).AdoptExisting
+	diags.Append(state.Set(ctx, &newState)...)
 }
 
 func (o AdoptedUnitOps[A, M]) DoRead(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -140,9 +148,7 @@ func (o AdoptedUnitOps[A, M]) DoRead(ctx context.Context, req resource.ReadReque
 	if unit == nil {
 		return
 	}
-	newState := o.ToState(unit)
-	o.Config(&newState).AdoptExisting = o.Config(&state).AdoptExisting
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	o.setAdoptedState(ctx, &resp.Diagnostics, &resp.State, unit, &state)
 }
 
 func (o AdoptedUnitOps[A, M]) DoDelete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -168,12 +174,13 @@ func (o AdoptedUnitOps[A, M]) DoDelete(ctx context.Context, req resource.DeleteR
 func (o AdoptedUnitOps[A, M]) writeAdopted(
 	ctx context.Context, plan, config *M,
 	diags *diag.Diagnostics, state *tfsdk.State,
-	notFoundMsg, title string,
+	notFoundMsg, title string, current *A,
 ) {
 	planFields := o.Config(plan)
 	configFields := o.Config(config)
 	unit := AdoptWrite(diags, AdoptWriteRequest[A]{
-		Get: func() (*A, error) { return o.Get(plan) },
+		Get:     func() (*A, error) { return o.Get(plan) },
+		Current: current,
 		Update: func(current *A, body api_client.ScmInstallationUpdate) (*A, error) {
 			return o.Update(plan, current, body)
 		},
@@ -190,7 +197,5 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 	if unit == nil {
 		return
 	}
-	newState := o.ToState(unit)
-	o.Config(&newState).AdoptExisting = o.Config(plan).AdoptExisting
-	diags.Append(state.Set(ctx, &newState)...)
+	o.setAdoptedState(ctx, diags, state, unit, plan)
 }

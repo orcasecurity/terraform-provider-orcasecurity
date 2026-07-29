@@ -5,9 +5,43 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
+
+// Prime the cache with a non-matching lookup (list cached, target element left
+// unstamped), then run concurrent matching lookups. Without a per-caller copy of
+// the cached slice this races on the shared element under -race.
+func TestFindScmUnit_ConcurrentNoRace(t *testing.T) {
+	const instID = "inst-1"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_items": 1,
+			"data":        []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "n"}},
+		})
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	if _, err := client.FindBitbucketAccountBySlug(instID, "no-such-slug"); err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
+			if err != nil || acc == nil || acc.InstallationID != instID {
+				t.Errorf("bad result: acc=%+v err=%v", acc, err)
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 func TestGetAllScmPages_CachesUntilInvalidate(t *testing.T) {
 	var hits atomic.Int32
@@ -78,6 +112,51 @@ func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
 	}
 	if hits.Load() != 3 {
 		t.Fatalf("expected 3 page fetches (200+200+50), got %d", hits.Load())
+	}
+}
+
+// A response omitting total_items must not terminate after the first full page
+// (absent must not read as 0); it paginates until an empty page.
+func TestGetAllScmPages_AbsentTotalItems(t *testing.T) {
+	const total = 250 // one full page (200) + a short page (50)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start, _ := strconv.Atoi(r.URL.Query().Get("start_at_index"))
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		data := make([]map[string]string, 0, limit)
+		for i := start; i < start+limit && i < total; i++ {
+			data = append(data, map[string]string{"id": strconv.Itoa(i)})
+		}
+		// Deliberately omit total_items.
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != total {
+		t.Fatalf("expected %d items with absent total_items, got %d", total, len(all))
+	}
+}
+
+// A server that always returns a full page (bogus/inflated total) must abort at
+// the max-page guard instead of paging forever.
+func TestGetAllScmPages_MaxPageGuard(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data := make([]map[string]string, 0, 200)
+		for i := 0; i < 200; i++ {
+			data = append(data, map[string]string{"id": strconv.Itoa(i)})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 999999999, "data": data})
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	_, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/")
+	if err == nil || !strings.Contains(err.Error(), "exceeded") {
+		t.Fatalf("expected max-page guard error, got %v", err)
 	}
 }
 

@@ -2,6 +2,7 @@ package shift_left_integration
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -22,7 +23,14 @@ type ConfigSettingsModel struct {
 	UnavailableConditions   types.List   `tfsdk:"unavailable_conditions"`
 }
 
-func ConfigSettingsAttributes() map[string]schema.Attribute {
+// skip_check_runs enums differ per provider: GitLab's backend contract accepts
+// only ALWAYS/NEVER, the others also accept ONLY_ON_INTERNAL_ISSUE.
+var (
+	FullSkipCheckRuns   = []string{"ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"}
+	GitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
+)
+
+func ConfigSettingsAttributes(skipCheckRunsValues []string) map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"disable_scan_pull_requests": schema.BoolAttribute{
 			Optional:    true,
@@ -50,7 +58,7 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 			Computed:    true,
 			Description: "When to skip posting check runs.",
 			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"),
+				stringvalidator.OneOf(skipCheckRunsValues...),
 			},
 		},
 		"config_file_support": schema.StringAttribute{
@@ -166,11 +174,11 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsModel {
 	m := ConfigSettingsModel{
 		DisableScanPullRequests: types.BoolValue(c.DisableScanPullRequests),
-		CommentsOnPullRequests:  optionalString(c.CommentsOnPullRequests),
-		PrSummaryComment:        optionalString(c.PrSummaryComment),
-		SkipCheckRuns:           optionalString(c.SkipCheckRuns),
-		ConfigFileSupport:       optionalString(c.ConfigFileSupport),
-		PrSummaryAppendix:       optionalString(c.PrSummaryAppendix),
+		CommentsOnPullRequests:  tfconv.StringOrNull(c.CommentsOnPullRequests),
+		PrSummaryComment:        tfconv.StringOrNull(c.PrSummaryComment),
+		SkipCheckRuns:           tfconv.StringOrNull(c.SkipCheckRuns),
+		ConfigFileSupport:       tfconv.StringOrNull(c.ConfigFileSupport),
+		PrSummaryAppendix:       tfconv.StringOrNull(c.PrSummaryAppendix),
 		ArchiveConditions:       types.ListNull(types.StringType),
 		UnavailableConditions:   types.ListNull(types.StringType),
 	}
@@ -185,13 +193,6 @@ func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsM
 	}
 
 	return m
-}
-
-func optionalString(v string) types.String {
-	if v == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(v)
 }
 
 func MergeConfigSettings(base ConfigSettingsModel, overlay *ConfigSettingsModel) ConfigSettingsModel {

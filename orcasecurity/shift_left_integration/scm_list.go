@@ -2,6 +2,7 @@ package shift_left_integration
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -50,10 +51,10 @@ func SharedScmListUnitValues(accountName string, u api_client.ScmUnitCommonField
 		"account_name":                  types.StringValue(accountName),
 		"installation_mode":             types.StringValue(u.InstallationMode),
 		"default_policies":              types.BoolValue(u.DefaultPolicies),
-		"integration_status":            OptionalID(u.IntegrationStatus),
-		"scan_all_state":                OptionalID(u.ScanAllState),
+		"integration_status":            tfconv.StringOrNull(u.IntegrationStatus),
+		"scan_all_state":                tfconv.StringOrNull(u.ScanAllState),
 		"integrated_repositories_count": types.Int64Value(u.IntegratedRepositoriesCount),
-		"scm_posture_policy_id":         OptionalID(u.ScmPosturePolicyID),
+		"scm_posture_policy_id":         tfconv.StringOrNull(u.ScmPosturePolicyID),
 	}
 }
 

@@ -1,6 +1,8 @@
 package shift_left_integration
 
 import (
+	"context"
+
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -13,7 +15,34 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema.Attribute {
+// nonEmptyPoliciesValidator: server treats empty/omitted policies as "attach all built-ins", so [] != none.
+type nonEmptyPoliciesValidator struct{}
+
+func (nonEmptyPoliciesValidator) Description(_ context.Context) string {
+	return "policies_ids must not be an empty set"
+}
+
+func (v nonEmptyPoliciesValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (nonEmptyPoliciesValidator) ValidateSet(_ context.Context, req validator.SetRequest, resp *validator.SetResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if len(req.ConfigValue.Elements()) == 0 {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Empty policies_ids",
+			"policies_ids = [] does not attach zero policies. The API treats an empty policies list the same as "+
+				"attaching all Orca built-in policies (equivalent to default_policies = true). To attach specific "+
+				"policies, list their IDs; to attach all built-ins, set default_policies = true. Attaching zero "+
+				"policies is not supported by the API.",
+		)
+	}
+}
+
+func SharedScmConfigAttributes(accountNameDescription string, skipCheckRunsValues []string) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"account_name": rschema.StringAttribute{
 			Computed:    true,
@@ -42,8 +71,9 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			Optional:      true,
 			Computed:      true,
 			ElementType:   types.StringType,
-			Description:   "Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies.",
+			Description:   "Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies. Must be non-empty: an empty list is treated by the API as \"attach all built-in policies\", not \"none\".",
 			PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
+			Validators:    []validator.Set{nonEmptyPoliciesValidator{}},
 		},
 		"project_id": rschema.StringAttribute{
 			Optional:      true,
@@ -64,7 +94,7 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			Optional:      true,
 			Computed:      true,
 			Description:   "PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose.",
-			Attributes:    ConfigSettingsAttributes(),
+			Attributes:    ConfigSettingsAttributes(skipCheckRunsValues),
 			PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 		},
 		"scan_all_state": rschema.StringAttribute{

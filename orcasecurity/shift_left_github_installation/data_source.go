@@ -3,6 +3,7 @@ package shift_left_github_installation
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -29,7 +30,7 @@ var installationsSpec = shift_left_integration.ScmUnitListSpec[api_client.Github
 			"id":                      types.StringValue(in.ID),
 			"installation_id":         types.StringValue(in.ID),
 			"github_installation_id":  types.Int64Value(in.GithubInstallationID),
-			"github_app_settings_url": shift_left_integration.OptionalID(in.GithubAppSettingsURL),
+			"github_app_settings_url": tfconv.StringOrNull(in.GithubAppSettingsURL),
 		}
 	},
 }

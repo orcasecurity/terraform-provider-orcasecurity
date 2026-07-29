@@ -9,15 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestOptionalID(t *testing.T) {
-	if !OptionalID("").IsNull() {
-		t.Fatal("empty id must be null")
-	}
-	if OptionalID("abc").ValueString() != "abc" {
-		t.Fatal("non-empty id must keep value")
-	}
-}
-
 func TestScmConfigFieldsFromAPI_NullProjectWhenUnbound(t *testing.T) {
 	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
 		IntegrationStatus: "ENABLED",
@@ -73,7 +64,7 @@ func TestExpandConfigSettings_UnavailableAvoidScan(t *testing.T) {
 }
 
 func TestSharedScmConfigAttributes_HasIntegrationStatus(t *testing.T) {
-	attrs := SharedScmConfigAttributes("name")
+	attrs := SharedScmConfigAttributes("name", FullSkipCheckRuns)
 	if _, ok := attrs["integration_status"]; !ok {
 		t.Fatal("expected integration_status attribute")
 	}

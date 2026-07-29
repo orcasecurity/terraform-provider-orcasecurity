@@ -95,17 +95,8 @@ func (client *APIClient) GetGitlabGroup(installationID, orcaGroupID string) (*Gi
 }
 
 func (client *APIClient) FindGitlabGroupByGitlabID(installationID string, gitlabGroupID int64) (*GitlabGroup, error) {
-	all, err := getAllScmPages[GitlabGroup](client, gitlabGroupsPath(installationID))
-	if err != nil {
-		return nil, err
-	}
-	for i := range all {
-		if all[i].GitlabGroupID == gitlabGroupID {
-			all[i].stampInstallationID(installationID)
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return findScmUnitBy[GitlabGroup](client, gitlabGroupsPath(installationID), installationID,
+		func(g *GitlabGroup) bool { return g.GitlabGroupID == gitlabGroupID })
 }
 
 func (client *APIClient) UpdateGitlabGroup(installationID, orcaGroupID string, body ScmInstallationUpdate) (*GitlabGroup, error) {

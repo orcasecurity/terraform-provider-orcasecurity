@@ -38,6 +38,7 @@ func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
 
 type AdoptWriteRequest[T any] struct {
 	Get      func() (*T, error)
+	Current  *T // optional pre-fetched unit; when set, Get is skipped
 	Update   func(current *T, body api_client.ScmInstallationUpdate) (*T, error)
 	Snapshot func(*T) ExistingUnit
 
@@ -53,13 +54,16 @@ type AdoptWriteRequest[T any] struct {
 }
 
 func WriteAdopted[T any](req AdoptWriteRequest[T]) (*T, error) {
-	current, err := req.Get()
-	if err != nil {
-		return nil, err
+	current := req.Current
+	if current == nil {
+		var err error
+		if current, err = req.Get(); err != nil {
+			return nil, err
+		}
 	}
 	if current == nil {
 		return nil, ErrUnitNotFound
 	}
-	ad := Adopt(req.PlanMode, req.PlanDefault, req.PlanPolicies, req.PlanConfig, req.Project, req.Snapshot(current))
-	return req.Update(current, ad.Body)
+	body := Adopt(req.PlanMode, req.PlanDefault, req.PlanPolicies, req.PlanConfig, req.Project, req.Snapshot(current))
+	return req.Update(current, body)
 }

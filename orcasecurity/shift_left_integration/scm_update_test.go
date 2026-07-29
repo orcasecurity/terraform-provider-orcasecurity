@@ -22,11 +22,11 @@ func TestAdopt_HydratesPoliciesFromExisting(t *testing.T) {
 			PolicyIDs:        []string{"pol-1", "pol-2"},
 		},
 	)
-	if len(ad.Body.Policies) != 2 {
-		t.Fatalf("expected existing policies preserved, got %v", ad.Body.Policies)
+	if len(ad.Policies) != 2 {
+		t.Fatalf("expected existing policies preserved, got %v", ad.Policies)
 	}
-	if ad.InstallationMode.ValueString() != "SCAN_ALL_INCLUDE_FUTURE" {
-		t.Errorf("expected installation_mode hydrated from existing, got %q", ad.InstallationMode.ValueString())
+	if ad.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
+		t.Errorf("expected installation_mode hydrated from existing, got %q", ad.InstallationMode)
 	}
 }
 
@@ -39,8 +39,8 @@ func TestAdopt_UserPoliciesWin(t *testing.T) {
 		ProjectIntent{},
 		ExistingUnit{DefaultPolicies: false, PolicyIDs: []string{"pol-1", "pol-2"}},
 	)
-	if len(ad.Body.Policies) != 1 || ad.Body.Policies[0] != "pol-9" {
-		t.Fatalf("expected user policies to win, got %v", ad.Body.Policies)
+	if len(ad.Policies) != 1 || ad.Policies[0] != "pol-9" {
+		t.Fatalf("expected user policies to win, got %v", ad.Policies)
 	}
 }
 
@@ -53,10 +53,10 @@ func TestAdopt_DefaultPoliciesClearsPolicies(t *testing.T) {
 		ProjectIntent{},
 		ExistingUnit{DefaultPolicies: false, PolicyIDs: []string{"pol-1", "pol-2"}},
 	)
-	if len(ad.Body.Policies) != 0 {
-		t.Fatalf("expected empty policies when default_policies=true, got %v", ad.Body.Policies)
+	if len(ad.Policies) != 0 {
+		t.Fatalf("expected empty policies when default_policies=true, got %v", ad.Policies)
 	}
-	if !ad.Body.DefaultPolicies {
+	if !ad.DefaultPolicies {
 		t.Error("expected default_policies=true in body")
 	}
 }
@@ -74,11 +74,11 @@ func TestAdopt_PreservesProject(t *testing.T) {
 			ProjectID:       "proj-1",
 		},
 	)
-	if ad.Body.ProjectID != "proj-1" {
-		t.Fatalf("expected project_id preserved, got %q", ad.Body.ProjectID)
+	if ad.ProjectID != "proj-1" {
+		t.Fatalf("expected project_id preserved, got %q", ad.ProjectID)
 	}
-	if ad.Body.Policies != nil {
-		t.Fatalf("expected policies dropped when project-bound, got %v", ad.Body.Policies)
+	if ad.Policies != nil {
+		t.Fatalf("expected policies dropped when project-bound, got %v", ad.Policies)
 	}
 }
 
@@ -91,11 +91,11 @@ func TestAdopt_BindsProjectFromConfig(t *testing.T) {
 		ProjectIntent{FromConfig: types.StringValue("proj-new")},
 		ExistingUnit{PolicyIDs: []string{"pol-1"}},
 	)
-	if ad.Body.ProjectID != "proj-new" {
-		t.Fatalf("expected project bound from config, got %q", ad.Body.ProjectID)
+	if ad.ProjectID != "proj-new" {
+		t.Fatalf("expected project bound from config, got %q", ad.ProjectID)
 	}
-	if ad.Body.Policies != nil {
-		t.Fatalf("expected policies dropped when project-bound, got %v", ad.Body.Policies)
+	if ad.Policies != nil {
+		t.Fatalf("expected policies dropped when project-bound, got %v", ad.Policies)
 	}
 }
 
@@ -108,11 +108,11 @@ func TestAdopt_ClearsProjectWhenConfigEmpty(t *testing.T) {
 		ProjectIntent{FromConfig: types.StringValue("")},
 		ExistingUnit{PolicyIDs: []string{"pol-1"}, ProjectID: "proj-old"},
 	)
-	if ad.Body.ProjectID != "" {
-		t.Fatalf("expected project cleared, got %q", ad.Body.ProjectID)
+	if ad.ProjectID != "" {
+		t.Fatalf("expected project cleared, got %q", ad.ProjectID)
 	}
-	if len(ad.Body.Policies) != 1 || ad.Body.Policies[0] != "pol-1" {
-		t.Fatalf("expected policies restored after clearing project, got %v", ad.Body.Policies)
+	if len(ad.Policies) != 1 || ad.Policies[0] != "pol-1" {
+		t.Fatalf("expected policies restored after clearing project, got %v", ad.Policies)
 	}
 }
 
@@ -125,11 +125,11 @@ func TestAdopt_PoliciesIntentClearsProject(t *testing.T) {
 		ProjectIntent{PoliciesIntent: true},
 		ExistingUnit{ProjectID: "proj-old"},
 	)
-	if ad.Body.ProjectID != "" {
-		t.Fatalf("expected project cleared by policies intent, got %q", ad.Body.ProjectID)
+	if ad.ProjectID != "" {
+		t.Fatalf("expected project cleared by policies intent, got %q", ad.ProjectID)
 	}
-	if len(ad.Body.Policies) != 1 || ad.Body.Policies[0] != "pol-9" {
-		t.Fatalf("expected user policies applied, got %v", ad.Body.Policies)
+	if len(ad.Policies) != 1 || ad.Policies[0] != "pol-9" {
+		t.Fatalf("expected user policies applied, got %v", ad.Policies)
 	}
 }
 
@@ -143,8 +143,8 @@ func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 		ProjectIntent{},
 		ExistingUnit{InstallationMode: "SCAN_ALL", PolicyIDs: []string{"pol-1"}},
 	)
-	if ad.Body.InstallationMode != "SELECTED_REPOSITORIES" {
-		t.Fatalf("expected legacy SCAN_ALL remapped to SELECTED_REPOSITORIES, got %q", ad.Body.InstallationMode)
+	if ad.InstallationMode != "SELECTED_REPOSITORIES" {
+		t.Fatalf("expected legacy SCAN_ALL remapped to SELECTED_REPOSITORIES, got %q", ad.InstallationMode)
 	}
 	// An explicit user-set mode is never remapped (the schema validator already
 	// rejects SCAN_ALL in config).
@@ -156,8 +156,8 @@ func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 		ProjectIntent{},
 		ExistingUnit{InstallationMode: "SCAN_ALL"},
 	)
-	if ad.Body.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
-		t.Fatalf("expected user mode kept, got %q", ad.Body.InstallationMode)
+	if ad.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
+		t.Fatalf("expected user mode kept, got %q", ad.InstallationMode)
 	}
 }
 
@@ -171,10 +171,10 @@ func TestAdopt_DefaultPoliciesKeepsProject(t *testing.T) {
 		ProjectIntent{}, // no explicit-policies intent, project_id omitted in config
 		ExistingUnit{ProjectID: "proj-1", PolicyIDs: []string{"pol-1"}},
 	)
-	if ad.Body.ProjectID != "proj-1" {
-		t.Fatalf("expected project preserved with default_policies, got %q", ad.Body.ProjectID)
+	if ad.ProjectID != "proj-1" {
+		t.Fatalf("expected project preserved with default_policies, got %q", ad.ProjectID)
 	}
-	if !ad.Body.DefaultPolicies {
+	if !ad.DefaultPolicies {
 		t.Error("expected default_policies=true sent alongside project_id")
 	}
 }
@@ -210,10 +210,10 @@ func TestAdopt_MergesConfigSettings(t *testing.T) {
 			},
 		},
 	)
-	if ad.Body.ConfigSettings.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" {
-		t.Errorf("expected overlay pr_summary_comment, got %q", ad.Body.ConfigSettings.PrSummaryComment)
+	if ad.ConfigSettings.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" {
+		t.Errorf("expected overlay pr_summary_comment, got %q", ad.ConfigSettings.PrSummaryComment)
 	}
-	if ad.Body.ConfigSettings.CommentsOnPullRequests != "ALWAYS" {
-		t.Errorf("expected live comments_on_pull_requests preserved, got %q", ad.Body.ConfigSettings.CommentsOnPullRequests)
+	if ad.ConfigSettings.CommentsOnPullRequests != "ALWAYS" {
+		t.Errorf("expected live comments_on_pull_requests preserved, got %q", ad.ConfigSettings.CommentsOnPullRequests)
 	}
 }

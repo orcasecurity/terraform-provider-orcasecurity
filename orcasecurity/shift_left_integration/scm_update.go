@@ -15,9 +15,10 @@ func PolicyIDsToSet(ids []string) types.Set {
 	return tfconv.StringSliceToSet(ids)
 }
 
-// The API still returns SCAN_ALL on old units but rejects it on update.
+// The API still returns SCAN_ALL on old units but rejects it on update, and has
+// no default for an absent mode (empty → 400), so both map to the safe default.
 func normalizeInstallationMode(mode string) string {
-	if mode == "SCAN_ALL" {
+	if mode == "SCAN_ALL" || mode == "" {
 		return "SELECTED_REPOSITORIES"
 	}
 	return mode
@@ -29,7 +30,7 @@ func ExpandUpdate(mode types.String, defaultPolicies types.Bool, policiesIds typ
 		ids = []string{}
 	}
 	return api_client.ScmInstallationUpdate{
-		InstallationMode: mode.ValueString(),
+		InstallationMode: normalizeInstallationMode(mode.ValueString()),
 		DefaultPolicies:  defaultPolicies.ValueBool(),
 		Policies:         ids,
 		ConfigSettings:   ExpandConfigSettings(cfg),
@@ -64,14 +65,6 @@ func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set) P
 	}
 }
 
-type Adopted struct {
-	InstallationMode types.String
-	DefaultPolicies  types.Bool
-	PoliciesIds      types.Set
-	ConfigSettings   *ConfigSettingsModel
-	Body             api_client.ScmInstallationUpdate
-}
-
 func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 	return api_client.ShiftLeftConfigSettings{
 		DisableScanPullRequests: false,
@@ -84,7 +77,7 @@ func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 }
 
 // CreateUnitBody is Adopt seeded with API defaults for a new unit.
-func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) Adopted {
+func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) api_client.ScmInstallationUpdate {
 	seed := ExistingUnit{
 		InstallationMode: mode.ValueString(),
 		DefaultPolicies:  !project.PoliciesIntent,
@@ -95,7 +88,7 @@ func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies type
 
 // Adopt hydrates unset plan fields from the live unit (seed on create).
 // PUT sends project_id XOR explicit policies; default_policies may accompany project_id.
-func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent, ex ExistingUnit) Adopted {
+func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent, ex ExistingUnit) api_client.ScmInstallationUpdate {
 	base := FlattenConfigSettings(ex.ConfigSettings)
 	merged := MergeConfigSettings(base, planConfig)
 
@@ -125,12 +118,5 @@ func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set
 		body.ProjectID = projectID
 		body.Policies = nil
 	}
-
-	return Adopted{
-		InstallationMode: mode,
-		DefaultPolicies:  defaultPolicies,
-		PoliciesIds:      policies,
-		ConfigSettings:   &merged,
-		Body:             body,
-	}
+	return body
 }

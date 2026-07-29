@@ -380,7 +380,11 @@ func (client *APIClient) AddAllCatalogControls(policyType string, policy *ShiftL
 	}
 
 	for _, scopeKey := range scopeKeys {
-		injectScopeControls(policyData, scopeKey, scopeEntries(byScope[scopeKey]))
+		entries := scopeEntries(byScope[scopeKey])
+		if len(entries) == 0 {
+			return fmt.Errorf("catalog for policy type %q has no controls for scope %q; all_controls would produce an empty policy", policyType, scopeKey)
+		}
+		injectScopeControls(policyData, scopeKey, entries)
 	}
 
 	pdRaw, err := json.Marshal(policyData)

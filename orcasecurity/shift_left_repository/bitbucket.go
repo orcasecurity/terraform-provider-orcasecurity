@@ -107,7 +107,10 @@ func (r *bitbucketRepositoryResource) Create(ctx context.Context, req resource.C
 }
 
 func (r *bitbucketRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, bitbucketFields)
+	repoRead(ctx, req, resp, r.ops, bitbucketFields, func(m *bitbucketRepositoryModel, row *api_client.ScmRepository) {
+		// slug absent from import ID; backfill from API or import plans RequiresReplace.
+		m.Slug = types.StringValue(row.Slug)
+	})
 }
 
 func (r *bitbucketRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

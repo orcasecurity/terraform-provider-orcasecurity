@@ -102,7 +102,7 @@ func TestExpandConfigSettings_UnavailableConditionsOnly(t *testing.T) {
 }
 
 func TestConfigSettingsAttributes_ArchiveAlwaysPresent(t *testing.T) {
-	attrs := ConfigSettingsAttributes()
+	attrs := ConfigSettingsAttributes(FullSkipCheckRuns)
 	for _, key := range []string{"disable_scan_pull_requests", "comments_on_pull_requests", "pr_summary_comment", "skip_check_runs", "config_file_support", "pr_summary_appendix", "archive_conditions", "unavailable_conditions"} {
 		if _, ok := attrs[key]; !ok {
 			t.Fatalf("expected field %q to always be present", key)
@@ -118,7 +118,7 @@ func TestConfigSettingsAttributes_ArchiveAlwaysPresent(t *testing.T) {
 }
 
 func TestConfigSettingsAttributes_OptionalComputed(t *testing.T) {
-	attrs := ConfigSettingsAttributes()
+	attrs := ConfigSettingsAttributes(FullSkipCheckRuns)
 	b, ok := attrs["disable_scan_pull_requests"].(schema.BoolAttribute)
 	if !ok || !b.Optional || !b.Computed {
 		t.Fatal("disable_scan_pull_requests must be Optional+Computed")

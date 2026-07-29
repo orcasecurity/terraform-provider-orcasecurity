@@ -207,7 +207,7 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 			mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
 		},
 	},
-	// malicious_packages: no controls, no catalog, policy_data always {}.
+	// malicious_packages: no controls, no catalog; policy_data omitted (server defaults it to {}).
 	"malicious_packages": {},
 }
 

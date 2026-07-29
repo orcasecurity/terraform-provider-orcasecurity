@@ -9,7 +9,7 @@ import (
 )
 
 func resourceSchema() rschema.Schema {
-	attrs := shift_left_integration.SharedScmConfigAttributes("Bitbucket workspace/account name.")
+	attrs := shift_left_integration.SharedScmConfigAttributes("Bitbucket workspace/account name.", shift_left_integration.FullSkipCheckRuns)
 	attrs["id"] = rschema.StringAttribute{
 		Computed:      true,
 		Description:   "Orca Bitbucket integrated account UUID.",
