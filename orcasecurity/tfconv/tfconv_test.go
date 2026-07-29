@@ -5,8 +5,32 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+func TestKnown(t *testing.T) {
+	cases := []struct {
+		name string
+		val  attr.Value
+		want bool
+	}{
+		{"null string", types.StringNull(), false},
+		{"unknown string", types.StringUnknown(), false},
+		{"known string", types.StringValue("x"), true},
+		{"known empty string", types.StringValue(""), true},
+		{"null bool", types.BoolNull(), false},
+		{"unknown bool", types.BoolUnknown(), false},
+		{"known bool", types.BoolValue(false), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Known(tc.val); got != tc.want {
+				t.Errorf("Known(%s) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
 
 func stringList(t *testing.T, values []string) types.List {
 	t.Helper()

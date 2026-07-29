@@ -142,8 +142,8 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 		PrSummaryAppendix:       m.PrSummaryAppendix.ValueString(),
 	}
 
-	archiveKnown := !m.ArchiveConditions.IsNull() && !m.ArchiveConditions.IsUnknown()
-	unavailableKnown := !m.UnavailableConditions.IsNull() && !m.UnavailableConditions.IsUnknown()
+	archiveKnown := tfconv.Known(m.ArchiveConditions)
+	unavailableKnown := tfconv.Known(m.UnavailableConditions)
 	archiveConditions := stringSliceFromList(m.ArchiveConditions)
 	unavailableConditions := stringSliceFromList(m.UnavailableConditions)
 
@@ -200,11 +200,11 @@ func MergeConfigSettings(base ConfigSettingsModel, overlay *ConfigSettingsModel)
 		return base
 	}
 	out := base
-	if !overlay.DisableScanPullRequests.IsNull() && !overlay.DisableScanPullRequests.IsUnknown() {
+	if tfconv.Known(overlay.DisableScanPullRequests) {
 		out.DisableScanPullRequests = overlay.DisableScanPullRequests
 	}
 	setStr := func(dst *types.String, src types.String) {
-		if !src.IsNull() && !src.IsUnknown() {
+		if tfconv.Known(src) {
 			*dst = src
 		}
 	}
@@ -213,10 +213,10 @@ func MergeConfigSettings(base ConfigSettingsModel, overlay *ConfigSettingsModel)
 	setStr(&out.SkipCheckRuns, overlay.SkipCheckRuns)
 	setStr(&out.ConfigFileSupport, overlay.ConfigFileSupport)
 	setStr(&out.PrSummaryAppendix, overlay.PrSummaryAppendix)
-	if !overlay.ArchiveConditions.IsNull() && !overlay.ArchiveConditions.IsUnknown() {
+	if tfconv.Known(overlay.ArchiveConditions) {
 		out.ArchiveConditions = overlay.ArchiveConditions
 	}
-	if !overlay.UnavailableConditions.IsNull() && !overlay.UnavailableConditions.IsUnknown() {
+	if tfconv.Known(overlay.UnavailableConditions) {
 		out.UnavailableConditions = overlay.UnavailableConditions
 	}
 	return out

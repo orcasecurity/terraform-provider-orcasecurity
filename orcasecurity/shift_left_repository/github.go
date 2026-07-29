@@ -88,22 +88,20 @@ func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
 	}
 }
 
-func githubFields(m *githubRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
-
 func (r *githubRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, githubFields)
+	repoCreate(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
 }
 
 func (r *githubRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, githubFields)
+	repoRead(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
 }
 
 func (r *githubRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, githubFields)
+	repoUpdate(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
 }
 
 func (r *githubRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, githubFields)
+	repoDelete(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
 }
 
 func (r *githubRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

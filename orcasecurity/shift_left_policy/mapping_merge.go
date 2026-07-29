@@ -1,9 +1,13 @@
 package shift_left_policy
 
-import "github.com/hashicorp/terraform-plugin-framework/types"
+import (
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
 
 func isStringSet(value types.String) bool {
-	return !value.IsNull() && !value.IsUnknown() && value.ValueString() != ""
+	return tfconv.Known(value) && value.ValueString() != ""
 }
 
 func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
@@ -15,7 +19,7 @@ func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	if isStringSet(src.Priority) {
 		dst.Priority = src.Priority
 	}
-	if !src.Disabled.IsNull() && !src.Disabled.IsUnknown() {
+	if tfconv.Known(src.Disabled) {
 		dst.Disabled = src.Disabled
 	}
 	if !isStringSet(src.Title) {

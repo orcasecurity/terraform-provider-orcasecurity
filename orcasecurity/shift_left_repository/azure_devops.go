@@ -101,22 +101,20 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 	}
 }
 
-func azureFields(m *azureRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
-
 func (r *azureRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, azureFields)
+	repoCreate(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
 }
 
 func (r *azureRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, azureFields)
+	repoRead(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
 }
 
 func (r *azureRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, azureFields)
+	repoUpdate(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
 }
 
 func (r *azureRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, azureFields)
+	repoDelete(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
 }
 
 func (r *azureRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

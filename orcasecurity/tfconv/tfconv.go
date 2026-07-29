@@ -10,6 +10,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// Known reports whether an attribute value is set: neither null nor unknown.
+func Known(v attr.Value) bool {
+	return !v.IsNull() && !v.IsUnknown()
+}
+
 // SetToStringSlice converts a set of strings to a Go slice without a context.
 // Null/unknown sets and null/unknown elements are dropped. Prefer StringSetToAPI
 // when a context is available and an empty [] must be distinguished from omitted.

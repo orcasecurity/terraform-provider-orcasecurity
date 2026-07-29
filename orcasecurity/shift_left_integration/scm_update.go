@@ -55,7 +55,7 @@ type ProjectIntent struct {
 // hasExplicitPolicies reports an explicit policies_ids list in config. Only an
 // explicit list is mutually exclusive with project_id; default_policies is not.
 func hasExplicitPolicies(policies types.Set) bool {
-	return !policies.IsNull() && !policies.IsUnknown()
+	return tfconv.Known(policies)
 }
 
 func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set) ProjectIntent {

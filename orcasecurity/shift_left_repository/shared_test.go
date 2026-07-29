@@ -14,32 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestKnown(t *testing.T) {
-	cases := []struct {
-		name string
-		val  interface {
-			IsNull() bool
-			IsUnknown() bool
-		}
-		want bool
-	}{
-		{"null string", types.StringNull(), false},
-		{"unknown string", types.StringUnknown(), false},
-		{"known string", types.StringValue("x"), true},
-		{"known empty string", types.StringValue(""), true},
-		{"null bool", types.BoolNull(), false},
-		{"unknown bool", types.BoolUnknown(), false},
-		{"known bool", types.BoolValue(false), true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := known(tc.val); got != tc.want {
-				t.Errorf("known(%s) = %v, want %v", tc.name, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestFromAPI_MapsAllFields(t *testing.T) {
 	dspr := true
 	api := &api_client.ScmRepository{

@@ -13,7 +13,7 @@ import (
 func stringSliceFromTypes(values []types.String) []string {
 	result := make([]string, 0, len(values))
 	for _, v := range values {
-		if !v.IsNull() && !v.IsUnknown() {
+		if tfconv.Known(v) {
 			result = append(result, v.ValueString())
 		}
 	}
@@ -68,7 +68,7 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 }
 
 func boolIsTrue(b types.Bool) bool {
-	return !b.IsNull() && !b.IsUnknown() && b.ValueBool()
+	return tfconv.Known(b) && b.ValueBool()
 }
 
 func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicyResourceModel) *shiftLeftPolicyResourceModel {
@@ -84,7 +84,7 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
-		!existing.PriorityFailureThreshold.IsNull() && !existing.PriorityFailureThreshold.IsUnknown() {
+		tfconv.Known(existing.PriorityFailureThreshold) {
 		model.PriorityFailureThreshold = existing.PriorityFailureThreshold
 	}
 

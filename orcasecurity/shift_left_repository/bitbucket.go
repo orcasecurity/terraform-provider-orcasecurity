@@ -100,10 +100,8 @@ func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOp
 	}
 }
 
-func bitbucketFields(m *bitbucketRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
-
 func (r *bitbucketRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, bitbucketFields)
+	repoCreate(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
 }
 
 // bitbucketSyncSlug backfills slug from the API. Import cannot set it (absent
@@ -114,15 +112,15 @@ func bitbucketSyncSlug(m *bitbucketRepositoryModel, row *api_client.ScmRepositor
 }
 
 func (r *bitbucketRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, bitbucketFields, bitbucketSyncSlug)
+	repoRead(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields, bitbucketSyncSlug)
 }
 
 func (r *bitbucketRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, bitbucketFields)
+	repoUpdate(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
 }
 
 func (r *bitbucketRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, bitbucketFields)
+	repoDelete(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
 }
 
 func (r *bitbucketRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

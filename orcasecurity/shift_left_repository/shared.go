@@ -35,6 +35,10 @@ type RepoConfigFields struct {
 	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
 }
 
+// Fields is promoted onto every repository model (each embeds RepoConfigFields),
+// so (*Model).Fields can be passed directly wherever a fields accessor is needed.
+func (f *RepoConfigFields) Fields() *RepoConfigFields { return f }
+
 // branchAttribute renders the `branch` field. GitHub and GitLab reject an
 // integration request with no branch (API 400), so it is Required there; Azure
 // and Bitbucket accept an omitted branch and fall back to the default branch at
@@ -165,7 +169,7 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, skipCheckRun
 	} else {
 		out.DisableScanPullRequests = types.BoolNull()
 	}
-	if skipCheckRunsUnreadable && api.SkipCheckRuns == "" && !prior.SkipCheckRuns.IsNull() && !prior.SkipCheckRuns.IsUnknown() {
+	if skipCheckRunsUnreadable && api.SkipCheckRuns == "" && tfconv.Known(prior.SkipCheckRuns) {
 		out.SkipCheckRuns = prior.SkipCheckRuns
 	}
 	return out
@@ -174,40 +178,33 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, skipCheckRun
 func configUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
 	body := api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}}
 	set := false
-	if known(plan.Disabled) {
+	if tfconv.Known(plan.Disabled) {
 		v := plan.Disabled.ValueBool()
 		body.Disabled = &v
 		set = true
 	}
-	if known(plan.DisableScanPullRequests) {
+	if tfconv.Known(plan.DisableScanPullRequests) {
 		v := plan.DisableScanPullRequests.ValueBool()
 		body.DisableScanPullRequests = &v
 		set = true
 	}
-	if known(plan.CommentsOnPullRequests) {
+	if tfconv.Known(plan.CommentsOnPullRequests) {
 		body.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
 		set = true
 	}
-	if known(plan.PrSummaryComment) {
+	if tfconv.Known(plan.PrSummaryComment) {
 		body.PrSummaryComment = plan.PrSummaryComment.ValueString()
 		set = true
 	}
-	if known(plan.SkipCheckRuns) {
+	if tfconv.Known(plan.SkipCheckRuns) {
 		body.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
 		set = true
 	}
-	if known(plan.ConfigFileSupport) {
+	if tfconv.Known(plan.ConfigFileSupport) {
 		body.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
 		set = true
 	}
 	return body, set
-}
-
-func known(v interface {
-	IsNull() bool
-	IsUnknown() bool
-}) bool {
-	return !v.IsNull() && !v.IsUnknown()
 }
 
 // integrateConfig builds the batch configuration_settings sent with the
@@ -216,20 +213,20 @@ func known(v interface {
 // post-integrate config update for all providers.
 func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig {
 	cfg := api_client.ScmRepoIntegrationConfig{}
-	if known(plan.DisableScanPullRequests) {
+	if tfconv.Known(plan.DisableScanPullRequests) {
 		v := plan.DisableScanPullRequests.ValueBool()
 		cfg.DisableScanPullRequests = &v
 	}
-	if known(plan.CommentsOnPullRequests) {
+	if tfconv.Known(plan.CommentsOnPullRequests) {
 		cfg.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
 	}
-	if known(plan.PrSummaryComment) {
+	if tfconv.Known(plan.PrSummaryComment) {
 		cfg.PrSummaryComment = plan.PrSummaryComment.ValueString()
 	}
-	if known(plan.SkipCheckRuns) {
+	if tfconv.Known(plan.SkipCheckRuns) {
 		cfg.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
 	}
-	if known(plan.ConfigFileSupport) {
+	if tfconv.Known(plan.ConfigFileSupport) {
 		cfg.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
 	}
 	return cfg
@@ -390,7 +387,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	// Do the move first: it has a checkable precondition (repository_context_id), so
 	// validate it up front. If config were applied first and the move then failed,
 	// remote config would be ahead of the unwritten Terraform state.
-	moveNeeded := known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString()
+	moveNeeded := tfconv.Known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString()
 	if moveNeeded {
 		ctxID := state.RepositoryContextID.ValueString()
 		if ctxID == "" {

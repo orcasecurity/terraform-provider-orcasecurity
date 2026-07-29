@@ -96,22 +96,20 @@ func (r *gitlabRepositoryResource) ops(plan *gitlabRepositoryModel) repoOps {
 	}
 }
 
-func gitlabFields(m *gitlabRepositoryModel) *RepoConfigFields { return &m.RepoConfigFields }
-
 func (r *gitlabRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, gitlabFields)
+	repoCreate(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
 }
 
 func (r *gitlabRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, gitlabFields)
+	repoRead(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
 }
 
 func (r *gitlabRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, gitlabFields)
+	repoUpdate(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
 }
 
 func (r *gitlabRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, gitlabFields)
+	repoDelete(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
 }
 
 func (r *gitlabRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
