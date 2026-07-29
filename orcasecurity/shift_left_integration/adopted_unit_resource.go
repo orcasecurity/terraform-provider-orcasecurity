@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -209,51 +208,4 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 		return
 	}
 	o.setAdoptedState(ctx, diags, state, unit, plan)
-}
-
-type AdoptedUnitResource[A any, M any] struct {
-	TypeNameSuffix string
-	SchemaFn       func() rschema.Schema
-	ImportFn       func(context.Context, resource.ImportStateRequest, *resource.ImportStateResponse)
-	OpsFn          func(*api_client.APIClient) AdoptedUnitOps[A, M]
-
-	client *api_client.APIClient
-}
-
-var (
-	_ resource.Resource                = &AdoptedUnitResource[struct{}, struct{}]{}
-	_ resource.ResourceWithConfigure   = &AdoptedUnitResource[struct{}, struct{}]{}
-	_ resource.ResourceWithImportState = &AdoptedUnitResource[struct{}, struct{}]{}
-)
-
-func (r *AdoptedUnitResource[A, M]) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + r.TypeNameSuffix
-}
-
-func (r *AdoptedUnitResource[A, M]) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.client = ConfigureAPIClient(req)
-}
-
-func (r *AdoptedUnitResource[A, M]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = r.SchemaFn()
-}
-
-func (r *AdoptedUnitResource[A, M]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	r.ImportFn(ctx, req, resp)
-}
-
-func (r *AdoptedUnitResource[A, M]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.OpsFn(r.client).DoCreate(ctx, req, resp)
-}
-
-func (r *AdoptedUnitResource[A, M]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.OpsFn(r.client).DoRead(ctx, req, resp)
-}
-
-func (r *AdoptedUnitResource[A, M]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.OpsFn(r.client).DoUpdate(ctx, req, resp)
-}
-
-func (r *AdoptedUnitResource[A, M]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.OpsFn(r.client).DoDelete(ctx, req, resp)
 }

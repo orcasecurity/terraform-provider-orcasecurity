@@ -15,13 +15,13 @@ import (
 )
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.InstallationResource[resourceModel, api_client.BitbucketInstallation]{
+	return &shift_left_integration.GenericResource[shift_left_integration.InstallationLifecycle[resourceModel, api_client.BitbucketInstallation]]{
 		TypeNameSuffix: "_shift_left_bitbucket_installation",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 			resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 		},
-		LifecycleFn: func(apiClient *api_client.APIClient) shift_left_integration.InstallationLifecycle[resourceModel, api_client.BitbucketInstallation] {
+		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.InstallationLifecycle[resourceModel, api_client.BitbucketInstallation] {
 			return shift_left_integration.InstallationLifecycle[resourceModel, api_client.BitbucketInstallation]{
 				SCMName: "Bitbucket",
 				Create: func(plan *resourceModel) (*api_client.BitbucketInstallation, error) {

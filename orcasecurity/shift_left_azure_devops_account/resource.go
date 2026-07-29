@@ -13,7 +13,7 @@ import (
 var azureLabels = shift_left_integration.NewAdoptLabels("Azure DevOps account")
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.AdoptedUnitResource[api_client.AzureDevopsAccount, resourceModel]{
+	return &shift_left_integration.GenericResource[shift_left_integration.AdoptedUnitOps[api_client.AzureDevopsAccount, resourceModel]]{
 		TypeNameSuffix: "_shift_left_azure_devops_account",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"terraform-provider-orcasecurity/orcasecurity/api_client"
-
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -122,51 +120,4 @@ func (l InstallationLifecycle[M, A]) DoDelete(ctx context.Context, req resource.
 	if err := l.Delete(l.ID(&state)); err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Error deleting %s installation", l.SCMName), err.Error())
 	}
-}
-
-type InstallationResource[M any, A any] struct {
-	TypeNameSuffix string
-	SchemaFn       func() rschema.Schema
-	ImportFn       func(context.Context, resource.ImportStateRequest, *resource.ImportStateResponse)
-	LifecycleFn    func(*api_client.APIClient) InstallationLifecycle[M, A]
-
-	client *api_client.APIClient
-}
-
-var (
-	_ resource.Resource                = &InstallationResource[struct{}, struct{}]{}
-	_ resource.ResourceWithConfigure   = &InstallationResource[struct{}, struct{}]{}
-	_ resource.ResourceWithImportState = &InstallationResource[struct{}, struct{}]{}
-)
-
-func (r *InstallationResource[M, A]) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + r.TypeNameSuffix
-}
-
-func (r *InstallationResource[M, A]) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.client = ConfigureAPIClient(req)
-}
-
-func (r *InstallationResource[M, A]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = r.SchemaFn()
-}
-
-func (r *InstallationResource[M, A]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	r.ImportFn(ctx, req, resp)
-}
-
-func (r *InstallationResource[M, A]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.LifecycleFn(r.client).DoCreate(ctx, req, resp)
-}
-
-func (r *InstallationResource[M, A]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.LifecycleFn(r.client).DoRead(ctx, req, resp)
-}
-
-func (r *InstallationResource[M, A]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.LifecycleFn(r.client).DoUpdate(ctx, req, resp)
-}
-
-func (r *InstallationResource[M, A]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.LifecycleFn(r.client).DoDelete(ctx, req, resp)
 }

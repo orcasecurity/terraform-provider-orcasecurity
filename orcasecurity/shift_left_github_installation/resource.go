@@ -14,7 +14,7 @@ import (
 var githubLabels = shift_left_integration.NewAdoptLabels("GitHub installation")
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.AdoptedUnitResource[api_client.GithubInstallation, resourceModel]{
+	return &shift_left_integration.GenericResource[shift_left_integration.AdoptedUnitOps[api_client.GithubInstallation, resourceModel]]{
 		TypeNameSuffix: "_shift_left_github_installation",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
