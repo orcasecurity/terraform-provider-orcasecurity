@@ -75,8 +75,11 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 			return
 		}
 		// Reuse the unit already fetched above instead of re-reading it in the write.
-		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State,
-			o.Describe(&plan)+" does not exist. "+o.CreateHint, o.CreateErrorTitle, existing)
+		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State, writeAdoptedRequest[A]{
+			NotFoundMsg: o.Describe(&plan) + " does not exist. " + o.CreateHint,
+			Title:       o.CreateErrorTitle,
+			Current:     existing,
+		})
 		return
 	}
 
@@ -122,9 +125,10 @@ func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State,
-		o.Describe(&plan)+" was not found. It may have been removed; re-import.",
-		o.UpdateErrorTitle, nil)
+	o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State, writeAdoptedRequest[A]{
+		NotFoundMsg: o.Describe(&plan) + " was not found. It may have been removed; re-import.",
+		Title:       o.UpdateErrorTitle,
+	})
 }
 
 // setAdoptedState maps the API unit to state, carrying adopt_existing over from
@@ -171,16 +175,22 @@ func (o AdoptedUnitOps[A, M]) DoDelete(ctx context.Context, req resource.DeleteR
 	}
 }
 
+type writeAdoptedRequest[A any] struct {
+	NotFoundMsg string
+	Title       string
+	Current     *A // pre-fetched unit; nil means writeAdopted fetches it itself
+}
+
 func (o AdoptedUnitOps[A, M]) writeAdopted(
 	ctx context.Context, plan, config *M,
 	diags *diag.Diagnostics, state *tfsdk.State,
-	notFoundMsg, title string, current *A,
+	req writeAdoptedRequest[A],
 ) {
 	planFields := o.Config(plan)
 	configFields := o.Config(config)
 	unit := AdoptWrite(diags, AdoptWriteRequest[A]{
 		Get:     func() (*A, error) { return o.Get(plan) },
-		Current: current,
+		Current: req.Current,
 		Update: func(current *A, body api_client.ScmInstallationUpdate) (*A, error) {
 			return o.Update(plan, current, body)
 		},
@@ -191,8 +201,8 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 		PlanConfig:      planFields.ConfigSettings,
 		Project:         ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
 		Labels:          o.Labels,
-		NotFoundMsg:     notFoundMsg,
-		WriteErrorTitle: title,
+		NotFoundMsg:     req.NotFoundMsg,
+		WriteErrorTitle: req.Title,
 	})
 	if unit == nil {
 		return
