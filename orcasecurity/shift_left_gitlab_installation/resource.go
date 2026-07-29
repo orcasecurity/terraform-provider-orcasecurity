@@ -12,17 +12,30 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var (
-	_ resource.Resource                = &installationResource{}
-	_ resource.ResourceWithConfigure   = &installationResource{}
-	_ resource.ResourceWithImportState = &installationResource{}
-)
-
-type installationResource struct {
-	apiClient *api_client.APIClient
+func NewResource() resource.Resource {
+	return &shift_left_integration.InstallationResource[resourceModel, api_client.GitlabInstallation]{
+		TypeNameSuffix: "_shift_left_gitlab_installation",
+		SchemaFn:       resourceSchema,
+		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+			resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+		},
+		LifecycleFn: func(apiClient *api_client.APIClient) shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation] {
+			return shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation]{
+				SCMName: "GitLab",
+				Create: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {
+					return apiClient.CreateGitlabInstallation(writeBody(plan))
+				},
+				Get: apiClient.GetGitlabInstallation,
+				Update: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {
+					return apiClient.UpdateGitlabInstallation(plan.ID.ValueString(), writeBody(plan))
+				},
+				Delete:   apiClient.DeleteGitlabInstallation,
+				ID:       func(m *resourceModel) string { return m.ID.ValueString() },
+				SetState: setState,
+			}
+		},
+	}
 }
-
-func NewResource() resource.Resource { return &installationResource{} }
 
 type resourceModel struct {
 	ID                types.String `tfsdk:"id"`
@@ -37,15 +50,7 @@ type resourceModel struct {
 	CloudIntegration  types.Bool   `tfsdk:"cloud_integration"`
 }
 
-func (r *installationResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_shift_left_gitlab_installation"
-}
-
-func (r *installationResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
-}
-
-func (r *installationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.InstallationBaseAttrs("GitLab", "https://gitlab.com",
 		"GitLab access token. Orca validates it on create, so it must be a valid group or personal access token.")
 	attrs["read_only"] = rschema.BoolAttribute{
@@ -61,17 +66,13 @@ func (r *installationResource) Schema(_ context.Context, _ resource.SchemaReques
 		Computed:    true,
 		Description: "Type of the token as reported by GitLab.",
 	}
-	resp.Schema = rschema.Schema{
+	return rschema.Schema{
 		Description: "Connects a GitLab server to Orca Shift Left by registering an access token " +
 			"(POST /api/shiftleft/gitlab/installations/). Orca validates the token on create, so it must be a valid " +
 			"group access token or personal access token. The API never returns the token, so after `terraform import` " +
 			"the next apply re-sends the configured token.",
 		Attributes: attrs,
 	}
-}
-
-func (r *installationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func writeBody(plan *resourceModel) api_client.GitlabInstallationWrite {
@@ -94,36 +95,4 @@ func setState(m *resourceModel, api *api_client.GitlabInstallation) {
 	m.AccessTokenType = types.StringValue(api.AccessTokenType)
 	m.IntegrationStatus = types.StringValue(api.IntegrationStatus)
 	m.CloudIntegration = types.BoolValue(api.CloudIntegration)
-}
-
-func (r *installationResource) lifecycle() shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation] {
-	return shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation]{
-		SCMName: "GitLab",
-		Create: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {
-			return r.apiClient.CreateGitlabInstallation(writeBody(plan))
-		},
-		Get: r.apiClient.GetGitlabInstallation,
-		Update: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {
-			return r.apiClient.UpdateGitlabInstallation(plan.ID.ValueString(), writeBody(plan))
-		},
-		Delete:   r.apiClient.DeleteGitlabInstallation,
-		ID:       func(m *resourceModel) string { return m.ID.ValueString() },
-		SetState: setState,
-	}
-}
-
-func (r *installationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.lifecycle().DoCreate(ctx, req, resp)
-}
-
-func (r *installationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.lifecycle().DoRead(ctx, req, resp)
-}
-
-func (r *installationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.lifecycle().DoUpdate(ctx, req, resp)
-}
-
-func (r *installationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.lifecycle().DoDelete(ctx, req, resp)
 }

@@ -15,6 +15,16 @@ func Known(v attr.Value) bool {
 	return !v.IsNull() && !v.IsUnknown()
 }
 
+// BoolIsTrue reports whether a bool attribute is known and true.
+func BoolIsTrue(b types.Bool) bool {
+	return Known(b) && b.ValueBool()
+}
+
+// StringIsSet reports whether a string attribute is known and non-empty.
+func StringIsSet(s types.String) bool {
+	return Known(s) && s.ValueString() != ""
+}
+
 // SetToStringSlice converts a set of strings to a Go slice without a context.
 // Null/unknown sets and null/unknown elements are dropped. Prefer StringSetToAPI
 // when a context is available and an empty [] must be distinguished from omitted.

@@ -242,6 +242,8 @@ type repoOps struct {
 	// skip_check_runs. Gates the stale-value fallback in fromAPI so the other
 	// three providers see a cleared skip_check_runs as drift, not a no-op.
 	skipCheckRunsUnreadable bool
+	// Backfill attrs Import can't set (Bitbucket slug only; nil elsewhere).
+	syncIdentity func(*api_client.ScmRepository)
 }
 
 func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
@@ -260,9 +262,8 @@ func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *re
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// syncIdentity backfills identity attrs outside RepoConfigFields not in the import ID (Bitbucket slug).
 func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
-	ops func(*M) repoOps, fields func(*M) *RepoConfigFields, syncIdentity ...func(*M, *api_client.ScmRepository)) {
+	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
 	var state M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -279,8 +280,8 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 		return
 	}
 	*fields(&state) = fromAPI(*fields(&state), row, o.skipCheckRunsUnreadable)
-	for _, sync := range syncIdentity {
-		sync(&state, row)
+	if o.syncIdentity != nil {
+		o.syncIdentity(row)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -430,6 +431,11 @@ func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
 			return // already gone
 		}
 		ctxID = row.RepositoryContextID
+		if ctxID == "" {
+			diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.scmName),
+				"the repository has no repository_context_id; remove the integration manually")
+			return
+		}
 	}
 	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
 		diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.scmName), err.Error())

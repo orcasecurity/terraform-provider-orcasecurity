@@ -9,11 +9,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
-// Prime the cache with a non-matching lookup (list cached, target element left
-// unstamped), then run concurrent matching lookups. Without a per-caller copy of
-// the cached slice this races on the shared element under -race.
+// Concurrent lookups on a cached slice must not race when stamping installation_id.
 func TestFindScmUnit_ConcurrentNoRace(t *testing.T) {
 	const instID = "inst-1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +36,69 @@ func TestFindScmUnit_ConcurrentNoRace(t *testing.T) {
 			acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
 			if err != nil || acc == nil || acc.InstallationID != instID {
 				t.Errorf("bad result: acc=%+v err=%v", acc, err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// Cold cache + singleflight: stamp must use a per-caller copy.
+func TestFindScmUnit_ConcurrentNoRace_ColdCache(t *testing.T) {
+	const instID = "inst-1"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_items": 1,
+			"data":        []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "n"}},
+		})
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
+			if err != nil || acc == nil || acc.InstallationID != instID {
+				t.Errorf("bad result: acc=%+v err=%v", acc, err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// Same as above via listScmUnitsByInstallation.
+func TestListBitbucketAccounts_ConcurrentNoRace_ColdCache(t *testing.T) {
+	const instID = "inst-1"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		if strings.Contains(r.URL.Path, "integrated_accounts") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "n"}},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_items": 1,
+			"data":        []map[string]string{{"id": instID}},
+		})
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			accounts, err := client.ListBitbucketAccounts()
+			if err != nil || len(accounts) != 1 || accounts[0].InstallationID != instID {
+				t.Errorf("bad result: accounts=%+v err=%v", accounts, err)
 			}
 		}()
 	}

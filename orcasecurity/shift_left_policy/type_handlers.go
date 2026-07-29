@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -27,7 +28,7 @@ func flatHandler[B any](catalog string, s blockShape[B]) policyTypeHandler {
 		present:     func(m *shiftLeftPolicyResourceModel) bool { return s.get(m) != nil },
 		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
 			b := s.get(m)
-			return b != nil && boolIsTrue(s.allControls(b))
+			return b != nil && tfconv.BoolIsTrue(s.allControls(b))
 		}),
 		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
 			return s.toMaps(s.get(m))
@@ -77,7 +78,7 @@ func fsScopedHandler(
 		catalogType: "file_system",
 		present:     func(m *shiftLeftPolicyResourceModel) bool { return get(m) != nil },
 		allControlsScopes: func(m *shiftLeftPolicyResourceModel) []string {
-			if b := get(m); b != nil && boolIsTrue(b.AllControls) {
+			if b := get(m); b != nil && tfconv.BoolIsTrue(b.AllControls) {
 				return []string{scope}
 			}
 			return nil
@@ -223,7 +224,7 @@ func containerAllControlsScopes(block *containerImageBlockModel) []string {
 		{"custom", block.Custom},
 	}
 	for _, s := range scopes {
-		if s.block != nil && boolIsTrue(s.block.AllControls) {
+		if s.block != nil && tfconv.BoolIsTrue(s.block.AllControls) {
 			keys = append(keys, s.key)
 		}
 	}

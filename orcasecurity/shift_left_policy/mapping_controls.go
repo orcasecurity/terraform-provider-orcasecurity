@@ -185,10 +185,16 @@ func scopeControlsWrapper(controls []map[string]interface{}) map[string]interfac
 }
 
 func iacControlsToMaps(block *iacBlockModel) []map[string]interface{} {
+	if block == nil {
+		return nil
+	}
 	return mapSlice(block.Controls, iacControlToMap)
 }
 
 func sastControlsToMaps(block *sastBlockModel) []map[string]interface{} {
+	if block == nil {
+		return nil
+	}
 	return mapSlice(block.Controls, sastControlToMap)
 }
 

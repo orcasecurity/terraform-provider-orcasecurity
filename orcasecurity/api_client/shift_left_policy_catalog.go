@@ -260,7 +260,7 @@ func enrichPolicyDataRaw(raw json.RawMessage, index catalogControlIndex) (json.R
 	return json.Marshal(policyData)
 }
 
-func toControlMaps(items []interface{}) []map[string]interface{} {
+func ToControlMaps(items []interface{}) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(items))
 	for _, item := range items {
 		if m, ok := item.(map[string]interface{}); ok {
@@ -280,7 +280,7 @@ func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]
 
 	var asArray []interface{}
 	if err := json.Unmarshal(catalogRaw, &asArray); err == nil && len(asArray) > 0 {
-		result[""] = toControlMaps(asArray)
+		result[""] = ToControlMaps(asArray)
 		return result
 	}
 
@@ -289,7 +289,7 @@ func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]
 		return result
 	}
 	if controls, ok := catalog["controls"].([]interface{}); ok {
-		result[""] = toControlMaps(controls)
+		result[""] = ToControlMaps(controls)
 	}
 	for scope, value := range catalog {
 		obj, ok := value.(map[string]interface{})
@@ -297,7 +297,7 @@ func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]
 			continue
 		}
 		if controls, ok := obj["controls"].([]interface{}); ok {
-			result[scope] = toControlMaps(controls)
+			result[scope] = ToControlMaps(controls)
 		}
 	}
 	return result

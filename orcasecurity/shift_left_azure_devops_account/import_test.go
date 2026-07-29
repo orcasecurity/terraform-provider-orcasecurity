@@ -12,7 +12,7 @@ import (
 func runImport(t *testing.T, id string) (resourceModel, bool) {
 	t.Helper()
 	ctx := context.Background()
-	r := &azureDevopsAccountResource{}
+	r := NewResource().(resource.ResourceWithImportState)
 
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)

@@ -93,6 +93,7 @@ func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOp
 				Config:                integrateConfig(&plan.RepoConfigFields),
 			})
 		},
+		syncIdentity: func(row *api_client.ScmRepository) { bitbucketSyncSlug(plan, row) },
 		find: func() (*api_client.ScmRepository, error) {
 			return r.apiClient.FindBitbucketRepository(installationID, accountID, repoID)
 		},
@@ -112,7 +113,7 @@ func bitbucketSyncSlug(m *bitbucketRepositoryModel, row *api_client.ScmRepositor
 }
 
 func (r *bitbucketRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields, bitbucketSyncSlug)
+	repoRead(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
 }
 
 func (r *bitbucketRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

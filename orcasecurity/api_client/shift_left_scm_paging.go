@@ -1,7 +1,5 @@
 package api_client
 
-import "slices"
-
 type scmInstallationID struct {
 	ID string `json:"id"`
 }
@@ -44,8 +42,8 @@ func loadScmListCache[T any](client *APIClient, basePath string, gen uint64) ([]
 	if !ok {
 		return nil, false
 	}
-	// Clone: callers stamp elements in place; sharing the cached array races.
-	return slices.Clone(pages), true
+	// Callers copy before stamping; no clone here.
+	return pages, true
 }
 
 func storeScmListCacheIfCurrent[T any](client *APIClient, basePath string, startGen uint64, all []T) {
@@ -73,10 +71,12 @@ func listScmUnitsByInstallation[T any, PT interface {
 		if err != nil {
 			return nil, err
 		}
-		for i := range units {
-			PT(&units[i]).stampInstallationID(inst.ID)
-		}
+		// Stamp into all[], not the cached units slice (may be shared).
+		start := len(all)
 		all = append(all, units...)
+		for i := start; i < len(all); i++ {
+			PT(&all[i]).stampInstallationID(inst.ID)
+		}
 	}
 	return all, nil
 }
@@ -92,8 +92,9 @@ func findScmUnitBy[T any, PT interface {
 	}
 	for i := range all {
 		if match(&all[i]) {
-			PT(&all[i]).stampInstallationID(installationID)
-			return &all[i], nil
+			unit := all[i] // copy before stamp; cached slice is shared
+			PT(&unit).stampInstallationID(installationID)
+			return &unit, nil
 		}
 	}
 	return nil, nil

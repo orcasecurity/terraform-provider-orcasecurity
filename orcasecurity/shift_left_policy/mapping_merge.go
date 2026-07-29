@@ -6,23 +6,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func isStringSet(value types.String) bool {
-	return tfconv.Known(value) && value.ValueString() != ""
-}
-
 func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
-	if isStringSet(src.ID) {
+	if tfconv.StringIsSet(src.ID) {
 		dst.ID = src.ID
 	} else {
 		dst.ID = types.StringNull()
 	}
-	if isStringSet(src.Priority) {
+	if tfconv.StringIsSet(src.Priority) {
 		dst.Priority = src.Priority
 	}
 	if tfconv.Known(src.Disabled) {
 		dst.Disabled = src.Disabled
 	}
-	if !isStringSet(src.Title) {
+	if !tfconv.StringIsSet(src.Title) {
 		dst.Title = types.StringNull()
 	}
 	if src.Conditions == nil {
@@ -35,7 +31,7 @@ func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 // controls it added/removed out of band still surface. Shared by every flat block.
 func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls *[]C, srcControls []C, mergeControl func(dst *C, src C)) {
 	*dstAll = srcAll
-	if boolIsTrue(srcAll) {
+	if tfconv.BoolIsTrue(srcAll) {
 		*dstControls = nil
 		return
 	}
@@ -125,14 +121,19 @@ func mergeContainerImageFromPlan(dst, src *containerImageBlockModel) {
 	mergeContainerScopeFromPlan(dst.Custom, src.Custom)
 }
 
-// All per-control fields are config-owned: the API enriches scm/entity/threat
-// from the control catalog, so keeping the API values would drift against a
-// config that omits them. Take them from state; the index-wise loop still
-// surfaces controls the API added or removed.
+// Scm/Entity/Threat are catalog-computed: always from state. Priority/Disabled: from state when set, else keep API (surfaces OOB drift).
 func mergeScmControlFromPlan(dst *scmControlModel, src scmControlModel) {
-	dst.ID = src.ID
-	dst.Priority = src.Priority
-	dst.Disabled = src.Disabled
+	if tfconv.StringIsSet(src.ID) {
+		dst.ID = src.ID
+	} else {
+		dst.ID = types.StringNull()
+	}
+	if tfconv.StringIsSet(src.Priority) {
+		dst.Priority = src.Priority
+	}
+	if tfconv.Known(src.Disabled) {
+		dst.Disabled = src.Disabled
+	}
 	dst.Scm = src.Scm
 	dst.Entity = src.Entity
 	dst.Threat = src.Threat
@@ -147,8 +148,5 @@ func mergeScmPostureBlockFromPlan(dst, src *scmPostureBlockModel) {
 			mergeScmControlFromPlan(&dst.Controls[i], src.Controls[i])
 		}
 	}
-	// Scope is an unordered map on the wire; keep config order from state to avoid a diff.
-	if len(src.Scope) > 0 {
-		dst.Scope = src.Scope
-	}
+	// Scope stays from API (sorted in buildScmPostureBlock) so OOB scope changes surface as drift.
 }

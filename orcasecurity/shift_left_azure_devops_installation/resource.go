@@ -12,17 +12,30 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var (
-	_ resource.Resource                = &installationResource{}
-	_ resource.ResourceWithConfigure   = &installationResource{}
-	_ resource.ResourceWithImportState = &installationResource{}
-)
-
-type installationResource struct {
-	apiClient *api_client.APIClient
+func NewResource() resource.Resource {
+	return &shift_left_integration.InstallationResource[resourceModel, api_client.AzureDevopsInstallation]{
+		TypeNameSuffix: "_shift_left_azure_devops_installation",
+		SchemaFn:       resourceSchema,
+		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+			resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+		},
+		LifecycleFn: func(apiClient *api_client.APIClient) shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation] {
+			return shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation]{
+				SCMName: "Azure DevOps",
+				Create: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {
+					return apiClient.CreateAzureDevopsInstallation(writeBody(plan))
+				},
+				Get: apiClient.GetAzureDevopsInstallation,
+				Update: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {
+					return apiClient.UpdateAzureDevopsInstallation(plan.ID.ValueString(), writeBody(plan))
+				},
+				Delete:   apiClient.DeleteAzureDevopsInstallation,
+				ID:       func(m *resourceModel) string { return m.ID.ValueString() },
+				SetState: setState,
+			}
+		},
+	}
 }
-
-func NewResource() resource.Resource { return &installationResource{} }
 
 type resourceModel struct {
 	ID                     types.String `tfsdk:"id"`
@@ -37,15 +50,7 @@ type resourceModel struct {
 	CloudIntegration       types.Bool   `tfsdk:"cloud_integration"`
 }
 
-func (r *installationResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_shift_left_azure_devops_installation"
-}
-
-func (r *installationResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
-}
-
-func (r *installationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.InstallationBaseAttrs("Azure DevOps", "https://dev.azure.com",
 		"Azure DevOps personal access token.")
 	attrs["account_name"] = rschema.StringAttribute{
@@ -61,16 +66,12 @@ func (r *installationResource) Schema(_ context.Context, _ resource.SchemaReques
 		Computed:    true,
 		Description: "Organization name the token is scoped to, as reported by the API.",
 	}
-	resp.Schema = rschema.Schema{
+	return rschema.Schema{
 		Description: "Connects an Azure DevOps server or organization to Orca Shift Left by registering a personal access token " +
 			"(POST /api/shiftleft/azure_devops/installations/). The API never returns the token, so after `terraform import` " +
 			"the next apply re-sends the configured token.",
 		Attributes: attrs,
 	}
-}
-
-func (r *installationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func writeBody(plan *resourceModel) api_client.AzureDevopsInstallationWrite {
@@ -93,36 +94,4 @@ func setState(m *resourceModel, api *api_client.AzureDevopsInstallation) {
 	m.ExternalServerURL = types.StringValue(api.ExternalServerURL)
 	m.IntegrationStatus = types.StringValue(api.IntegrationStatus)
 	m.CloudIntegration = types.BoolValue(api.CloudIntegration)
-}
-
-func (r *installationResource) lifecycle() shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation] {
-	return shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation]{
-		SCMName: "Azure DevOps",
-		Create: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {
-			return r.apiClient.CreateAzureDevopsInstallation(writeBody(plan))
-		},
-		Get: r.apiClient.GetAzureDevopsInstallation,
-		Update: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {
-			return r.apiClient.UpdateAzureDevopsInstallation(plan.ID.ValueString(), writeBody(plan))
-		},
-		Delete:   r.apiClient.DeleteAzureDevopsInstallation,
-		ID:       func(m *resourceModel) string { return m.ID.ValueString() },
-		SetState: setState,
-	}
-}
-
-func (r *installationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.lifecycle().DoCreate(ctx, req, resp)
-}
-
-func (r *installationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.lifecycle().DoRead(ctx, req, resp)
-}
-
-func (r *installationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.lifecycle().DoUpdate(ctx, req, resp)
-}
-
-func (r *installationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.lifecycle().DoDelete(ctx, req, resp)
 }

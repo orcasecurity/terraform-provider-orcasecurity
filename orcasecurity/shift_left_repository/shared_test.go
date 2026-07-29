@@ -577,3 +577,23 @@ func TestDeleteRepo_FindErrorSurfaces(t *testing.T) {
 		t.Fatal("expected an error diagnostic when the fallback read fails")
 	}
 }
+
+// Must error, not DELETE /repository_contexts//, when ctx id is empty.
+func TestDeleteRepo_FallbackRowMissingContextIDErrors(t *testing.T) {
+	client, reqs := recordingClient(http.StatusOK)
+	ops := repoOps{
+		client:  client,
+		scmName: "GitHub",
+		find: func() (*api_client.ScmRepository, error) {
+			return &api_client.ScmRepository{ID: "row-1", RepositoryContextID: ""}, nil
+		},
+	}
+	var diags diag.Diagnostics
+	deleteRepo(ops, &RepoConfigFields{}, &diags)
+	if !diags.HasError() {
+		t.Fatal("expected an error diagnostic when the fallback row has no repository_context_id")
+	}
+	if len(*reqs) != 0 {
+		t.Fatalf("expected no DELETE call, got: %v", *reqs)
+	}
+}

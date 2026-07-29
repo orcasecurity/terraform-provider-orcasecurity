@@ -67,10 +67,6 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 	return policy, diags
 }
 
-func boolIsTrue(b types.Bool) bool {
-	return tfconv.Known(b) && b.ValueBool()
-}
-
 func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicyResourceModel) *shiftLeftPolicyResourceModel {
 	model := &shiftLeftPolicyResourceModel{
 		ID:                       types.StringValue(apiPolicy.ID),

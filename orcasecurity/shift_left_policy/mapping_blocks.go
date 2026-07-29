@@ -133,17 +133,6 @@ func policyDataFromRaw(raw json.RawMessage) map[string]interface{} {
 	return data
 }
 
-// asMapSlice keeps the map elements of a decoded JSON array, dropping non-objects.
-func asMapSlice(items []interface{}) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, len(items))
-	for _, item := range items {
-		if m, ok := item.(map[string]interface{}); ok {
-			result = append(result, m)
-		}
-	}
-	return result
-}
-
 func rawScopeControls(data map[string]interface{}, key string) []map[string]interface{} {
 	section, ok := data[key].(map[string]interface{})
 	if !ok {
@@ -153,12 +142,12 @@ func rawScopeControls(data map[string]interface{}, key string) []map[string]inte
 	if !ok {
 		return nil
 	}
-	return asMapSlice(items)
+	return api_client.ToControlMaps(items)
 }
 
 func controlsFromPolicyData(data map[string]interface{}) []map[string]interface{} {
 	if controlsRaw, ok := data["controls"].([]interface{}); ok {
-		return asMapSlice(controlsRaw)
+		return api_client.ToControlMaps(controlsRaw)
 	}
 	return nil
 }
@@ -173,7 +162,7 @@ func scopeControlsFromPolicyData(data map[string]interface{}, key string, topLev
 		return &containerScopeBlockModel{}
 	}
 	block := &containerScopeBlockModel{}
-	for _, m := range asMapSlice(controlsRaw) {
+	for _, m := range api_client.ToControlMaps(controlsRaw) {
 		if id := controlIDFromTopLevel(m, topLevelControls); id != "" {
 			m["id"] = id
 		}
@@ -288,21 +277,34 @@ func mapToScmControl(m map[string]interface{}) scmControlModel {
 	return ctrl
 }
 
+// API read shape: {"id","name"}; write uses plain ID strings (buildScmScope).
+type scmScopeMember struct {
+	ID string `json:"id"`
+}
+
 func buildScmPostureBlock(apiPolicy *api_client.ShiftLeftPolicy, controls []map[string]interface{}) *scmPostureBlockModel {
 	block := &scmPostureBlockModel{}
 	if len(apiPolicy.Scope) > 0 {
-		var scope map[string][]string
+		var scope map[string][]scmScopeMember
 		_ = json.Unmarshal(apiPolicy.Scope, &scope)
-		// Sort keys: scope is an unordered JSON object; map range order flaps → perpetual diff.
+		// Skip empty scope lists; API echoes all known types even when unused.
 		keys := make([]string, 0, len(scope))
-		for key := range scope {
-			keys = append(keys, key)
+		for key, members := range scope {
+			if len(members) > 0 {
+				keys = append(keys, key)
+			}
 		}
+		// Sort keys: JSON object order is nondeterministic.
 		sort.Strings(keys)
 		for _, key := range keys {
+			members := scope[key]
+			ids := make([]string, len(members))
+			for i, m := range members {
+				ids[i] = m.ID
+			}
 			block.Scope = append(block.Scope, scmScopeEntryModel{
 				Key: types.StringValue(key),
-				Ids: stringSliceToTypes(scope[key]),
+				Ids: stringSliceToTypes(ids),
 			})
 		}
 	}

@@ -78,6 +78,9 @@ func (client *APIClient) integrateScmRepositories(provider string, body any) err
 }
 
 func (client *APIClient) DeleteRepositoryContext(repositoryContextID string) error {
+	if repositoryContextID == "" {
+		return fmt.Errorf("DeleteRepositoryContext: empty repository context id")
+	}
 	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/repository_contexts/%s/", repositoryContextID))
 	client.invalidateScmListCache()
 	return err
