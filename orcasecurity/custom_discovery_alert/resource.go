@@ -408,9 +408,7 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 	_, err = r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), updateReq)
 	if err != nil {
 		if cleared {
-			// The clear call above already succeeded remotely, so the alert now has zero
-			// compliance frameworks even though this update failed. Reflect that in state
-			// instead of leaving the old framework list on record.
+			// Clear succeeded remotely; persist empty frameworks on apply failure.
 			plan.Frameworks = nil
 			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		}

@@ -8,13 +8,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// frameworkName is scoped to this package because framework names are unique per org and the
-// acceptance packages run concurrently.
+// Per-package name; acceptance tests run concurrently.
 const frameworkName = "tf-acc-discovery-framework"
 
-// frameworkConfig provisions the custom framework that the compliance_frameworks tests attach the
-// alert to. The alert API resolves frameworks by name and section, so the framework and both
-// sections have to exist before an alert can reference them.
+// Inline framework fixture; alert API resolves frameworks by name and section.
 var frameworkConfig = fmt.Sprintf(`
 resource "orcasecurity_custom_compliance_framework" "test_framework" {
     name        = %q

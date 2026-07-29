@@ -152,7 +152,7 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				},
 			},
 			"global_filter": schema.BoolAttribute{
-				Description: "Whether or not this is a business unit all users within your Orca org can use. If set to true, then it is accessible to all other users in your org. When omitted, Orca creates the business unit as global, so this is read back as `true`.",
+				Description: "Org-wide when true. Omitted on create defaults to global; provider re-reads the value after create.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
@@ -425,11 +425,7 @@ func setMetadataInState(state *businessUnitResourceModel, instance *api_client.B
 	}
 }
 
-// resolveCreatedGlobalFilter fills the computed global_filter after a create. POST /api/filters
-// only returns the new filter_id, and a business unit created without the field is stored as
-// global by the backend, so assuming false here would leave state disagreeing with the server
-// until the next refresh. A configured value is kept as planned (the backend honours it);
-// otherwise the server-assigned value is read back.
+// POST /api/filters returns only filter_id; re-read global_filter when unset (backend defaults to global).
 func resolveCreatedGlobalFilter(client *api_client.APIClient, plan *businessUnitResourceModel, instance *api_client.BusinessUnit) diag.Diagnostics {
 	var diags diag.Diagnostics
 

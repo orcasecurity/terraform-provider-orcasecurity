@@ -68,8 +68,7 @@ func testOptionalUsersSet_emptyRefKnownEmptyStaysEmptySet(t *testing.T) {
 	assertKnownSetElementCount(t, got, 0)
 }
 
-// The group read endpoint reports only a total_users count, never the member list, so an absent
-// list means "not reported" rather than "no members" and the reference value has to survive.
+// Absent member list is not reported as empty; keep the reference value.
 func testOptionalUsersSet_emptyAfterHadMembersKeepsMembers(t *testing.T) {
 	ctx := context.Background()
 	withUser := mustStringSet(t, ctx, []string{"u1"})

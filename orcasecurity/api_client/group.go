@@ -73,9 +73,7 @@ func (client *APIClient) DeleteGroup(id string) error {
 	return err
 }
 
-// AddGroupUsers adds members to an existing group. The group create payload ignores `users`, so
-// membership has to be applied through this dedicated endpoint after the group exists. The API
-// rejects an empty list, so an empty request is a no-op.
+// Create ignores users; membership is set via POST /api/rbac/group/{id}/users (no-op when empty).
 func (client *APIClient) AddGroupUsers(groupID string, userIDs []string) error {
 	if len(userIDs) == 0 {
 		return nil

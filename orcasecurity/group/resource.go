@@ -75,11 +75,10 @@ func (r *groupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				},
 			},
 			"sso_group": schema.BoolAttribute{
-				Description: "Configures whether this group may be used for SSO permissions, or if it should be used purely for use within Orca. Can only be set at creation time; changing it replaces the group.",
+				Description: "SSO permissions group vs Orca-only. Create-time only; changing it replaces the resource.",
 				Required:    true,
 				PlanModifiers: []planmodifier.Bool{
-					// The group update endpoint does not accept sso_group, so the backend keeps
-					// the value chosen at creation. Replacing is the only way to honour a change.
+					// Update API ignores sso_group.
 					boolplanmodifier.RequiresReplace(),
 				},
 			},
@@ -88,7 +87,7 @@ func (r *groupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Required:    true,
 			},
 			"users": schema.SetAttribute{
-				Description: "Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members. Orca does not report group membership when reading a group, so this value is tracked from the configuration and members removed outside Terraform are not detected.",
+				Description: "Member user IDs (/api/users). API does not return membership on read; external removals are not detected.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
@@ -122,7 +121,7 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	// The create payload ignores `users`, so members are attached in a follow-up call.
+	// Create API ignores users; set via AddGroupUsers.
 	if err := r.apiClient.AddGroupUsers(instance.ID, users); err != nil {
 		resp.Diagnostics.AddError(
 			"Error adding group users",
@@ -164,11 +163,7 @@ func userIDsFromSet(s types.Set) []string {
 	return users
 }
 
-// optionalUsersSetMatchPlan resolves the users attribute against the API response. GET
-// /api/rbac/group/{id} reports only a total_users count and never the member list, so an absent
-// list carries no information: the configured (or prior) value is kept instead of being flattened
-// to an empty set, which would drop members the user asked for. A list is only taken from the API
-// when one is actually present.
+// GET group returns total_users only; keep plan/prior users when the API omits the member list.
 func optionalUsersSetMatchPlan(ctx context.Context, planOrPrior types.Set, api []string) (types.Set, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(api) > 0 {
