@@ -19,9 +19,10 @@ func (a *AzureDevopsAccount) stampInstallationID(id string) {
 
 // AzureAccessTokenDetails carries the credential on writes; the API never
 // echoes access_token back (reads expose access_token_account_name instead).
+// No omitempty on AccountName: backend clears only on explicit "", not omitted key.
 type AzureAccessTokenDetails struct {
 	AccessToken string `json:"access_token"`
-	AccountName string `json:"account_name,omitempty"`
+	AccountName string `json:"account_name"`
 }
 
 type AzureDevopsInstallation struct {

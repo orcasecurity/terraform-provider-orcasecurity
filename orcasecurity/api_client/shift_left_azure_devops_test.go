@@ -2,6 +2,8 @@ package api_client
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -20,5 +22,40 @@ func TestAzureDevopsAccount_UnmarshalLiveShape(t *testing.T) {
 	}
 	if acc.ConfigSettings.SkipCheckRuns != "ALWAYS" {
 		t.Errorf("bad config settings: %+v", acc.ConfigSettings)
+	}
+}
+
+// Backend clears only on explicit "", not on an omitted key.
+func TestUpdateAzureDevopsInstallation_ClearsAccountNameExplicitly(t *testing.T) {
+	var patchBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			_ = json.NewDecoder(r.Body).Decode(&patchBody)
+		}
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+
+	if _, err := client.UpdateAzureDevopsInstallation("inst-1", AzureDevopsInstallationWrite{
+		Name: "acme",
+		AccessTokenDetails: &AzureAccessTokenDetails{
+			AccessToken: "tok",
+			AccountName: "",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	details, ok := patchBody["access_token_details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected access_token_details in body, got %+v", patchBody)
+	}
+	name, present := details["account_name"]
+	if !present {
+		t.Fatal("account_name key must be present (explicit \"\"), not omitted")
+	}
+	if name != "" {
+		t.Errorf("expected account_name = \"\", got %v", name)
 	}
 }

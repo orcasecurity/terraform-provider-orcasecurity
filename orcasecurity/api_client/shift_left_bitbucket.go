@@ -20,7 +20,7 @@ func (a *BitbucketAccount) stampInstallationID(id string) {
 }
 
 type BitbucketAccessTokenDetails struct {
-	AccessToken     string `json:"access_token,omitempty"`
+	AccessToken     string `json:"access_token"`
 	AccessTokenType string `json:"access_token_type,omitempty"` // PAT | TOKEN
 	Username        string `json:"username,omitempty"`
 	AccountID       string `json:"account_id,omitempty"`
