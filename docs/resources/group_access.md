@@ -60,3 +60,13 @@ resource "orcasecurity_group" "example" {
 ### Read-Only
 
 - `id` (String) Orca assignment id returned by the API.
+
+## Import
+
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+terraform import orcasecurity_group_access.example ASSIGNMENT_ID
+```
