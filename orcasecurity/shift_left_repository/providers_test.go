@@ -144,36 +144,34 @@ func TestProviderSchemas_SkipCheckRunsEnumPerProvider(t *testing.T) {
 			if !ok {
 				t.Fatal("skip_check_runs must be a StringAttribute")
 			}
-			var diags diag.Diagnostics
-			for _, v := range attr.Validators {
-				resp := &validator.StringResponse{}
-				v.ValidateString(context.Background(), validator.StringRequest{
-					Path:        path.Root("skip_check_runs"),
-					ConfigValue: types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
-				}, resp)
-				diags.Append(resp.Diagnostics...)
+			if got := acceptsSkipCheckRuns(t, attr, "ONLY_ON_INTERNAL_ISSUE"); got != tc.acceptsOnlyOnInternalIssue {
+				t.Errorf("ONLY_ON_INTERNAL_ISSUE accepted=%v, want %v", got, tc.acceptsOnlyOnInternalIssue)
 			}
-			if accepted := !diags.HasError(); accepted != tc.acceptsOnlyOnInternalIssue {
-				t.Errorf("ONLY_ON_INTERNAL_ISSUE accepted=%v, want %v", accepted, tc.acceptsOnlyOnInternalIssue)
-			}
-
 			// ALWAYS is valid everywhere; a bogus value never is.
 			for value, wantAccepted := range map[string]bool{"ALWAYS": true, "SOMETIMES": false} {
-				var d diag.Diagnostics
-				for _, v := range attr.Validators {
-					resp := &validator.StringResponse{}
-					v.ValidateString(context.Background(), validator.StringRequest{
-						Path:        path.Root("skip_check_runs"),
-						ConfigValue: types.StringValue(value),
-					}, resp)
-					d.Append(resp.Diagnostics...)
-				}
-				if accepted := !d.HasError(); accepted != wantAccepted {
-					t.Errorf("%s accepted=%v, want %v", value, accepted, wantAccepted)
+				if got := acceptsSkipCheckRuns(t, attr, value); got != wantAccepted {
+					t.Errorf("%s accepted=%v, want %v", value, got, wantAccepted)
 				}
 			}
 		})
 	}
+}
+
+// acceptsSkipCheckRuns runs every validator on the attribute and reports whether
+// value survives them all.
+func acceptsSkipCheckRuns(t *testing.T, attr rschema.StringAttribute, value string) bool {
+	t.Helper()
+
+	var diags diag.Diagnostics
+	for _, v := range attr.Validators {
+		resp := &validator.StringResponse{}
+		v.ValidateString(context.Background(), validator.StringRequest{
+			Path:        path.Root("skip_check_runs"),
+			ConfigValue: types.StringValue(value),
+		}, resp)
+		diags.Append(resp.Diagnostics...)
+	}
+	return !diags.HasError()
 }
 
 // skipCheckRunsUnreadable exists only for Azure, whose list serializer omits the
