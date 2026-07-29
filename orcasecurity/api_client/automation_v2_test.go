@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
@@ -660,5 +661,31 @@ func TestAutomationsV2_ListAutomationsV2StopsOnEmptyPage(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Errorf("expected exactly 1 request, got %d", calls)
+	}
+}
+
+// An absent total_items must not be misread as 0 (which would falsely
+// terminate after the first full page); it paginates until an empty page.
+func TestAutomationsV2_ListAutomationsV2AbsentTotalItems(t *testing.T) {
+	const pageLimit = 300
+	const total = 350
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		start, _ := strconv.Atoi(req.URL.Query().Get("start_at_index"))
+		items := make([]string, 0, pageLimit)
+		for i := start; i < start+pageLimit && i < total; i++ {
+			items = append(items, fmt.Sprintf(
+				`{"id":"a%d","name":"auto","status":"enabled","filter":{"sonar_query":{"models":["Alert"],"type":"object_set"}},"actions":[]}`, i))
+		}
+		body := `{"data": [` + strings.Join(items, ",") + `]}`
+		return &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(body)), Request: req}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automations, err := apiClient.ListAutomationsV2()
+	if err != nil {
+		t.Fatalf("ListAutomationsV2 failed: %v", err)
+	}
+	if len(automations) != total {
+		t.Fatalf("expected %d automations with absent total_items, got %d", total, len(automations))
 	}
 }

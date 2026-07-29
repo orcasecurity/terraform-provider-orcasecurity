@@ -1,18 +1,6 @@
 package api_client
 
-import (
-	"fmt"
-	"slices"
-)
-
-// Data is a pointer so a missing/null data key is an error, not a silent empty
-// slice (which findScmUnit would read as "deleted" and drop from state).
-// TotalItems is a pointer so an absent total_items (nil) is not read as 0, which
-// would falsely terminate paging after a full first page.
-type scmEnvelope[T any] struct {
-	TotalItems *int `json:"total_items"`
-	Data       *[]T `json:"data"`
-}
+import "slices"
 
 type scmInstallationID struct {
 	ID string `json:"id"`
@@ -159,31 +147,12 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 func fetchAllScmPages[T any](client *APIClient, basePath string, startGen uint64) ([]T, error) {
 	const pageLimit = 200
 	const maxScmPages = 500 // backstop against an inflated/bogus total_items with full pages
-	var all []T
-	for page := 0; ; page++ {
-		if page >= maxScmPages {
-			return nil, fmt.Errorf("%s: exceeded %d pages; aborting to avoid unbounded paging", basePath, maxScmPages)
-		}
-		resp, err := client.Get(fmt.Sprintf("%s?limit=%d&start_at_index=%d", basePath, pageLimit, len(all)))
-		if err != nil {
-			return nil, err
-		}
-		var env scmEnvelope[T]
-		if err := resp.ReadJSON(&env); err != nil {
-			return nil, fmt.Errorf("%s: %w", basePath, err)
-		}
-		if env.Data == nil {
-			return nil, fmt.Errorf("%s: response missing data key: %s", basePath, resp.Body())
-		}
-		data := *env.Data
-		all = append(all, data...)
-		// Terminate on an empty page, or once a known total is reached. An absent
-		// total_items (nil) falls through to empty-page termination.
-		if len(data) == 0 || (env.TotalItems != nil && len(all) >= *env.TotalItems) {
-			// Only cache if no invalidation happened during the fetch; otherwise
-			// these pages predate the write and must not be resurrected.
-			storeScmListCacheIfCurrent(client, basePath, startGen, all)
-			return all, nil
-		}
+	all, err := paginateOffset[T](client, basePath, pageLimit, maxScmPages)
+	if err != nil {
+		return nil, err
 	}
+	// Only cache if no invalidation happened during the fetch; otherwise these
+	// pages predate the write and must not be resurrected.
+	storeScmListCacheIfCurrent(client, basePath, startGen, all)
+	return all, nil
 }
