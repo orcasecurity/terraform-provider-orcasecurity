@@ -99,7 +99,7 @@ func TestAtLeastOneChildSet_PostureControlNeedsDisabledOrPriority(t *testing.T) 
 		"disabled": types.BoolType,
 		"priority": types.StringType,
 	}
-	run := func(disabled attr.Value, priority attr.Value) validator.ObjectResponse {
+	run := func(disabled, priority attr.Value) validator.ObjectResponse {
 		resp := validator.ObjectResponse{}
 		AtLeastOneChildSet("disabled", "priority").ValidateObject(
 			context.Background(),
