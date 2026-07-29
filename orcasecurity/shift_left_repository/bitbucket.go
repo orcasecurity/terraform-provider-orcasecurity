@@ -105,9 +105,7 @@ func (r *bitbucketRepositoryResource) Create(ctx context.Context, req resource.C
 	repoCreate(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
 }
 
-// bitbucketSyncSlug backfills slug from the API. Import cannot set it (absent
-// from the import ID), and it is Required+RequiresReplace, so without this
-// import would plan a destroy/recreate on the next apply.
+// Import cannot set slug (Required+RequiresReplace) — backfill on read or import plans destroy/recreate.
 func bitbucketSyncSlug(m *bitbucketRepositoryModel, row *api_client.ScmRepository) {
 	m.Slug = types.StringValue(row.Slug)
 }

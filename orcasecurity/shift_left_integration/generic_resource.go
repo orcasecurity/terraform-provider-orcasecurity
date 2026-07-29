@@ -9,9 +9,7 @@ import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// unitOps is the CRUD surface every generated SCM resource delegates to.
-// AdoptedUnitOps and InstallationLifecycle both satisfy it, letting both kinds of
-// SCM resource share one Resource shell below.
+// unitOps is the CRUD surface shared by AdoptedUnitOps and InstallationLifecycle.
 type unitOps interface {
 	DoCreate(context.Context, resource.CreateRequest, *resource.CreateResponse)
 	DoRead(context.Context, resource.ReadRequest, *resource.ReadResponse)
@@ -19,9 +17,7 @@ type unitOps interface {
 	DoDelete(context.Context, resource.DeleteRequest, *resource.DeleteResponse)
 }
 
-// GenericResource is a resource.Resource whose Metadata/Configure/Schema/
-// ImportState/CRUD are all declared once here; each SCM unit type supplies only
-// its schema, import logic and an Ops factory bound to the configured client.
+// GenericResource shares Metadata/Configure/Schema/ImportState/CRUD across SCM unit types.
 type GenericResource[Ops unitOps] struct {
 	TypeNameSuffix string
 	SchemaFn       func() rschema.Schema

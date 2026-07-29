@@ -36,13 +36,7 @@ type scmIDRef struct {
 	ID string `json:"id"`
 }
 
-// ScmRepoIntegrationConfig is the batch-level configuration_settings sent with a
-// repository integration POST so configuration is applied atomically at integrate
-// time (rather than only via a follow-up PATCH, which would leave a window where
-// the repository scans with default settings). `disabled` is intentionally not
-// here: GitHub's integrate endpoint does not accept it, so it is applied
-// post-integrate for all providers. The object is always sent (the API requires
-// the field); its members are omitempty so unset values are left at API defaults.
+// Sent on integrate POST (atomic config). disabled omitted — GitHub integrate rejects it; applied via follow-up PATCH.
 type ScmRepoIntegrationConfig struct {
 	DisableScanPullRequests *bool  `json:"disable_scan_pull_requests,omitempty"`
 	CommentsOnPullRequests  string `json:"comments_on_pull_requests,omitempty"`
@@ -51,13 +45,7 @@ type ScmRepoIntegrationConfig struct {
 	ConfigFileSupport       string `json:"config_file_support,omitempty"`
 }
 
-// ScmRepositoryConfigUpdate is the PATCH body for integrated repositories: the
-// same configuration the integrate POST carries, plus the two fields only a PATCH
-// can express — the target rows and `disabled`.
-//
-// The embedded struct is anonymous and untagged, so encoding/json promotes its
-// members: the wire body stays one flat object, unchanged from when these fields
-// were declared twice. TestScmRepositoryConfigUpdate_MarshalOmitsUnset pins that.
+// PATCH body: ids + disabled + config. Anonymous embed keeps a flat JSON object.
 type ScmRepositoryConfigUpdate struct {
 	IDs      []string `json:"ids"`
 	Disabled *bool    `json:"disabled,omitempty"`
@@ -68,12 +56,7 @@ func integratedRepositoriesPath(provider string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/integrated_repositories/", provider)
 }
 
-// findScmRepository fetches the integrated repositories a provider's filters
-// narrow to, then returns the first local match.
-//
-// The match is still checked locally because the API ignores filter keys it does
-// not recognise: filters shrink the response but cannot be trusted to have been
-// applied, so they are an optimisation and never the correctness boundary.
+// List with optional server filters, then match locally — unknown filter keys are silently ignored.
 func findScmRepository[T any](
 	client *APIClient,
 	provider string,
@@ -127,8 +110,6 @@ type scmRepositoryDescriptor struct {
 	Branch string `json:"branch,omitempty"`
 }
 
-// scmRepoIntegrateCommon holds the top-level fields every provider's repository
-// integrate POST shares; providers embed it and add their key plus repositories.
 type scmRepoIntegrateCommon struct {
 	InstallationID        string                   `json:"installation_id"`
 	ConfigurationSettings ScmRepoIntegrationConfig `json:"configuration_settings"`
@@ -146,14 +127,7 @@ func projectID(ref *scmIDRef) string {
 	return ref.ID
 }
 
-// scmRepoCommonFields are the integrated-repository fields the provider list
-// serializers agree on. Each provider embeds it and declares only its own keys.
-//
-// The configuration block is laid out the way GitHub and GitLab serialize it:
-// flat, at the top level. Bitbucket nests the same values under
-// configuration_settings and Azure splits them across managed_repo_properties, so
-// those two override common() to redirect the fields they place elsewhere. Keys a
-// provider does not send simply stay at their zero value.
+// Shared list fields; Bitbucket nests config under configuration_settings, Azure under managed_repo_properties.
 type scmRepoCommonFields struct {
 	ID                  string     `json:"id"`
 	Project             *scmIDRef  `json:"project"`
@@ -190,7 +164,6 @@ func (r *scmRepoCommonFields) common() ScmRepository {
 	}
 }
 
-// GitHub serializes every shared field flat, so common() is inherited as-is.
 type githubRepositoryItem struct {
 	scmRepoCommonFields
 	GithubRepositoryID int64    `json:"github_repository_id"`
@@ -225,29 +198,12 @@ func (client *APIClient) IntegrateGithubRepository(req GithubRepositoryIntegrate
 	return client.integrateScmRepositories("github", body)
 }
 
-// githubRepositoryNameFilter narrows the GitHub list to rows whose repository
-// name matches, via the search backend (search_fields maps repository_name onto
-// repository_context__repository__name). It is a substring, case-insensitive
-// match, so it narrows rather than identifies — the caller still matches exactly.
+// repositoryName is a hint-only search filter; caller still matches exactly.
 func githubRepositoryNameFilter(repositoryName string) listFilters {
 	return listFilters{"search": repositoryName, "search_fields": "repository_name"}
 }
 
-// FindGithubRepository locates one integrated repository by installation and
-// GitHub-side repository id.
-//
-// Neither identifier it matches on can be pushed server-side: github_repository_id
-// is not a declared filter and is silently ignored, and github_installation_id is
-// derived from a foreign key and therefore choice-validated — an installation
-// deleted out of band yields 400 ("Select a valid choice") rather than no rows,
-// which would turn a re-creatable "not found" into a hard plan failure.
-//
-// repositoryName is filterable and is *not* choice-validated: a name that matches
-// nothing returns an empty page. It is used as a narrowing hint when known (49
-// rows down to 1 on the reference tenant). Because a stale name would otherwise
-// read as a deleted repository, a miss falls back to the unfiltered scan, keeping
-// the filter a pure optimisation. An empty name (the first Read after an import,
-// whose id carries only installation and repository id) skips straight to it.
+// github_repository_id/github_installation_id are not safe list filters; match locally. repositoryName is hint-only with unfiltered fallback.
 func (client *APIClient) FindGithubRepository(installationID, repositoryName string, githubRepositoryID int64) (*ScmRepository, error) {
 	match := func(r *githubRepositoryItem) bool {
 		return r.GithubInstallation.ID == installationID && r.GithubRepositoryID == githubRepositoryID
@@ -266,7 +222,6 @@ func (client *APIClient) UpdateGithubRepositories(body ScmRepositoryConfigUpdate
 	return client.updateScmRepositories("github", body)
 }
 
-// GitLab serializes every shared field flat, so common() is inherited as-is.
 type gitlabRepositoryItem struct {
 	scmRepoCommonFields
 	GitlabProjectID    int64    `json:"gitlab_project_id"`
@@ -337,9 +292,6 @@ type bitbucketRepositoryItem struct {
 	} `json:"configuration_settings"`
 }
 
-// Bitbucket nests the configuration under configuration_settings and is the only
-// provider that carries a repository slug. It sends no scm_posture_policy_id, so
-// the inherited field stays empty.
 func (r *bitbucketRepositoryItem) common() ScmRepository {
 	c := r.scmRepoCommonFields.common()
 	c.DisableScanPRs = r.ConfigurationSettings.DisableScanPullRequests
@@ -385,13 +337,7 @@ func (client *APIClient) IntegrateBitbucketRepository(req BitbucketRepositoryInt
 	return client.integrateScmRepositories("bitbucket", body)
 }
 
-// FindBitbucketRepository scopes the match to the parent installation's Orca
-// account-installation id, not the external account slug: the same slug can be
-// integrated under multiple installations in one org (slugs are unique only per
-// installation, and bitbucket repository ids carry no uniqueness at all), so
-// matching on the slug alone can return a repository under the wrong installation.
-// bitbucket_repository_id is not a supported server-side filter, so narrow to the
-// account installation and match the repository id locally.
+// Scope by Orca account-installation id, not slug — same slug can exist under multiple installations.
 func (client *APIClient) FindBitbucketRepository(installationID, accountSlug, bitbucketRepositoryID string) (*ScmRepository, error) {
 	account, err := client.FindBitbucketAccountBySlug(installationID, accountSlug)
 	if err != nil {
@@ -425,10 +371,7 @@ type azureRepositoryItem struct {
 	} `json:"managed_repo_properties"`
 }
 
-// Azure carries disabled and config_file_support inside managed_repo_properties
-// rather than at the top level. Its list serializer also omits skip_check_runs
-// entirely, which is why the resource layer keeps the prior value instead of
-// treating the empty read as drift (see repoOps.skipCheckRunsUnreadable).
+// Azure nests disabled/config in managed_repo_properties; list omits skip_check_runs.
 func (r *azureRepositoryItem) common() ScmRepository {
 	c := r.scmRepoCommonFields.common()
 	c.Disabled = r.ManagedRepoProperties.Disabled
@@ -470,11 +413,7 @@ func (client *APIClient) IntegrateAzureRepository(req AzureRepositoryIntegrate) 
 	return client.integrateScmRepositories("azure_devops", body)
 }
 
-// FindAzureRepository scopes the match to the parent installation's Orca
-// account-installation id, not the external account name: an account name is
-// unique only per installation and the same account can be integrated under
-// multiple installations, so matching on the name alone can return a repository
-// under the wrong installation.
+// Scope by Orca account-installation id — account names are unique per installation only.
 func (client *APIClient) FindAzureRepository(installationID, accountName, azureRepositoryID string) (*ScmRepository, error) {
 	account, err := client.FindAzureDevopsAccountByName(installationID, accountName)
 	if err != nil {

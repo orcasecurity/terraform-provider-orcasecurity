@@ -240,10 +240,7 @@ func controlsToAPI(controls []controlModel) []api_client.ScmPostureControlOverri
 	return out
 }
 
-// decodePolicyData parses the live policy_data blob. A decode failure must be
-// surfaced, never swallowed: callers echo the decoded controls back in a
-// full-replacement PUT, so treating malformed JSON as "no controls" would erase
-// every live override.
+// decodePolicyData errors must propagate — malformed JSON PUT would wipe live overrides.
 func decodePolicyData(p *api_client.ScmPostureDefaultPolicy) (api_client.ScmPostureDefaultPolicyData, error) {
 	var data api_client.ScmPostureDefaultPolicyData
 	if len(p.PolicyData) == 0 {

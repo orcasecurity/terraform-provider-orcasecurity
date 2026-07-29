@@ -82,8 +82,6 @@ func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {
-			// Name is a narrowing hint only; it is empty on the first Read after an
-			// import, and FindGithubRepository falls back to an unfiltered scan.
 			return r.apiClient.FindGithubRepository(installationID, plan.Name.ValueString(), githubRepositoryID)
 		},
 		update: r.apiClient.UpdateGithubRepositories,

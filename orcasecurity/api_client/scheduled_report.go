@@ -7,13 +7,7 @@ import (
 
 const scheduledReportAPIPath = "/api/reporting/scheduled_reports"
 
-// JSONObject is a free-form object field on a scheduled report.
-//
-// It marshals a nil map as {} rather than null. Both are "no value" as far as the
-// provider is concerned, but the reporting API answers 500 to "config": null on
-// POST and PATCH alike, while {} is accepted everywhere and clears the field.
-// Encoding that here keeps the distinction from having to be remembered at every
-// call site.
+// Nil map marshals as {} — reporting API returns 500 on null object fields.
 type JSONObject map[string]interface{}
 
 func (o JSONObject) MarshalJSON() ([]byte, error) {
@@ -48,17 +42,7 @@ type ScheduledReport struct {
 	// Status is an integer enum on the API side (responses always return integers).
 	Status *int `json:"status,omitempty"`
 
-	// Every optional field below is sent even when empty, and none of them carry
-	// omitempty. Updates are a PATCH, where an omitted key means "leave
-	// unchanged": with omitempty, deleting an attribute from a Terraform config
-	// would leave the plan value null, reach here as the zero value, drop out of
-	// the request body entirely, and leave the old value live on the server —
-	// which the next refresh would then read back as permanent drift. Sending the
-	// zero value is what lets a removed attribute actually clear.
-	//
-	// Verified against the API: "" clears every string field and {} clears every
-	// object field, on both POST and PATCH. Only id and status keep omitempty, as
-	// neither is ever cleared — the zero value is meaningful for both.
+	// No omitempty: PATCH omits keys → unchanged. Zero values clear ("" / {}); only id and status keep omitempty.
 	Columns          []string   `json:"columns"`
 	DSLFilter        JSONObject `json:"dsl_filter"`
 	SonarQuery       string     `json:"sonar_query"`

@@ -91,8 +91,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	policyType := plan.Type.ValueString()
-	// Projects are synced through the dedicated endpoint, never the policy body
-	// (projects_ids is omitempty there), so Create and Update share one path.
+	// Projects sync via dedicated endpoint — main body omitempty drops empty projects_ids.
 	apiPolicy.ProjectsIds = nil
 	if !r.applyCatalog(&plan, &apiPolicy, &resp.Diagnostics) {
 		return
@@ -174,10 +173,7 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Project associations are managed through the dedicated projects endpoint,
-	// never the main policy body: projects_ids is omitempty there, so an empty
-	// slice is dropped and detach-all (N->0) would be impossible.
-	apiPolicy.ProjectsIds = nil
+	apiPolicy.ProjectsIds = nil // detach-all via dedicated endpoint, not main body omitempty.
 
 	policyType := plan.Type.ValueString()
 	policyID := plan.ID.ValueString()
@@ -191,8 +187,7 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Sync projects only when the user manages them (known value). An
-	// unknown/null projects_ids means "leave associations as-is".
+	// Sync projects only when known; null/unknown means leave as-is.
 	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
 		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
 			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())

@@ -30,11 +30,7 @@ type AdoptedUnitOps[A any, M any] struct {
 	DeleteErrorTitle string
 }
 
-// guardAdopt reports whether Create must refuse to silently take over a unit
-// that is already integrated in Orca. These resources adopt a pre-existing SCM
-// unit rather than create one; adopting a unit that already has integrated
-// repositories and later destroying it would remove repositories configured
-// outside Terraform, so that case requires an explicit adopt_existing opt-in.
+// Block create when unit already has repos unless adopt_existing=true — destroy would de-integrate out-of-band repos.
 func guardAdopt(repoCount int64, adoptExisting types.Bool) bool {
 	return repoCount > 0 && !adoptExisting.ValueBool()
 }
@@ -74,7 +70,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), snap.RepoCount))
 			return
 		}
-		// Reuse the unit already fetched above instead of re-reading it in the write.
+		// Reuse unit fetched above instead of re-reading in writeAdopted.
 		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State, writeAdoptedRequest[A]{
 			NotFoundMsg: o.Describe(&plan) + " does not exist. " + o.CreateHint,
 			Title:       o.CreateErrorTitle,
@@ -92,10 +88,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	configFields := o.Config(&config)
 	mode := planFields.InstallationMode
 	if mode.IsNull() || mode.IsUnknown() {
-		// Match the API and UI default. SCAN_ALL_INCLUDE_FUTURE would silently
-		// enroll every current and future repository in the org/group for
-		// scanning; SELECTED_REPOSITORIES integrates the unit and scans nothing
-		// until repositories are added explicitly.
+		// Default SELECTED_REPOSITORIES — SCAN_ALL_INCLUDE_FUTURE auto-enrolls all current/future repos.
 		mode = types.StringValue("SELECTED_REPOSITORIES")
 	}
 
@@ -131,8 +124,7 @@ func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateR
 	})
 }
 
-// setAdoptedState maps the API unit to state, carrying adopt_existing over from
-// the prior model (it is a local intent flag, not part of the API unit).
+// setAdoptedState carries adopt_existing over from prior state (input-only, not on API unit).
 func (o AdoptedUnitOps[A, M]) setAdoptedState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, unit *A, prior *M) {
 	newState := o.ToState(unit)
 	o.Config(&newState).AdoptExisting = o.Config(prior).AdoptExisting

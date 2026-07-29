@@ -23,9 +23,6 @@ func NewResource() resource.Resource {
 	}
 }
 
-// newOps binds the group's CRUD to a client. It is a package-level function rather
-// than a closure inside NewResource so that each operation below nests one level
-// shallower.
 func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel] {
 	return shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel]{
 		Labels: gitlabLabels,
@@ -68,9 +65,7 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitO
 	}
 }
 
-// deleteGroup resolves the Orca id before deleting: state may carry only the
-// numeric GitLab group id (the first destroy after an import), and a group that no
-// longer resolves is already gone, which is a successful delete rather than an error.
+// deleteGroup resolves Orca id from SCM group id when state lacks id (post-import).
 func deleteGroup(apiClient *api_client.APIClient, m *resourceModel) error {
 	id := m.ID.ValueString()
 	if id == "" {

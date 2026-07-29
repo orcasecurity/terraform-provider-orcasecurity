@@ -75,16 +75,7 @@ func updateScmUnit[T any, PT interface {
 	return findScmUnit[T, PT](client, unitsPath, installationID, unitID)
 }
 
-// getAllScmPages uses limit/start_at_index (offset is ignored on shift-left lists).
-// filters narrow the result set server-side; pass nil to fetch the whole list.
-//
-// Reads are not cached. The only lists that grow with tenant size are the
-// integrated repositories, and every Find*Repository now narrows those
-// server-side: GitLab and Azure DevOps to a single row, GitHub to one repository
-// name, Bitbucket to one account. The unit lists are already scoped to a single
-// installation. A cache would have to be invalidated after each of the dozen SCM
-// write paths, and the reads it could still serve are the ones a write is about
-// to invalidate anyway.
+// Shift-left lists paginate with start_at_index (offset ignored). Pass nil filters for full list.
 func getAllScmPages[T any](client *APIClient, basePath string, filters listFilters) ([]T, error) {
 	const pageLimit = 200
 	const maxScmPages = 500 // backstop against an inflated/bogus total_items with full pages

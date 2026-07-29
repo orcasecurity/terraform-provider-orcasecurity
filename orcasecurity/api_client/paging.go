@@ -6,22 +6,13 @@ import (
 	"strconv"
 )
 
-// offsetEnvelope is the shared {"total_items":, "data":[]} shape used by every
-// limit/start_at_index-paginated list endpoint. TotalItems is a pointer so an
-// absent total_items is not misread as zero (which would falsely terminate
-// paging after the first full page); Data is a pointer so a missing/null data
-// key is an error, not a silent empty slice.
+// total_items is *int — absent must not read as 0. data is *[]T — missing key is an error.
 type offsetEnvelope[T any] struct {
 	TotalItems *int `json:"total_items"`
 	Data       *[]T `json:"data"`
 }
 
-// listFilters are server-side filters the API applies before paginating, so a
-// lookup can fetch the matching rows instead of the whole collection.
-//
-// The API silently ignores filter keys it does not recognise, so a stale or
-// misspelled key degrades to an unfiltered (merely larger) result set rather
-// than an error. Callers must therefore still verify the match locally.
+// Unknown filter keys are silently ignored — always verify matches locally.
 type listFilters map[string]string
 
 func (f listFilters) query() url.Values {

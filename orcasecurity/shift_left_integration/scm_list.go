@@ -49,10 +49,6 @@ func SharedScmListUnitAttrTypes() map[string]attr.Type {
 func SharedScmListUnitValues(accountName string, u api_client.ScmUnitCommonFields) map[string]attr.Value {
 	return map[string]attr.Value{
 		"account_name": types.StringValue(accountName),
-		// Normalized exactly as the resource does (ScmConfigFieldsFromAPI), so the
-		// same unit reads identically through the data source and the resource and
-		// the value can be fed straight into a resource config. The raw legacy
-		// SCAN_ALL is rejected by the resource's own validator.
 		"installation_mode":             types.StringValue(normalizeInstallationMode(u.InstallationMode)),
 		"default_policies":              types.BoolValue(u.DefaultPolicies),
 		"integration_status":            tfconv.StringOrNull(u.IntegrationStatus),

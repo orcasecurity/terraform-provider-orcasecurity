@@ -35,14 +35,9 @@ type RepoConfigFields struct {
 	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-// Fields is promoted onto every repository model (each embeds RepoConfigFields),
-// so (*Model).Fields can be passed directly wherever a fields accessor is needed.
 func (f *RepoConfigFields) Fields() *RepoConfigFields { return f }
 
-// branchAttribute renders the `branch` field. GitHub and GitLab reject an
-// integration request with no branch (API 400), so it is Required there; Azure
-// and Bitbucket accept an omitted branch and fall back to the default branch at
-// scan time, so it stays Optional.
+// GitHub/GitLab require branch on integrate (API 400); Azure/Bitbucket accept omitted branch.
 func branchAttribute(branchRequired bool) rschema.StringAttribute {
 	attr := rschema.StringAttribute{
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
@@ -147,29 +142,11 @@ func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 var fullSkipCheckRuns = []string{"ALWAYS", "ONLY_ON_INTERNAL_ISSUE", "NEVER"}
 var gitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
 
-// providerTraits names the ways one SCM's repository API differs from the others.
-// Declaring them once per provider keeps each difference documented at its
-// definition instead of appearing as an unlabelled positional argument at four
-// separate call sites.
 type providerTraits struct {
-	// name is the SCM's display name, used in schema descriptions and diagnostics.
-	name string
-
-	// branchRequired: GitHub and GitLab reject an integration request with no
-	// branch (API 400), so it is Required there. Azure and Bitbucket accept an
-	// omitted branch and fall back to the default branch at scan time.
-	branchRequired bool
-
-	// skipCheckRunsValues: GitLab's repository-level contract is the two-value
-	// GitlabPerformActionStatus; the other three also accept
-	// ONLY_ON_INTERNAL_ISSUE.
-	skipCheckRunsValues []string
-
-	// skipCheckRunsUnreadable: Azure's list serializer omits skip_check_runs even
-	// though its PATCH accepts it, so a read cannot tell "unset" from "not
-	// returned". Keeps the prior value rather than reporting phantom drift; the
-	// other three must still see a cleared value as real drift.
-	skipCheckRunsUnreadable bool
+	name                    string
+	branchRequired          bool
+	skipCheckRunsValues     []string
+	skipCheckRunsUnreadable bool // Azure list omits skip_check_runs — preserve prior value to avoid phantom drift.
 }
 
 var (
@@ -222,9 +199,6 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, traits provi
 	return out
 }
 
-// planRepoConfig collects the configuration the integrate POST and the update
-// PATCH both carry, reporting whether the plan set any of it. It is the single
-// place that decides which fields a write includes.
 func planRepoConfig(plan *RepoConfigFields) (api_client.ScmRepoIntegrationConfig, bool) {
 	cfg := api_client.ScmRepoIntegrationConfig{}
 	set := false
@@ -257,11 +231,7 @@ func configUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepos
 	return body, set
 }
 
-// disabledUpdateBody builds the only write the create path still needs after a
-// successful integrate. The integrate POST already persists every
-// configuration_settings field onto the new repository row, but no provider
-// honours `disabled` at integrate time (GitHub and GitLab hardcode it to false),
-// so it is the one field that requires a follow-up PATCH.
+// disabled is not honored on integrate POST — apply via follow-up PATCH only.
 func disabledUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
 	if !tfconv.Known(plan.Disabled) {
 		return api_client.ScmRepositoryConfigUpdate{}, false
@@ -270,10 +240,6 @@ func disabledUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRep
 	return api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}, Disabled: &disabled}, true
 }
 
-// integrateConfig is the batch configuration_settings sent with the integration
-// POST so config is applied atomically at integrate time. `disabled` is excluded
-// (GitHub's integrate endpoint ignores it) and is applied by disabledUpdateBody
-// after integration for all providers.
 func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig {
 	cfg, _ := planRepoConfig(plan)
 	return cfg
@@ -285,10 +251,7 @@ type repoOps struct {
 	integrate func() error
 	find      func() (*api_client.ScmRepository, error)
 	update    func(api_client.ScmRepositoryConfigUpdate) error
-	// syncIdentity backfills attributes Import cannot set. It stays here rather
-	// than in providerTraits because it closes over the resource model being read
-	// (Bitbucket slug only; nil elsewhere).
-	syncIdentity func(*api_client.ScmRepository)
+	syncIdentity func(*api_client.ScmRepository) // Bitbucket slug backfill on read; nil elsewhere.
 }
 
 func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
@@ -368,17 +331,12 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 		err = fmt.Errorf("repository not found after integration; verify the repository identifiers")
 	}
 	if err != nil {
-		// Integrated live but not read back — roll back so it isn't orphaned.
 		rollbackUnconfirmedIntegration(ops, diags)
 		diags.AddError(fmt.Sprintf("Error reading %s repository after integration", ops.traits.name), err.Error())
 		return nil
 	}
-	// Only `disabled` needs a post-integrate write; the integrate POST carried the
-	// rest of the configuration, so the common case skips this PATCH and its re-read.
 	if body, set := disabledUpdateBody(row.ID, plan); set {
 		if err := ops.update(body); err != nil {
-			// Integrated but config could not be applied; roll back so we do not
-			// orphan a live integration that never made it into Terraform state.
 			rollbackIntegration(ops, row, diags)
 			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.traits.name), err.Error())
 			return nil
@@ -388,7 +346,6 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 			err = fmt.Errorf("repository disappeared after configuration update")
 		}
 		if err != nil {
-			// Roll back using the row from the first find (its context id is known).
 			rollbackIntegration(ops, row, diags)
 			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.traits.name), err.Error())
 			return nil
@@ -398,10 +355,7 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 	return row
 }
 
-// rollbackIntegration removes a just-created repository context after a failed
-// post-integrate configuration step, so a partial create does not orphan a live
-// integration. A rollback failure is surfaced as a warning (the create error is
-// reported separately) so the user can reconcile manually.
+// Delete repository_context on failed post-integrate config to avoid orphaned integrations.
 func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag.Diagnostics) {
 	ctxID := row.RepositoryContextID
 	if ctxID == "" {
@@ -416,8 +370,6 @@ func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag
 }
 
 func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
-	// Reads are not cached, so this retry re-fetches and can see an
-	// eventually-consistent row the first find missed.
 	if row, err := ops.find(); err == nil && row != nil {
 		rollbackIntegration(ops, row, diags)
 		return
@@ -429,9 +381,7 @@ func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
 }
 
 func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
-	// Do the move first: it has a checkable precondition (repository_context_id), so
-	// validate it up front. If config were applied first and the move then failed,
-	// remote config would be ahead of the unwritten Terraform state.
+	// Move project before config PATCH — move failure must not leave remote config ahead of state.
 	moveNeeded := tfconv.Known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString()
 	if moveNeeded {
 		ctxID := state.RepositoryContextID.ValueString()

@@ -52,12 +52,7 @@ func shiftLeftPolicyProjectsPath(policyType, id string) string {
 	return fmt.Sprintf("/api/shiftleft/%s/policies/%s/projects/", policyType, id)
 }
 
-// SetShiftLeftPolicyProjects replaces the policy's project associations via the
-// dedicated projects endpoint. Unlike the main policy body (where projects_ids
-// is omitempty and an empty slice is dropped, making detach-all impossible), this
-// body always sends projects_ids explicitly, so an empty slice detaches all.
-// The backend rejects detaching a project that would be left with no active
-// policy (400), which surfaces to the user.
+// Project links via dedicated PUT — empty projects_ids detaches all (impossible on main body due to omitempty).
 func (client *APIClient) SetShiftLeftPolicyProjects(policyType, id string, projectIDs []string) error {
 	if projectIDs == nil {
 		projectIDs = []string{}

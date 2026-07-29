@@ -65,10 +65,7 @@ func StringListToAPI(ctx context.Context, list types.List) []string {
 	return out
 }
 
-// StringListToAPINonNull is StringListToAPI but never returns nil: a null,
-// unknown, or empty list becomes []string{}. Use it for payloads that must
-// always serialize the field as [] — e.g. partial-update endpoints where an
-// omitted key keeps its remote value, so clearing a list requires sending [].
+// Never returns nil — send [] to clear on PATCH endpoints where omitted keys are unchanged.
 func StringListToAPINonNull(ctx context.Context, list types.List) []string {
 	if out := StringListToAPI(ctx, list); out != nil {
 		return out
@@ -76,9 +73,7 @@ func StringListToAPINonNull(ctx context.Context, list types.List) []string {
 	return []string{}
 }
 
-// StringListFromAPIPreserveNull maps an API string slice back to state.
-// When the API returns empty and the prior state was null (attribute not
-// configured), null is preserved to avoid a perpetual null-vs-[] diff.
+// Preserve null when API returns empty and prior state was null (avoids null-vs-[] drift).
 func StringListFromAPIPreserveNull(ctx context.Context, prior types.List, values []string) (types.List, diag.Diagnostics) {
 	if len(values) == 0 {
 		if prior.IsNull() {
@@ -102,8 +97,7 @@ func StringSetToAPI(ctx context.Context, set types.Set) []string {
 	return out
 }
 
-// StringSetToAPINonNull is StringSetToAPI but never returns nil: a null,
-// unknown, or empty set becomes []string{}. See StringListToAPINonNull.
+// Never returns nil — send [] to clear on PATCH endpoints where omitted keys are unchanged.
 func StringSetToAPINonNull(ctx context.Context, set types.Set) []string {
 	if out := StringSetToAPI(ctx, set); out != nil {
 		return out
@@ -111,9 +105,7 @@ func StringSetToAPINonNull(ctx context.Context, set types.Set) []string {
 	return []string{}
 }
 
-// StringSetFromAPIPreserveNull maps an API string slice back to a set in
-// state, preserving null when the API returns empty and the prior state was
-// null. See StringListFromAPIPreserveNull.
+// Preserve null when API returns empty and prior state was null.
 func StringSetFromAPIPreserveNull(ctx context.Context, prior types.Set, values []string) (types.Set, diag.Diagnostics) {
 	if len(values) == 0 {
 		if prior.IsNull() {

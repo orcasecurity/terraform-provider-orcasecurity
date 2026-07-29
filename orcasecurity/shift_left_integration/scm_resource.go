@@ -42,9 +42,7 @@ func ConfigureAPIClient(req resource.ConfigureRequest) *api_client.APIClient {
 	return req.ProviderData.(*api_client.APIClient)
 }
 
-// ImportScopedInstallation splits <installation_id>/<rest>, sets installation_id,
-// and if rest is an Orca unit UUID sets id and reports the ID resolved. Otherwise
-// it returns rest for the caller to place on a provider-specific attribute.
+// ImportScopedInstallation: <installation_id>/<rest>; UUID rest sets id.
 func ImportScopedInstallation(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, expected string) (rest string, resolved bool) {
 	installationID, rest, ok := strings.Cut(req.ID, "/")
 	if !ok || installationID == "" || rest == "" {
@@ -59,8 +57,7 @@ func ImportScopedInstallation(ctx context.Context, req resource.ImportStateReque
 	return rest, false
 }
 
-// ImportScopedUnit imports <installation_id>/<orca_uuid_or_unit_name>, routing the
-// UUID case to id and everything else to nameAttr.
+// ImportScopedUnit: UUID rest → id, else → nameAttr.
 func ImportScopedUnit(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, nameAttr, expected string) {
 	rest, resolved := ImportScopedInstallation(ctx, req, resp, expected)
 	if resolved {

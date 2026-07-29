@@ -26,9 +26,7 @@ func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	}
 }
 
-// mergeControlBlock restores the all_controls flag and index-wise merges the
-// config-owned control fields from prior state. dst is fresh from the API, so
-// controls it added/removed out of band still surface. Shared by every flat block.
+// mergeControlBlock: index-wise merge from prior state; API-added/removed controls still surface.
 func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls *[]C, srcControls []C, mergeControl func(dst *C, src C)) {
 	*dstAll = srcAll
 	if tfconv.BoolIsTrue(srcAll) {
@@ -148,5 +146,5 @@ func mergeScmPostureBlockFromPlan(dst, src *scmPostureBlockModel) {
 			mergeScmControlFromPlan(&dst.Controls[i], src.Controls[i])
 		}
 	}
-	// Scope stays from API (sorted in buildScmPostureBlock) so OOB scope changes surface as drift.
+	// Scope stays from API so OOB scope changes surface as drift.
 }
