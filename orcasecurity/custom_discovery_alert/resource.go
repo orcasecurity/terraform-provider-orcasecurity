@@ -391,31 +391,25 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 		}
 	}
 
-	cleared, err := alert_common.ClearFramesIfReplacing(len(state.Frameworks) > 0, len(plan.Frameworks) > 0, func() error {
-		clearReq := updateReq
-		clearReq.ComplianceFrameworks = nil
-		_, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), clearReq)
-		return err
-	})
+	clearedButFailed, err := alert_common.ReplaceFrameworks(len(state.Frameworks) > 0, len(plan.Frameworks) > 0,
+		func() error {
+			clearReq := updateReq
+			clearReq.ComplianceFrameworks = nil
+			_, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), clearReq)
+			return err
+		},
+		func() error {
+			_, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), updateReq)
+			return err
+		},
+	)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating Alert",
-			"Could not clear the existing compliance frameworks: "+err.Error(),
-		)
-		return
-	}
-
-	_, err = r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), updateReq)
-	if err != nil {
-		if cleared {
+		if clearedButFailed {
 			// Clear succeeded remotely; persist empty frameworks on apply failure.
 			plan.Frameworks = nil
 			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		}
-		resp.Diagnostics.AddError(
-			"Error updating Alert",
-			"Could not update Alert, unexpected error: "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Error updating Alert", err.Error())
 		return
 	}
 
