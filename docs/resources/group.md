@@ -13,6 +13,8 @@ Provides a group resource.
 ## Example Usage
 
 ```terraform
+data "orcasecurity_users" "all" {}
+
 //Group
 resource "orcasecurity_group" "tf-group-1" {
   name = "Orca Terraform Group 1"
@@ -20,7 +22,7 @@ resource "orcasecurity_group" "tf-group-1" {
   sso_group   = true
   description = "string"
   users = [
-    "{place-user-id-here}"
+    one([for u in data.orcasecurity_users.all.users : u.user_id if u.email == "jane@example.com"])
   ]
 }
 ```
@@ -49,7 +51,7 @@ resource "orcasecurity_group" "tf-group-empty-members" {
 
 ### Optional
 
-- `users` (Set of String) Member user IDs (/api/users). API does not return membership on read; external removals are not detected.
+- `users` (Set of String) Member user IDs (see the [orcasecurity_users](../data-sources/users.md) data source). API does not return membership on read; external removals are not detected.
 
 ### Read-Only
 

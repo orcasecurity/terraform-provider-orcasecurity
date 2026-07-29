@@ -87,7 +87,7 @@ func (r *groupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Required:    true,
 			},
 			"users": schema.SetAttribute{
-				Description: "Member user IDs (/api/users). API does not return membership on read; external removals are not detected.",
+				Description: "Member user IDs (see the orcasecurity_users data source). API does not return membership on read; external removals are not detected.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
