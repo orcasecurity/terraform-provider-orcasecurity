@@ -115,6 +115,38 @@ func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
 	}
 }
 
+// Concurrent calls for the same path must collapse into a single HTTP fetch.
+func TestGetAllScmPages_SingleFlightCollapsesStampede(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_items": 1,
+			"data":        []map[string]string{{"id": "a"}},
+		})
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	path := "/api/shiftleft/github/installations/"
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := getAllScmPages[scmInstallationID](client, path); err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if hits.Load() != 1 {
+		t.Fatalf("expected exactly 1 HTTP call across 16 concurrent fetches, got %d", hits.Load())
+	}
+}
+
 // A response omitting total_items must not terminate after the first full page
 // (absent must not read as 0); it paginates until an empty page.
 func TestGetAllScmPages_AbsentTotalItems(t *testing.T) {

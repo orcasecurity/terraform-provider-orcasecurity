@@ -143,7 +143,7 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRe
 var fullSkipCheckRuns = []string{"ALWAYS", "ONLY_ON_INTERNAL_ISSUE", "NEVER"}
 var gitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
 
-func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository) RepoConfigFields {
+func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, skipCheckRunsUnreadable bool) RepoConfigFields {
 	out := RepoConfigFields{
 		ID:                     types.StringValue(api.ID),
 		Name:                   types.StringValue(api.RepositoryName),
@@ -165,9 +165,7 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository) RepoConfigFi
 	} else {
 		out.DisableScanPullRequests = types.BoolNull()
 	}
-	// Azure's list serializer omits skip_check_runs entirely; keep the last
-	// written value instead of flapping to null.
-	if api.SkipCheckRuns == "" && !prior.SkipCheckRuns.IsNull() && !prior.SkipCheckRuns.IsUnknown() {
+	if skipCheckRunsUnreadable && api.SkipCheckRuns == "" && !prior.SkipCheckRuns.IsNull() && !prior.SkipCheckRuns.IsUnknown() {
 		out.SkipCheckRuns = prior.SkipCheckRuns
 	}
 	return out
@@ -243,6 +241,10 @@ type repoOps struct {
 	integrate func() error
 	find      func() (*api_client.ScmRepository, error)
 	update    func(api_client.ScmRepositoryConfigUpdate) error
+	// skipCheckRunsUnreadable: true only for Azure, whose list serializer omits
+	// skip_check_runs. Gates the stale-value fallback in fromAPI so the other
+	// three providers see a cleared skip_check_runs as drift, not a no-op.
+	skipCheckRunsUnreadable bool
 }
 
 func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
@@ -252,11 +254,12 @@ func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *re
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	row := createRepo(ops(&plan), fields(&plan), &resp.Diagnostics)
+	o := ops(&plan)
+	row := createRepo(o, fields(&plan), &resp.Diagnostics)
 	if row == nil {
 		return
 	}
-	*fields(&plan) = fromAPI(*fields(&plan), row)
+	*fields(&plan) = fromAPI(*fields(&plan), row, o.skipCheckRunsUnreadable)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -278,7 +281,7 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	*fields(&state) = fromAPI(*fields(&state), row)
+	*fields(&state) = fromAPI(*fields(&state), row, o.skipCheckRunsUnreadable)
 	for _, sync := range syncIdentity {
 		sync(&state, row)
 	}
@@ -293,11 +296,12 @@ func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *re
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	row := updateRepo(ops(&plan), fields(&plan), fields(&state), &resp.Diagnostics)
+	o := ops(&plan)
+	row := updateRepo(o, fields(&plan), fields(&state), &resp.Diagnostics)
 	if row == nil {
 		return
 	}
-	*fields(&plan) = fromAPI(*fields(&plan), row)
+	*fields(&plan) = fromAPI(*fields(&plan), row, o.skipCheckRunsUnreadable)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

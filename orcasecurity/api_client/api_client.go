@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Off by default: request/response bodies carry secrets (API tokens).
@@ -35,6 +37,9 @@ type APIClient struct {
 	// invalidation stores under a stale generation and is treated as a miss
 	// rather than resurrecting data the write just invalidated.
 	scmListGen atomic.Uint64
+	// scmListFlight collapses concurrent fetches of the same path (e.g. for_each
+	// over units under one installation) into a single request.
+	scmListFlight singleflight.Group
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {

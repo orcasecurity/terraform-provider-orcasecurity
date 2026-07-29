@@ -59,7 +59,7 @@ func TestFromAPI_MapsAllFields(t *testing.T) {
 		ScmPosturePolicyID:  "sp-1",
 	}
 	prior := RepoConfigFields{Branch: types.StringValue("main")}
-	out := fromAPI(prior, api)
+	out := fromAPI(prior, api, false)
 
 	if out.ID.ValueString() != "row-1" || out.Name.ValueString() != "acme/repo" || out.URL.ValueString() != "https://example.com/acme/repo" {
 		t.Errorf("identity mapping wrong: %+v", out)
@@ -90,7 +90,7 @@ func TestFromAPI_MapsAllFields(t *testing.T) {
 
 func TestFromAPI_EmptyStringsBecomeNull(t *testing.T) {
 	// OptionalID maps "" to null so unset optional/computed strings do not flap.
-	out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{ID: "row-1", RepositoryName: "n", RepositoryURL: "u"})
+	out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{ID: "row-1", RepositoryName: "n", RepositoryURL: "u"}, false)
 	nulls := map[string]types.String{
 		"project_id":                out.ProjectID,
 		"comments_on_pull_requests": out.CommentsOnPullRequests,
@@ -122,7 +122,7 @@ func TestFromAPI_DisableScanPRsNilHandling(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{DisableScanPRs: tc.api})
+			out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{DisableScanPRs: tc.api}, false)
 			if out.DisableScanPullRequests.IsNull() != tc.wantNull {
 				t.Fatalf("null=%v, want %v", out.DisableScanPullRequests.IsNull(), tc.wantNull)
 			}
@@ -148,7 +148,7 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := fromAPI(RepoConfigFields{SkipCheckRuns: tc.prior}, &api_client.ScmRepository{SkipCheckRuns: tc.apiValue})
+			out := fromAPI(RepoConfigFields{SkipCheckRuns: tc.prior}, &api_client.ScmRepository{SkipCheckRuns: tc.apiValue}, true)
 			if tc.want.IsNull() {
 				if !out.SkipCheckRuns.IsNull() {
 					t.Fatalf("expected null skip_check_runs, got %#v", out.SkipCheckRuns)
@@ -159,6 +159,15 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 				t.Fatalf("skip_check_runs = %v, want %v", out.SkipCheckRuns, tc.want)
 			}
 		})
+	}
+}
+
+// The other three providers do return skip_check_runs, so a cleared value must
+// surface as drift (null), not silently fall back to the stale prior value.
+func TestFromAPI_SkipCheckRunsClearedSurfacesDriftWhenReadable(t *testing.T) {
+	out := fromAPI(RepoConfigFields{SkipCheckRuns: types.StringValue("ALWAYS")}, &api_client.ScmRepository{SkipCheckRuns: ""}, false)
+	if !out.SkipCheckRuns.IsNull() {
+		t.Fatalf("expected skip_check_runs cleared to null, got %#v", out.SkipCheckRuns)
 	}
 }
 

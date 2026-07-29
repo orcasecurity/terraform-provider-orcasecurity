@@ -142,6 +142,21 @@ func getAllScmPages[T any](client *APIClient, basePath string) ([]T, error) {
 		return pages, nil
 	}
 
+	// Collapse concurrent fetches of the same path into one request.
+	v, err, _ := client.scmListFlight.Do(basePath, func() (any, error) {
+		return fetchAllScmPages[T](client, basePath, startGen)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if pages, ok := v.([]T); ok {
+		return pages, nil
+	}
+	// A concurrent fetch for a different T raced on this basePath key; fetch directly.
+	return fetchAllScmPages[T](client, basePath, startGen)
+}
+
+func fetchAllScmPages[T any](client *APIClient, basePath string, startGen uint64) ([]T, error) {
 	const pageLimit = 200
 	const maxScmPages = 500 // backstop against an inflated/bogus total_items with full pages
 	var all []T

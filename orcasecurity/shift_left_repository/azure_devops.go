@@ -78,8 +78,9 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 	accountName := plan.AccountName.ValueString()
 	repoID := plan.AzureRepositoryID.ValueString()
 	return repoOps{
-		client:  r.apiClient,
-		scmName: "Azure DevOps",
+		client:                  r.apiClient,
+		scmName:                 "Azure DevOps",
+		skipCheckRunsUnreadable: true,
 		integrate: func() error {
 			return r.apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{
 				InstallationID:    plan.InstallationID.ValueString(),
