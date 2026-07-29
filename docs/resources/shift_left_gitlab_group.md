@@ -10,6 +10,8 @@ Creates or configures an Orca GitLab shift-left integrated group. Create POSTs `
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. The GitLab UI may offer fewer `skip_check_runs` values than the account-level PUT accepts. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
 
+-> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out, matching the Orca UI. `terraform import` performs no write, so an imported group keeps whatever settings it already had.
+
 -> **Destroy:** `terraform destroy` DELETEs the integrated group (UI parity). That also removes its integrated repositories.
 
 !> **Adopt semantics:** This resource **adopts** a pre-existing SCM group rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt a group that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing group under management without a takeover write.

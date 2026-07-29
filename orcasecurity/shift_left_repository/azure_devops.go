@@ -44,7 +44,7 @@ func (r *azureRepositoryResource) Configure(_ context.Context, req resource.Conf
 }
 
 func (r *azureRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := sharedRepoAttributes("Azure DevOps", fullSkipCheckRuns, false)
+	attrs := sharedRepoAttributes(azureTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Orca id of the Azure DevOps installation (see `orcasecurity_shift_left_azure_devops_installation`).",
@@ -78,9 +78,8 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 	accountName := plan.AccountName.ValueString()
 	repoID := plan.AzureRepositoryID.ValueString()
 	return repoOps{
-		client:                  r.apiClient,
-		scmName:                 "Azure DevOps",
-		skipCheckRunsUnreadable: true,
+		client: r.apiClient,
+		traits: azureTraits,
 		integrate: func() error {
 			return r.apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{
 				InstallationID:    plan.InstallationID.ValueString(),

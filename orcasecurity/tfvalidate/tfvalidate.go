@@ -1,4 +1,6 @@
-package automation_v2
+// Package tfvalidate holds terraform-plugin-framework validators shared across
+// resources, alongside tfconv's shared conversions.
+package tfvalidate
 
 import (
 	"context"
@@ -8,10 +10,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
-// atLeastOneChildSet validates that, when a nested object block is configured
+// atLeastOneChildSet validates that, when a nested object is configured
 // (non-null), at least one of the named child attributes is set. Unlike
 // objectvalidator.AtLeastOneOf, it does NOT fire when the object itself is null,
-// so the block stays optional.
+// so the object stays optional.
 type atLeastOneChildSet struct {
 	attributes []string
 }
@@ -29,7 +31,7 @@ func (v atLeastOneChildSet) MarkdownDescription(ctx context.Context) string {
 }
 
 func (v atLeastOneChildSet) ValidateObject(_ context.Context, req validator.ObjectRequest, resp *validator.ObjectResponse) {
-	// Block not configured, or not yet known - nothing to enforce.
+	// Object not configured, or not yet known - nothing to enforce.
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}

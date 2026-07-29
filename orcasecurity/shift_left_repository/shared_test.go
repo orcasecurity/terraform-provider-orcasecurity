@@ -33,7 +33,7 @@ func TestFromAPI_MapsAllFields(t *testing.T) {
 		ScmPosturePolicyID:  "sp-1",
 	}
 	prior := RepoConfigFields{Branch: types.StringValue("main")}
-	out := fromAPI(prior, api, false)
+	out := fromAPI(prior, api, githubTraits)
 
 	if out.ID.ValueString() != "row-1" || out.Name.ValueString() != "acme/repo" || out.URL.ValueString() != "https://example.com/acme/repo" {
 		t.Errorf("identity mapping wrong: %+v", out)
@@ -64,7 +64,7 @@ func TestFromAPI_MapsAllFields(t *testing.T) {
 
 func TestFromAPI_EmptyStringsBecomeNull(t *testing.T) {
 	// OptionalID maps "" to null so unset optional/computed strings do not flap.
-	out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{ID: "row-1", RepositoryName: "n", RepositoryURL: "u"}, false)
+	out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{ID: "row-1", RepositoryName: "n", RepositoryURL: "u"}, githubTraits)
 	nulls := map[string]types.String{
 		"project_id":                out.ProjectID,
 		"comments_on_pull_requests": out.CommentsOnPullRequests,
@@ -96,7 +96,7 @@ func TestFromAPI_DisableScanPRsNilHandling(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{DisableScanPRs: tc.api}, false)
+			out := fromAPI(RepoConfigFields{}, &api_client.ScmRepository{DisableScanPRs: tc.api}, githubTraits)
 			if out.DisableScanPullRequests.IsNull() != tc.wantNull {
 				t.Fatalf("null=%v, want %v", out.DisableScanPullRequests.IsNull(), tc.wantNull)
 			}
@@ -122,7 +122,7 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := fromAPI(RepoConfigFields{SkipCheckRuns: tc.prior}, &api_client.ScmRepository{SkipCheckRuns: tc.apiValue}, true)
+			out := fromAPI(RepoConfigFields{SkipCheckRuns: tc.prior}, &api_client.ScmRepository{SkipCheckRuns: tc.apiValue}, azureTraits)
 			if tc.want.IsNull() {
 				if !out.SkipCheckRuns.IsNull() {
 					t.Fatalf("expected null skip_check_runs, got %#v", out.SkipCheckRuns)
@@ -139,7 +139,7 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 // The other three providers do return skip_check_runs, so a cleared value must
 // surface as drift (null), not silently fall back to the stale prior value.
 func TestFromAPI_SkipCheckRunsClearedSurfacesDriftWhenReadable(t *testing.T) {
-	out := fromAPI(RepoConfigFields{SkipCheckRuns: types.StringValue("ALWAYS")}, &api_client.ScmRepository{SkipCheckRuns: ""}, false)
+	out := fromAPI(RepoConfigFields{SkipCheckRuns: types.StringValue("ALWAYS")}, &api_client.ScmRepository{SkipCheckRuns: ""}, githubTraits)
 	if !out.SkipCheckRuns.IsNull() {
 		t.Fatalf("expected skip_check_runs cleared to null, got %#v", out.SkipCheckRuns)
 	}
@@ -255,7 +255,7 @@ func TestBranchAttribute(t *testing.T) {
 }
 
 func TestSharedRepoAttributes(t *testing.T) {
-	attrs := sharedRepoAttributes("GitHub", fullSkipCheckRuns, true)
+	attrs := sharedRepoAttributes(githubTraits)
 	wantKeys := []string{
 		"id", "name", "url", "branch", "project_id", "disabled",
 		"disable_scan_pull_requests", "comments_on_pull_requests", "pr_summary_comment",
@@ -303,7 +303,7 @@ func recordingClient(status int) (*api_client.APIClient, *[]string) {
 
 func TestCreateRepo_IntegrateError(t *testing.T) {
 	ops := repoOps{
-		scmName:   "GitHub",
+		traits:    githubTraits,
 		integrate: func() error { return errors.New("boom") },
 		find:      func() (*api_client.ScmRepository, error) { t.Fatal("find must not run"); return nil, nil },
 	}
@@ -318,7 +318,7 @@ func TestCreateRepo_IntegrateError(t *testing.T) {
 
 func TestCreateRepo_NotFoundAfterIntegrate(t *testing.T) {
 	ops := repoOps{
-		scmName:   "GitHub",
+		traits:    githubTraits,
 		integrate: func() error { return nil },
 		find:      func() (*api_client.ScmRepository, error) { return nil, nil },
 	}
@@ -335,7 +335,7 @@ func TestCreateRepo_HappyNoConfig(t *testing.T) {
 	found := &api_client.ScmRepository{ID: "row-1", RepositoryContextID: "ctx-1"}
 	findCalls := 0
 	ops := repoOps{
-		scmName:   "GitHub",
+		traits:    githubTraits,
 		integrate: func() error { return nil },
 		find: func() (*api_client.ScmRepository, error) {
 			findCalls++
@@ -353,13 +353,79 @@ func TestCreateRepo_HappyNoConfig(t *testing.T) {
 	}
 }
 
+// The integrate POST already carries configuration_settings, so a create that
+// sets only those fields must not issue a follow-up PATCH or a second read.
+func TestCreateRepo_ConfigOnlyPlanSkipsPatch(t *testing.T) {
+	found := &api_client.ScmRepository{ID: "row-1", RepositoryContextID: "ctx-1"}
+	findCalls := 0
+	ops := repoOps{
+		traits:    githubTraits,
+		integrate: func() error { return nil },
+		find: func() (*api_client.ScmRepository, error) {
+			findCalls++
+			return found, nil
+		},
+		update: func(body api_client.ScmRepositoryConfigUpdate) error {
+			t.Fatalf("config already shipped with integrate; unexpected PATCH: %+v", body)
+			return nil
+		},
+	}
+	plan := &RepoConfigFields{
+		CommentsOnPullRequests:  types.StringValue("NEVER"),
+		PrSummaryComment:        types.StringValue("NEVER"),
+		SkipCheckRuns:           types.StringValue("NEVER"),
+		ConfigFileSupport:       types.StringValue("DISABLED"),
+		DisableScanPullRequests: types.BoolValue(true),
+	}
+	var diags diag.Diagnostics
+	row := createRepo(ops, plan, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if row != found {
+		t.Fatalf("expected the integrated row, got %+v", row)
+	}
+	if findCalls != 1 {
+		t.Errorf("expected a single read after integrate, got %d", findCalls)
+	}
+}
+
+// `disabled` is the one field no provider honours at integrate time, so it must
+// still produce a follow-up PATCH carrying only that field.
+func TestDisabledUpdateBody(t *testing.T) {
+	if _, set := disabledUpdateBody("row-1", &RepoConfigFields{}); set {
+		t.Error("unset disabled must not produce a write")
+	}
+	cfgOnly := &RepoConfigFields{
+		CommentsOnPullRequests: types.StringValue("NEVER"),
+		SkipCheckRuns:          types.StringValue("NEVER"),
+	}
+	if _, set := disabledUpdateBody("row-1", cfgOnly); set {
+		t.Error("config fields alone must not produce a post-integrate write")
+	}
+	body, set := disabledUpdateBody("row-1", &RepoConfigFields{Disabled: types.BoolValue(true)})
+	if !set {
+		t.Fatal("disabled=true must produce a write")
+	}
+	if len(body.IDs) != 1 || body.IDs[0] != "row-1" {
+		t.Errorf("IDs = %v, want [row-1]", body.IDs)
+	}
+	if body.Disabled == nil || !*body.Disabled {
+		t.Errorf("Disabled = %v, want true", body.Disabled)
+	}
+	if body.CommentsOnPullRequests != "" || body.SkipCheckRuns != "" ||
+		body.PrSummaryComment != "" || body.ConfigFileSupport != "" || body.DisableScanPullRequests != nil {
+		t.Errorf("body must carry only disabled, got %+v", body)
+	}
+}
+
 func TestCreateRepo_ConfigAppliedRereads(t *testing.T) {
 	first := &api_client.ScmRepository{ID: "row-1", Status: "IN_PROGRESS"}
 	second := &api_client.ScmRepository{ID: "row-1", Status: "SUCCESS"}
 	findCalls := 0
 	updateCalls := 0
 	ops := repoOps{
-		scmName:   "GitHub",
+		traits:    githubTraits,
 		integrate: func() error { return nil },
 		find: func() (*api_client.ScmRepository, error) {
 			findCalls++
@@ -390,7 +456,7 @@ func TestCreateRepo_ConfigFailureRollsBack(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	ops := repoOps{
 		client:    client,
-		scmName:   "GitHub",
+		traits:    githubTraits,
 		integrate: func() error { return nil },
 		find: func() (*api_client.ScmRepository, error) {
 			return &api_client.ScmRepository{ID: "row-1", RepositoryContextID: "ctx-1"}, nil
@@ -414,7 +480,7 @@ func TestCreateRepo_ConfigFailureNoContextSkipsRollback(t *testing.T) {
 	// No RepositoryContextID means rollback has nothing to delete; it must not
 	// dereference the (nil) client.
 	ops := repoOps{
-		scmName:   "GitHub",
+		traits:    githubTraits,
 		integrate: func() error { return nil },
 		find:      func() (*api_client.ScmRepository, error) { return &api_client.ScmRepository{ID: "row-1"}, nil },
 		update:    func(api_client.ScmRepositoryConfigUpdate) error { return errors.New("config rejected") },
@@ -429,9 +495,9 @@ func TestCreateRepo_ConfigFailureNoContextSkipsRollback(t *testing.T) {
 func TestUpdateRepo_NoConfigNoMove(t *testing.T) {
 	found := &api_client.ScmRepository{ID: "row-1"}
 	ops := repoOps{
-		scmName: "GitHub",
-		find:    func() (*api_client.ScmRepository, error) { return found, nil },
-		update:  func(api_client.ScmRepositoryConfigUpdate) error { t.Fatal("update must not run"); return nil },
+		traits: githubTraits,
+		find:   func() (*api_client.ScmRepository, error) { return found, nil },
+		update: func(api_client.ScmRepositoryConfigUpdate) error { t.Fatal("update must not run"); return nil },
 	}
 	plan := &RepoConfigFields{}
 	state := &RepoConfigFields{ID: types.StringValue("row-1")}
@@ -443,8 +509,8 @@ func TestUpdateRepo_NoConfigNoMove(t *testing.T) {
 
 func TestUpdateRepo_ConfigUpdateError(t *testing.T) {
 	ops := repoOps{
-		scmName: "GitHub",
-		update:  func(api_client.ScmRepositoryConfigUpdate) error { return errors.New("nope") },
+		traits: githubTraits,
+		update: func(api_client.ScmRepositoryConfigUpdate) error { return errors.New("nope") },
 		find: func() (*api_client.ScmRepository, error) {
 			t.Fatal("find must not run after update error")
 			return nil, nil
@@ -459,7 +525,7 @@ func TestUpdateRepo_ConfigUpdateError(t *testing.T) {
 }
 
 func TestUpdateRepo_MoveWithoutContextIDErrors(t *testing.T) {
-	ops := repoOps{scmName: "GitHub"}
+	ops := repoOps{traits: githubTraits}
 	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-new")}
 	state := &RepoConfigFields{ID: types.StringValue("row-1"), ProjectID: types.StringValue("proj-old")}
 	var diags diag.Diagnostics
@@ -472,9 +538,9 @@ func TestUpdateRepo_MovesProject(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	found := &api_client.ScmRepository{ID: "row-1", ProjectID: "proj-new"}
 	ops := repoOps{
-		client:  client,
-		scmName: "GitHub",
-		find:    func() (*api_client.ScmRepository, error) { return found, nil },
+		client: client,
+		traits: githubTraits,
+		find:   func() (*api_client.ScmRepository, error) { return found, nil },
 	}
 	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-new")}
 	state := &RepoConfigFields{
@@ -496,9 +562,9 @@ func TestUpdateRepo_SameProjectDoesNotMove(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	found := &api_client.ScmRepository{ID: "row-1", ProjectID: "proj-1"}
 	ops := repoOps{
-		client:  client,
-		scmName: "GitHub",
-		find:    func() (*api_client.ScmRepository, error) { return found, nil },
+		client: client,
+		traits: githubTraits,
+		find:   func() (*api_client.ScmRepository, error) { return found, nil },
 	}
 	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-1")}
 	state := &RepoConfigFields{ID: types.StringValue("row-1"), ProjectID: types.StringValue("proj-1")}
@@ -514,8 +580,8 @@ func TestUpdateRepo_SameProjectDoesNotMove(t *testing.T) {
 func TestDeleteRepo_UsesStateContextID(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	ops := repoOps{
-		client:  client,
-		scmName: "GitHub",
+		client: client,
+		traits: githubTraits,
 		find: func() (*api_client.ScmRepository, error) {
 			t.Fatal("find must not run when ctx id is in state")
 			return nil, nil
@@ -535,8 +601,8 @@ func TestDeleteRepo_UsesStateContextID(t *testing.T) {
 func TestDeleteRepo_FallsBackToFind(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	ops := repoOps{
-		client:  client,
-		scmName: "GitHub",
+		client: client,
+		traits: githubTraits,
 		find: func() (*api_client.ScmRepository, error) {
 			return &api_client.ScmRepository{ID: "row-1", RepositoryContextID: "ctx-live"}, nil
 		},
@@ -556,8 +622,8 @@ func TestDeleteRepo_FallsBackToFind(t *testing.T) {
 func TestDeleteRepo_AlreadyGone(t *testing.T) {
 	// Empty state ctx id + find returns nil: nothing to delete, no client call.
 	ops := repoOps{
-		scmName: "GitHub",
-		find:    func() (*api_client.ScmRepository, error) { return nil, nil },
+		traits: githubTraits,
+		find:   func() (*api_client.ScmRepository, error) { return nil, nil },
 	}
 	var diags diag.Diagnostics
 	deleteRepo(ops, &RepoConfigFields{}, &diags)
@@ -568,8 +634,8 @@ func TestDeleteRepo_AlreadyGone(t *testing.T) {
 
 func TestDeleteRepo_FindErrorSurfaces(t *testing.T) {
 	ops := repoOps{
-		scmName: "GitHub",
-		find:    func() (*api_client.ScmRepository, error) { return nil, errors.New("read failed") },
+		traits: githubTraits,
+		find:   func() (*api_client.ScmRepository, error) { return nil, errors.New("read failed") },
 	}
 	var diags diag.Diagnostics
 	deleteRepo(ops, &RepoConfigFields{}, &diags)
@@ -582,8 +648,8 @@ func TestDeleteRepo_FindErrorSurfaces(t *testing.T) {
 func TestDeleteRepo_FallbackRowMissingContextIDErrors(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	ops := repoOps{
-		client:  client,
-		scmName: "GitHub",
+		client: client,
+		traits: githubTraits,
 		find: func() (*api_client.ScmRepository, error) {
 			return &api_client.ScmRepository{ID: "row-1", RepositoryContextID: ""}, nil
 		},

@@ -64,8 +64,26 @@ func TestExpandConfigSettings_UnavailableAvoidScan(t *testing.T) {
 }
 
 func TestSharedScmConfigAttributes_HasIntegrationStatus(t *testing.T) {
-	attrs := SharedScmConfigAttributes("name", FullSkipCheckRuns)
+	attrs := SharedScmConfigAttributes("name")
 	if _, ok := attrs["integration_status"]; !ok {
 		t.Fatal("expected integration_status attribute")
+	}
+}
+
+// The data source and the resource must report installation_mode identically, or
+// the same unit reads differently depending on which you use and a data-source
+// value cannot be fed into a resource config (the resource rejects raw SCAN_ALL).
+func TestInstallationModeAgreesBetweenResourceAndDataSource(t *testing.T) {
+	for _, mode := range []string{"SCAN_ALL", "", "SELECTED_REPOSITORIES", "SCAN_ALL_INCLUDE_FUTURE"} {
+		unit := api_client.ScmUnitCommonFields{InstallationMode: mode}
+
+		resourceValue := ScmConfigFieldsFromAPI("acme", unit).InstallationMode
+		listValue, ok := SharedScmListUnitValues("acme", unit)["installation_mode"].(types.String)
+		if !ok {
+			t.Fatal("installation_mode must be a types.String")
+		}
+		if !listValue.Equal(resourceValue) {
+			t.Errorf("mode %q: data source reports %v, resource reports %v", mode, listValue, resourceValue)
+		}
 	}
 }

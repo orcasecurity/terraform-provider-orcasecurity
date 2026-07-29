@@ -6,7 +6,10 @@ import (
 	"testing"
 )
 
-func TestAccLiveSmoke_NewEndpoints(t *testing.T) {
+// Read-only breadth check against a live tenant: it walks the shift-left list and
+// lookup paths and asserts their shape, not the tenant's contents, so it stays
+// valid as lab data changes. The per-resource acceptance tests cover writes.
+func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 	client := liveSmokeClient(t)
 
 	t.Run("gitlab_installations", func(t *testing.T) { smokeGitlabInstallations(t, client) })
@@ -43,6 +46,101 @@ func TestAccLiveSmoke_NewEndpoints(t *testing.T) {
 	})
 
 	t.Run("scm_posture_default", func(t *testing.T) { smokeScmPostureDefault(t, client) })
+
+	// ListAutomationsV2 is the only paginateOffset caller outside the SCM lists.
+	// The priority_order resource covers it live, but the automations data source
+	// has no acceptance test, so this is its only live paging check.
+	t.Run("automations_paging", func(t *testing.T) { smokeAutomationsPaging(t, client) })
+
+	// Find* narrows the list server-side. The API ignores filter keys it does not
+	// recognise, so a renamed or dropped filter would silently stop narrowing
+	// rather than fail: these round-trips assert the filters still resolve a
+	// known row, and that a mismatched installation still resolves to nothing.
+	t.Run("find_by_filter_roundtrip", func(t *testing.T) {
+		t.Run("github", func(t *testing.T) {
+			row := firstRepoRow[githubRepositoryItem](t, client, "github")
+			found, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, row.GithubRepositoryID)
+			assertFound(t, row.Repository.Name, found, err)
+			// The name is a hint only. A name that matches nothing must still
+			// resolve via the unfiltered fallback, and an empty name (post-import)
+			// must skip the filter — if search_fields ever stopped being honoured
+			// and started excluding rows, these two would fail while the hit above
+			// would not.
+			found, err = client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
+			assertFound(t, row.Repository.Name, found, err)
+			found, err = client.FindGithubRepository(row.GithubInstallation.ID, "", row.GithubRepositoryID)
+			assertFound(t, row.Repository.Name, found, err)
+			other, err := client.FindGithubRepository(mismatchedUUID, row.Repository.Name, row.GithubRepositoryID)
+			assertNotFound(t, "github/wrong-installation", other, err)
+		})
+		t.Run("gitlab", func(t *testing.T) {
+			row := firstRepoRow[gitlabRepositoryItem](t, client, "gitlab")
+			found, err := client.FindGitlabRepository(row.GitlabInstallation.ID, row.GitlabProjectID)
+			assertFound(t, row.Repository.Name, found, err)
+			other, err := client.FindGitlabRepository(mismatchedUUID, row.GitlabProjectID)
+			assertNotFound(t, "gitlab/wrong-installation", other, err)
+		})
+		t.Run("azure_devops", func(t *testing.T) {
+			row := firstRepoRow[azureRepositoryItem](t, client, "azure_devops")
+			// FindAzureRepository resolves the account by name under an
+			// installation, so drive it the way the resource does.
+			accounts, err := client.ListAzureDevopsAccounts()
+			if err != nil {
+				t.Fatalf("azure accounts: %v", err)
+			}
+			var installationID string
+			for _, a := range accounts {
+				if a.ID == row.AzureAccountInstallation.ID {
+					installationID = a.InstallationID
+					break
+				}
+			}
+			if installationID == "" {
+				t.Skipf("no azure installation found for account installation %s", row.AzureAccountInstallation.ID)
+			}
+			found, err := client.FindAzureRepository(
+				installationID, row.AzureAccountInstallation.AccountName, row.AzureRepositoryID)
+			assertFound(t, row.Repository.Name, found, err)
+		})
+	})
+}
+
+// A syntactically valid UUID that will not match any real installation.
+const mismatchedUUID = "00000000-0000-4000-8000-000000000000"
+
+func firstRepoRow[T any](t *testing.T, client *APIClient, provider string) *T {
+	t.Helper()
+	rows, err := getAllScmPages[T](client, integratedRepositoriesPath(provider), nil)
+	if err != nil {
+		t.Fatalf("%s repos: %v", provider, err)
+	}
+	if len(rows) == 0 {
+		t.Skipf("no integrated %s repositories in this tenant", provider)
+	}
+	return &rows[0]
+}
+
+func assertFound(t *testing.T, wantName string, got *ScmRepository, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("filtered lookup failed: %v", err)
+	}
+	if got == nil {
+		t.Fatalf("filtered lookup found nothing; expected %q", wantName)
+	}
+	if got.RepositoryName != wantName {
+		t.Errorf("filtered lookup returned %q, want %q", got.RepositoryName, wantName)
+	}
+}
+
+func assertNotFound(t *testing.T, what string, got *ScmRepository, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("%s: unexpected error: %v", what, err)
+	}
+	if got != nil {
+		t.Errorf("%s: expected no match, got %s (%s)", what, got.ID, got.RepositoryName)
+	}
 }
 
 func liveSmokeClient(t *testing.T) *APIClient {
@@ -112,7 +210,7 @@ func smokeAzureInstallations(t *testing.T, client *APIClient) {
 }
 
 func smokeRepoRows[T any](t *testing.T, client *APIClient, provider string, toCommon func(*T) ScmRepository, describe func(*T) string) {
-	rows, err := getAllScmPages[T](client, integratedRepositoriesPath(provider))
+	rows, err := getAllScmPages[T](client, integratedRepositoriesPath(provider), nil)
 	if err != nil {
 		t.Fatalf("%s repos: %v", provider, err)
 	}
@@ -131,6 +229,33 @@ func smokeRepoRows[T any](t *testing.T, client *APIClient, provider string, toCo
 			break
 		}
 		t.Logf("  %s", describe(&rows[i]))
+	}
+}
+
+func smokeAutomationsPaging(t *testing.T, client *APIClient) {
+	automations, err := client.ListAutomationsV2()
+	if err != nil {
+		t.Fatalf("list automations: %v", err)
+	}
+	t.Logf("automations: %d (page limit 300)", len(automations))
+
+	// If start_at_index were dropped or renamed, the server would keep serving
+	// page one and paging would either repeat rows or spin to the page cap. A
+	// duplicate id is the observable symptom, and is worth checking even on a
+	// single-page tenant since it also catches a bogus total_items.
+	seen := make(map[string]bool, len(automations))
+	for _, a := range automations {
+		if a.ID == "" {
+			t.Errorf("automation with empty id: name=%q", a.Name)
+			continue
+		}
+		if seen[a.ID] {
+			t.Errorf("automation %s returned twice: paging is re-reading a page", a.ID)
+		}
+		seen[a.ID] = true
+	}
+	if len(automations) <= 300 {
+		t.Logf("  single page: multi-page paging not exercised in this tenant")
 	}
 }
 

@@ -8,11 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
-
-	"golang.org/x/sync/singleflight"
 )
 
 // Off by default: request/response bodies carry secrets (API tokens).
@@ -30,16 +26,6 @@ type APIClient struct {
 	APIEndpoint string
 	APIToken    string
 	HTTPClient  *http.Client
-
-	scmListCache sync.Map
-	// scmListGen is bumped on every SCM write. Cached pages are tagged with the
-	// generation observed when their fetch started, so a read that raced with an
-	// invalidation stores under a stale generation and is treated as a miss
-	// rather than resurrecting data the write just invalidated.
-	scmListGen atomic.Uint64
-	// scmListFlight collapses concurrent fetches of the same path (e.g. for_each
-	// over units under one installation) into a single request.
-	scmListFlight singleflight.Group
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {

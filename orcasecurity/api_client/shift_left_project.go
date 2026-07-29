@@ -62,7 +62,6 @@ func (client *APIClient) CreateShiftLeftProject(shift_left_project ShiftLeftProj
 	if err != nil {
 		return nil, err
 	}
-	client.invalidateScmListCache()
 
 	response := ShiftLeftProject{}
 	err = resp.ReadJSON(&response)
@@ -77,7 +76,6 @@ func (client *APIClient) UpdateShiftLeftProject(ID string, data ShiftLeftProject
 	if err != nil {
 		return nil, err
 	}
-	client.invalidateScmListCache()
 
 	response := ShiftLeftProject{}
 	err = json.Unmarshal(resp.Body(), &response)
@@ -89,8 +87,5 @@ func (client *APIClient) UpdateShiftLeftProject(ID string, data ShiftLeftProject
 
 func (client *APIClient) DeleteShiftLeftProject(ID string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/projects/%s/", ID))
-	if err == nil {
-		client.invalidateScmListCache()
-	}
 	return err
 }

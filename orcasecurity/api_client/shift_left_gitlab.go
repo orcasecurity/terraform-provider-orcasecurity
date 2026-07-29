@@ -63,7 +63,7 @@ func (g *GitlabInstallation) installationID() string { return g.ID }
 const gitlabInstallationsPath = "/api/shiftleft/gitlab/installations/"
 
 func (client *APIClient) ListGitlabInstallations() ([]GitlabInstallation, error) {
-	return getAllScmPages[GitlabInstallation](client, gitlabInstallationsPath)
+	return getAllScmPages[GitlabInstallation](client, gitlabInstallationsPath, nil)
 }
 
 func (client *APIClient) GetGitlabInstallation(id string) (*GitlabInstallation, error) {

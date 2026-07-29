@@ -23,7 +23,6 @@ func TestAccGitlabGroup_import(t *testing.T) {
 
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
-	client.InvalidateScmListCache()
 
 	original := fetchGitlabGroupForTest(t, client, installationID, gitlabGroupIDEnv, orcaGroupID)
 	requireDisposableGroup(t, original) // even with opt-in, only tear down an empty group

@@ -58,7 +58,6 @@ func requireDisposableGroup(t *testing.T, original *api_client.GitlabGroup) {
 func restoreGitlabGroup(t *testing.T, client *api_client.APIClient, installationID string, gitlabGroupID int64, original *api_client.GitlabGroup) {
 	t.Helper()
 	body := acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)
-	client.InvalidateScmListCache()
 	cur, err := client.FindGitlabGroupByGitlabID(installationID, gitlabGroupID)
 	if err != nil {
 		t.Errorf("restore lookup: %s", err)
@@ -75,7 +74,6 @@ func restoreGitlabGroup(t *testing.T, client *api_client.APIClient, installation
 		return
 	}
 	if _, err := client.UpdateGitlabGroup(installationID, cur.ID, body); err != nil {
-		client.InvalidateScmListCache()
 		if err2 := client.IntegrateGitlabUnit(api_client.GitlabUnitIntegrate{
 			InstallationID: installationID,
 			GitlabGroupID:  gitlabGroupID,

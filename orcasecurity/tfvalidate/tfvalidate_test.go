@@ -1,4 +1,4 @@
-package automation_v2
+package tfvalidate
 
 import (
 	"context"
@@ -16,6 +16,14 @@ var emailAttrTypes = map[string]attr.Type{
 	"custom_tag_keys": types.ListType{ElemType: types.StringType},
 }
 
+func stringList(values ...string) types.List {
+	elems := make([]attr.Value, 0, len(values))
+	for _, v := range values {
+		elems = append(elems, types.StringValue(v))
+	}
+	return types.ListValueMust(types.StringType, elems)
+}
+
 func runAtLeastOneChildSet(value types.Object) validator.ObjectResponse {
 	resp := validator.ObjectResponse{}
 	AtLeastOneChildSet("email", "asset_tag_keys", "custom_tag_keys").ValidateObject(
@@ -29,7 +37,7 @@ func runAtLeastOneChildSet(value types.Object) validator.ObjectResponse {
 	return resp
 }
 
-// Regression: a null block (e.g. config uses alert_dismissal_details, not
+// Regression: a null object (e.g. config uses alert_dismissal_details, not
 // email_template) must NOT be forced to supply email recipients.
 func TestAtLeastOneChildSet_NullBlockNoError(t *testing.T) {
 	resp := runAtLeastOneChildSet(types.ObjectNull(emailAttrTypes))
@@ -78,5 +86,43 @@ func TestAtLeastOneChildSet_UnknownChildDefersNoError(t *testing.T) {
 	resp := runAtLeastOneChildSet(obj)
 	if resp.Diagnostics.HasError() {
 		t.Errorf("unknown child should defer validation, got: %v", resp.Diagnostics)
+	}
+}
+
+// A control override that names only its id must be rejected at plan time: the
+// posture policy API requires at least one of disabled/priority, and both are
+// omitempty on the wire, so {"id": "..."} would otherwise reach the server and
+// come back as a raw 400.
+func TestAtLeastOneChildSet_PostureControlNeedsDisabledOrPriority(t *testing.T) {
+	controlAttrTypes := map[string]attr.Type{
+		"id":       types.StringType,
+		"disabled": types.BoolType,
+		"priority": types.StringType,
+	}
+	run := func(disabled attr.Value, priority attr.Value) validator.ObjectResponse {
+		resp := validator.ObjectResponse{}
+		AtLeastOneChildSet("disabled", "priority").ValidateObject(
+			context.Background(),
+			validator.ObjectRequest{
+				Path: path.Root("controls").AtListIndex(0),
+				ConfigValue: types.ObjectValueMust(controlAttrTypes, map[string]attr.Value{
+					"id":       types.StringValue("ctrl-1"),
+					"disabled": disabled,
+					"priority": priority,
+				}),
+			},
+			&resp,
+		)
+		return resp
+	}
+
+	if resp := run(types.BoolNull(), types.StringNull()); !resp.Diagnostics.HasError() {
+		t.Error("id-only control override must be rejected")
+	}
+	if resp := run(types.BoolValue(true), types.StringNull()); resp.Diagnostics.HasError() {
+		t.Errorf("disabled-only control override must be accepted, got: %v", resp.Diagnostics)
+	}
+	if resp := run(types.BoolNull(), types.StringValue("HIGH")); resp.Diagnostics.HasError() {
+		t.Errorf("priority-only control override must be accepted, got: %v", resp.Diagnostics)
 	}
 }

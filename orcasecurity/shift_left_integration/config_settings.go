@@ -23,14 +23,13 @@ type ConfigSettingsModel struct {
 	UnavailableConditions   types.List   `tfsdk:"unavailable_conditions"`
 }
 
-// skip_check_runs enums differ per provider: GitLab's backend contract accepts
-// only ALWAYS/NEVER, the others also accept ONLY_ON_INTERNAL_ISSUE.
-var (
-	FullSkipCheckRuns   = []string{"ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"}
-	GitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
-)
+// accountSkipCheckRuns is the same on every provider: the account/group PUT
+// types skip_check_runs as PerformActionStatus, which is three-valued. The
+// two-value ALWAYS/NEVER enum (GitlabPerformActionStatus) is the GitLab
+// *repository*-level contract only, and lives in shift_left_repository.
+var accountSkipCheckRuns = []string{"ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"}
 
-func ConfigSettingsAttributes(skipCheckRunsValues []string) map[string]schema.Attribute {
+func ConfigSettingsAttributes() map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"disable_scan_pull_requests": schema.BoolAttribute{
 			Optional:    true,
@@ -58,7 +57,7 @@ func ConfigSettingsAttributes(skipCheckRunsValues []string) map[string]schema.At
 			Computed:    true,
 			Description: "When to skip posting check runs.",
 			Validators: []validator.String{
-				stringvalidator.OneOf(skipCheckRunsValues...),
+				stringvalidator.OneOf(accountSkipCheckRuns...),
 			},
 		},
 		"config_file_support": schema.StringAttribute{
@@ -128,19 +127,34 @@ func stringSliceToList(values []string) types.List {
 	return types.ListValueMust(types.StringType, elems)
 }
 
+// ExpandConfigSettings builds the configuration_settings body for the account
+// PUT.
+//
+// The four enum fields are required server-side and rejected when empty, yet the
+// API returns "" for them on some legacy units — which FlattenConfigSettings maps
+// to null and this would otherwise send straight back as "", failing the whole
+// update with a 400. Unset enums therefore fall back to the same defaults a
+// create uses, mirroring normalizeInstallationMode for the mode field.
+//
+// pr_summary_appendix is deliberately not defaulted: it is optional server-side
+// and "" is meaningful there ("clear the appendix").
 func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSettings {
+	out := defaultConfigSettings()
 	if m == nil {
-		return api_client.ShiftLeftConfigSettings{}
+		return out
 	}
 
-	out := api_client.ShiftLeftConfigSettings{
-		DisableScanPullRequests: m.DisableScanPullRequests.ValueBool(),
-		CommentsOnPullRequests:  m.CommentsOnPullRequests.ValueString(),
-		PrSummaryComment:        m.PrSummaryComment.ValueString(),
-		SkipCheckRuns:           m.SkipCheckRuns.ValueString(),
-		ConfigFileSupport:       m.ConfigFileSupport.ValueString(),
-		PrSummaryAppendix:       m.PrSummaryAppendix.ValueString(),
+	out.DisableScanPullRequests = m.DisableScanPullRequests.ValueBool()
+	out.PrSummaryAppendix = m.PrSummaryAppendix.ValueString()
+	setEnum := func(dst *string, src types.String) {
+		if v := src.ValueString(); v != "" {
+			*dst = v
+		}
 	}
+	setEnum(&out.CommentsOnPullRequests, m.CommentsOnPullRequests)
+	setEnum(&out.PrSummaryComment, m.PrSummaryComment)
+	setEnum(&out.SkipCheckRuns, m.SkipCheckRuns)
+	setEnum(&out.ConfigFileSupport, m.ConfigFileSupport)
 
 	archiveKnown := tfconv.Known(m.ArchiveConditions)
 	unavailableKnown := tfconv.Known(m.UnavailableConditions)

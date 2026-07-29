@@ -207,6 +207,98 @@ func TestUpdateScheduledReport(t *testing.T) {
 	}
 }
 
+// Deleting an optional attribute from a config leaves the plan value null, which
+// reaches the client as the zero value. Updates are a PATCH, where an omitted key
+// means "leave unchanged" — so every optional field must appear in the body at its
+// zero value, or removing it from a config silently fails and each later refresh
+// reports the stale server value as drift.
+//
+// The expected wire values are the ones the API accepts as "clear": "" for strings
+// and {} for objects. Objects must not go out as null; the reporting API answers
+// 500 to "config": null.
+func TestScheduledReportPayload_SendsClearableZeroValuesForEveryOptionalField(t *testing.T) {
+	wantEmptyString := []string{
+		"sonar_query", "s3_path", "custom_email_subject", "custom_email_content",
+		"bucket", "azure_blob_container", "google_cloud_storage_template", "snowflake_template",
+	}
+	wantEmptyObject := []string{
+		"dsl_filter", "sonar_query_params", "query_filters", "config", "slack_channel",
+	}
+
+	// A report with nothing optional set: what Terraform sends once every optional
+	// attribute has been removed from the config.
+	cleared := ScheduledReport{
+		Name:       "Weekly open alerts",
+		Type:       "alerts_svl",
+		Format:     "csv",
+		Recurrence: "weekly",
+		Columns:    []string{},
+	}
+
+	for _, verb := range []struct {
+		name string
+		send func(APIClient) error
+	}{
+		{"create", func(c APIClient) error { _, err := c.CreateScheduledReport(cleared); return err }},
+		{"update", func(c APIClient) error {
+			_, err := c.UpdateScheduledReport(testScheduledReportID, cleared)
+			return err
+		}},
+	} {
+		t.Run(verb.name, func(t *testing.T) {
+			var raw []byte
+			httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+				raw, _ = io.ReadAll(req.Body)
+				return &http.Response{
+					StatusCode: 200,
+					Body:       io.NopCloser(strings.NewReader(testScheduledReportResponse)),
+					Request:    req,
+				}
+			})}
+			if err := verb.send(newTestAPIClient(httpClient)); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			payload := map[string]json.RawMessage{}
+			if err := json.Unmarshal(raw, &payload); err != nil {
+				t.Fatalf("request body is not valid JSON: %v", err)
+			}
+
+			for _, field := range wantEmptyString {
+				got, ok := payload[field]
+				if !ok {
+					t.Errorf("%s is missing from the body; a removed attribute could never be cleared", field)
+					continue
+				}
+				if string(got) != `""` {
+					t.Errorf("%s = %s, want \"\"", field, got)
+				}
+			}
+			for _, field := range wantEmptyObject {
+				got, ok := payload[field]
+				if !ok {
+					t.Errorf("%s is missing from the body; a removed attribute could never be cleared", field)
+					continue
+				}
+				if string(got) == "null" {
+					t.Errorf("%s = null, which the API answers with 500; want {}", field)
+					continue
+				}
+				if string(got) != "{}" {
+					t.Errorf("%s = %s, want {}", field, got)
+				}
+			}
+			// id and status are the two fields that keep omitempty: neither is ever
+			// cleared, so sending their zero value would be wrong rather than useful.
+			for _, field := range []string{"id", "status"} {
+				if _, ok := payload[field]; ok {
+					t.Errorf("%s should be omitted when unset, got %s", field, payload[field])
+				}
+			}
+		})
+	}
+}
+
 func TestDeleteScheduledReport(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "DELETE" {

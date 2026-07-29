@@ -32,12 +32,6 @@ linters:
             - linters:
                   - staticcheck
               text: "SA(1006|1019|4006|6005):"
-            # SA5011: false positive on nil-check + t.Fatal/t.Skip before dereference.
-            # Emits two messages per site ("SA5011: ..." and the companion
-            # "SA5011(related information): ..."), so match on the code alone.
-            - linters:
-                  - staticcheck
-              text: "SA5011"
     settings:
         errcheck:
             exclude-functions:

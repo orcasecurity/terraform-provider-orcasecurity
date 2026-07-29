@@ -44,7 +44,7 @@ func (r *bitbucketRepositoryResource) Configure(_ context.Context, req resource.
 }
 
 func (r *bitbucketRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := sharedRepoAttributes("Bitbucket", fullSkipCheckRuns, false)
+	attrs := sharedRepoAttributes(bitbucketTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Orca id of the Bitbucket installation (see `orcasecurity_shift_left_bitbucket_installation`).",
@@ -78,8 +78,8 @@ func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOp
 	accountID := plan.AccountID.ValueString()
 	repoID := plan.BitbucketRepositoryID.ValueString()
 	return repoOps{
-		client:  r.apiClient,
-		scmName: "Bitbucket",
+		client: r.apiClient,
+		traits: bitbucketTraits,
 		integrate: func() error {
 			return r.apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
 				InstallationID:        plan.InstallationID.ValueString(),

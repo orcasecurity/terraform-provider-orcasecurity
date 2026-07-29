@@ -23,7 +23,6 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
-	client.InvalidateScmListCache()
 
 	var original *api_client.AzureDevopsAccount
 	var err error
@@ -88,7 +87,6 @@ resource "orcasecurity_shift_left_azure_devops_account" "t" {
 func restoreAzureAccount(t *testing.T, client *api_client.APIClient, installationID, accountName string, original *api_client.AzureDevopsAccount) {
 	t.Helper()
 	body := acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)
-	client.InvalidateScmListCache()
 	cur, err := client.FindAzureDevopsAccountByName(installationID, accountName)
 	if err != nil {
 		t.Errorf("restore lookup: %s", err)
@@ -105,7 +103,6 @@ func restoreAzureAccount(t *testing.T, client *api_client.APIClient, installatio
 		return
 	}
 	if _, err := client.UpdateAzureDevopsAccount(installationID, cur.ID, body); err != nil {
-		client.InvalidateScmListCache()
 		if err2 := client.IntegrateAzureDevopsUnit(api_client.AzureDevopsUnitIntegrate{
 			InstallationID: installationID,
 			AccountName:    accountName,

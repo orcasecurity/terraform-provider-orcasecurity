@@ -1,14 +1,113 @@
 package shift_left_integration
 
 import (
+	"context"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// validateConfigSetting runs every validator declared on a configuration_settings
+// attribute, the way the framework would during plan.
+func validateConfigSetting(t *testing.T, attrName, value string) diag.Diagnostics {
+	t.Helper()
+	attr, ok := ConfigSettingsAttributes()[attrName].(schema.StringAttribute)
+	if !ok {
+		t.Fatalf("%s must be a StringAttribute", attrName)
+	}
+	var diags diag.Diagnostics
+	for _, v := range attr.Validators {
+		resp := &validator.StringResponse{}
+		v.ValidateString(context.Background(), validator.StringRequest{
+			Path:        path.Root("configuration_settings").AtName(attrName),
+			ConfigValue: types.StringValue(value),
+		}, resp)
+		diags.Append(resp.Diagnostics...)
+	}
+	return diags
+}
+
+// The account/group PUT types skip_check_runs as the three-value
+// PerformActionStatus for every provider. GitLab groups used to be restricted to
+// ALWAYS/NEVER here, which blocked a value the API accepts (verified live); the
+// two-value enum is the GitLab repository-level contract only.
+// The account PUT requires these four enums and rejects "", but the API returns
+// "" on some legacy units. Read maps that to null, so without a write-path
+// fallback an adopt/update of such a unit would send "" back and 400.
+func TestExpandConfigSettings_NeverSendsEmptyRequiredEnums(t *testing.T) {
+	// A unit whose live config has empty enums, round-tripped through Read.
+	flattened := FlattenConfigSettings(api_client.ShiftLeftConfigSettings{})
+	for name, got := range map[string]types.String{
+		"comments_on_pull_requests": flattened.CommentsOnPullRequests,
+		"pr_summary_comment":        flattened.PrSummaryComment,
+		"skip_check_runs":           flattened.SkipCheckRuns,
+		"config_file_support":       flattened.ConfigFileSupport,
+	} {
+		if !got.IsNull() {
+			t.Fatalf("precondition: %s should flatten to null, got %v", name, got)
+		}
+	}
+
+	expanded := ExpandConfigSettings(&flattened)
+	for name, got := range map[string]string{
+		"comments_on_pull_requests": expanded.CommentsOnPullRequests,
+		"pr_summary_comment":        expanded.PrSummaryComment,
+		"skip_check_runs":           expanded.SkipCheckRuns,
+		"config_file_support":       expanded.ConfigFileSupport,
+	} {
+		if got == "" {
+			t.Errorf("%s must not serialize empty; the API rejects it", name)
+		}
+	}
+
+	// A nil model is the same hazard via a different door.
+	nilExpanded := ExpandConfigSettings(nil)
+	if nilExpanded.CommentsOnPullRequests == "" || nilExpanded.SkipCheckRuns == "" ||
+		nilExpanded.PrSummaryComment == "" || nilExpanded.ConfigFileSupport == "" {
+		t.Errorf("nil config must still send valid enums, got %+v", nilExpanded)
+	}
+}
+
+// Live values must win over the fallback: defaulting may only fill blanks.
+func TestExpandConfigSettings_PreservesNonEmptyEnums(t *testing.T) {
+	m := &ConfigSettingsModel{
+		CommentsOnPullRequests: types.StringValue("NEVER"),
+		PrSummaryComment:       types.StringValue("ONLY_ON_FAILED_ISSUES"),
+		SkipCheckRuns:          types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
+		ConfigFileSupport:      types.StringValue("DISABLED"),
+	}
+	got := ExpandConfigSettings(m)
+	if got.CommentsOnPullRequests != "NEVER" || got.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" ||
+		got.SkipCheckRuns != "ONLY_ON_INTERNAL_ISSUE" || got.ConfigFileSupport != "DISABLED" {
+		t.Errorf("fallback overwrote configured enums: %+v", got)
+	}
+}
+
+// pr_summary_appendix is optional server-side and "" means "clear", so it must
+// not be swept up by the required-enum fallback.
+func TestExpandConfigSettings_AppendixEmptyStaysEmpty(t *testing.T) {
+	if got := ExpandConfigSettings(&ConfigSettingsModel{}).PrSummaryAppendix; got != "" {
+		t.Errorf("pr_summary_appendix must stay empty to clear, got %q", got)
+	}
+}
+
+func TestConfigSettingsAttributes_SkipCheckRunsAcceptsAllThreeValues(t *testing.T) {
+	for _, value := range []string{"ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"} {
+		if d := validateConfigSetting(t, "skip_check_runs", value); d.HasError() {
+			t.Errorf("skip_check_runs must accept %q: %v", value, d)
+		}
+	}
+	if d := validateConfigSetting(t, "skip_check_runs", "SOMETIMES"); !d.HasError() {
+		t.Error("skip_check_runs must reject a value outside the enum")
+	}
+}
 
 func TestConfigSettingsRoundTrip(t *testing.T) {
 	m := &ConfigSettingsModel{
@@ -102,7 +201,7 @@ func TestExpandConfigSettings_UnavailableConditionsOnly(t *testing.T) {
 }
 
 func TestConfigSettingsAttributes_ArchiveAlwaysPresent(t *testing.T) {
-	attrs := ConfigSettingsAttributes(FullSkipCheckRuns)
+	attrs := ConfigSettingsAttributes()
 	for _, key := range []string{"disable_scan_pull_requests", "comments_on_pull_requests", "pr_summary_comment", "skip_check_runs", "config_file_support", "pr_summary_appendix", "archive_conditions", "unavailable_conditions"} {
 		if _, ok := attrs[key]; !ok {
 			t.Fatalf("expected field %q to always be present", key)
@@ -118,7 +217,7 @@ func TestConfigSettingsAttributes_ArchiveAlwaysPresent(t *testing.T) {
 }
 
 func TestConfigSettingsAttributes_OptionalComputed(t *testing.T) {
-	attrs := ConfigSettingsAttributes(FullSkipCheckRuns)
+	attrs := ConfigSettingsAttributes()
 	b, ok := attrs["disable_scan_pull_requests"].(schema.BoolAttribute)
 	if !ok || !b.Optional || !b.Computed {
 		t.Fatal("disable_scan_pull_requests must be Optional+Computed")

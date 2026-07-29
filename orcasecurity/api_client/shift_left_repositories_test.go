@@ -234,6 +234,42 @@ func TestScmRepositoryConfigUpdate_MarshalOmitsUnset(t *testing.T) {
 	}
 }
 
+// The shared config fields are an embedded struct. encoding/json promotes an
+// anonymous untagged embed, so the PATCH body must stay one flat object: adding a
+// json tag or making the field named would nest it under a key and silently stop
+// applying configuration.
+func TestScmRepositoryConfigUpdate_EmbeddedConfigStaysFlat(t *testing.T) {
+	dspr := true
+	raw, _ := json.Marshal(ScmRepositoryConfigUpdate{
+		IDs: []string{"row-1"},
+		ScmRepoIntegrationConfig: ScmRepoIntegrationConfig{
+			DisableScanPullRequests: &dspr,
+			CommentsOnPullRequests:  "NEVER",
+			PrSummaryComment:        "ALWAYS",
+			SkipCheckRuns:           "ONLY_ON_INTERNAL_ISSUE",
+			ConfigFileSupport:       "ENABLED",
+		},
+	})
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, nested := got["ScmRepoIntegrationConfig"]; nested {
+		t.Fatalf("embedded config must be inlined, not nested: %s", raw)
+	}
+	for key, want := range map[string]any{
+		"disable_scan_pull_requests": true,
+		"comments_on_pull_requests":  "NEVER",
+		"pr_summary_comment":         "ALWAYS",
+		"skip_check_runs":            "ONLY_ON_INTERNAL_ISSUE",
+		"config_file_support":        "ENABLED",
+	} {
+		if got[key] != want {
+			t.Errorf("%s = %v, want %v (body: %s)", key, got[key], want, raw)
+		}
+	}
+}
+
 func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	list := `{"total_items":1,"data":[{
 		"id":"row-1","github_repository_id":42,
@@ -248,7 +284,7 @@ func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	client, _ := captureServer(t, map[string]string{
 		"GET /api/shiftleft/github/integrated_repositories/": list,
 	})
-	row, err := client.FindGithubRepository("inst-1", 42)
+	row, err := client.FindGithubRepository("inst-1", "acme/repo", 42)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,8 +297,7 @@ func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	if row.DisableScanPRs == nil || !*row.DisableScanPRs || row.CommentsOnPRs != "NEVER" {
 		t.Errorf("bad config normalization: %+v", row)
 	}
-	client.invalidateScmListCache()
-	other, err := client.FindGithubRepository("inst-other", 42)
+	other, err := client.FindGithubRepository("inst-other", "acme/repo", 42)
 	if err != nil || other != nil {
 		t.Errorf("expected no match for other installation, got %+v (%v)", other, err)
 	}
@@ -295,7 +330,6 @@ func TestFindGitlabRepository_NormalizesFlatItem(t *testing.T) {
 	if row.DisableScanPRs == nil || !*row.DisableScanPRs || row.CommentsOnPRs != "NEVER" {
 		t.Errorf("bad config normalization: %+v", row)
 	}
-	client.invalidateScmListCache()
 	other, err := client.FindGitlabRepository("inst-other", 99)
 	if err != nil || other != nil {
 		t.Errorf("expected no match for other installation, got %+v (%v)", other, err)

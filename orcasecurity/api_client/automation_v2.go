@@ -63,7 +63,7 @@ func (client *APIClient) GetAutomationV2(automationID string) (*AutomationV2, er
 func (client *APIClient) ListAutomationsV2() ([]AutomationV2, error) {
 	const pageLimit = 300
 	const maxPages = 500
-	return paginateOffset[AutomationV2](client, "/api/automations", pageLimit, maxPages)
+	return paginateOffset[AutomationV2](client, "/api/automations", nil, pageLimit, maxPages)
 }
 
 func (client *APIClient) DoesAutomationV2Exist(id string) (bool, error) {

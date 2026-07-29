@@ -65,6 +65,15 @@ func ProjectIntentFrom(configProjectID types.String, configPolicies types.Set) P
 	}
 }
 
+// defaultConfigSettings are the settings a newly integrated unit gets when the
+// config does not specify them. The four enums match the backend's own defaults,
+// but DisableScanPullRequests deliberately does not: GitHub's backend default is
+// true, while the UI always sends false when integrating a new org/group/account
+// and the other three providers default to false. Sending false here is what
+// makes PR scanning enabled by default on every provider, matching the product.
+//
+// These are also the fallbacks ExpandConfigSettings uses for the required enums,
+// which the API rejects when empty.
 func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 	return api_client.ShiftLeftConfigSettings{
 		DisableScanPullRequests: false,
@@ -76,7 +85,8 @@ func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 	}
 }
 
-// CreateUnitBody is Adopt seeded with API defaults for a new unit.
+// CreateUnitBody is Adopt seeded with defaults for a brand-new unit, rather than
+// from a live one.
 func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) api_client.ScmInstallationUpdate {
 	seed := ExistingUnit{
 		InstallationMode: mode.ValueString(),

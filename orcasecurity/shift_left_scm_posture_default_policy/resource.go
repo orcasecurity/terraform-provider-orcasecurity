@@ -7,6 +7,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/tfvalidate"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -90,6 +91,12 @@ func (r *defaultPolicyResource) Schema(_ context.Context, _ resource.SchemaReque
 				Description: "Control overrides for SCM posture catalog controls. Omit to leave the live overrides unchanged; " +
 					"set to `[]` to clear all overrides.",
 				NestedObject: rschema.NestedAttributeObject{
+					// The API requires an override to change something: both
+					// fields are omitempty, so an id-only entry would serialize
+					// to {"id": "..."} and come back as a raw 400.
+					Validators: []validator.Object{
+						tfvalidate.AtLeastOneChildSet("disabled", "priority"),
+					},
 					Attributes: map[string]rschema.Attribute{
 						"id": rschema.StringAttribute{
 							Required:    true,

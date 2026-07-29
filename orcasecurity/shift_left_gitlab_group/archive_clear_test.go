@@ -18,7 +18,6 @@ func snapshotGitlabGroupForTest(t *testing.T) (*api_client.APIClient, string, st
 
 	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
-	client.InvalidateScmListCache()
 
 	original := fetchGitlabGroupForTest(t, client, installationID, gitlabGroupIDEnv, orcaGroupID)
 	groupID := original.ID

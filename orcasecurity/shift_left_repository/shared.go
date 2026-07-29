@@ -59,7 +59,7 @@ func branchAttribute(branchRequired bool) rschema.StringAttribute {
 	return attr
 }
 
-func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRequired bool) map[string]rschema.Attribute {
+func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"id": rschema.StringAttribute{
 			Computed:      true,
@@ -68,7 +68,7 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRe
 		},
 		"name": rschema.StringAttribute{
 			Required:      true,
-			Description:   fmt.Sprintf("Repository name (path) as known to %s.", scmName),
+			Description:   fmt.Sprintf("Repository name (path) as known to %s.", traits.name),
 			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
 		"url": rschema.StringAttribute{
@@ -76,7 +76,7 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRe
 			Description:   "Repository URL.",
 			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
-		"branch": branchAttribute(branchRequired),
+		"branch": branchAttribute(traits.branchRequired),
 		"project_id": rschema.StringAttribute{
 			Optional: true,
 			Computed: true,
@@ -114,7 +114,7 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRe
 			Computed:    true,
 			Description: "When to skip creating SCM check runs.",
 			Validators: []validator.String{
-				stringvalidator.OneOf(skipCheckRunsValues...),
+				stringvalidator.OneOf(traits.skipCheckRunsValues...),
 			},
 		},
 		"config_file_support": rschema.StringAttribute{
@@ -147,7 +147,54 @@ func sharedRepoAttributes(scmName string, skipCheckRunsValues []string, branchRe
 var fullSkipCheckRuns = []string{"ALWAYS", "ONLY_ON_INTERNAL_ISSUE", "NEVER"}
 var gitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
 
-func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, skipCheckRunsUnreadable bool) RepoConfigFields {
+// providerTraits names the ways one SCM's repository API differs from the others.
+// Declaring them once per provider keeps each difference documented at its
+// definition instead of appearing as an unlabelled positional argument at four
+// separate call sites.
+type providerTraits struct {
+	// name is the SCM's display name, used in schema descriptions and diagnostics.
+	name string
+
+	// branchRequired: GitHub and GitLab reject an integration request with no
+	// branch (API 400), so it is Required there. Azure and Bitbucket accept an
+	// omitted branch and fall back to the default branch at scan time.
+	branchRequired bool
+
+	// skipCheckRunsValues: GitLab's repository-level contract is the two-value
+	// GitlabPerformActionStatus; the other three also accept
+	// ONLY_ON_INTERNAL_ISSUE.
+	skipCheckRunsValues []string
+
+	// skipCheckRunsUnreadable: Azure's list serializer omits skip_check_runs even
+	// though its PATCH accepts it, so a read cannot tell "unset" from "not
+	// returned". Keeps the prior value rather than reporting phantom drift; the
+	// other three must still see a cleared value as real drift.
+	skipCheckRunsUnreadable bool
+}
+
+var (
+	githubTraits = providerTraits{
+		name:                "GitHub",
+		branchRequired:      true,
+		skipCheckRunsValues: fullSkipCheckRuns,
+	}
+	gitlabTraits = providerTraits{
+		name:                "GitLab",
+		branchRequired:      true,
+		skipCheckRunsValues: gitlabSkipCheckRuns,
+	}
+	azureTraits = providerTraits{
+		name:                    "Azure DevOps",
+		skipCheckRunsValues:     fullSkipCheckRuns,
+		skipCheckRunsUnreadable: true,
+	}
+	bitbucketTraits = providerTraits{
+		name:                "Bitbucket",
+		skipCheckRunsValues: fullSkipCheckRuns,
+	}
+)
+
+func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, traits providerTraits) RepoConfigFields {
 	out := RepoConfigFields{
 		ID:                     types.StringValue(api.ID),
 		Name:                   types.StringValue(api.RepositoryName),
@@ -169,80 +216,78 @@ func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, skipCheckRun
 	} else {
 		out.DisableScanPullRequests = types.BoolNull()
 	}
-	if skipCheckRunsUnreadable && api.SkipCheckRuns == "" && tfconv.Known(prior.SkipCheckRuns) {
+	if traits.skipCheckRunsUnreadable && api.SkipCheckRuns == "" && tfconv.Known(prior.SkipCheckRuns) {
 		out.SkipCheckRuns = prior.SkipCheckRuns
 	}
 	return out
 }
 
-func configUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
-	body := api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}}
+// planRepoConfig collects the configuration the integrate POST and the update
+// PATCH both carry, reporting whether the plan set any of it. It is the single
+// place that decides which fields a write includes.
+func planRepoConfig(plan *RepoConfigFields) (api_client.ScmRepoIntegrationConfig, bool) {
+	cfg := api_client.ScmRepoIntegrationConfig{}
 	set := false
+	if tfconv.Known(plan.DisableScanPullRequests) {
+		v := plan.DisableScanPullRequests.ValueBool()
+		cfg.DisableScanPullRequests = &v
+		set = true
+	}
+	setStr := func(dst *string, src types.String) {
+		if tfconv.Known(src) {
+			*dst = src.ValueString()
+			set = true
+		}
+	}
+	setStr(&cfg.CommentsOnPullRequests, plan.CommentsOnPullRequests)
+	setStr(&cfg.PrSummaryComment, plan.PrSummaryComment)
+	setStr(&cfg.SkipCheckRuns, plan.SkipCheckRuns)
+	setStr(&cfg.ConfigFileSupport, plan.ConfigFileSupport)
+	return cfg, set
+}
+
+func configUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
+	cfg, set := planRepoConfig(plan)
+	body := api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}, ScmRepoIntegrationConfig: cfg}
 	if tfconv.Known(plan.Disabled) {
 		v := plan.Disabled.ValueBool()
 		body.Disabled = &v
 		set = true
 	}
-	if tfconv.Known(plan.DisableScanPullRequests) {
-		v := plan.DisableScanPullRequests.ValueBool()
-		body.DisableScanPullRequests = &v
-		set = true
-	}
-	if tfconv.Known(plan.CommentsOnPullRequests) {
-		body.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
-		set = true
-	}
-	if tfconv.Known(plan.PrSummaryComment) {
-		body.PrSummaryComment = plan.PrSummaryComment.ValueString()
-		set = true
-	}
-	if tfconv.Known(plan.SkipCheckRuns) {
-		body.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
-		set = true
-	}
-	if tfconv.Known(plan.ConfigFileSupport) {
-		body.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
-		set = true
-	}
 	return body, set
 }
 
-// integrateConfig builds the batch configuration_settings sent with the
-// integration POST so config is applied atomically at integrate time. `disabled`
-// is excluded (GitHub's integrate endpoint rejects it) and is applied by the
-// post-integrate config update for all providers.
+// disabledUpdateBody builds the only write the create path still needs after a
+// successful integrate. The integrate POST already persists every
+// configuration_settings field onto the new repository row, but no provider
+// honours `disabled` at integrate time (GitHub and GitLab hardcode it to false),
+// so it is the one field that requires a follow-up PATCH.
+func disabledUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRepositoryConfigUpdate, bool) {
+	if !tfconv.Known(plan.Disabled) {
+		return api_client.ScmRepositoryConfigUpdate{}, false
+	}
+	disabled := plan.Disabled.ValueBool()
+	return api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}, Disabled: &disabled}, true
+}
+
+// integrateConfig is the batch configuration_settings sent with the integration
+// POST so config is applied atomically at integrate time. `disabled` is excluded
+// (GitHub's integrate endpoint ignores it) and is applied by disabledUpdateBody
+// after integration for all providers.
 func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig {
-	cfg := api_client.ScmRepoIntegrationConfig{}
-	if tfconv.Known(plan.DisableScanPullRequests) {
-		v := plan.DisableScanPullRequests.ValueBool()
-		cfg.DisableScanPullRequests = &v
-	}
-	if tfconv.Known(plan.CommentsOnPullRequests) {
-		cfg.CommentsOnPullRequests = plan.CommentsOnPullRequests.ValueString()
-	}
-	if tfconv.Known(plan.PrSummaryComment) {
-		cfg.PrSummaryComment = plan.PrSummaryComment.ValueString()
-	}
-	if tfconv.Known(plan.SkipCheckRuns) {
-		cfg.SkipCheckRuns = plan.SkipCheckRuns.ValueString()
-	}
-	if tfconv.Known(plan.ConfigFileSupport) {
-		cfg.ConfigFileSupport = plan.ConfigFileSupport.ValueString()
-	}
+	cfg, _ := planRepoConfig(plan)
 	return cfg
 }
 
 type repoOps struct {
 	client    *api_client.APIClient
-	scmName   string
+	traits    providerTraits
 	integrate func() error
 	find      func() (*api_client.ScmRepository, error)
 	update    func(api_client.ScmRepositoryConfigUpdate) error
-	// skipCheckRunsUnreadable: true only for Azure, whose list serializer omits
-	// skip_check_runs. Gates the stale-value fallback in fromAPI so the other
-	// three providers see a cleared skip_check_runs as drift, not a no-op.
-	skipCheckRunsUnreadable bool
-	// Backfill attrs Import can't set (Bitbucket slug only; nil elsewhere).
+	// syncIdentity backfills attributes Import cannot set. It stays here rather
+	// than in providerTraits because it closes over the resource model being read
+	// (Bitbucket slug only; nil elsewhere).
 	syncIdentity func(*api_client.ScmRepository)
 }
 
@@ -258,7 +303,7 @@ func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *re
 	if row == nil {
 		return
 	}
-	*fields(&plan) = fromAPI(*fields(&plan), row, o.skipCheckRunsUnreadable)
+	*fields(&plan) = fromAPI(*fields(&plan), row, o.traits)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -272,14 +317,14 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 	o := ops(&state)
 	row, err := o.find()
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Error reading %s repository integration", o.scmName), err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("Error reading %s repository integration", o.traits.name), err.Error())
 		return
 	}
 	if row == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	*fields(&state) = fromAPI(*fields(&state), row, o.skipCheckRunsUnreadable)
+	*fields(&state) = fromAPI(*fields(&state), row, o.traits)
 	if o.syncIdentity != nil {
 		o.syncIdentity(row)
 	}
@@ -299,7 +344,7 @@ func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *re
 	if row == nil {
 		return
 	}
-	*fields(&plan) = fromAPI(*fields(&plan), row, o.skipCheckRunsUnreadable)
+	*fields(&plan) = fromAPI(*fields(&plan), row, o.traits)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -315,7 +360,7 @@ func repoDelete[M any](ctx context.Context, req resource.DeleteRequest, resp *re
 
 func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	if err := ops.integrate(); err != nil {
-		diags.AddError(fmt.Sprintf("Error integrating %s repository", ops.scmName), err.Error())
+		diags.AddError(fmt.Sprintf("Error integrating %s repository", ops.traits.name), err.Error())
 		return nil
 	}
 	row, err := ops.find()
@@ -325,15 +370,17 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 	if err != nil {
 		// Integrated live but not read back — roll back so it isn't orphaned.
 		rollbackUnconfirmedIntegration(ops, diags)
-		diags.AddError(fmt.Sprintf("Error reading %s repository after integration", ops.scmName), err.Error())
+		diags.AddError(fmt.Sprintf("Error reading %s repository after integration", ops.traits.name), err.Error())
 		return nil
 	}
-	if body, set := configUpdateBody(row.ID, plan); set {
+	// Only `disabled` needs a post-integrate write; the integrate POST carried the
+	// rest of the configuration, so the common case skips this PATCH and its re-read.
+	if body, set := disabledUpdateBody(row.ID, plan); set {
 		if err := ops.update(body); err != nil {
 			// Integrated but config could not be applied; roll back so we do not
 			// orphan a live integration that never made it into Terraform state.
 			rollbackIntegration(ops, row, diags)
-			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.scmName), err.Error())
+			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.traits.name), err.Error())
 			return nil
 		}
 		reread, err := ops.find()
@@ -343,7 +390,7 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 		if err != nil {
 			// Roll back using the row from the first find (its context id is known).
 			rollbackIntegration(ops, row, diags)
-			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.scmName), err.Error())
+			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.traits.name), err.Error())
 			return nil
 		}
 		row = reread
@@ -362,24 +409,21 @@ func rollbackIntegration(ops repoOps, row *api_client.ScmRepository, diags *diag
 	}
 	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
 		diags.AddWarning(
-			fmt.Sprintf("Failed to roll back %s repository integration", ops.scmName),
+			fmt.Sprintf("Failed to roll back %s repository integration", ops.traits.name),
 			fmt.Sprintf("The repository was integrated but configuration failed, and removing repository context %s during rollback also failed: %s. Remove the integration manually or re-run to reconcile.", ctxID, err.Error()),
 		)
 	}
 }
 
 func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
-	// The first find already cached the list; drop it so the retry re-fetches and
-	// can see an eventually-consistent row the first find missed.
-	if ops.client != nil {
-		ops.client.InvalidateScmListCache()
-	}
+	// Reads are not cached, so this retry re-fetches and can see an
+	// eventually-consistent row the first find missed.
 	if row, err := ops.find(); err == nil && row != nil {
 		rollbackIntegration(ops, row, diags)
 		return
 	}
 	diags.AddWarning(
-		fmt.Sprintf("Possible orphaned %s repository integration", ops.scmName),
+		fmt.Sprintf("Possible orphaned %s repository integration", ops.traits.name),
 		"The integration request succeeded but the repository could not be read back, so it is not tracked in Terraform state. If a live integration persists, remove it manually or re-run to reconcile.",
 	)
 }
@@ -392,18 +436,18 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	if moveNeeded {
 		ctxID := state.RepositoryContextID.ValueString()
 		if ctxID == "" {
-			diags.AddError(fmt.Sprintf("Error moving %s repository", ops.scmName),
+			diags.AddError(fmt.Sprintf("Error moving %s repository", ops.traits.name),
 				"repository_context_id is unknown; run terraform refresh and retry")
 			return nil
 		}
 		if err := ops.client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
-			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.scmName), err.Error())
+			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.traits.name), err.Error())
 			return nil
 		}
 	}
 	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
 		if err := ops.update(body); err != nil {
-			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.scmName), err.Error())
+			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.traits.name), err.Error())
 			return nil
 		}
 	}
@@ -412,7 +456,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 		err = fmt.Errorf("repository disappeared during update")
 	}
 	if err != nil {
-		diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.scmName), fmt.Sprintf("%v", err))
+		diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.traits.name), fmt.Sprintf("%v", err))
 		return nil
 	}
 	return row
@@ -424,7 +468,7 @@ func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
 		// Fall back to a live read; older state may predate the field.
 		row, err := ops.find()
 		if err != nil {
-			diags.AddError(fmt.Sprintf("Error reading %s repository before delete", ops.scmName), err.Error())
+			diags.AddError(fmt.Sprintf("Error reading %s repository before delete", ops.traits.name), err.Error())
 			return
 		}
 		if row == nil {
@@ -432,12 +476,12 @@ func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {
 		}
 		ctxID = row.RepositoryContextID
 		if ctxID == "" {
-			diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.scmName),
+			diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.traits.name),
 				"the repository has no repository_context_id; remove the integration manually")
 			return
 		}
 	}
 	if err := ops.client.DeleteRepositoryContext(ctxID); err != nil {
-		diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.scmName), err.Error())
+		diags.AddError(fmt.Sprintf("Error removing %s repository integration", ops.traits.name), err.Error())
 	}
 }

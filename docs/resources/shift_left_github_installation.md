@@ -10,6 +10,8 @@ Configures an existing Orca GitHub shift-left installation (default policies, sc
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
 
+-> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out. GitHub's own API default for `disable_scan_pull_requests` is `true`, so the provider deliberately diverges from it here to match the Orca UI and the other SCM providers. `terraform import` performs no write, so an imported installation keeps whatever settings it already had.
+
 -> **Destroy:** `terraform destroy` DELETEs the Orca GitHub installation (UI parity). Re-create requires reinstalling the Orca GitHub App.
 
 !> **Adopt semantics:** This resource **adopts** a pre-existing SCM installation rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an installation that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing installation under management without a takeover write.

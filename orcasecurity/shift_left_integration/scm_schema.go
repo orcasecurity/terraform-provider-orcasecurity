@@ -42,7 +42,7 @@ func (nonEmptyPoliciesValidator) ValidateSet(_ context.Context, req validator.Se
 	}
 }
 
-func SharedScmConfigAttributes(accountNameDescription string, skipCheckRunsValues []string) map[string]rschema.Attribute {
+func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"account_name": rschema.StringAttribute{
 			Computed:    true,
@@ -94,7 +94,7 @@ func SharedScmConfigAttributes(accountNameDescription string, skipCheckRunsValue
 			Optional:      true,
 			Computed:      true,
 			Description:   "PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose.",
-			Attributes:    ConfigSettingsAttributes(skipCheckRunsValues),
+			Attributes:    ConfigSettingsAttributes(),
 			PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 		},
 		"scan_all_state": rschema.StringAttribute{

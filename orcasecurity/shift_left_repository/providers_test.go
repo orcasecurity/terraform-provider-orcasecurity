@@ -7,7 +7,12 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // importErr invokes a resource's ImportState with the given import ID and
@@ -114,5 +119,77 @@ func TestProviderSchemas_BranchRequirednessAndKeys(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Each provider's traits must reach its real schema. GitLab is the odd one out at
+// the repository level: its skip_check_runs column is constrained to
+// GitlabPerformActionStatus (ALWAYS/NEVER), while the other three accept
+// ONLY_ON_INTERNAL_ISSUE. Note this differs from the account/group level, where
+// all four accept the three-value enum.
+func TestProviderSchemas_SkipCheckRunsEnumPerProvider(t *testing.T) {
+	cases := []struct {
+		name                       string
+		res                        resource.Resource
+		acceptsOnlyOnInternalIssue bool
+	}{
+		{"github", NewGithubRepositoryResource(), true},
+		{"gitlab", NewGitlabRepositoryResource(), false},
+		{"azure", NewAzureDevopsRepositoryResource(), true},
+		{"bitbucket", NewBitbucketRepositoryResource(), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			attr, ok := testutils.ResourceSchemaAttrs(t, tc.res)["skip_check_runs"].(rschema.StringAttribute)
+			if !ok {
+				t.Fatal("skip_check_runs must be a StringAttribute")
+			}
+			var diags diag.Diagnostics
+			for _, v := range attr.Validators {
+				resp := &validator.StringResponse{}
+				v.ValidateString(context.Background(), validator.StringRequest{
+					Path:        path.Root("skip_check_runs"),
+					ConfigValue: types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
+				}, resp)
+				diags.Append(resp.Diagnostics...)
+			}
+			if accepted := !diags.HasError(); accepted != tc.acceptsOnlyOnInternalIssue {
+				t.Errorf("ONLY_ON_INTERNAL_ISSUE accepted=%v, want %v", accepted, tc.acceptsOnlyOnInternalIssue)
+			}
+
+			// ALWAYS is valid everywhere; a bogus value never is.
+			for value, wantAccepted := range map[string]bool{"ALWAYS": true, "SOMETIMES": false} {
+				var d diag.Diagnostics
+				for _, v := range attr.Validators {
+					resp := &validator.StringResponse{}
+					v.ValidateString(context.Background(), validator.StringRequest{
+						Path:        path.Root("skip_check_runs"),
+						ConfigValue: types.StringValue(value),
+					}, resp)
+					d.Append(resp.Diagnostics...)
+				}
+				if accepted := !d.HasError(); accepted != wantAccepted {
+					t.Errorf("%s accepted=%v, want %v", value, accepted, wantAccepted)
+				}
+			}
+		})
+	}
+}
+
+// skipCheckRunsUnreadable exists only for Azure, whose list serializer omits the
+// field. Wiring it to another provider would silently mask real drift.
+func TestProviderTraits_OnlyAzureHasUnreadableSkipCheckRuns(t *testing.T) {
+	for _, tc := range []struct {
+		traits providerTraits
+		want   bool
+	}{
+		{githubTraits, false},
+		{gitlabTraits, false},
+		{azureTraits, true},
+		{bitbucketTraits, false},
+	} {
+		if tc.traits.skipCheckRunsUnreadable != tc.want {
+			t.Errorf("%s skipCheckRunsUnreadable=%v, want %v", tc.traits.name, tc.traits.skipCheckRunsUnreadable, tc.want)
+		}
 	}
 }

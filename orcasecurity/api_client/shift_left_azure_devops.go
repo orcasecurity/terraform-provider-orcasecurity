@@ -47,7 +47,7 @@ func (a *AzureDevopsInstallation) installationID() string { return a.ID }
 const azureDevopsInstallationsPath = "/api/shiftleft/azure_devops/installations/"
 
 func (client *APIClient) ListAzureDevopsInstallations() ([]AzureDevopsInstallation, error) {
-	return getAllScmPages[AzureDevopsInstallation](client, azureDevopsInstallationsPath)
+	return getAllScmPages[AzureDevopsInstallation](client, azureDevopsInstallationsPath, nil)
 }
 
 func (client *APIClient) GetAzureDevopsInstallation(id string) (*AzureDevopsInstallation, error) {

@@ -45,7 +45,7 @@ func (r *githubRepositoryResource) Configure(_ context.Context, req resource.Con
 }
 
 func (r *githubRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := sharedRepoAttributes("GitHub", fullSkipCheckRuns, true)
+	attrs := sharedRepoAttributes(githubTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Orca id of the GitHub installation (see `orcasecurity_shift_left_github_installations`).",
@@ -68,8 +68,8 @@ func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
 	installationID := plan.InstallationID.ValueString()
 	githubRepositoryID := plan.GithubRepositoryID.ValueInt64()
 	return repoOps{
-		client:  r.apiClient,
-		scmName: "GitHub",
+		client: r.apiClient,
+		traits: githubTraits,
 		integrate: func() error {
 			return r.apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{
 				InstallationID:     installationID,
@@ -82,7 +82,9 @@ func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {
-			return r.apiClient.FindGithubRepository(installationID, githubRepositoryID)
+			// Name is a narrowing hint only; it is empty on the first Read after an
+			// import, and FindGithubRepository falls back to an unfiltered scan.
+			return r.apiClient.FindGithubRepository(installationID, plan.Name.ValueString(), githubRepositoryID)
 		},
 		update: r.apiClient.UpdateGithubRepositories,
 	}

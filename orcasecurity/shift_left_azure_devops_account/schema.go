@@ -9,7 +9,7 @@ import (
 )
 
 func resourceSchema() rschema.Schema {
-	attrs := shift_left_integration.SharedScmConfigAttributes("Azure DevOps account/organization name.", shift_left_integration.FullSkipCheckRuns)
+	attrs := shift_left_integration.SharedScmConfigAttributes("Azure DevOps account/organization name.")
 	attrs["account_name"] = rschema.StringAttribute{
 		Required:      true,
 		Description:   "Azure DevOps organization name (API `azure_account_name` on integrate).",

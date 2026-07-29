@@ -47,7 +47,7 @@ func (b *BitbucketInstallation) installationID() string { return b.ID }
 const bitbucketInstallationsPath = "/api/shiftleft/bitbucket/installations/"
 
 func (client *APIClient) ListBitbucketInstallations() ([]BitbucketInstallation, error) {
-	return getAllScmPages[BitbucketInstallation](client, bitbucketInstallationsPath)
+	return getAllScmPages[BitbucketInstallation](client, bitbucketInstallationsPath, nil)
 }
 
 func (client *APIClient) GetBitbucketInstallation(id string) (*BitbucketInstallation, error) {

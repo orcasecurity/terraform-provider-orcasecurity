@@ -6,75 +6,16 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
-// Concurrent lookups on a cached slice must not race when stamping installation_id.
-func TestFindScmUnit_ConcurrentNoRace(t *testing.T) {
+// The global SCM unit list serializers omit installation_id, so the client stamps
+// it from the installation it fetched under. Both lookup paths must stamp, or the
+// installation_id a caller needs for for_each comes back empty.
+func TestScmUnitLookups_StampInstallationID(t *testing.T) {
 	const instID = "inst-1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 1,
-			"data":        []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "n"}},
-		})
-	}))
-	defer srv.Close()
-
-	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	if _, err := client.FindBitbucketAccountBySlug(instID, "no-such-slug"); err != nil {
-		t.Fatal(err)
-	}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
-			if err != nil || acc == nil || acc.InstallationID != instID {
-				t.Errorf("bad result: acc=%+v err=%v", acc, err)
-			}
-		}()
-	}
-	wg.Wait()
-}
-
-// Cold cache + singleflight: stamp must use a per-caller copy.
-func TestFindScmUnit_ConcurrentNoRace_ColdCache(t *testing.T) {
-	const instID = "inst-1"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(50 * time.Millisecond)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 1,
-			"data":        []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "n"}},
-		})
-	}))
-	defer srv.Close()
-
-	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
-			if err != nil || acc == nil || acc.InstallationID != instID {
-				t.Errorf("bad result: acc=%+v err=%v", acc, err)
-			}
-		}()
-	}
-	wg.Wait()
-}
-
-// Same as above via listScmUnitsByInstallation.
-func TestListBitbucketAccounts_ConcurrentNoRace_ColdCache(t *testing.T) {
-	const instID = "inst-1"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(50 * time.Millisecond)
 		if strings.Contains(r.URL.Path, "integrated_accounts") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
@@ -91,59 +32,31 @@ func TestListBitbucketAccounts_ConcurrentNoRace_ColdCache(t *testing.T) {
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			accounts, err := client.ListBitbucketAccounts()
-			if err != nil || len(accounts) != 1 || accounts[0].InstallationID != instID {
-				t.Errorf("bad result: accounts=%+v err=%v", accounts, err)
-			}
-		}()
-	}
-	wg.Wait()
-}
+	t.Run("findScmUnitBy", func(t *testing.T) {
+		acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if acc == nil {
+			t.Fatal("account not found")
+		}
+		if acc.InstallationID != instID {
+			t.Errorf("installation_id = %q, want %q", acc.InstallationID, instID)
+		}
+	})
 
-func TestGetAllScmPages_CachesUntilInvalidate(t *testing.T) {
-	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits.Add(1)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 1,
-			"data":        []map[string]string{{"id": "a"}},
-		})
-	}))
-	defer srv.Close()
-
-	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	path := "/api/shiftleft/github/installations/"
-
-	first, err := getAllScmPages[scmInstallationID](client, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(first) != 1 || first[0].ID != "a" {
-		t.Fatalf("unexpected first: %+v", first)
-	}
-	second, err := getAllScmPages[scmInstallationID](client, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(second) != 1 {
-		t.Fatalf("unexpected second: %+v", second)
-	}
-	if hits.Load() != 1 {
-		t.Fatalf("expected cache hit (1 HTTP call), got %d", hits.Load())
-	}
-
-	client.invalidateScmListCache()
-	if _, err := getAllScmPages[scmInstallationID](client, path); err != nil {
-		t.Fatal(err)
-	}
-	if hits.Load() != 2 {
-		t.Fatalf("expected refetch after invalidate (2 HTTP calls), got %d", hits.Load())
-	}
+	t.Run("listScmUnitsByInstallation", func(t *testing.T) {
+		accounts, err := client.ListBitbucketAccounts()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(accounts) != 1 {
+			t.Fatalf("got %d accounts, want 1", len(accounts))
+		}
+		if accounts[0].InstallationID != instID {
+			t.Errorf("installation_id = %q, want %q", accounts[0].InstallationID, instID)
+		}
+	})
 }
 
 func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
@@ -162,7 +75,7 @@ func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
 	defer srv.Close()
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/")
+	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,38 +87,6 @@ func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
 	}
 	if hits.Load() != 3 {
 		t.Fatalf("expected 3 page fetches (200+200+50), got %d", hits.Load())
-	}
-}
-
-// Concurrent calls for the same path must collapse into a single HTTP fetch.
-func TestGetAllScmPages_SingleFlightCollapsesStampede(t *testing.T) {
-	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits.Add(1)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 1,
-			"data":        []map[string]string{{"id": "a"}},
-		})
-	}))
-	defer srv.Close()
-
-	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	path := "/api/shiftleft/github/installations/"
-
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, err := getAllScmPages[scmInstallationID](client, path); err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-		}()
-	}
-	wg.Wait()
-
-	if hits.Load() != 1 {
-		t.Fatalf("expected exactly 1 HTTP call across 16 concurrent fetches, got %d", hits.Load())
 	}
 }
 
@@ -226,7 +107,7 @@ func TestGetAllScmPages_AbsentTotalItems(t *testing.T) {
 	defer srv.Close()
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/")
+	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +129,7 @@ func TestGetAllScmPages_MaxPageGuard(t *testing.T) {
 	defer srv.Close()
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	_, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/")
+	_, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/", nil)
 	if err == nil || !strings.Contains(err.Error(), "exceeded") {
 		t.Fatalf("expected max-page guard error, got %v", err)
 	}
@@ -265,7 +146,7 @@ func TestGetAllScmPages_EmptyPageTerminates(t *testing.T) {
 	defer srv.Close()
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/")
+	all, err := getAllScmPages[scmInstallationID](client, "/api/shiftleft/github/installations/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

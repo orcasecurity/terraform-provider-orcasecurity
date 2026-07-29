@@ -1,10 +1,27 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
 const scheduledReportAPIPath = "/api/reporting/scheduled_reports"
+
+// JSONObject is a free-form object field on a scheduled report.
+//
+// It marshals a nil map as {} rather than null. Both are "no value" as far as the
+// provider is concerned, but the reporting API answers 500 to "config": null on
+// POST and PATCH alike, while {} is accepted everywhere and clears the field.
+// Encoding that here keeps the distinction from having to be remembered at every
+// call site.
+type JSONObject map[string]interface{}
+
+func (o JSONObject) MarshalJSON() ([]byte, error) {
+	if o == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(map[string]interface{}(o))
+}
 
 type scheduledReportAPIResponseType struct {
 	Data ScheduledReport `json:"data"`
@@ -31,32 +48,43 @@ type ScheduledReport struct {
 	// Status is an integer enum on the API side (responses always return integers).
 	Status *int `json:"status,omitempty"`
 
-	Columns          []string               `json:"columns"`
-	DSLFilter        map[string]interface{} `json:"dsl_filter,omitempty"`
-	SonarQuery       string                 `json:"sonar_query,omitempty"`
-	SonarQueryParams map[string]interface{} `json:"sonar_query_params,omitempty"`
-	QueryFilters     map[string]interface{} `json:"query_filters,omitempty"`
-	Config           map[string]interface{} `json:"config,omitempty"`
-	S3Path           string                 `json:"s3_path,omitempty"`
+	// Every optional field below is sent even when empty, and none of them carry
+	// omitempty. Updates are a PATCH, where an omitted key means "leave
+	// unchanged": with omitempty, deleting an attribute from a Terraform config
+	// would leave the plan value null, reach here as the zero value, drop out of
+	// the request body entirely, and leave the old value live on the server —
+	// which the next refresh would then read back as permanent drift. Sending the
+	// zero value is what lets a removed attribute actually clear.
+	//
+	// Verified against the API: "" clears every string field and {} clears every
+	// object field, on both POST and PATCH. Only id and status keep omitempty, as
+	// neither is ever cleared — the zero value is meaningful for both.
+	Columns          []string   `json:"columns"`
+	DSLFilter        JSONObject `json:"dsl_filter"`
+	SonarQuery       string     `json:"sonar_query"`
+	SonarQueryParams JSONObject `json:"sonar_query_params"`
+	QueryFilters     JSONObject `json:"query_filters"`
+	Config           JSONObject `json:"config"`
+	S3Path           string     `json:"s3_path"`
 
 	RecipientsEmails   []string `json:"recipients_emails"`
-	CustomEmailSubject string   `json:"custom_email_subject,omitempty"`
-	CustomEmailContent string   `json:"custom_email_content,omitempty"`
+	CustomEmailSubject string   `json:"custom_email_subject"`
+	CustomEmailContent string   `json:"custom_email_content"`
 
-	ShareToSlack bool                   `json:"share_to_slack"`
-	SlackChannel map[string]interface{} `json:"slack_channel,omitempty"`
+	ShareToSlack bool       `json:"share_to_slack"`
+	SlackChannel JSONObject `json:"slack_channel"`
 
 	ShareToBucket bool   `json:"share_to_bucket"`
-	Bucket        string `json:"bucket,omitempty"`
+	Bucket        string `json:"bucket"`
 
 	ShareToAzureBlob   bool   `json:"share_to_azure_blob"`
-	AzureBlobContainer string `json:"azure_blob_container,omitempty"`
+	AzureBlobContainer string `json:"azure_blob_container"`
 
 	ShareToGoogleCloudStorage  bool   `json:"share_to_google_cloud_storage"`
-	GoogleCloudStorageTemplate string `json:"google_cloud_storage_template,omitempty"`
+	GoogleCloudStorageTemplate string `json:"google_cloud_storage_template"`
 
 	ShareToSnowflake  bool   `json:"share_to_snowflake"`
-	SnowflakeTemplate string `json:"snowflake_template,omitempty"`
+	SnowflakeTemplate string `json:"snowflake_template"`
 }
 
 func (client *APIClient) DoesScheduledReportExist(id string) (bool, error) {

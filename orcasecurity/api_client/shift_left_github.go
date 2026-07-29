@@ -19,7 +19,7 @@ func (g *GithubInstallation) stampInstallationID(string) {
 const githubInstallationsPath = "/api/shiftleft/github/installations/"
 
 func (client *APIClient) ListGithubInstallations() ([]GithubInstallation, error) {
-	return getAllScmPages[GithubInstallation](client, githubInstallationsPath)
+	return getAllScmPages[GithubInstallation](client, githubInstallationsPath, nil)
 }
 
 // No single-unit GET route; list-filter only.
