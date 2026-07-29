@@ -72,3 +72,17 @@ func (client *APIClient) DeleteGroup(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/rbac/group/%s", id))
 	return err
 }
+
+// AddGroupUsers adds members to an existing group. The group create payload ignores `users`, so
+// membership has to be applied through this dedicated endpoint after the group exists. The API
+// rejects an empty list, so an empty request is a no-op.
+func (client *APIClient) AddGroupUsers(groupID string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	_, err := client.Post(
+		fmt.Sprintf("/api/rbac/group/%s/users", groupID),
+		map[string][]string{"user_ids": userIDs},
+	)
+	return err
+}

@@ -39,13 +39,10 @@ func assertNullSet(t *testing.T, got types.Set) {
 	}
 }
 
-func assertEmptySetAfterAPIClear(t *testing.T, got types.Set) {
+func assertSetEquals(t *testing.T, got types.Set, want types.Set) {
 	t.Helper()
-	if got.IsNull() {
-		t.Fatal("expected empty set after API cleared users, not null")
-	}
-	if n := len(got.Elements()); n != 0 {
-		t.Fatalf("expected 0 elements, got %d", n)
+	if !got.Equal(want) {
+		t.Fatalf("want %#v got %#v", want, got)
 	}
 }
 
@@ -71,17 +68,27 @@ func testOptionalUsersSet_emptyRefKnownEmptyStaysEmptySet(t *testing.T) {
 	assertKnownSetElementCount(t, got, 0)
 }
 
-func testOptionalUsersSet_emptyAfterHadMembers(t *testing.T) {
+// The group read endpoint reports only a total_users count, never the member list, so an absent
+// list means "not reported" rather than "no members" and the reference value has to survive.
+func testOptionalUsersSet_emptyAfterHadMembersKeepsMembers(t *testing.T) {
 	ctx := context.Background()
 	withUser := mustStringSet(t, ctx, []string{"u1"})
 	got, diags := optionalUsersSetMatchPlan(ctx, withUser, nil)
 	fatalIfDiags(t, diags)
-	assertEmptySetAfterAPIClear(t, got)
+	assertSetEquals(t, got, withUser)
+}
+
+func testOptionalUsersSet_unknownRefBecomesNull(t *testing.T) {
+	ctx := context.Background()
+	got, diags := optionalUsersSetMatchPlan(ctx, types.SetUnknown(types.StringType), nil)
+	fatalIfDiags(t, diags)
+	assertNullSet(t, got)
 }
 
 func TestOptionalUsersSetMatchPlan(t *testing.T) {
 	t.Run("api_nonempty_always_from_api", testOptionalUsersSet_nonemptyAlwaysFromAPI)
 	t.Run("api_empty_and_ref_null_stays_null", testOptionalUsersSet_emptyRefNullStaysNull)
 	t.Run("api_empty_and_ref_known_empty_stays_empty_set", testOptionalUsersSet_emptyRefKnownEmptyStaysEmptySet)
-	t.Run("api_empty_and_ref_had_members_becomes_empty_set", testOptionalUsersSet_emptyAfterHadMembers)
+	t.Run("api_empty_and_ref_had_members_keeps_members", testOptionalUsersSet_emptyAfterHadMembersKeepsMembers)
+	t.Run("api_empty_and_ref_unknown_becomes_null", testOptionalUsersSet_unknownRefBecomesNull)
 }

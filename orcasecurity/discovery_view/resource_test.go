@@ -7,6 +7,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// The provider stores filter_data.query as the compact JSON that Terraform's jsonencode
+// produces (keys sorted, no whitespace), so assertions compare against that form rather
+// than the HCL expression used in the config.
+const (
+	awsS3BucketQuery   = `{"models":["AwsS3Bucket"],"type":"object_set"}`
+	azureAcrImageQuery = `{"models":["AzureAcrImage"],"type":"object_set"}`
+)
+
 func TestAccDiscoveryViewResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -32,7 +40,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "name", "orca-disco-view-1"),
-					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "organizational_level", "true"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "organization_level", "true"),
 					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "view_type", "discovery"),
 				),
 			},
@@ -63,9 +71,9 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "name", "orca-disco-view-2"),
-					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "organizational_level", "false"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "organization_level", "false"),
 					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "view_type", "discovery"),
-					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "filter_data.query", "jsonencode({\"models\": [\"AzureAcrImage\"],\"type\": \"object_set\"})"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "filter_data.query", azureAcrImageQuery),
 				),
 			},
 		},
@@ -146,7 +154,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "filter_data.query", "jsonencode({\"models\": [\"AwsS3Bucket\"],\"type\": \"object_set\"})"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "filter_data.query", awsS3BucketQuery),
 				),
 			},
 			// update
@@ -169,7 +177,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 			}
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "filter_data.query", "jsonencode({\"models\": [\"AzureAcrImage\"],\"type\": \"object_set\"})"),
+					resource.TestCheckResourceAttr("orcasecurity_discovery_view.tf-disco-view-1", "filter_data.query", azureAcrImageQuery),
 				),
 			},
 		},
@@ -205,7 +213,7 @@ resource "orcasecurity_discovery_view" "tf-disco-view-1" {
 			},
 			// import
 			{
-				ResourceName:      "orcasecurity_discovery_view.tf-disco-view-1t",
+				ResourceName:      "orcasecurity_discovery_view.tf-disco-view-1",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -274,6 +282,10 @@ resource "orcasecurity_discovery_view" "tf-disco-columns" {
 				ResourceName:      "orcasecurity_discovery_view.tf-disco-columns",
 				ImportState:       true,
 				ImportStateVerify: true,
+				// Import has no prior state to tell the deprecated group_by apart from
+				// group_by_2, so it always lands on group_by_2. The config here uses the
+				// legacy attribute, making that difference expected rather than drift.
+				ImportStateVerifyIgnore: []string{"group_by", "group_by_2"},
 			},
 			// update columns (different set and order)
 			{

@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -74,15 +75,20 @@ func (r *groupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				},
 			},
 			"sso_group": schema.BoolAttribute{
-				Description: "Configures whether this group may be used for SSO permissions, or if it should be used purely for use within Orca.",
+				Description: "Configures whether this group may be used for SSO permissions, or if it should be used purely for use within Orca. Can only be set at creation time; changing it replaces the group.",
 				Required:    true,
+				PlanModifiers: []planmodifier.Bool{
+					// The group update endpoint does not accept sso_group, so the backend keeps
+					// the value chosen at creation. Replacing is the only way to honour a change.
+					boolplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				Description: "Group description.",
 				Required:    true,
 			},
 			"users": schema.SetAttribute{
-				Description: "Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members.",
+				Description: "Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members. Orca does not report group membership when reading a group, so this value is tracked from the configuration and members removed outside Terraform are not detected.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
@@ -112,6 +118,15 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		resp.Diagnostics.AddError(
 			"Error creating group",
 			"Could not create group, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	// The create payload ignores `users`, so members are attached in a follow-up call.
+	if err := r.apiClient.AddGroupUsers(instance.ID, users); err != nil {
+		resp.Diagnostics.AddError(
+			"Error adding group users",
+			fmt.Sprintf("Group %s was created but its users could not be set: %s", instance.ID, err.Error()),
 		)
 		return
 	}
@@ -149,16 +164,20 @@ func userIDsFromSet(s types.Set) []string {
 	return users
 }
 
-// optionalUsersSetMatchPlan maps API user ids to Terraform optional set: omitted config (null) stays null when API returns empty; explicit users = [] stays an empty set.
+// optionalUsersSetMatchPlan resolves the users attribute against the API response. GET
+// /api/rbac/group/{id} reports only a total_users count and never the member list, so an absent
+// list carries no information: the configured (or prior) value is kept instead of being flattened
+// to an empty set, which would drop members the user asked for. A list is only taken from the API
+// when one is actually present.
 func optionalUsersSetMatchPlan(ctx context.Context, planOrPrior types.Set, api []string) (types.Set, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(api) > 0 {
 		return types.SetValueFrom(ctx, types.StringType, api)
 	}
-	if planOrPrior.IsNull() || planOrPrior.IsUnknown() {
+	if planOrPrior.IsUnknown() {
 		return types.SetNull(types.StringType), diags
 	}
-	return types.SetValueFrom(ctx, types.StringType, []string{})
+	return planOrPrior, diags
 }
 
 func setGroupStateFromAPI(ctx context.Context, m *groupResourceModel, instance *api_client.Group, usersRef types.Set) diag.Diagnostics {

@@ -152,7 +152,7 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				},
 			},
 			"global_filter": schema.BoolAttribute{
-				Description: "Whether or not this is a business unit all users within your Orca org can use. If set to true, then it is accessible to all other users in your org.",
+				Description: "Whether or not this is a business unit all users within your Orca org can use. If set to true, then it is accessible to all other users in your org. When omitted, Orca creates the business unit as global, so this is read back as `true`.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
@@ -425,6 +425,41 @@ func setMetadataInState(state *businessUnitResourceModel, instance *api_client.B
 	}
 }
 
+// resolveCreatedGlobalFilter fills the computed global_filter after a create. POST /api/filters
+// only returns the new filter_id, and a business unit created without the field is stored as
+// global by the backend, so assuming false here would leave state disagreeing with the server
+// until the next refresh. A configured value is kept as planned (the backend honours it);
+// otherwise the server-assigned value is read back.
+func resolveCreatedGlobalFilter(client *api_client.APIClient, plan *businessUnitResourceModel, instance *api_client.BusinessUnit) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if instance.GlobalFilter != nil {
+		plan.GlobalFilter = types.BoolValue(*instance.GlobalFilter)
+		return diags
+	}
+	if !plan.GlobalFilter.IsNull() && !plan.GlobalFilter.IsUnknown() {
+		return diags
+	}
+
+	created, err := client.GetBusinessUnit(instance.ID)
+	if err != nil {
+		diags.AddError(
+			"Error reading business unit",
+			fmt.Sprintf("Could not read back business unit ID %s after create: %s", instance.ID, err.Error()),
+		)
+		return diags
+	}
+	if created == nil || created.GlobalFilter == nil {
+		diags.AddError(
+			"Error reading business unit",
+			fmt.Sprintf("Business unit ID %s did not report global_filter after create", instance.ID),
+		)
+		return diags
+	}
+	plan.GlobalFilter = types.BoolValue(*created.GlobalFilter)
+	return diags
+}
+
 func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan businessUnitResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -492,10 +527,9 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 
 	// Sync computed metadata back from the API response so any attribute
 	// the framework marked as unknown after planning becomes known.
-	if instance.GlobalFilter != nil {
-		plan.GlobalFilter = types.BoolValue(*instance.GlobalFilter)
-	} else {
-		plan.GlobalFilter = types.BoolValue(false)
+	resp.Diagnostics.Append(resolveCreatedGlobalFilter(r.apiClient, &plan, instance)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Set the state

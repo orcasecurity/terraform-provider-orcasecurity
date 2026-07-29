@@ -364,6 +364,21 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		}
 	}
 
+	// A non-empty compliance_frameworks list adds controls on top of the ones already attached
+	// rather than replacing them, while an empty list clears them. Clearing first is therefore
+	// what makes the applied mapping match the configuration instead of accumulating old entries.
+	if len(state.Frameworks) > 0 && len(plan.Frameworks) > 0 {
+		clearReq := updateReq
+		clearReq.ComplianceFrameworks = nil
+		if _, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), clearReq); err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating Alert",
+				"Could not clear the existing compliance frameworks: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(

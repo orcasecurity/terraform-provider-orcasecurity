@@ -45,11 +45,11 @@ resource "orcasecurity_group" "tf-group-empty-members" {
 
 - `description` (String) Group description.
 - `name` (String) Group name. Must be unique across your Orca org.
-- `sso_group` (Boolean) Configures whether this group may be used for SSO permissions, or if it should be used purely for use within Orca.
+- `sso_group` (Boolean) Configures whether this group may be used for SSO permissions, or if it should be used purely for use within Orca. Can only be set at creation time; changing it replaces the group.
 
 ### Optional
 
-- `users` (Set of String) Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members.
+- `users` (Set of String) Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members. Orca does not report group membership when reading a group, so this value is tracked from the configuration and members removed outside Terraform are not detected.
 
 ### Read-Only
 

@@ -339,6 +339,12 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 		return
 	}
 
+	var state stateModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if plan.ID.ValueString() == "" {
 		resp.Diagnostics.AddError(
 			"ID is null",
@@ -381,6 +387,21 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 			AlertType: plan.RuleType.ValueString(),
 			Enable:    plan.RemediationText.Enable.ValueBool(),
 			Text:      plan.RemediationText.Text.ValueString(),
+		}
+	}
+
+	// A non-empty compliance_frameworks list adds controls on top of the ones already attached
+	// rather than replacing them, while an empty list clears them. Clearing first is therefore
+	// what makes the applied mapping match the configuration instead of accumulating old entries.
+	if len(state.Frameworks) > 0 && len(plan.Frameworks) > 0 {
+		clearReq := updateReq
+		clearReq.ComplianceFrameworks = nil
+		if _, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), clearReq); err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating Alert",
+				"Could not clear the existing compliance frameworks: "+err.Error(),
+			)
+			return
 		}
 	}
 

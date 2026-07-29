@@ -1,6 +1,7 @@
 package group_test
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -8,6 +9,19 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+// requireUserID returns an Orca user ID supplied through the environment. Membership cannot be
+// asserted against a made-up ID: the API silently ignores users it does not know, which leaves
+// the applied state without the requested member and fails the apply as an inconsistent result.
+// IDs for a given org come from the /api/users endpoint (the `user_id` field).
+func requireUserID(t *testing.T, envVar string) string {
+	t.Helper()
+	v := os.Getenv(envVar)
+	if v == "" {
+		t.Skipf("set %s to a user ID that exists in the target org to run this test", envVar)
+	}
+	return v
+}
 
 func TestAccGroupResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -18,12 +32,9 @@ func TestAccGroupResource_Basic(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_group" "tf-group-1" {
     name = "Orca Terraform Group 1"
-    
+
     sso_group = true
     description = "First Terraform Group"
-    users = [
-        "abc6d072-c4eb-47d3-b0c5-7c5a7ea"
-    ]
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -43,12 +54,9 @@ resource "orcasecurity_group" "tf-group-1" {
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_group" "tf-group-1" {
     name = "Orca Terraform Group 2"
-    
+
     sso_group = false
     description = "2nd Terraform Group"
-    users = [
-        "abc6d072-c4eb-47d3-b0c5-7c5a7ea99g"
-    ]
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -61,42 +69,45 @@ resource "orcasecurity_group" "tf-group-1" {
 	})
 }
 
-func TestAccGroupResource_UpdateWidgets(t *testing.T) {
+// TestAccGroupResource_UpdateUsers covers replacing a group's membership. It needs two user IDs
+// that really exist in the target org, so it is skipped unless both are provided:
+// ORCASECURITY_ACC_GROUP_USER_ID and ORCASECURITY_ACC_GROUP_USER_ID_2.
+func TestAccGroupResource_UpdateUsers(t *testing.T) {
+	firstUser := requireUserID(t, "ORCASECURITY_ACC_GROUP_USER_ID")
+	secondUser := requireUserID(t, "ORCASECURITY_ACC_GROUP_USER_ID_2")
+
+	config := func(userID string) string {
+		return orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "orcasecurity_group" "tf-group-1" {
+    name = "Orca Terraform Group 1"
+
+    sso_group = true
+    description = "First Terraform Group"
+    users = [
+        %q
+    ]
+}
+`, userID)
+	}
+
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_group" "tf-group-1" {
-    name = "Orca Terraform Group 1"
-    
-    sso_group = true
-    description = "First Terraform Group"
-    users = [
-        "abc6d072-c4eb-47d3-b0c5-7c5a7ea"
-    ]
-}
-`,
+				Config: config(firstUser),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_group.tf-group-1", "users[0]", "abc6d072-c4eb-47d3-b0c5-7c5a7ea"),
+					resource.TestCheckResourceAttr("orcasecurity_group.tf-group-1", "users.#", "1"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_group.tf-group-1", "users.*", firstUser),
 				),
 			},
-			// update
+			// update — swap the member out
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_group" "tf-group-1" {
-    name = "Orca Terraform Group 1"
-    
-    sso_group = true
-    description = "First Terraform Group"
-    users = [
-        "abc6d072-c4eb-47d3-b0c5-7c5a7ea99g"
-    ]
-}
-			`,
+				Config: config(secondUser),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_group.tf-group-1", "users[0]", "abc6d072-c4eb-47d3-b0c5-7c5a7ea99g"),
+					resource.TestCheckResourceAttr("orcasecurity_group.tf-group-1", "users.#", "1"),
+					resource.TestCheckTypeSetElemAttr("orcasecurity_group.tf-group-1", "users.*", secondUser),
 				),
 			},
 		},
