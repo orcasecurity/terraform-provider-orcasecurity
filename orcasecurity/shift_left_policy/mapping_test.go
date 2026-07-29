@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -225,7 +226,7 @@ func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 	}
 
 	state := apiToState(apiPolicy, nil)
-	got := stringSliceFromSet(state.ProjectsIds)
+	got := tfconv.SetToStringSlice(state.ProjectsIds)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 projects_ids, got %#v", got)
 	}
@@ -243,7 +244,7 @@ func TestAPIToState_ProjectsIdsAuthoritativeOnRead(t *testing.T) {
 		ID: "p1", Type: "licenses", ProjectsIds: []string{"proj-a", "proj-b"},
 	}
 	state := apiToState(api, existing)
-	got := stringSliceFromSet(state.ProjectsIds)
+	got := tfconv.SetToStringSlice(state.ProjectsIds)
 	if len(got) != 2 {
 		t.Fatalf("expected refresh to reflect API projects [proj-a proj-b], got %v", got)
 	}

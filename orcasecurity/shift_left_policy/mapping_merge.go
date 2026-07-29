@@ -2,6 +2,10 @@ package shift_left_policy
 
 import "github.com/hashicorp/terraform-plugin-framework/types"
 
+func isStringSet(value types.String) bool {
+	return !value.IsNull() && !value.IsUnknown() && value.ValueString() != ""
+}
+
 func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	if isStringSet(src.ID) {
 		dst.ID = src.ID
@@ -22,60 +26,36 @@ func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	}
 }
 
-func mergeControlsBlockFromPlan(dst, src *controlsBlockModel) {
-	if dst == nil || src == nil {
+// mergeControlBlock restores the all_controls flag and index-wise merges the
+// config-owned control fields from prior state. dst is fresh from the API, so
+// controls it added/removed out of band still surface. Shared by every flat block.
+func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls *[]C, srcControls []C, mergeControl func(dst *C, src C)) {
+	*dstAll = srcAll
+	if boolIsTrue(srcAll) {
+		*dstControls = nil
 		return
 	}
-	dst.AllControls = src.AllControls
-	if boolIsTrue(src.AllControls) {
-		dst.Controls = nil
-		return
-	}
-	for i := range dst.Controls {
-		if i < len(src.Controls) {
-			mergeBaseControlFromPlan(&dst.Controls[i], src.Controls[i])
+	d := *dstControls
+	for i := range d {
+		if i < len(srcControls) {
+			mergeControl(&d[i], srcControls[i])
 		}
 	}
 }
 
-func mergeIacBlockFromPlan(dst, src *iacBlockModel) {
-	if dst == nil || src == nil {
-		return
-	}
-	dst.AllControls = src.AllControls
-	if boolIsTrue(src.AllControls) {
-		dst.Controls = nil
-		return
-	}
-	for i := range dst.Controls {
-		if i >= len(src.Controls) {
-			continue
-		}
-		mergeBaseControlFromPlan(&dst.Controls[i].baseControlModel, src.Controls[i].baseControlModel)
-		dst.Controls[i].Frameworks = src.Controls[i].Frameworks
-		dst.Controls[i].OrcaAlertRuleType = src.Controls[i].OrcaAlertRuleType
-	}
+func mergeIacControlFromPlan(dst *iacControlModel, src iacControlModel) {
+	mergeBaseControlFromPlan(&dst.baseControlModel, src.baseControlModel)
+	dst.Frameworks = src.Frameworks
+	dst.OrcaAlertRuleType = src.OrcaAlertRuleType
 }
 
-func mergeContainerScopeFromPlan(dst, src *containerScopeBlockModel) {
-	if dst == nil || src == nil {
-		return
-	}
-	dst.AllControls = src.AllControls
-	if boolIsTrue(src.AllControls) {
-		dst.Controls = nil
-		return
-	}
-	for i := range src.Controls {
-		if i >= len(dst.Controls) {
-			break
-		}
-		mergeBaseControlFromPlan(&dst.Controls[i].baseControlModel, src.Controls[i].baseControlModel)
-		dst.Controls[i].Origin = src.Controls[i].Origin
-	}
+func mergeContainerControlFromPlan(dst *containerControlModel, src containerControlModel) {
+	mergeBaseControlFromPlan(&dst.baseControlModel, src.baseControlModel)
+	dst.Origin = src.Origin
 }
 
-func mergeSastExtrasFromPlan(dst *sastControlModel, src sastControlModel) {
+func mergeSastControlFromPlan(dst *sastControlModel, src sastControlModel) {
+	mergeBaseControlFromPlan(&dst.baseControlModel, src.baseControlModel)
 	dst.Languages = src.Languages
 	dst.Owasp = src.Owasp
 	dst.Cwe = src.Cwe
@@ -85,7 +65,8 @@ func mergeSastExtrasFromPlan(dst *sastControlModel, src sastControlModel) {
 	dst.Likelihood = src.Likelihood
 }
 
-func mergeLicenseExtrasFromPlan(dst *licenseControlModel, src licenseControlModel) {
+func mergeLicenseControlFromPlan(dst *licenseControlModel, src licenseControlModel) {
+	mergeBaseControlFromPlan(&dst.baseControlModel, src.baseControlModel)
 	dst.LicenseID = src.LicenseID
 	dst.LicenseCategory = src.LicenseCategory
 	dst.IsOsiApproved = src.IsOsiApproved
@@ -93,6 +74,41 @@ func mergeLicenseExtrasFromPlan(dst *licenseControlModel, src licenseControlMode
 	dst.IsFsfLibre = src.IsFsfLibre
 	dst.Url = src.Url
 	dst.AdditionalInfo = src.AdditionalInfo
+}
+
+func mergeControlsBlockFromPlan(dst, src *controlsBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeBaseControlFromPlan)
+}
+
+func mergeIacBlockFromPlan(dst, src *iacBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeIacControlFromPlan)
+}
+
+func mergeContainerScopeFromPlan(dst, src *containerScopeBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeContainerControlFromPlan)
+}
+
+func mergeSastBlockFromPlan(dst, src *sastBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeSastControlFromPlan)
+}
+
+func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
+	if dst == nil || src == nil {
+		return
+	}
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeLicenseControlFromPlan)
 }
 
 func mergeContainerImageFromPlan(dst, src *containerImageBlockModel) {
@@ -103,42 +119,6 @@ func mergeContainerImageFromPlan(dst, src *containerImageBlockModel) {
 	mergeContainerScopeFromPlan(dst.SecretDetection, src.SecretDetection)
 	mergeContainerScopeFromPlan(dst.ContainerImageBestPractices, src.ContainerImageBestPractices)
 	mergeContainerScopeFromPlan(dst.Custom, src.Custom)
-}
-
-func mergeSastBlockFromPlan(dst, src *sastBlockModel) {
-	if dst == nil || src == nil {
-		return
-	}
-	dst.AllControls = src.AllControls
-	if boolIsTrue(src.AllControls) {
-		dst.Controls = nil
-		return
-	}
-	for i := range dst.Controls {
-		if i >= len(src.Controls) {
-			continue
-		}
-		mergeBaseControlFromPlan(&dst.Controls[i].baseControlModel, src.Controls[i].baseControlModel)
-		mergeSastExtrasFromPlan(&dst.Controls[i], src.Controls[i])
-	}
-}
-
-func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
-	if dst == nil || src == nil {
-		return
-	}
-	dst.AllControls = src.AllControls
-	if boolIsTrue(src.AllControls) {
-		dst.Controls = nil
-		return
-	}
-	for i := range dst.Controls {
-		if i >= len(src.Controls) {
-			continue
-		}
-		mergeBaseControlFromPlan(&dst.Controls[i].baseControlModel, src.Controls[i].baseControlModel)
-		mergeLicenseExtrasFromPlan(&dst.Controls[i], src.Controls[i])
-	}
 }
 
 // All per-control fields are config-owned: the API enriches scm/entity/threat

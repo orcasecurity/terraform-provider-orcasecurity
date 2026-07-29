@@ -101,8 +101,18 @@ func controlIDFromTopLevel(control map[string]interface{}, topLevel []map[string
 	return ""
 }
 
-func isStringSet(value types.String) bool {
-	return !value.IsNull() && !value.IsUnknown() && value.ValueString() != ""
+func stringValueFromMap(m map[string]interface{}, key string) types.String {
+	if v, ok := m[key].(string); ok {
+		return types.StringValue(v)
+	}
+	return types.String{}
+}
+
+func boolValueFromMap(m map[string]interface{}, key string) types.Bool {
+	if v, ok := m[key].(bool); ok {
+		return types.BoolValue(v)
+	}
+	return types.Bool{}
 }
 
 func controlsFromRaw(raw json.RawMessage) []map[string]interface{} {
@@ -123,15 +133,8 @@ func policyDataFromRaw(raw json.RawMessage) map[string]interface{} {
 	return data
 }
 
-func rawScopeControls(data map[string]interface{}, key string) []map[string]interface{} {
-	section, ok := data[key].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	items, ok := section["controls"].([]interface{})
-	if !ok {
-		return nil
-	}
+// asMapSlice keeps the map elements of a decoded JSON array, dropping non-objects.
+func asMapSlice(items []interface{}) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(items))
 	for _, item := range items {
 		if m, ok := item.(map[string]interface{}); ok {
@@ -141,15 +144,21 @@ func rawScopeControls(data map[string]interface{}, key string) []map[string]inte
 	return result
 }
 
+func rawScopeControls(data map[string]interface{}, key string) []map[string]interface{} {
+	section, ok := data[key].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	items, ok := section["controls"].([]interface{})
+	if !ok {
+		return nil
+	}
+	return asMapSlice(items)
+}
+
 func controlsFromPolicyData(data map[string]interface{}) []map[string]interface{} {
 	if controlsRaw, ok := data["controls"].([]interface{}); ok {
-		result := make([]map[string]interface{}, 0, len(controlsRaw))
-		for _, item := range controlsRaw {
-			if m, ok := item.(map[string]interface{}); ok {
-				result = append(result, m)
-			}
-		}
-		return result
+		return asMapSlice(controlsRaw)
 	}
 	return nil
 }
@@ -164,18 +173,15 @@ func scopeControlsFromPolicyData(data map[string]interface{}, key string, topLev
 		return &containerScopeBlockModel{}
 	}
 	block := &containerScopeBlockModel{}
-	for _, item := range controlsRaw {
-		if m, ok := item.(map[string]interface{}); ok {
-			if id := controlIDFromTopLevel(m, topLevelControls); id != "" {
-				m["id"] = id
-			}
-			base := mapToBaseControl(m)
-			ctrl := containerControlModel{baseControlModel: base}
-			if v, ok := m["origin"].(string); ok {
-				ctrl.Origin = types.StringValue(v)
-			}
-			block.Controls = append(block.Controls, ctrl)
+	for _, m := range asMapSlice(controlsRaw) {
+		if id := controlIDFromTopLevel(m, topLevelControls); id != "" {
+			m["id"] = id
 		}
+		ctrl := containerControlModel{baseControlModel: mapToBaseControl(m)}
+		if v, ok := m["origin"].(string); ok {
+			ctrl.Origin = types.StringValue(v)
+		}
+		block.Controls = append(block.Controls, ctrl)
 	}
 	return block
 }

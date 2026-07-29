@@ -2,8 +2,6 @@ package shift_left_policy
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
@@ -20,23 +18,6 @@ func stringSliceFromTypes(values []types.String) []string {
 		}
 	}
 	return result
-}
-
-func stringSliceFromSet(s types.Set) []string {
-	return tfconv.SetToStringSlice(s)
-}
-
-func setFromStringSlice(values []string) types.Set {
-	return tfconv.StringSliceToSet(values)
-}
-
-func containsString(values []string, target string) bool {
-	for _, v := range values {
-		if v == target {
-			return true
-		}
-	}
-	return false
 }
 
 func encodeJSONField(value interface{}, label string, diags *diag.Diagnostics) json.RawMessage {
@@ -63,7 +44,7 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 		WarnMode:                 model.WarnMode.ValueBool(),
 		PriorityFailureThreshold: model.PriorityFailureThreshold.ValueString(),
 		Type:                     policyType,
-		ProjectsIds:              stringSliceFromSet(model.ProjectsIds),
+		ProjectsIds:              tfconv.SetToStringSlice(model.ProjectsIds),
 	}
 
 	controls, policyData, d := buildControlsAndData(model, &policy)
@@ -90,28 +71,6 @@ func boolIsTrue(b types.Bool) bool {
 	return !b.IsNull() && !b.IsUnknown() && b.ValueBool()
 }
 
-func containerAllControlsScopes(block *containerImageBlockModel) []string {
-	if block == nil {
-		return nil
-	}
-	var keys []string
-	scopes := []struct {
-		key   string
-		block *containerScopeBlockModel
-	}{
-		{"vulnerabilities", block.Vulnerabilities},
-		{"secret_detection", block.SecretDetection},
-		{"container_image_best_practices", block.ContainerImageBestPractices},
-		{"custom", block.Custom},
-	}
-	for _, s := range scopes {
-		if s.block != nil && boolIsTrue(s.block.AllControls) {
-			keys = append(keys, s.key)
-		}
-	}
-	return keys
-}
-
 func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicyResourceModel) *shiftLeftPolicyResourceModel {
 	model := &shiftLeftPolicyResourceModel{
 		ID:                       types.StringValue(apiPolicy.ID),
@@ -121,7 +80,7 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		Disabled:                 types.BoolValue(apiPolicy.Disabled),
 		WarnMode:                 types.BoolValue(apiPolicy.WarnMode),
 		PriorityFailureThreshold: types.StringValue(apiPolicy.PriorityFailureThreshold),
-		ProjectsIds:              setFromStringSlice(apiPolicy.ProjectsIds),
+		ProjectsIds:              tfconv.StringSliceToSet(apiPolicy.ProjectsIds),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
@@ -154,29 +113,7 @@ func stateFromPlanAfterWrite(plan *shiftLeftPolicyResourceModel, apiPolicy *api_
 	// projects_ids is Optional+Computed: when the user omitted it the plan value
 	// is unknown, so anchor it on the projects the API reports as attached.
 	if plan.ProjectsIds.IsUnknown() {
-		state.ProjectsIds = setFromStringSlice(apiPolicy.ProjectsIds)
+		state.ProjectsIds = tfconv.StringSliceToSet(apiPolicy.ProjectsIds)
 	}
 	return &state
-}
-
-func stringValueFromMap(m map[string]interface{}, key string) types.String {
-	if v, ok := m[key].(string); ok {
-		return types.StringValue(v)
-	}
-	return types.String{}
-}
-
-func boolValueFromMap(m map[string]interface{}, key string) types.Bool {
-	if v, ok := m[key].(bool); ok {
-		return types.BoolValue(v)
-	}
-	return types.Bool{}
-}
-
-func parseImportID(id string) (policyType, policyID string, err error) {
-	policyType, policyID, ok := strings.Cut(id, "/")
-	if !ok || policyType == "" || policyID == "" {
-		return "", "", fmt.Errorf("import ID must be in the format <type>/<id>, got %q", id)
-	}
-	return policyType, policyID, nil
 }

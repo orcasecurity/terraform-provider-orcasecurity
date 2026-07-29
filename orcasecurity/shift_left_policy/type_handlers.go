@@ -6,7 +6,40 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// blockShape describes a flat (non-scoped) policy type whose block B carries an
+// all_controls flag and a flat control list. flatHandler builds the handler from
+// it so the five flat types collapse to one line each.
+type blockShape[B any] struct {
+	get         func(*shiftLeftPolicyResourceModel) *B
+	set         func(*shiftLeftPolicyResourceModel, *B)
+	allControls func(*B) types.Bool
+	toMaps      func(*B) []map[string]interface{}
+	build       func([]map[string]interface{}) *B
+	merge       func(dst, src *B)
+}
+
+func flatHandler[B any](catalog string, s blockShape[B]) policyTypeHandler {
+	return policyTypeHandler{
+		catalogType: catalog,
+		present:     func(m *shiftLeftPolicyResourceModel) bool { return s.get(m) != nil },
+		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
+			b := s.get(m)
+			return b != nil && boolIsTrue(s.allControls(b))
+		}),
+		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
+			return s.toMaps(s.get(m))
+		}),
+		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
+			s.set(m, s.build(controls))
+		},
+		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
+			s.merge(s.get(state), s.get(plan))
+		},
+	}
+}
 
 type policyTypeHandler struct {
 	catalogType       string
@@ -68,52 +101,32 @@ func fsScopedHandler(
 }
 
 var policyTypeHandlers = map[string]policyTypeHandler{
-	"iac": {
-		catalogType: "iac",
-		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Iac != nil },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.Iac != nil && boolIsTrue(m.Iac.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return iacControlsToMaps(m.Iac)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.Iac = buildIacBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) { mergeIacBlockFromPlan(state.Iac, plan.Iac) },
-	},
-	"sast": {
-		catalogType: "sast",
-		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Sast != nil },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.Sast != nil && boolIsTrue(m.Sast.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return sastControlsToMaps(m.Sast)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.Sast = buildSastBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) { mergeSastBlockFromPlan(state.Sast, plan.Sast) },
-	},
+	"iac": flatHandler("iac", blockShape[iacBlockModel]{
+		get:         func(m *shiftLeftPolicyResourceModel) *iacBlockModel { return m.Iac },
+		set:         func(m *shiftLeftPolicyResourceModel, b *iacBlockModel) { m.Iac = b },
+		allControls: func(b *iacBlockModel) types.Bool { return b.AllControls },
+		toMaps:      iacControlsToMaps,
+		build:       buildIacBlock,
+		merge:       mergeIacBlockFromPlan,
+	}),
+	"sast": flatHandler("sast", blockShape[sastBlockModel]{
+		get:         func(m *shiftLeftPolicyResourceModel) *sastBlockModel { return m.Sast },
+		set:         func(m *shiftLeftPolicyResourceModel, b *sastBlockModel) { m.Sast = b },
+		allControls: func(b *sastBlockModel) types.Bool { return b.AllControls },
+		toMaps:      sastControlsToMaps,
+		build:       buildSastBlock,
+		merge:       mergeSastBlockFromPlan,
+	}),
 	// Legacy aggregate file_system type: flat controls (no feature_scope), unlike
 	// the scoped file_system_* sub-types. Kept for backward compatibility.
-	"file_system": {
-		catalogType: "file_system",
-		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.FileSystem != nil },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.FileSystem != nil && boolIsTrue(m.FileSystem.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return controlsBlockToMaps(m.FileSystem)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.FileSystem = buildControlsBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeControlsBlockFromPlan(state.FileSystem, plan.FileSystem)
-		},
-	},
+	"file_system": flatHandler("file_system", blockShape[controlsBlockModel]{
+		get:         func(m *shiftLeftPolicyResourceModel) *controlsBlockModel { return m.FileSystem },
+		set:         func(m *shiftLeftPolicyResourceModel, b *controlsBlockModel) { m.FileSystem = b },
+		allControls: func(b *controlsBlockModel) types.Bool { return b.AllControls },
+		toMaps:      controlsBlockToMaps,
+		build:       buildControlsBlock,
+		merge:       mergeControlsBlockFromPlan,
+	}),
 	"file_system_vulnerabilities": fsScopedHandler("vulnerabilities",
 		func(m *shiftLeftPolicyResourceModel) *controlsBlockModel { return m.FileSystemVulnerabilities },
 		func(m *shiftLeftPolicyResourceModel, b *controlsBlockModel) { m.FileSystemVulnerabilities = b },
@@ -173,42 +186,48 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 			mergeScmPostureBlockFromPlan(state.ScmPosture, plan.ScmPosture)
 		},
 	},
-	"licenses": {
-		catalogType: "licenses",
-		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Licenses != nil },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.Licenses != nil && boolIsTrue(m.Licenses.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return licenseControlsToMaps(m.Licenses.Controls)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.Licenses = buildLicensesBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeLicensesBlockFromPlan(state.Licenses, plan.Licenses)
-		},
-	},
+	"licenses": flatHandler("licenses", blockShape[licensesBlockModel]{
+		get:         func(m *shiftLeftPolicyResourceModel) *licensesBlockModel { return m.Licenses },
+		set:         func(m *shiftLeftPolicyResourceModel, b *licensesBlockModel) { m.Licenses = b },
+		allControls: func(b *licensesBlockModel) types.Bool { return b.AllControls },
+		toMaps:      func(b *licensesBlockModel) []map[string]interface{} { return licenseControlsToMaps(b.Controls) },
+		build:       buildLicensesBlock,
+		merge:       mergeLicensesBlockFromPlan,
+	}),
 	// Legacy sca type: shares the licenses block shape (superseded by licenses).
 	// Kept for backward compatibility.
-	"sca": {
-		catalogType: "sca",
-		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.Sca != nil },
-		allControlsScopes: singleScopeAll(func(m *shiftLeftPolicyResourceModel) bool {
-			return m.Sca != nil && boolIsTrue(m.Sca.AllControls)
-		}),
-		buildWrite: controlsWrite(func(m *shiftLeftPolicyResourceModel) []map[string]interface{} {
-			return licenseControlsToMaps(m.Sca.Controls)
-		}),
-		applyRead: func(m *shiftLeftPolicyResourceModel, _ *api_client.ShiftLeftPolicy, _ map[string]interface{}, controls []map[string]interface{}) {
-			m.Sca = buildLicensesBlock(controls)
-		},
-		mergePlan: func(state, plan *shiftLeftPolicyResourceModel) {
-			mergeLicensesBlockFromPlan(state.Sca, plan.Sca)
-		},
-	},
+	"sca": flatHandler("sca", blockShape[licensesBlockModel]{
+		get:         func(m *shiftLeftPolicyResourceModel) *licensesBlockModel { return m.Sca },
+		set:         func(m *shiftLeftPolicyResourceModel, b *licensesBlockModel) { m.Sca = b },
+		allControls: func(b *licensesBlockModel) types.Bool { return b.AllControls },
+		toMaps:      func(b *licensesBlockModel) []map[string]interface{} { return licenseControlsToMaps(b.Controls) },
+		build:       buildLicensesBlock,
+		merge:       mergeLicensesBlockFromPlan,
+	}),
 	// malicious_packages: no controls, no catalog; policy_data omitted (server defaults it to {}).
 	"malicious_packages": {},
+}
+
+func containerAllControlsScopes(block *containerImageBlockModel) []string {
+	if block == nil {
+		return nil
+	}
+	var keys []string
+	scopes := []struct {
+		key   string
+		block *containerScopeBlockModel
+	}{
+		{"vulnerabilities", block.Vulnerabilities},
+		{"secret_detection", block.SecretDetection},
+		{"container_image_best_practices", block.ContainerImageBestPractices},
+		{"custom", block.Custom},
+	}
+	for _, s := range scopes {
+		if s.block != nil && boolIsTrue(s.block.AllControls) {
+			keys = append(keys, s.key)
+		}
+	}
+	return keys
 }
 
 func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) diag.Diagnostics {

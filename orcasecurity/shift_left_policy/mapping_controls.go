@@ -2,6 +2,7 @@ package shift_left_policy
 
 import (
 	"encoding/json"
+	"slices"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -152,26 +153,28 @@ func scmControlToMap(c scmControlModel) map[string]interface{} {
 	return m
 }
 
+// mapSlice maps in→f(in), preserving the make([]R,0,len) (non-nil) result the
+// callers relied on so an empty control list still marshals as [] not null.
+func mapSlice[T, R any](in []T, f func(T) R) []R {
+	out := make([]R, 0, len(in))
+	for _, v := range in {
+		out = append(out, f(v))
+	}
+	return out
+}
+
 func controlsBlockToMaps(block *controlsBlockModel) []map[string]interface{} {
 	if block == nil {
 		return nil
 	}
-	result := make([]map[string]interface{}, 0, len(block.Controls))
-	for _, c := range block.Controls {
-		result = append(result, baseControlToMap(c))
-	}
-	return result
+	return mapSlice(block.Controls, baseControlToMap)
 }
 
 func containerScopeToMaps(block *containerScopeBlockModel) []map[string]interface{} {
 	if block == nil {
 		return nil
 	}
-	result := make([]map[string]interface{}, 0, len(block.Controls))
-	for _, c := range block.Controls {
-		result = append(result, containerControlToMap(c))
-	}
-	return result
+	return mapSlice(block.Controls, containerControlToMap)
 }
 
 func scopeControlsWrapper(controls []map[string]interface{}) map[string]interface{} {
@@ -182,35 +185,19 @@ func scopeControlsWrapper(controls []map[string]interface{}) map[string]interfac
 }
 
 func iacControlsToMaps(block *iacBlockModel) []map[string]interface{} {
-	controls := make([]map[string]interface{}, 0, len(block.Controls))
-	for _, c := range block.Controls {
-		controls = append(controls, iacControlToMap(c))
-	}
-	return controls
+	return mapSlice(block.Controls, iacControlToMap)
 }
 
 func sastControlsToMaps(block *sastBlockModel) []map[string]interface{} {
-	controls := make([]map[string]interface{}, 0, len(block.Controls))
-	for _, c := range block.Controls {
-		controls = append(controls, sastControlToMap(c))
-	}
-	return controls
+	return mapSlice(block.Controls, sastControlToMap)
 }
 
 func licenseControlsToMaps(items []licenseControlModel) []map[string]interface{} {
-	controls := make([]map[string]interface{}, 0, len(items))
-	for _, c := range items {
-		controls = append(controls, licenseControlToMap(c))
-	}
-	return controls
+	return mapSlice(items, licenseControlToMap)
 }
 
 func scmControlsToMaps(items []scmControlModel) []map[string]interface{} {
-	controls := make([]map[string]interface{}, 0, len(items))
-	for _, c := range items {
-		controls = append(controls, scmControlToMap(c))
-	}
-	return controls
+	return mapSlice(items, scmControlToMap)
 }
 
 func buildContainerImageData(block *containerImageBlockModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) []map[string]interface{} {
@@ -229,7 +216,7 @@ func buildContainerImageData(block *containerImageBlockModel, policy *api_client
 
 	var controls []map[string]interface{}
 	for _, s := range scopes {
-		if len(s.controls) > 0 || containsString(policy.FeatureScope, s.key) {
+		if len(s.controls) > 0 || slices.Contains(policy.FeatureScope, s.key) {
 			policyData[s.key] = scopeControlsWrapper(s.controls)
 		}
 		controls = append(controls, s.controls...)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -44,6 +45,14 @@ func (r *shiftLeftPolicyResource) Schema(ctx context.Context, req resource.Schem
 		Attributes:  resourceSchemaAttributes(),
 		Blocks:      resourceSchemaBlocks(),
 	}
+}
+
+func parseImportID(id string) (policyType, policyID string, err error) {
+	policyType, policyID, ok := strings.Cut(id, "/")
+	if !ok || policyType == "" || policyID == "" {
+		return "", "", fmt.Errorf("import ID must be in the format <type>/<id>, got %q", id)
+	}
+	return policyType, policyID, nil
 }
 
 func (r *shiftLeftPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -96,7 +105,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, instance.ID, stringSliceFromSet(plan.ProjectsIds)); err != nil {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, instance.ID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
 			resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
 			return
 		}
@@ -185,7 +194,7 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	// Sync projects only when the user manages them (known value). An
 	// unknown/null projects_ids means "leave associations as-is".
 	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, stringSliceFromSet(plan.ProjectsIds)); err != nil {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
 			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
 			return
 		}
