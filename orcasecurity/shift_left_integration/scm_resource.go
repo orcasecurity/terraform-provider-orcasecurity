@@ -42,14 +42,31 @@ func ConfigureAPIClient(req resource.ConfigureRequest) *api_client.APIClient {
 	return req.ProviderData.(*api_client.APIClient)
 }
 
-func ImportSlashPair(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, leftAttr, rightAttr, expected string) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+// ImportScopedInstallation splits <installation_id>/<rest>, sets installation_id,
+// and if rest is an Orca unit UUID sets id and reports the ID resolved. Otherwise
+// it returns rest for the caller to place on a provider-specific attribute.
+func ImportScopedInstallation(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, expected string) (rest string, resolved bool) {
+	installationID, rest, ok := strings.Cut(req.ID, "/")
+	if !ok || installationID == "" || rest == "" {
 		resp.Diagnostics.AddError("Invalid import ID", "expected "+expected)
+		return "", true
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), installationID)...)
+	if LooksLikeUUID(rest) {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), rest)...)
+		return "", true
+	}
+	return rest, false
+}
+
+// ImportScopedUnit imports <installation_id>/<orca_uuid_or_unit_name>, routing the
+// UUID case to id and everything else to nameAttr.
+func ImportScopedUnit(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, nameAttr, expected string) {
+	rest, resolved := ImportScopedInstallation(ctx, req, resp, expected)
+	if resolved {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(leftAttr), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(rightAttr), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(nameAttr), rest)...)
 }
 
 // Disambiguates Orca unit UUIDs from SCM-side slugs/names on import.

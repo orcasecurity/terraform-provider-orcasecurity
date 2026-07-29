@@ -27,7 +27,9 @@ func ExistingFromAPI(
 }
 
 func ExistingFromCommon(c api_client.ScmUnitCommonFields) ExistingUnit {
-	return ExistingFromAPI(c.InstallationMode, c.DefaultPolicies, c.Policies, c.Project, c.ConfigSettings)
+	ex := ExistingFromAPI(c.InstallationMode, c.DefaultPolicies, c.Policies, c.Project, c.ConfigSettings)
+	ex.RepoCount = c.IntegratedRepositoriesCount
+	return ex
 }
 
 func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {

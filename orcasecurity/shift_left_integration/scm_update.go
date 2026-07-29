@@ -2,34 +2,17 @@ package shift_left_integration
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func PolicyIDsFromSet(s types.Set) []string {
-	if s.IsNull() || s.IsUnknown() {
-		return nil
-	}
-	elems := s.Elements()
-	out := make([]string, 0, len(elems))
-	for _, e := range elems {
-		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
-			out = append(out, v.ValueString())
-		}
-	}
-	return out
+	return tfconv.SetToStringSlice(s)
 }
 
 func PolicyIDsToSet(ids []string) types.Set {
-	if len(ids) == 0 {
-		return types.SetNull(types.StringType)
-	}
-	elems := make([]attr.Value, 0, len(ids))
-	for _, id := range ids {
-		elems = append(elems, types.StringValue(id))
-	}
-	return types.SetValueMust(types.StringType, elems)
+	return tfconv.StringSliceToSet(ids)
 }
 
 // The API still returns SCAN_ALL on old units but rejects it on update.
@@ -59,6 +42,7 @@ type ExistingUnit struct {
 	PolicyIDs        []string
 	ConfigSettings   api_client.ShiftLeftConfigSettings
 	ProjectID        string
+	RepoCount        int64
 }
 
 // Plan values are unreliable for project intent because UseStateForUnknown backfills omitted fields.

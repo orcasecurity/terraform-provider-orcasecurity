@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -23,28 +23,11 @@ func stringSliceFromTypes(values []types.String) []string {
 }
 
 func stringSliceFromSet(s types.Set) []string {
-	if s.IsNull() || s.IsUnknown() {
-		return nil
-	}
-	elems := s.Elements()
-	result := make([]string, 0, len(elems))
-	for _, e := range elems {
-		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
-			result = append(result, v.ValueString())
-		}
-	}
-	return result
+	return tfconv.SetToStringSlice(s)
 }
 
 func setFromStringSlice(values []string) types.Set {
-	if len(values) == 0 {
-		return types.SetNull(types.StringType)
-	}
-	elems := make([]attr.Value, len(values))
-	for i, v := range values {
-		elems[i] = types.StringValue(v)
-	}
-	return types.SetValueMust(types.StringType, elems)
+	return tfconv.StringSliceToSet(values)
 }
 
 func containsString(values []string, target string) bool {

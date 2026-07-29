@@ -418,9 +418,9 @@ type azureRepositoryItem struct {
 		ID          string `json:"id"`
 		AccountName string `json:"account_name"`
 	} `json:"azure_account_installation"`
-	Project              *scmIDRef  `json:"project"`
-	Repository           scmRepoRef `json:"repository"`
-	ManagedRepoProperies struct {
+	Project               *scmIDRef  `json:"project"`
+	Repository            scmRepoRef `json:"repository"`
+	ManagedRepoProperties struct {
 		Disabled          bool   `json:"disabled"`
 		ConfigFileSupport string `json:"config_file_support"`
 	} `json:"managed_repo_properties"`
@@ -435,11 +435,11 @@ type azureRepositoryItem struct {
 
 func (r *azureRepositoryItem) common() ScmRepository {
 	return scmRepository(r.ID, r.AzureAccountInstallation.ID, r.Project, r.Repository, scmRepoConfig{
-		Disabled:          r.ManagedRepoProperies.Disabled,
+		Disabled:          r.ManagedRepoProperties.Disabled,
 		DisableScanPRs:    r.DisableScanPullRequests,
 		CommentsOnPRs:     r.CommentsOnPullRequests,
 		PrSummaryComment:  r.PrSummaryComment,
-		ConfigFileSupport: r.ManagedRepoProperies.ConfigFileSupport,
+		ConfigFileSupport: r.ManagedRepoProperties.ConfigFileSupport,
 	}, scmRepoStatus{r.Status, r.RepositoryContextID, r.IntegrationStatus, r.ScmPosturePolicyID})
 }
 

@@ -3,12 +3,10 @@ package shift_left_bitbucket_account
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
@@ -39,17 +37,7 @@ func (r *bitbucketAccountResource) Schema(_ context.Context, _ resource.SchemaRe
 }
 
 func (r *bitbucketAccountResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError("Invalid import ID", "expected <installation_id>/<account_slug_or_orca_uuid>")
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), parts[0])...)
-	if shift_left_integration.LooksLikeUUID(parts[1]) {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_id"), parts[1])...)
+	shift_left_integration.ImportScopedUnit(ctx, req, resp, "account_id", "<installation_id>/<account_slug_or_orca_uuid>")
 }
 
 func (r *bitbucketAccountResource) ops() shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel] {

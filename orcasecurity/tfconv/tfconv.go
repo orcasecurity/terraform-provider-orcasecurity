@@ -5,9 +5,39 @@ package tfconv
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// SetToStringSlice converts a set of strings to a Go slice without a context.
+// Null/unknown sets and null/unknown elements are dropped. Prefer StringSetToAPI
+// when a context is available and an empty [] must be distinguished from omitted.
+func SetToStringSlice(s types.Set) []string {
+	if s.IsNull() || s.IsUnknown() {
+		return nil
+	}
+	elems := s.Elements()
+	out := make([]string, 0, len(elems))
+	for _, e := range elems {
+		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
+			out = append(out, v.ValueString())
+		}
+	}
+	return out
+}
+
+// StringSliceToSet builds a set of strings; an empty slice becomes a null set.
+func StringSliceToSet(values []string) types.Set {
+	if len(values) == 0 {
+		return types.SetNull(types.StringType)
+	}
+	elems := make([]attr.Value, len(values))
+	for i, v := range values {
+		elems[i] = types.StringValue(v)
+	}
+	return types.SetValueMust(types.StringType, elems)
+}
 
 // StringListToAPI converts a types.List of strings to a Go slice.
 // Null and unknown lists become nil (omitted from the JSON payload).

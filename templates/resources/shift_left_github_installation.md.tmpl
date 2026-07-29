@@ -12,6 +12,8 @@ description: |-
 
 -> **Destroy:** `terraform destroy` DELETEs the Orca GitHub installation (UI parity). Re-create requires reinstalling the Orca GitHub App.
 
+!> **Adopt semantics:** This resource **adopts** a pre-existing SCM installation rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an installation that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing installation under management without a takeover write.
+
 -> **Coverage:** GitHub App install URL (`/github/config/`), GHES `/github/enterprises/*`, browse repos, `check_availability`, and scan-now are not managed here.
 
 ## Example Usage

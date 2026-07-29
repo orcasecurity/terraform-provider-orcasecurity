@@ -14,28 +14,28 @@ func TestAccLiveSmoke_NewEndpoints(t *testing.T) {
 	t.Run("azure_installations", func(t *testing.T) { smokeAzureInstallations(t, client) })
 
 	t.Run("github_repositories", func(t *testing.T) {
-		smokeRepoRows(t, client, "github", func(r *githubRepositoryItem) string {
+		smokeRepoRows(t, client, "github", (*githubRepositoryItem).common, func(r *githubRepositoryItem) string {
 			c := r.common()
 			return fmt.Sprintf("gh row id=%s unit=%s ghid=%d name=%q proj=%s ctx=%s status=%s disabled=%v comments=%q",
 				c.ID, c.UnitID, r.GithubRepositoryID, c.RepositoryName, c.ProjectID, c.RepositoryContextID, c.Status, c.Disabled, c.CommentsOnPRs)
 		})
 	})
 	t.Run("gitlab_repositories", func(t *testing.T) {
-		smokeRepoRows(t, client, "gitlab", func(r *gitlabRepositoryItem) string {
+		smokeRepoRows(t, client, "gitlab", (*gitlabRepositoryItem).common, func(r *gitlabRepositoryItem) string {
 			c := r.common()
 			return fmt.Sprintf("gl row id=%s inst=%s unit=%s glid=%d name=%q proj=%s ctx=%s disabled=%v",
 				c.ID, r.GitlabInstallation.ID, c.UnitID, r.GitlabProjectID, c.RepositoryName, c.ProjectID, c.RepositoryContextID, c.Disabled)
 		})
 	})
 	t.Run("bitbucket_repositories", func(t *testing.T) {
-		smokeRepoRows(t, client, "bitbucket", func(r *bitbucketRepositoryItem) string {
+		smokeRepoRows(t, client, "bitbucket", (*bitbucketRepositoryItem).common, func(r *bitbucketRepositoryItem) string {
 			c := r.common()
 			return fmt.Sprintf("bb row id=%s acct=%s(%s) bbid=%s name=%q ctx=%s disabled=%v cfs=%q",
 				c.ID, r.AccountInstallation.ID, r.AccountInstallation.AccountID, r.BitbucketRepositoryID, c.RepositoryName, c.RepositoryContextID, c.Disabled, c.ConfigFileSupport)
 		})
 	})
 	t.Run("azure_repositories", func(t *testing.T) {
-		smokeRepoRows(t, client, "azure_devops", func(r *azureRepositoryItem) string {
+		smokeRepoRows(t, client, "azure_devops", (*azureRepositoryItem).common, func(r *azureRepositoryItem) string {
 			c := r.common()
 			return fmt.Sprintf("az row id=%s acct=%s(%q) azid=%s name=%q ctx=%s disabled=%v cfs=%q",
 				c.ID, r.AzureAccountInstallation.ID, r.AzureAccountInstallation.AccountName, r.AzureRepositoryID, c.RepositoryName, c.RepositoryContextID, c.Disabled, c.ConfigFileSupport)
@@ -69,6 +69,9 @@ func smokeGitlabInstallations(t *testing.T, client *APIClient) {
 	}
 	t.Logf("gitlab installations: %d", len(installations))
 	for _, g := range installations {
+		if g.ID == "" {
+			t.Errorf("gitlab installation with empty id: name=%q", g.Name)
+		}
 		t.Logf("  gitlab id=%s name=%q server=%s readonly=%v cloud=%v status=%q token_name=%q token_type=%q",
 			g.ID, g.Name, g.ServerURL, g.ReadOnly, g.CloudIntegration, g.IntegrationStatus, g.AccessTokenName, g.AccessTokenType)
 	}
@@ -81,6 +84,9 @@ func smokeBitbucketInstallations(t *testing.T, client *APIClient) {
 	}
 	t.Logf("bitbucket installations: %d", len(installations))
 	for _, b := range installations {
+		if b.ID == "" {
+			t.Errorf("bitbucket installation with empty id: name=%q", b.Name)
+		}
 		td := b.AccessTokenDetails
 		if td == nil {
 			td = &BitbucketAccessTokenDetails{}
@@ -97,17 +103,29 @@ func smokeAzureInstallations(t *testing.T, client *APIClient) {
 	}
 	t.Logf("azure installations: %d", len(installations))
 	for _, a := range installations {
+		if a.ID == "" {
+			t.Errorf("azure installation with empty id: name=%q", a.Name)
+		}
 		t.Logf("  azure id=%s name=%q server=%s type=%q account=%q cloud=%v",
 			a.ID, a.Name, a.ServerURL, a.AccessTokenType, a.AccessTokenAccountName, a.CloudIntegration)
 	}
 }
 
-func smokeRepoRows[T any](t *testing.T, client *APIClient, provider string, describe func(*T) string) {
+func smokeRepoRows[T any](t *testing.T, client *APIClient, provider string, toCommon func(*T) ScmRepository, describe func(*T) string) {
 	rows, err := getAllScmPages[T](client, integratedRepositoriesPath(provider))
 	if err != nil {
 		t.Fatalf("%s repos: %v", provider, err)
 	}
 	t.Logf("%s integrated repos: %d", provider, len(rows))
+	for i := range rows {
+		c := toCommon(&rows[i])
+		if c.ID == "" {
+			t.Errorf("%s row %d: empty id", provider, i)
+		}
+		if c.RepositoryContextID == "" {
+			t.Errorf("%s row %d (name=%q id=%s): empty repository_context_id", provider, i, c.RepositoryName, c.ID)
+		}
+	}
 	for i := range rows {
 		if i >= 3 {
 			break
@@ -120,6 +138,12 @@ func smokeScmPostureDefault(t *testing.T, client *APIClient) {
 	pol, err := client.GetScmPostureDefaultPolicy()
 	if err != nil {
 		t.Fatalf("scm posture default: %v", err)
+	}
+	if pol.ID == "" {
+		t.Errorf("scm posture default: empty id")
+	}
+	if pol.Name == "" {
+		t.Errorf("scm posture default: empty name")
 	}
 	t.Logf("scm posture default: id=%s name=%q disabled=%v policy_data=%s", pol.ID, pol.Name, pol.Disabled, string(pol.PolicyData))
 }

@@ -13,6 +13,7 @@ type ScmConfigFields struct {
 	DefaultPolicies   types.Bool           `tfsdk:"default_policies"`
 	PoliciesIds       types.Set            `tfsdk:"policies_ids"`
 	ProjectID         types.String         `tfsdk:"project_id"`
+	AdoptExisting     types.Bool           `tfsdk:"adopt_existing"`
 	ConfigSettings    *ConfigSettingsModel `tfsdk:"configuration_settings"`
 
 	ScanAllState                types.String `tfsdk:"scan_all_state"`

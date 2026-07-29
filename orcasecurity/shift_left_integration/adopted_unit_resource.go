@@ -30,6 +30,31 @@ type AdoptedUnitOps[A any, M any] struct {
 	DeleteErrorTitle string
 }
 
+// guardAdopt reports whether Create must refuse to silently take over a unit
+// that is already integrated in Orca. These resources adopt a pre-existing SCM
+// unit rather than create one; adopting a unit that already has integrated
+// repositories and later destroying it would remove repositories configured
+// outside Terraform, so that case requires an explicit adopt_existing opt-in.
+func guardAdopt(repoCount int64, adoptExisting types.Bool) bool {
+	return repoCount > 0 && !adoptExisting.ValueBool()
+}
+
+func adoptGuardDetail(describe string, repoCount int64) string {
+	return fmt.Sprintf(
+		"%s is already integrated in Orca with %d integrated repositor%s that may have been configured outside this Terraform resource. "+
+			"Applying would take over that integration, and a later `terraform destroy` would DE-INTEGRATE it — removing those repositories and their settings. "+
+			"To bring this unit under management without a takeover write, import it instead of applying (terraform import). "+
+			"If you intend to manage (and eventually tear down) an integration you did not create here, set `adopt_existing = true`.",
+		describe, repoCount, repositoryPlural(repoCount))
+}
+
+func repositoryPlural(n int64) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
+}
+
 func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan, config M
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -44,6 +69,10 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		return
 	}
 	if existing != nil {
+		if guardAdopt(o.Snapshot(existing).RepoCount, o.Config(&plan).AdoptExisting) {
+			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), o.Snapshot(existing).RepoCount))
+			return
+		}
 		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State,
 			o.Describe(&plan)+" does not exist. "+o.CreateHint, o.CreateErrorTitle)
 		return
@@ -82,6 +111,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		return
 	}
 	newState := o.ToState(created)
+	o.Config(&newState).AdoptExisting = o.Config(&plan).AdoptExisting
 	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
 }
 
@@ -111,6 +141,7 @@ func (o AdoptedUnitOps[A, M]) DoRead(ctx context.Context, req resource.ReadReque
 		return
 	}
 	newState := o.ToState(unit)
+	o.Config(&newState).AdoptExisting = o.Config(&state).AdoptExisting
 	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
 }
 
@@ -160,5 +191,6 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 		return
 	}
 	newState := o.ToState(unit)
+	o.Config(&newState).AdoptExisting = o.Config(plan).AdoptExisting
 	diags.Append(state.Set(ctx, &newState)...)
 }

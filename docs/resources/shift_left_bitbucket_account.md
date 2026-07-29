@@ -12,6 +12,8 @@ Creates or configures an Orca Bitbucket shift-left integrated account. Create PO
 
 -> **Destroy:** `terraform destroy` DELETEs the integrated account (UI parity). That also removes its integrated repositories.
 
+!> **Adopt semantics:** This resource **adopts** a pre-existing SCM account rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an account that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing account under management without a takeover write.
+
 -> **Coverage:** Browse accounts, `check_availability`, and scan-now are UI operations and are not managed here.
 
 ## Example Usage
@@ -49,6 +51,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 
 ### Optional
 
+- `adopt_existing` (Boolean) Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.
 - `configuration_settings` (Attributes) PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose. (see [below for nested schema](#nestedatt--configuration_settings))
 - `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with policies_ids; may accompany project_id.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
@@ -40,30 +39,16 @@ func (r *gitlabGroupResource) Schema(_ context.Context, _ resource.SchemaRequest
 }
 
 func (r *gitlabGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := splitImport(req.ID)
-	if parts == nil {
-		resp.Diagnostics.AddError("Invalid import ID", "expected <installation_id>/<group_uuid_or_gitlab_group_id>")
+	rest, resolved := shift_left_integration.ImportScopedInstallation(ctx, req, resp, "<installation_id>/<group_uuid_or_gitlab_group_id>")
+	if resolved {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("installation_id"), parts[0])...)
-	if shift_left_integration.LooksLikeUUID(parts[1]) {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
-		return
-	}
-	n, err := strconv.ParseInt(parts[1], 10, 64)
+	n, err := strconv.ParseInt(rest, 10, 64)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", "right-hand side must be an Orca group UUID or numeric gitlab_group_id")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("gitlab_group_id"), n)...)
-}
-
-func splitImport(id string) []string {
-	left, right, ok := strings.Cut(id, "/")
-	if !ok || left == "" || right == "" {
-		return nil
-	}
-	return []string{left, right}
 }
 
 func (r *gitlabGroupResource) ops() shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel] {
