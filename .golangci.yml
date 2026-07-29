@@ -29,9 +29,10 @@ linters:
                   - staticcheck
               text: "S(1007|1034|1039)"
             # TODO: Enable failing staticchecks
+            # SA5011: false positive on nil-check + t.Fatal/t.Skip before dereference.
             - linters:
                   - staticcheck
-              text: "SA(1006|1019|4006|6005):"
+              text: "SA(1006|1019|4006|5011|6005):"
     settings:
         errcheck:
             exclude-functions:
