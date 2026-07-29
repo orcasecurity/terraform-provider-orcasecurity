@@ -246,11 +246,11 @@ func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig
 }
 
 type repoOps struct {
-	client    *api_client.APIClient
-	traits    providerTraits
-	integrate func() error
-	find      func() (*api_client.ScmRepository, error)
-	update    func(api_client.ScmRepositoryConfigUpdate) error
+	client       *api_client.APIClient
+	traits       providerTraits
+	integrate    func() error
+	find         func() (*api_client.ScmRepository, error)
+	update       func(api_client.ScmRepositoryConfigUpdate) error
 	syncIdentity func(*api_client.ScmRepository) // Bitbucket slug backfill on read; nil elsewhere.
 }
 
