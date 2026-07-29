@@ -56,16 +56,14 @@ func TestFindRepository_SendsServerSideFilters(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var got url.Values
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 				got = r.URL.Query()
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"total_items": 1,
 					"data":        []map[string]any{tc.row},
 				})
-			}))
-			defer srv.Close()
+			})
 
-			client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 			repo, err := tc.find(client)
 			if err != nil {
 				t.Fatal(err)
@@ -73,21 +71,39 @@ func TestFindRepository_SendsServerSideFilters(t *testing.T) {
 			if repo == nil {
 				t.Fatal("expected to find the row")
 			}
-			for key, want := range tc.want {
-				if got.Get(key) != want[0] {
-					t.Errorf("filter %s = %q, want %q (full query: %v)", key, got.Get(key), want[0], got)
-				}
-			}
-			for _, key := range tc.forbid {
-				if got.Has(key) {
-					t.Errorf("filter %s must not be sent, got %q", key, got.Get(key))
-				}
-			}
-			// Pagination params must survive alongside the filters.
-			if got.Get("limit") == "" || got.Get("start_at_index") == "" {
-				t.Errorf("pagination params lost: %v", got)
-			}
+			assertScmListQuery(t, got, tc.want, tc.forbid)
 		})
+	}
+}
+
+// scmListClient serves handler as the SCM list endpoint and returns a client
+// pointed at it.
+func scmListClient(t *testing.T, handler http.HandlerFunc) *APIClient {
+	t.Helper()
+
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+}
+
+// assertScmListQuery checks that the lookup pushed want into the query string,
+// kept every forbidden key out of it, and still carried the paging params the
+// list endpoint needs — narrowing must not come at the cost of paging.
+func assertScmListQuery(t *testing.T, got, want url.Values, forbid []string) {
+	t.Helper()
+
+	for key, values := range want {
+		if got.Get(key) != values[0] {
+			t.Errorf("filter %s = %q, want %q (full query: %v)", key, got.Get(key), values[0], got)
+		}
+	}
+	for _, key := range forbid {
+		if got.Has(key) {
+			t.Errorf("filter %s must not be sent, got %q", key, got.Get(key))
+		}
+	}
+	if got.Get("limit") == "" || got.Get("start_at_index") == "" {
+		t.Errorf("pagination params lost: %v", got)
 	}
 }
 
@@ -128,20 +144,9 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var searches []string
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				search := r.URL.Query().Get("search")
-				searches = append(searches, search)
-				// Stand in for the search backend: the row matches only its own name.
-				if search != "" && search != "acme/repo" {
-					_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
-					return
-				}
-				_, _ = w.Write([]byte(`{"total_items":1,"data":[` + row + `]}`))
-			}))
-			defer srv.Close()
+			backend := &searchingList{rowName: "acme/repo", row: row}
+			client := scmListClient(t, backend.handle)
 
-			client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 			found, err := client.FindGithubRepository("inst-gh", tc.repoName, 42)
 			if err != nil {
 				t.Fatal(err)
@@ -149,16 +154,43 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 			if found == nil || found.ID != "gh-row" {
 				t.Fatalf("repository not found: %+v", found)
 			}
-			if len(searches) != len(tc.wantRequests) {
-				t.Fatalf("made %d requests %q, want %d %q",
-					len(searches), searches, len(tc.wantRequests), tc.wantRequests)
-			}
-			for i, want := range tc.wantRequests {
-				if searches[i] != want {
-					t.Errorf("request %d sent search=%q, want %q", i, searches[i], want)
-				}
-			}
+			assertSearchSequence(t, backend.searches, tc.wantRequests)
 		})
+	}
+}
+
+// searchingList stands in for the list endpoint's search backend: the single row
+// it holds matches only its own name, so any other search narrows to nothing. It
+// records the "search" value of every request it serves.
+type searchingList struct {
+	rowName  string
+	row      string
+	searches []string
+}
+
+func (s *searchingList) handle(w http.ResponseWriter, r *http.Request) {
+	search := r.URL.Query().Get("search")
+	s.searches = append(s.searches, search)
+	if search != "" && search != s.rowName {
+		_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
+		return
+	}
+	_, _ = w.Write([]byte(`{"total_items":1,"data":[` + s.row + `]}`))
+}
+
+// assertSearchSequence pins the exact search values sent, in order. The number of
+// requests is the assertion that matters: it is what separates "the hint resolved
+// it" from "the hint missed and the unfiltered scan saved us".
+func assertSearchSequence(t *testing.T, got, want []string) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("made %d requests %q, want %d %q", len(got), got, len(want), want)
+	}
+	for i, search := range want {
+		if got[i] != search {
+			t.Errorf("request %d sent search=%q, want %q", i, got[i], search)
+		}
 	}
 }
 
@@ -167,13 +199,11 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 // Terraform can plan a replacement.
 func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 	var requests int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 		requests++
 		_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
-	}))
-	defer srv.Close()
+	})
 
-	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 	found, err := client.FindGithubRepository("inst-gh", "acme/repo", 42)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +219,7 @@ func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 // A filter the API does not support is silently ignored, so the local match is
 // still what guarantees we return the right row.
 func TestFindRepository_LocalMatchGuardsIgnoredFilters(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 		// Simulate an API that ignores every filter and returns two installations' rows.
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"total_items": 2,
@@ -208,10 +238,8 @@ func TestFindRepository_LocalMatchGuardsIgnoredFilters(t *testing.T) {
 				},
 			},
 		})
-	}))
-	defer srv.Close()
+	})
 
-	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 	repo, err := client.FindGitlabRepository("inst-gl", 7)
 	if err != nil {
 		t.Fatal(err)
