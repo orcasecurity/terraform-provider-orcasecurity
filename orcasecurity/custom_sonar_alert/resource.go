@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"terraform-provider-orcasecurity/orcasecurity/alert_common"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -364,23 +365,29 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		}
 	}
 
-	// A non-empty compliance_frameworks list adds controls on top of the ones already attached
-	// rather than replacing them, while an empty list clears them. Clearing first is therefore
-	// what makes the applied mapping match the configuration instead of accumulating old entries.
-	if len(state.Frameworks) > 0 && len(plan.Frameworks) > 0 {
+	cleared, err := alert_common.ClearFramesIfReplacing(len(state.Frameworks) > 0, len(plan.Frameworks) > 0, func() error {
 		clearReq := updateReq
 		clearReq.ComplianceFrameworks = nil
-		if _, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), clearReq); err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating Alert",
-				"Could not clear the existing compliance frameworks: "+err.Error(),
-			)
-			return
-		}
+		_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), clearReq)
+		return err
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating Alert",
+			"Could not clear the existing compliance frameworks: "+err.Error(),
+		)
+		return
 	}
 
-	_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), updateReq)
+	_, err = r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), updateReq)
 	if err != nil {
+		if cleared {
+			// The clear call above already succeeded remotely, so the alert now has zero
+			// compliance frameworks even though this update failed. Reflect that in state
+			// instead of leaving the old framework list on record.
+			plan.Frameworks = nil
+			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		}
 		resp.Diagnostics.AddError(
 			"Error updating Alert",
 			"Could not update Alert, unexpected error: "+err.Error(),
