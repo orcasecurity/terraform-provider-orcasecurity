@@ -1,9 +1,13 @@
 package api_client
 
+// Conditions has no omitempty: an empty list is how a condition set is cleared, and
+// omitting the key leaves the previous conditions in place server-side.
 type ShiftLeftArchiveActions struct {
-	Conditions []string `json:"conditions,omitempty"`
+	Conditions []string `json:"conditions"`
 }
 
+// The API replaces installation_repositories_configuration wholesale, so writers must
+// populate both action sets whenever the parent object is sent.
 type ShiftLeftInstallationReposConfig struct {
 	ArchiveActions     *ShiftLeftArchiveActions `json:"archive_actions,omitempty"`
 	UnavailableActions *ShiftLeftArchiveActions `json:"unavailable_actions,omitempty"`

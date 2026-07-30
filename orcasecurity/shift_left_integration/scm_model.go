@@ -8,14 +8,16 @@ import (
 )
 
 type ScmConfigFields struct {
-	AccountName       types.String         `tfsdk:"account_name"`
-	IntegrationStatus types.String         `tfsdk:"integration_status"`
-	InstallationMode  types.String         `tfsdk:"installation_mode"`
-	DefaultPolicies   types.Bool           `tfsdk:"default_policies"`
-	PoliciesIds       types.Set            `tfsdk:"policies_ids"`
-	ProjectID         types.String         `tfsdk:"project_id"`
-	AdoptExisting     types.Bool           `tfsdk:"adopt_existing"`
-	ConfigSettings    *ConfigSettingsModel `tfsdk:"configuration_settings"`
+	AccountName       types.String `tfsdk:"account_name"`
+	IntegrationStatus types.String `tfsdk:"integration_status"`
+	InstallationMode  types.String `tfsdk:"installation_mode"`
+	DefaultPolicies   types.Bool   `tfsdk:"default_policies"`
+	PoliciesIds       types.Set    `tfsdk:"policies_ids"`
+	ProjectID         types.String `tfsdk:"project_id"`
+	AdoptExisting     types.Bool   `tfsdk:"adopt_existing"`
+	// types.Object rather than *ConfigSettingsModel: the attribute is Optional+Computed and
+	// so plans as unknown on create, which a Go struct pointer cannot represent.
+	ConfigSettings types.Object `tfsdk:"configuration_settings"`
 
 	ScanAllState                types.String `tfsdk:"scan_all_state"`
 	IntegratedRepositoriesCount types.Int64  `tfsdk:"integrated_repositories_count"`
@@ -32,10 +34,44 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 		DefaultPolicies:  types.BoolValue(u.DefaultPolicies),
 		PoliciesIds:      PolicyIDsFromRefs(u.Policies),
 		ProjectID:        tfconv.StringOrNull(api_client.ProjectRefID(u.Project)),
-		ConfigSettings:   &cs,
+		ConfigSettings:   ConfigSettingsToObject(cs),
 
 		ScanAllState:                tfconv.StringOrNull(u.ScanAllState),
 		IntegratedRepositoriesCount: types.Int64Value(u.IntegratedRepositoriesCount),
 		ScmPosturePolicyID:          tfconv.StringOrNull(u.ScmPosturePolicyID),
+	}
+}
+
+// preserveKnownEmpties reconciles the values the API cannot round-trip. Clearing a project
+// binding, a PR summary appendix, or a condition list makes the API report the field as
+// absent, which maps back to null — but Terraform requires an Optional+Computed attribute
+// to end up equal to a non-null configured value, and "", [] are the documented ways to
+// clear these. Applied on the write path (prior = plan) and the read path (prior = prior
+// state), so a cleared value neither fails the apply nor reappears as drift on refresh.
+func preserveKnownEmpties(next, prior *ScmConfigFields) {
+	if next.ProjectID.IsNull() && isKnownEmptyString(prior.ProjectID) {
+		next.ProjectID = types.StringValue("")
+	}
+
+	nextCfg := ConfigSettingsFromObject(next.ConfigSettings)
+	priorCfg := ConfigSettingsFromObject(prior.ConfigSettings)
+	if nextCfg == nil || priorCfg == nil {
+		return
+	}
+	if nextCfg.PrSummaryAppendix.IsNull() && isKnownEmptyString(priorCfg.PrSummaryAppendix) {
+		nextCfg.PrSummaryAppendix = types.StringValue("")
+	}
+	preserveEmptyList(&nextCfg.ArchiveConditions, priorCfg.ArchiveConditions)
+	preserveEmptyList(&nextCfg.UnavailableConditions, priorCfg.UnavailableConditions)
+	next.ConfigSettings = ConfigSettingsToObject(*nextCfg)
+}
+
+func isKnownEmptyString(v types.String) bool {
+	return tfconv.Known(v) && v.ValueString() == ""
+}
+
+func preserveEmptyList(next *types.List, prior types.List) {
+	if next.IsNull() && tfconv.Known(prior) && len(prior.Elements()) == 0 {
+		*next = types.ListValueMust(types.StringType, nil)
 	}
 }

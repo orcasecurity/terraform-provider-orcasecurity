@@ -2,6 +2,7 @@ package shift_left_integration
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -157,8 +158,58 @@ func TestExpandConfigSettings_ExplicitEmptyListsClearsReposConfig(t *testing.T) 
 	if api.InstallationReposConfig == nil {
 		t.Fatal("expected empty InstallationReposConfig object to clear server-side, got nil (omitted)")
 	}
-	if api.InstallationReposConfig.ArchiveActions != nil || api.InstallationReposConfig.UnavailableActions != nil {
-		t.Fatalf("expected empty actions on clear, got: %+v", api.InstallationReposConfig)
+	// Both action sets must be present with an explicit empty conditions array. Omitting a
+	// key leaves the previous conditions in place, so a nil action set would not clear.
+	for name, actions := range map[string]*api_client.ShiftLeftArchiveActions{
+		"archive_actions":     api.InstallationReposConfig.ArchiveActions,
+		"unavailable_actions": api.InstallationReposConfig.UnavailableActions,
+	} {
+		if actions == nil {
+			t.Fatalf("%s must be sent on clear, not omitted", name)
+		}
+		if len(actions.Conditions) != 0 {
+			t.Fatalf("%s should clear to an empty list, got: %v", name, actions.Conditions)
+		}
+	}
+}
+
+// A known-empty archive list alongside a populated unavailable list must still clear the
+// archive conditions: previously the empty side was omitted and silently kept server-side.
+func TestExpandConfigSettings_AsymmetricClearStillSendsBothActions(t *testing.T) {
+	m := &ConfigSettingsModel{
+		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+	}
+	api := ExpandConfigSettings(m)
+	if api.InstallationReposConfig == nil {
+		t.Fatal("expected installation_repositories_configuration to be sent")
+	}
+	archive := api.InstallationReposConfig.ArchiveActions
+	if archive == nil {
+		t.Fatal("archive_actions omitted; the empty archive list would not clear server-side")
+	}
+	if len(archive.Conditions) != 0 {
+		t.Fatalf("expected archive conditions cleared, got: %v", archive.Conditions)
+	}
+	unavailable := api.InstallationReposConfig.UnavailableActions
+	if unavailable == nil || len(unavailable.Conditions) != 1 || unavailable.Conditions[0] != "DELETE_REPO" {
+		t.Fatalf("expected unavailable conditions preserved, got: %+v", unavailable)
+	}
+}
+
+// conditions must serialize as [] rather than being dropped by omitempty.
+func TestExpandConfigSettings_EmptyConditionsSerializeAsArray(t *testing.T) {
+	m := &ConfigSettingsModel{
+		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+	}
+	raw, err := json.Marshal(ExpandConfigSettings(m).InstallationReposConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"archive_actions":{"conditions":[]},"unavailable_actions":{"conditions":[]}}`
+	if string(raw) != want {
+		t.Fatalf("wire format\n got: %s\nwant: %s", raw, want)
 	}
 }
 
@@ -189,8 +240,13 @@ func TestExpandConfigSettings_UnavailableConditionsOnly(t *testing.T) {
 		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
 	}
 	api := ExpandConfigSettings(m)
-	if api.InstallationReposConfig == nil || api.InstallationReposConfig.ArchiveActions != nil {
-		t.Fatalf("expected only UnavailableActions to be set: %+v", api.InstallationReposConfig)
+	if api.InstallationReposConfig == nil {
+		t.Fatalf("expected installation_repositories_configuration to be sent: %+v", api.InstallationReposConfig)
+	}
+	// archive_actions is sent as an explicit empty list. Callers reach Expand through Adopt,
+	// which hydrates an unset archive list from the live unit first, so this cannot clobber.
+	if archive := api.InstallationReposConfig.ArchiveActions; archive == nil || len(archive.Conditions) != 0 {
+		t.Fatalf("expected archive_actions sent with empty conditions, got: %+v", archive)
 	}
 	if len(api.InstallationReposConfig.UnavailableActions.Conditions) != 1 || api.InstallationReposConfig.UnavailableActions.Conditions[0] != "DELETE_REPO" {
 		t.Fatalf("expand dropped unavailable conditions: %+v", api.InstallationReposConfig)

@@ -87,13 +87,9 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 
 	planFields := o.Config(&plan)
 	configFields := o.Config(&config)
-	mode := planFields.InstallationMode
-	if mode.IsNull() || mode.IsUnknown() {
-		// Default SELECTED_REPOSITORIES — SCAN_ALL_INCLUDE_FUTURE auto-enrolls all current/future repos.
-		mode = types.StringValue("SELECTED_REPOSITORIES")
-	}
 
-	body := CreateUnitBody(mode, planFields.DefaultPolicies, planFields.PoliciesIds, planFields.ConfigSettings,
+	body := CreateUnitBody(planFields.InstallationMode, planFields.DefaultPolicies, planFields.PoliciesIds,
+		ConfigSettingsFromObject(planFields.ConfigSettings),
 		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
 	if err := o.Integrate(&plan, body); err != nil {
 		resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
@@ -125,10 +121,14 @@ func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateR
 	})
 }
 
-// setAdoptedState carries adopt_existing over from prior state (input-only, not on API unit).
+// setAdoptedState carries adopt_existing over from the prior plan or state (input-only, not
+// on the API unit) and preserves values the API reports as absent but the caller set empty.
 func (o AdoptedUnitOps[A, M]) setAdoptedState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, unit *A, prior *M) {
 	newState := o.ToState(unit)
-	o.Config(&newState).AdoptExisting = o.Config(prior).AdoptExisting
+	priorFields := o.Config(prior)
+	nextFields := o.Config(&newState)
+	nextFields.AdoptExisting = priorFields.AdoptExisting
+	preserveKnownEmpties(nextFields, priorFields)
 	diags.Append(state.Set(ctx, &newState)...)
 }
 
@@ -191,7 +191,7 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 		PlanMode:     planFields.InstallationMode,
 		PlanDefault:  planFields.DefaultPolicies,
 		PlanPolicies: planFields.PoliciesIds,
-		PlanConfig:   planFields.ConfigSettings,
+		PlanConfig:   ConfigSettingsFromObject(planFields.ConfigSettings),
 		Project:      ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
 	})
 	switch {

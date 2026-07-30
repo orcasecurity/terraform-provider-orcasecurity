@@ -84,11 +84,11 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 				stringvalidator.ConflictsWith(path.MatchRoot("policies_ids")),
 			},
 		},
+		// Input-only: never returned by the API, so it must not be Computed. Marking it
+		// Computed makes it plan as unknown on create, and the unknown then reaches state.
 		"adopt_existing": rschema.BoolAttribute{
-			Optional:      true,
-			Computed:      true,
-			Description:   "Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.",
-			PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			Optional:    true,
+			Description: "Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.",
 		},
 		"configuration_settings": rschema.SingleNestedAttribute{
 			Optional:      true,
