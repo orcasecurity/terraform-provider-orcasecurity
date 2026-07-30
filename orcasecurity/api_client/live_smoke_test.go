@@ -61,13 +61,16 @@ func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 			row := firstRepoRow[githubRepositoryItem](t, client, "github")
 			found, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, row.GithubRepositoryID)
 			assertFound(t, row.Repository.Name, found, err)
-			// The name is a hint only. A name that matches nothing must still
-			// resolve via the unfiltered fallback, and an empty name (post-import)
-			// must skip the filter — if search_fields ever stopped being honoured
-			// and started excluding rows, these two would fail while the hit above
-			// would not.
-			found, err = client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
-			assertFound(t, row.Repository.Name, found, err)
+			// The name is a hint only, but a non-empty name that matches nothing
+			// must fail closed rather than fall back to an unfiltered org-wide
+			// scan (see FindGithubRepository) — a wrong name must read as "not
+			// found", not resurrect the row through the id-only fallback. An
+			// empty name (post-import) carries no hint to lose, so it must still
+			// resolve via the unfiltered fallback — if search_fields ever stopped
+			// being honoured and started excluding rows, that would fail while
+			// the hit above would not.
+			wrongName, err := client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
+			assertNotFound(t, "github/wrong-name", wrongName, err)
 			found, err = client.FindGithubRepository(row.GithubInstallation.ID, "", row.GithubRepositoryID)
 			assertFound(t, row.Repository.Name, found, err)
 			other, err := client.FindGithubRepository(mismatchedUUID, row.Repository.Name, row.GithubRepositoryID)

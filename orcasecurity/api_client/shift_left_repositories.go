@@ -203,17 +203,19 @@ func githubRepositoryNameFilter(repositoryName string) listFilters {
 	return listFilters{"search": repositoryName, "search_fields": "repository_name"}
 }
 
-// github_repository_id/github_installation_id are not safe list filters; match locally. repositoryName is hint-only with unfiltered fallback.
+// github_repository_id/github_installation_id are not safe list filters; match locally. The list API
+// (GithubRepositoryFilter server-side) has no github_repository_id filter at all, so an id-only lookup
+// has no choice but to page the whole org. That unfiltered scan is only acceptable when repositoryName
+// is empty (post-import, no name hint exists): a non-empty name whose filtered search misses is reported
+// as not found rather than silently falling through to the unfiltered scan, since a wrong/stale name
+// should fail fast, not pay for a full org-wide fanout on every plan.
 func (client *APIClient) FindGithubRepository(installationID, repositoryName string, githubRepositoryID int64) (*ScmRepository, error) {
 	match := func(r *githubRepositoryItem) bool {
 		return r.GithubInstallation.ID == installationID && r.GithubRepositoryID == githubRepositoryID
 	}
 	if repositoryName != "" {
-		found, err := findScmRepository(client, "github",
+		return findScmRepository(client, "github",
 			githubRepositoryNameFilter(repositoryName), match, (*githubRepositoryItem).common)
-		if err != nil || found != nil {
-			return found, err
-		}
 	}
 	return findScmRepository(client, "github", nil, match, (*githubRepositoryItem).common)
 }

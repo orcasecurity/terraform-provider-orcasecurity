@@ -107,10 +107,11 @@ func assertScmListQuery(t *testing.T, got, want url.Values, forbid []string) {
 	}
 }
 
-// GitHub's name filter narrows but does not identify, so a miss must never be
-// read as "repository deleted" — that would plan a destroy/re-create of a live
-// repository whose name drifted (renamed on GitHub, or absent right after an
-// import). These cases pin the hint-plus-fallback shape and its request count.
+// GitHub's name filter narrows but does not identify. An empty name (post-import,
+// no hint at all) still falls back to the unfiltered scan, but a non-empty name
+// whose filtered search misses must fail closed — a wrong/stale name must never
+// silently pay for a full org-wide fanout. These cases pin that shape and the
+// exact request count/sequence for each.
 func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 	const row = `{"id":"gh-row","github_repository_id":42,
 		"github_installation":{"id":"inst-gh"},
@@ -120,24 +121,29 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 	tests := []struct {
 		name         string
 		repoName     string
+		wantFound    bool
 		wantRequests []string // the "search" value of each expected request, in order
 	}{
 		{
 			// The hint resolves the row, so the unfiltered scan is never paid for.
 			name:         "matching name resolves in one filtered request",
 			repoName:     "acme/repo",
+			wantFound:    true,
 			wantRequests: []string{"acme/repo"},
 		},
 		{
-			// A stale name narrows to nothing; the unfiltered retry still finds it.
-			name:         "stale name falls back to the unfiltered scan",
+			// A stale/wrong non-empty name narrows to nothing: fail closed, and
+			// never touch the unfiltered org-wide list endpoint.
+			name:         "stale name is not found and never triggers the unfiltered scan",
 			repoName:     "renamed-away/repo",
-			wantRequests: []string{"renamed-away/repo", ""},
+			wantFound:    false,
+			wantRequests: []string{"renamed-away/repo"},
 		},
 		{
 			// Post-import state carries no name; skip straight to the scan.
 			name:         "unknown name skips the filtered query",
 			repoName:     "",
+			wantFound:    true,
 			wantRequests: []string{""},
 		},
 	}
@@ -151,8 +157,12 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if found == nil || found.ID != "gh-row" {
-				t.Fatalf("repository not found: %+v", found)
+			if tc.wantFound {
+				if found == nil || found.ID != "gh-row" {
+					t.Fatalf("repository not found: %+v", found)
+				}
+			} else if found != nil {
+				t.Fatalf("expected not found, got %+v", found)
 			}
 			assertSearchSequence(t, backend.searches, tc.wantRequests)
 		})
@@ -194,9 +204,10 @@ func assertSearchSequence(t *testing.T, got, want []string) {
 	}
 }
 
-// The fallback must not resurrect a repository that is genuinely gone: both the
-// filtered and unfiltered lookups miss, and the caller still gets "not found" so
-// Terraform can plan a replacement.
+// A miss on a non-empty name reports "not found" without ever paying for the
+// unfiltered org-wide scan — whether the repository is genuinely gone or the
+// name is merely stale, Terraform still gets "not found" and can plan a
+// replacement, but only the single filtered request is made.
 func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 	var requests int
 	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -211,8 +222,8 @@ func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 	if found != nil {
 		t.Fatalf("expected not found, got %+v", found)
 	}
-	if requests != 2 {
-		t.Errorf("expected the filtered miss to retry unfiltered, got %d requests", requests)
+	if requests != 1 {
+		t.Errorf("expected only the filtered request, no unfiltered fallback, got %d requests", requests)
 	}
 }
 
