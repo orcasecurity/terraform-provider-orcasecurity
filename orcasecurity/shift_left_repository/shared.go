@@ -5,15 +5,14 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -92,33 +91,25 @@ func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			Description: "When to comment on pull requests.",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"),
-			},
+			Validators:  shift_left_integration.PRCommentValidator(),
 		},
 		"pr_summary_comment": rschema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "When to add a summary comment on pull requests.",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"),
-			},
+			Validators:  shift_left_integration.PRCommentValidator(),
 		},
 		"skip_check_runs": rschema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "When to skip creating SCM check runs.",
-			Validators: []validator.String{
-				stringvalidator.OneOf(traits.skipCheckRunsValues...),
-			},
+			Validators:  shift_left_integration.SkipCheckRunsValidator(traits.skipCheckRunsValues),
 		},
 		"config_file_support": rschema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Whether the in-repo Orca config file is honored.",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ENABLED", "DISABLED"),
-			},
+			Validators:  shift_left_integration.ConfigFileSupportValidator(),
 		},
 		"status": rschema.StringAttribute{
 			Computed:    true,
@@ -139,9 +130,6 @@ func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 	}
 }
 
-var fullSkipCheckRuns = []string{"ALWAYS", "ONLY_ON_INTERNAL_ISSUE", "NEVER"}
-var gitlabSkipCheckRuns = []string{"ALWAYS", "NEVER"}
-
 type providerTraits struct {
 	name                    string
 	branchRequired          bool
@@ -153,21 +141,21 @@ var (
 	githubTraits = providerTraits{
 		name:                "GitHub",
 		branchRequired:      true,
-		skipCheckRunsValues: fullSkipCheckRuns,
+		skipCheckRunsValues: shift_left_integration.FullSkipCheckRunValues,
 	}
 	gitlabTraits = providerTraits{
 		name:                "GitLab",
 		branchRequired:      true,
-		skipCheckRunsValues: gitlabSkipCheckRuns,
+		skipCheckRunsValues: shift_left_integration.GitlabSkipCheckRunValues,
 	}
 	azureTraits = providerTraits{
 		name:                    "Azure DevOps",
-		skipCheckRunsValues:     fullSkipCheckRuns,
+		skipCheckRunsValues:     shift_left_integration.FullSkipCheckRunValues,
 		skipCheckRunsUnreadable: true,
 	}
 	bitbucketTraits = providerTraits{
 		name:                "Bitbucket",
-		skipCheckRunsValues: fullSkipCheckRuns,
+		skipCheckRunsValues: shift_left_integration.FullSkipCheckRunValues,
 	}
 )
 

@@ -78,10 +78,12 @@ func TestExpandConfigSettings_NeverSendsEmptyRequiredEnums(t *testing.T) {
 // Live values must win over the fallback: defaulting may only fill blanks.
 func TestExpandConfigSettings_PreservesNonEmptyEnums(t *testing.T) {
 	m := &ConfigSettingsModel{
-		CommentsOnPullRequests: types.StringValue("NEVER"),
-		PrSummaryComment:       types.StringValue("ONLY_ON_FAILED_ISSUES"),
-		SkipCheckRuns:          types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
-		ConfigFileSupport:      types.StringValue("DISABLED"),
+		PRSettingsModel: PRSettingsModel{
+			CommentsOnPullRequests: types.StringValue("NEVER"),
+			PrSummaryComment:       types.StringValue("ONLY_ON_FAILED_ISSUES"),
+			SkipCheckRuns:          types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
+			ConfigFileSupport:      types.StringValue("DISABLED"),
+		},
 	}
 	got := ExpandConfigSettings(m)
 	if got.CommentsOnPullRequests != "NEVER" || got.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" ||
@@ -111,12 +113,14 @@ func TestConfigSettingsAttributes_SkipCheckRunsAcceptsAllThreeValues(t *testing.
 
 func TestConfigSettingsRoundTrip(t *testing.T) {
 	m := &ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(false),
-		CommentsOnPullRequests:  types.StringValue("ONLY_ON_FAILED_ISSUES"),
-		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
-		ConfigFileSupport:       types.StringValue("ENABLED"),
-		PrSummaryAppendix:       types.StringValue("note"),
-		ArchiveConditions:       types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(false),
+			CommentsOnPullRequests:  types.StringValue("ONLY_ON_FAILED_ISSUES"),
+			PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
+			ConfigFileSupport:       types.StringValue("ENABLED"),
+		},
+		PrSummaryAppendix: types.StringValue("note"),
+		ArchiveConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	api := ExpandConfigSettings(m)
 	if api.CommentsOnPullRequests != "ONLY_ON_FAILED_ISSUES" || api.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" {
@@ -133,8 +137,10 @@ func TestConfigSettingsRoundTrip(t *testing.T) {
 
 func TestExpandConfigSettings_NoConditionsOmitsInstallationReposConfig(t *testing.T) {
 	m := &ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(true),
-		ConfigFileSupport:       types.StringValue("DISABLED"),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(true),
+			ConfigFileSupport:       types.StringValue("DISABLED"),
+		},
 	}
 	api := ExpandConfigSettings(m)
 	if api.InstallationReposConfig != nil {
@@ -239,11 +245,13 @@ func TestFlattenConfigSettings_EmptyStringsBecomeNull(t *testing.T) {
 
 func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
 	base := ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(true),
-		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
-		PrSummaryComment:        types.StringValue("NEVER"),
-		SkipCheckRuns:           types.StringValue("ALWAYS"),
-		ConfigFileSupport:       types.StringValue("ENABLED"),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(true),
+			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+			PrSummaryComment:        types.StringValue("NEVER"),
+			SkipCheckRuns:           types.StringValue("ALWAYS"),
+			ConfigFileSupport:       types.StringValue("ENABLED"),
+		},
 	}
 	merged := MergeConfigSettings(base, nil)
 	if !merged.CommentsOnPullRequests.Equal(base.CommentsOnPullRequests) {
@@ -253,24 +261,28 @@ func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
 
 func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 	base := ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(false),
-		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
-		PrSummaryComment:        types.StringValue("ALWAYS"),
-		SkipCheckRuns:           types.StringValue("ALWAYS"),
-		ConfigFileSupport:       types.StringValue("ENABLED"),
-		PrSummaryAppendix:       types.StringValue("base appendix"),
-		ArchiveConditions:       types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
-		UnavailableConditions:   types.ListNull(types.StringType),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(false),
+			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+			PrSummaryComment:        types.StringValue("ALWAYS"),
+			SkipCheckRuns:           types.StringValue("ALWAYS"),
+			ConfigFileSupport:       types.StringValue("ENABLED"),
+		},
+		PrSummaryAppendix:     types.StringValue("base appendix"),
+		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		UnavailableConditions: types.ListNull(types.StringType),
 	}
 	overlay := &ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolNull(),
-		CommentsOnPullRequests:  types.StringNull(),
-		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
-		SkipCheckRuns:           types.StringNull(),
-		ConfigFileSupport:       types.StringNull(),
-		PrSummaryAppendix:       types.StringNull(),
-		ArchiveConditions:       types.ListNull(types.StringType),
-		UnavailableConditions:   types.ListNull(types.StringType),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolNull(),
+			CommentsOnPullRequests:  types.StringNull(),
+			PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
+			SkipCheckRuns:           types.StringNull(),
+			ConfigFileSupport:       types.StringNull(),
+		},
+		PrSummaryAppendix:     types.StringNull(),
+		ArchiveConditions:     types.ListNull(types.StringType),
+		UnavailableConditions: types.ListNull(types.StringType),
 	}
 
 	merged := MergeConfigSettings(base, overlay)
@@ -306,24 +318,28 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 
 func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(false),
-		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
-		PrSummaryComment:        types.StringValue("ALWAYS"),
-		SkipCheckRuns:           types.StringValue("ALWAYS"),
-		ConfigFileSupport:       types.StringValue("ENABLED"),
-		PrSummaryAppendix:       types.StringValue("base"),
-		ArchiveConditions:       types.ListNull(types.StringType),
-		UnavailableConditions:   types.ListNull(types.StringType),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(false),
+			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+			PrSummaryComment:        types.StringValue("ALWAYS"),
+			SkipCheckRuns:           types.StringValue("ALWAYS"),
+			ConfigFileSupport:       types.StringValue("ENABLED"),
+		},
+		PrSummaryAppendix:     types.StringValue("base"),
+		ArchiveConditions:     types.ListNull(types.StringType),
+		UnavailableConditions: types.ListNull(types.StringType),
 	}
 	overlay := &ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(true),
-		CommentsOnPullRequests:  types.StringValue("NEVER"),
-		PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
-		SkipCheckRuns:           types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
-		ConfigFileSupport:       types.StringValue("DISABLED"),
-		PrSummaryAppendix:       types.StringValue("overlay"),
-		ArchiveConditions:       types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
-		UnavailableConditions:   types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(true),
+			CommentsOnPullRequests:  types.StringValue("NEVER"),
+			PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
+			SkipCheckRuns:           types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
+			ConfigFileSupport:       types.StringValue("DISABLED"),
+		},
+		PrSummaryAppendix:     types.StringValue("overlay"),
+		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
 	}
 
 	merged := MergeConfigSettings(base, overlay)
@@ -356,11 +372,11 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 
 func TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
-		PrSummaryComment:  types.StringValue("ALWAYS"),
+		PRSettingsModel:   PRSettingsModel{PrSummaryComment: types.StringValue("ALWAYS")},
 		ArchiveConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	overlay := &ConfigSettingsModel{
-		PrSummaryComment:  types.StringUnknown(),
+		PRSettingsModel:   PRSettingsModel{PrSummaryComment: types.StringUnknown()},
 		ArchiveConditions: types.ListUnknown(types.StringType),
 	}
 

@@ -55,7 +55,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	t.Logf("group bound to project %q", projectID)
 
 	overlay := &shift_left_integration.ConfigSettingsModel{
-		PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES"),
+		PRSettingsModel: shift_left_integration.PRSettingsModel{PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES")},
 	}
 	ad := shift_left_integration.Adopt(
 		types.StringNull(), types.BoolNull(), types.SetNull(types.StringType), overlay,

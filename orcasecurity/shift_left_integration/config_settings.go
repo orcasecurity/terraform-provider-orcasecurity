@@ -13,18 +13,11 @@ import (
 )
 
 type ConfigSettingsModel struct {
-	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
-	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
-	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
-	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
-	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
-	PrSummaryAppendix       types.String `tfsdk:"pr_summary_appendix"`
-	ArchiveConditions       types.List   `tfsdk:"archive_conditions"`
-	UnavailableConditions   types.List   `tfsdk:"unavailable_conditions"`
+	PRSettingsModel
+	PrSummaryAppendix     types.String `tfsdk:"pr_summary_appendix"`
+	ArchiveConditions     types.List   `tfsdk:"archive_conditions"`
+	UnavailableConditions types.List   `tfsdk:"unavailable_conditions"`
 }
-
-// Account-level skip_check_runs is three-valued; GitLab repository level uses ALWAYS/NEVER only.
-var accountSkipCheckRuns = []string{"ALWAYS", "NEVER", "ONLY_ON_INTERNAL_ISSUE"}
 
 func ConfigSettingsAttributes() map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
@@ -37,33 +30,25 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			Description: "When to post scan result comments on pull requests.",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "NEVER", "ONLY_ON_FAILED_ISSUES"),
-			},
+			Validators:  PRCommentValidator(),
 		},
 		"pr_summary_comment": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "When to post a pull request summary comment.",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"),
-			},
+			Validators:  PRCommentValidator(),
 		},
 		"skip_check_runs": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "When to skip posting check runs.",
-			Validators: []validator.String{
-				stringvalidator.OneOf(accountSkipCheckRuns...),
-			},
+			Validators:  SkipCheckRunsValidator(FullSkipCheckRunValues),
 		},
 		"config_file_support": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Whether in-repo Orca config file support is enabled.",
-			Validators: []validator.String{
-				stringvalidator.OneOf("ENABLED", "DISABLED"),
-			},
+			Validators:  ConfigFileSupportValidator(),
 		},
 		"pr_summary_appendix": schema.StringAttribute{
 			Optional:    true,
@@ -172,14 +157,16 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 
 func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsModel {
 	m := ConfigSettingsModel{
-		DisableScanPullRequests: types.BoolValue(c.DisableScanPullRequests),
-		CommentsOnPullRequests:  tfconv.StringOrNull(c.CommentsOnPullRequests),
-		PrSummaryComment:        tfconv.StringOrNull(c.PrSummaryComment),
-		SkipCheckRuns:           tfconv.StringOrNull(c.SkipCheckRuns),
-		ConfigFileSupport:       tfconv.StringOrNull(c.ConfigFileSupport),
-		PrSummaryAppendix:       tfconv.StringOrNull(c.PrSummaryAppendix),
-		ArchiveConditions:       types.ListNull(types.StringType),
-		UnavailableConditions:   types.ListNull(types.StringType),
+		PRSettingsModel: PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(c.DisableScanPullRequests),
+			CommentsOnPullRequests:  tfconv.StringOrNull(c.CommentsOnPullRequests),
+			PrSummaryComment:        tfconv.StringOrNull(c.PrSummaryComment),
+			SkipCheckRuns:           tfconv.StringOrNull(c.SkipCheckRuns),
+			ConfigFileSupport:       tfconv.StringOrNull(c.ConfigFileSupport),
+		},
+		PrSummaryAppendix:     tfconv.StringOrNull(c.PrSummaryAppendix),
+		ArchiveConditions:     types.ListNull(types.StringType),
+		UnavailableConditions: types.ListNull(types.StringType),
 	}
 
 	if c.InstallationReposConfig != nil {
