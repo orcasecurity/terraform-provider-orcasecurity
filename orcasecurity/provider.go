@@ -48,7 +48,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_bitbucket_account"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_bitbucket_installation"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_github_installation"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_github_account"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_gitlab_group"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_gitlab_installation"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
@@ -254,7 +254,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_azure_devops_account.NewAccountsDataSource,
 		shift_left_bitbucket_account.NewAccountsDataSource,
-		shift_left_github_installation.NewInstallationsDataSource,
+		shift_left_github_account.NewAccountsDataSource,
 		shift_left_gitlab_group.NewGroupsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		shift_left_projects.NewProjectsDataSource,
@@ -306,7 +306,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		shift_left_cve_exception_list.NewShiftLeftCveExceptionListResource,
 		shift_left_azure_devops_account.NewResource,
 		shift_left_bitbucket_account.NewResource,
-		shift_left_github_installation.NewResource,
+		shift_left_github_account.NewResource,
 		shift_left_gitlab_group.NewResource,
 		shift_left_azure_devops_installation.NewResource,
 		shift_left_bitbucket_installation.NewResource,

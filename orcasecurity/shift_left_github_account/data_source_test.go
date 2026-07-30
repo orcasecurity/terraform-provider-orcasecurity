@@ -1,4 +1,4 @@
-package shift_left_github_installation
+package shift_left_github_account
 
 import (
 	"testing"
@@ -8,12 +8,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestInstallationsToListValue(t *testing.T) {
-	insts := []api_client.GithubInstallation{
+func TestAccountsToListValue(t *testing.T) {
+	accounts := []api_client.GithubInstallation{
 		{ID: "i-1", AccountName: "acme", ScmUnitCommonFields: api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}},
 		{ID: "i-2", AccountName: "beta"},
 	}
-	list, diags := installationsToListValue(insts)
+	list, diags := accountsToListValue(accounts)
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -23,5 +23,8 @@ func TestInstallationsToListValue(t *testing.T) {
 	obj := list.Elements()[0].(types.Object)
 	if obj.Attributes()["account_name"].(types.String).ValueString() != "acme" {
 		t.Errorf("bad account_name: %v", obj.Attributes())
+	}
+	if obj.Attributes()["account_id"].(types.String).ValueString() != "i-1" {
+		t.Errorf("account_id must mirror the Orca UUID: %v", obj.Attributes())
 	}
 }

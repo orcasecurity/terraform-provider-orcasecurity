@@ -98,7 +98,9 @@ func TestProviderSchemas_BranchRequirednessAndKeys(t *testing.T) {
 		branchRequired bool
 		extraKeys      []string
 	}{
-		{"github", NewGithubRepositoryResource(), true, []string{"installation_id", "github_repository_id"}},
+		// GitHub keys on account_id, not installation_id: there is no GitHub *_installation
+		// connection resource, so the repository's parent is the account unit itself.
+		{"github", NewGithubRepositoryResource(), true, []string{"account_id", "github_repository_id"}},
 		{"gitlab", NewGitlabRepositoryResource(), true, []string{"installation_id", "gitlab_group_id", "gitlab_project_id"}},
 		{"azure", NewAzureDevopsRepositoryResource(), false, []string{"installation_id", "account_name", "azure_repository_id", "azure_project_id"}},
 		{"bitbucket", NewBitbucketRepositoryResource(), false, []string{"installation_id", "account_id", "bitbucket_repository_id", "slug"}},

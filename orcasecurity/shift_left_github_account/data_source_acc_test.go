@@ -1,4 +1,4 @@
-package shift_left_github_installation_test
+package shift_left_github_account_test
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccGithubInstallationsDataSource_basic(t *testing.T) {
+func TestAccGithubAccountsDataSource_basic(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
@@ -19,10 +19,10 @@ func TestAccGithubInstallationsDataSource_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: orcasecurity.TestProviderConfig + `
-data "orcasecurity_shift_left_github_installations" "all" {}
+data "orcasecurity_shift_left_github_accounts" "all" {}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.orcasecurity_shift_left_github_installations.all", "installations.#"),
+					resource.TestCheckResourceAttrSet("data.orcasecurity_shift_left_github_accounts.all", "accounts.#"),
 				),
 			},
 		},

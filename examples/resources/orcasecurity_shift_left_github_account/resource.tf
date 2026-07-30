@@ -1,5 +1,5 @@
-resource "orcasecurity_shift_left_github_installation" "example" {
-  installation_id   = "11111111-1111-1111-1111-111111111111"
+resource "orcasecurity_shift_left_github_account" "example" {
+  account_id        = "11111111-1111-1111-1111-111111111111"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   default_policies  = true
 
@@ -11,11 +11,11 @@ resource "orcasecurity_shift_left_github_installation" "example" {
   }
 }
 
-# Alternatively, bind the installation to a scan-all project.
+# Alternatively, bind the account to a scan-all project.
 # project_id is mutually exclusive with policies_ids;
 # default_policies may still apply alongside it.
-resource "orcasecurity_shift_left_github_installation" "project_bound" {
-  installation_id   = "55555555-5555-5555-5555-555555555555"
+resource "orcasecurity_shift_left_github_account" "project_bound" {
+  account_id        = "55555555-5555-5555-5555-555555555555"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   project_id        = "44444444-4444-4444-4444-444444444444"
 }

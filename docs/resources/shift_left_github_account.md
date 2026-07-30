@@ -1,28 +1,30 @@
 ---
-page_title: "orcasecurity_shift_left_github_installation Resource - orcasecurity"
+page_title: "orcasecurity_shift_left_github_account Resource - orcasecurity"
 description: |-
-  Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App — /github/config/ and App callback are not managed here). Create/Update PUT the unit config; Destroy DELETEs the Orca installation (tears down the live integration). Not covered: GHES /github/enterprises/*, browse repos, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the UI): all configuration_settings enums are available.
+  Configures an existing Orca GitHub shift-left account/organization (default policies, scan mode, PR settings). This is the GitHub peer of orcasecurity_shift_left_gitlab_group and orcasecurity_shift_left_azure_devops_account. The account must already exist (created by installing the Orca GitHub App — /github/config/ and App callback are not managed here). Create/Update PUT the unit config; Destroy DELETEs the Orca integration (tears down the live integration). Not covered: GHES /github/enterprises/*, browse repos, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the UI): all configuration_settings enums are available.
 ---
 
-# orcasecurity_shift_left_github_installation (Resource)
+# orcasecurity_shift_left_github_account (Resource)
 
-Configures an existing Orca GitHub shift-left installation (default policies, scan mode, PR settings). The installation must already exist (created by installing the Orca GitHub App — `/github/config/` and App callback are not managed here). Create/Update PUT the unit config; Destroy DELETEs the Orca installation (tears down the live integration). Not covered: GHES `/github/enterprises/*`, browse repos, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.
+Configures an existing Orca GitHub shift-left account/organization (default policies, scan mode, PR settings). This is the GitHub peer of `orcasecurity_shift_left_gitlab_group` and `orcasecurity_shift_left_azure_devops_account`. The account must already exist (created by installing the Orca GitHub App — `/github/config/` and App callback are not managed here). Create/Update PUT the unit config; Destroy DELETEs the Orca integration (tears down the live integration). Not covered: GHES `/github/enterprises/*`, browse repos, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the UI): all `configuration_settings` enums are available.
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
 
--> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out. GitHub's own API default for `disable_scan_pull_requests` is `true`, so the provider deliberately diverges from it here to match the Orca UI and the other SCM providers. `terraform import` performs no write, so an imported installation keeps whatever settings it already had.
+-> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out. GitHub's own API default for `disable_scan_pull_requests` is `true`, so the provider deliberately diverges from it here to match the Orca UI and the other SCM providers. `terraform import` performs no write, so an imported account keeps whatever settings it already had.
 
--> **Destroy:** `terraform destroy` DELETEs the Orca GitHub installation (UI parity). Re-create requires reinstalling the Orca GitHub App.
+-> **No connection resource:** unlike GitLab, Bitbucket and Azure DevOps, GitHub has no `*_installation` resource to register a server and token — the Orca GitHub App installation is itself the account-level unit. That is why `account_id` holds this unit's own Orca UUID rather than a parent connection id.
 
-!> **Adopt semantics:** This resource **adopts** a pre-existing SCM installation rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an installation that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing installation under management without a takeover write.
+-> **Destroy:** `terraform destroy` DELETEs the Orca GitHub account integration (UI parity). Re-create requires reinstalling the Orca GitHub App.
+
+!> **Adopt semantics:** This resource **adopts** a pre-existing SCM account rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an account that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing account under management without a takeover write.
 
 -> **Coverage:** GitHub App install URL (`/github/config/`), GHES `/github/enterprises/*`, browse repos, `check_availability`, and scan-now are not managed here.
 
 ## Example Usage
 
 ```terraform
-resource "orcasecurity_shift_left_github_installation" "example" {
-  installation_id   = "11111111-1111-1111-1111-111111111111"
+resource "orcasecurity_shift_left_github_account" "example" {
+  account_id        = "11111111-1111-1111-1111-111111111111"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   default_policies  = true
 
@@ -34,11 +36,11 @@ resource "orcasecurity_shift_left_github_installation" "example" {
   }
 }
 
-# Alternatively, bind the installation to a scan-all project.
+# Alternatively, bind the account to a scan-all project.
 # project_id is mutually exclusive with policies_ids;
 # default_policies may still apply alongside it.
-resource "orcasecurity_shift_left_github_installation" "project_bound" {
-  installation_id   = "55555555-5555-5555-5555-555555555555"
+resource "orcasecurity_shift_left_github_account" "project_bound" {
+  account_id        = "55555555-5555-5555-5555-555555555555"
   installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   project_id        = "44444444-4444-4444-4444-444444444444"
 }
@@ -49,7 +51,7 @@ resource "orcasecurity_shift_left_github_installation" "project_bound" {
 
 ### Required
 
-- `installation_id` (String) Orca installation UUID.
+- `account_id` (String) Orca UUID of the integrated GitHub account (see `orcasecurity_shift_left_github_accounts`). GitHub has no separate installation resource: the Orca GitHub App installation is itself the account-level unit, so this is the unit's own id rather than a parent connection id.
 
 ### Optional
 
@@ -65,7 +67,7 @@ resource "orcasecurity_shift_left_github_installation" "project_bound" {
 - `account_name` (String) GitHub account/organization name.
 - `github_app_settings_url` (String) URL of the Orca GitHub App settings page on GitHub (null when the API omits it).
 - `github_installation_id` (Number) GitHub-side numeric installation ID of the Orca GitHub App.
-- `id` (String) Installation UUID (mirrors installation_id).
+- `id` (String) Orca UUID of the integrated GitHub account (mirrors account_id).
 - `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
 - `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
@@ -90,5 +92,5 @@ Optional:
 Import is supported using the following syntax:
 
 ```shell
-terraform import orcasecurity_shift_left_github_installation.example 11111111-1111-1111-1111-111111111111
+terraform import orcasecurity_shift_left_github_account.example 11111111-1111-1111-1111-111111111111
 ```
