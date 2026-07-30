@@ -8,9 +8,9 @@ import (
 const scheduledReportAPIPath = "/api/reporting/scheduled_reports"
 
 // Nil map marshals as {} — reporting API returns 500 on null object fields.
-type JSONObject map[string]interface{}
+type jsonObject map[string]interface{}
 
-func (o JSONObject) MarshalJSON() ([]byte, error) {
+func (o jsonObject) MarshalJSON() ([]byte, error) {
 	if o == nil {
 		return []byte("{}"), nil
 	}
@@ -44,11 +44,11 @@ type ScheduledReport struct {
 
 	// No omitempty: PATCH omits keys → unchanged. Zero values clear ("" / {}); only id and status keep omitempty.
 	Columns          []string   `json:"columns"`
-	DSLFilter        JSONObject `json:"dsl_filter"`
+	DSLFilter        jsonObject `json:"dsl_filter"`
 	SonarQuery       string     `json:"sonar_query"`
-	SonarQueryParams JSONObject `json:"sonar_query_params"`
-	QueryFilters     JSONObject `json:"query_filters"`
-	Config           JSONObject `json:"config"`
+	SonarQueryParams jsonObject `json:"sonar_query_params"`
+	QueryFilters     jsonObject `json:"query_filters"`
+	Config           jsonObject `json:"config"`
 	S3Path           string     `json:"s3_path"`
 
 	RecipientsEmails   []string `json:"recipients_emails"`
@@ -56,7 +56,7 @@ type ScheduledReport struct {
 	CustomEmailContent string   `json:"custom_email_content"`
 
 	ShareToSlack bool       `json:"share_to_slack"`
-	SlackChannel JSONObject `json:"slack_channel"`
+	SlackChannel jsonObject `json:"slack_channel"`
 
 	ShareToBucket bool   `json:"share_to_bucket"`
 	Bucket        string `json:"bucket"`
