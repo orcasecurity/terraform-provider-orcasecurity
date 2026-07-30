@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_account Resource - orcasecurity"
 description: |-
-  Creates or configures an Orca Azure DevOps shift-left integrated account (organization). Create POSTs /api/shiftleft/azure_devops/integrated_repositories/ with azure_account_name, installation_mode (defaults to SCAN_ALL_INCLUDE_FUTURE), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
+  Creates or configures an Orca Azure DevOps shift-left integrated account (organization). Create POSTs /api/shiftleft/azure_devops/integrated_repositories/ with azure_account_name, installation_mode (defaults to SELECTED_REPOSITORIES), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
 ---
 
 # orcasecurity_shift_left_azure_devops_account (Resource)
 
-Creates or configures an Orca Azure DevOps shift-left integrated account (organization). Create POSTs `/api/shiftleft/azure_devops/integrated_repositories/` with `azure_account_name`, `installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
+Creates or configures an Orca Azure DevOps shift-left integrated account (organization). Create POSTs `/api/shiftleft/azure_devops/integrated_repositories/` with `azure_account_name`, `installation_mode` (defaults to `SELECTED_REPOSITORIES`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. The Azure DevOps UI hides `skip_check_runs` and archive actions, but the API accepts them (and Terraform exposes them). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
 

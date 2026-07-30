@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_account Resource - orcasecurity"
 description: |-
-  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode (defaults to SCAN_ALL_INCLUDE_FUTURE), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
+  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode (defaults to SELECTED_REPOSITORIES), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 ---
 
 # orcasecurity_shift_left_bitbucket_account (Resource)
 
-Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode` (defaults to `SCAN_ALL_INCLUDE_FUTURE`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
+Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode` (defaults to `SELECTED_REPOSITORIES`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
 
