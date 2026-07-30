@@ -61,18 +61,19 @@ func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 			row := firstRepoRow[githubRepositoryItem](t, client, "github")
 			found, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, row.GithubRepositoryID)
 			assertFound(t, row.Repository.Name, found, err)
-			// The name is a hint only, but a non-empty name that matches nothing
-			// must fail closed rather than fall back to an unfiltered org-wide
-			// scan (see FindGithubRepository) — a wrong name must read as "not
-			// found", not resurrect the row through the id-only fallback. An
-			// empty name (post-import) carries no hint to lose, so it must still
-			// resolve via the unfiltered fallback — if search_fields ever stopped
-			// being honoured and started excluding rows, that would fail while
-			// the hit above would not.
-			wrongName, err := client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
-			assertNotFound(t, "github/wrong-name", wrongName, err)
+			// The name is a hint only: github_repository_id identifies the row and
+			// survives a rename, so a stale name must still resolve through the
+			// unfiltered fallback rather than read as "not found" and drop a live
+			// integration from state. Simulating a rename with a name that matches
+			// nothing also exercises the fallback exactly as an empty name (post-
+			// import, no hint at all) does.
+			renamed, err := client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
+			assertFound(t, row.Repository.Name, renamed, err)
 			found, err = client.FindGithubRepository(row.GithubInstallation.ID, "", row.GithubRepositoryID)
 			assertFound(t, row.Repository.Name, found, err)
+			// A repository id that exists under no installation is genuinely absent.
+			missing, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, -1)
+			assertNotFound(t, "github/unknown-repository-id", missing, err)
 			other, err := client.FindGithubRepository(mismatchedUUID, row.Repository.Name, row.GithubRepositoryID)
 			assertNotFound(t, "github/wrong-installation", other, err)
 		})

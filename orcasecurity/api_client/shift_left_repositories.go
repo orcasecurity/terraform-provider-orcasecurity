@@ -204,18 +204,21 @@ func githubRepositoryNameFilter(repositoryName string) listFilters {
 }
 
 // github_repository_id/github_installation_id are not safe list filters; match locally. The list API
-// (GithubRepositoryFilter server-side) has no github_repository_id filter at all, so an id-only lookup
-// has no choice but to page the whole org. That unfiltered scan is only acceptable when repositoryName
-// is empty (post-import, no name hint exists): a non-empty name whose filtered search misses is reported
-// as not found rather than silently falling through to the unfiltered scan, since a wrong/stale name
-// should fail fast, not pay for a full org-wide fanout on every plan.
+// (GithubRepositoryFilter server-side) has no github_repository_id filter at all, so the name search is
+// only a cheap first pass: the repository is identified by github_repository_id, which is stable across
+// renames. A filtered miss therefore means "the name is stale", not "the repository is gone", so it must
+// fall back to the unfiltered scan — reporting absence would make Terraform drop a live integration from
+// state and then try to re-integrate an already-integrated repository.
 func (client *APIClient) FindGithubRepository(installationID, repositoryName string, githubRepositoryID int64) (*ScmRepository, error) {
 	match := func(r *githubRepositoryItem) bool {
 		return r.GithubInstallation.ID == installationID && r.GithubRepositoryID == githubRepositoryID
 	}
 	if repositoryName != "" {
-		return findScmRepository(client, "github",
+		repo, err := findScmRepository(client, "github",
 			githubRepositoryNameFilter(repositoryName), match, (*githubRepositoryItem).common)
+		if err != nil || repo != nil {
+			return repo, err
+		}
 	}
 	return findScmRepository(client, "github", nil, match, (*githubRepositoryItem).common)
 }

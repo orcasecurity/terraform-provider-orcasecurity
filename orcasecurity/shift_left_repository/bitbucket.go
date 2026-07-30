@@ -91,7 +91,12 @@ func bitbucketRepositoryOps(apiClient *api_client.APIClient, plan *bitbucketRepo
 }
 
 // Import cannot set slug (Required+RequiresReplace) — backfill on read or import plans destroy/recreate.
+// Only overwrite from a non-empty value: slug forces replacement, so writing "" for a row whose slug the
+// list API omitted would propose destroying a healthy integration.
 func bitbucketSyncSlug(m *bitbucketRepositoryModel, row *api_client.ScmRepository) {
+	if row.Slug == "" {
+		return
+	}
 	m.Slug = types.StringValue(row.Slug)
 }
 

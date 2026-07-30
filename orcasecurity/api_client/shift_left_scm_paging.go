@@ -1,5 +1,7 @@
 package api_client
 
+import "fmt"
+
 type scmInstallationID struct {
 	ID string `json:"id"`
 }
@@ -72,7 +74,16 @@ func updateScmUnit[T any, PT interface {
 	if _, err := client.Put(updatePath, body); err != nil {
 		return nil, err
 	}
-	return findScmUnit[T, PT](client, unitsPath, installationID, unitID)
+	unit, err := findScmUnit[T, PT](client, unitsPath, installationID, unitID)
+	if err != nil {
+		return nil, err
+	}
+	// The write succeeded, so a missed read-back is not "the unit is gone". Returning
+	// (nil, nil) here would be read as absence and drop state for a unit we just updated.
+	if unit == nil {
+		return nil, fmt.Errorf("%s: update succeeded but the unit could not be read back; run terraform refresh", updatePath)
+	}
+	return unit, nil
 }
 
 // Shift-left lists paginate with start_at_index (offset ignored). Pass nil filters for full list.

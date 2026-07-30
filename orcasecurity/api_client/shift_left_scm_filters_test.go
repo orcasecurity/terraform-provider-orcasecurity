@@ -107,11 +107,11 @@ func assertScmListQuery(t *testing.T, got, want url.Values, forbid []string) {
 	}
 }
 
-// GitHub's name filter narrows but does not identify. An empty name (post-import,
-// no hint at all) still falls back to the unfiltered scan, but a non-empty name
-// whose filtered search misses must fail closed — a wrong/stale name must never
-// silently pay for a full org-wide fanout. These cases pin that shape and the
-// exact request count/sequence for each.
+// GitHub's name filter narrows but does not identify: the repository is keyed by
+// github_repository_id, which survives a rename. The name search is therefore only a
+// cheap first pass, and a miss must fall back to the unfiltered scan — reporting "not
+// found" for a renamed repository would drop a live integration from state. These cases
+// pin that shape and the exact request count/sequence for each.
 func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 	const row = `{"id":"gh-row","github_repository_id":42,
 		"github_installation":{"id":"inst-gh"},
@@ -132,12 +132,12 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 			wantRequests: []string{"acme/repo"},
 		},
 		{
-			// A stale/wrong non-empty name narrows to nothing: fail closed, and
-			// never touch the unfiltered org-wide list endpoint.
-			name:         "stale name is not found and never triggers the unfiltered scan",
+			// The repository was renamed, so the stale name narrows to nothing. The
+			// unfiltered scan then finds it by id, keeping it under management.
+			name:         "stale name falls back to the unfiltered scan and still resolves",
 			repoName:     "renamed-away/repo",
-			wantFound:    false,
-			wantRequests: []string{"renamed-away/repo"},
+			wantFound:    true,
+			wantRequests: []string{"renamed-away/repo", ""},
 		},
 		{
 			// Post-import state carries no name; skip straight to the scan.
@@ -204,10 +204,10 @@ func assertSearchSequence(t *testing.T, got, want []string) {
 	}
 }
 
-// A miss on a non-empty name reports "not found" without ever paying for the
-// unfiltered org-wide scan — whether the repository is genuinely gone or the
-// name is merely stale, Terraform still gets "not found" and can plan a
-// replacement, but only the single filtered request is made.
+// A genuinely de-integrated repository is still reported as not found, so Terraform can
+// plan a replacement. It costs one extra unfiltered scan to distinguish that from a
+// rename, which is the right trade: the scan is paid once, on the refresh after removal,
+// whereas mistaking a rename for a removal corrupts state on every plan.
 func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 	var requests int
 	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -222,8 +222,8 @@ func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 	if found != nil {
 		t.Fatalf("expected not found, got %+v", found)
 	}
-	if requests != 1 {
-		t.Errorf("expected only the filtered request, no unfiltered fallback, got %d requests", requests)
+	if requests != 2 {
+		t.Errorf("expected the filtered request plus the unfiltered fallback, got %d requests", requests)
 	}
 }
 
