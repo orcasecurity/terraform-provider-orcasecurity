@@ -79,6 +79,12 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		ProjectsIds:              tfconv.StringSliceToSet(apiPolicy.ProjectsIds),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
+	// StringSliceToSet maps no projects to null. Detaching every project is configured as
+	// projects_ids = [], so collapsing to null there would leave the config permanently
+	// diverged from state; keep the empty set the caller asked for.
+	if len(apiPolicy.ProjectsIds) == 0 && existing != nil && tfconv.Known(existing.ProjectsIds) {
+		model.ProjectsIds = types.SetValueMust(types.StringType, nil)
+	}
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
 		tfconv.Known(existing.PriorityFailureThreshold) {
 		model.PriorityFailureThreshold = existing.PriorityFailureThreshold

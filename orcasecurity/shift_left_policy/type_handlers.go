@@ -2,6 +2,8 @@ package shift_left_policy
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
@@ -241,7 +243,40 @@ func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) d
 	if h.present != nil && !h.present(model) {
 		diags.AddError("Missing type configuration block", fmt.Sprintf("Policy type %q requires the %q block to be set.", policyType, policyType))
 	}
+	// Every type reads only its own block, so a block belonging to another type would be
+	// silently dropped: accepted at plan, absent from the policy, and gone from state.
+	if foreign := foreignBlocks(policyType, model); len(foreign) > 0 {
+		diags.AddError(
+			"Unexpected type configuration block",
+			fmt.Sprintf("Policy type %q ignores the %s block(s); remove them or change type. Each policy manages exactly one type block.",
+				policyType, strings.Join(quoteAll(foreign), ", ")),
+		)
+	}
 	return diags
+}
+
+// foreignBlocks lists the type blocks set on model that policyType does not read, sorted
+// so the diagnostic is stable regardless of map iteration order.
+func foreignBlocks(policyType string, model *shiftLeftPolicyResourceModel) []string {
+	var found []string
+	for name, handler := range policyTypeHandlers {
+		if name == policyType || handler.present == nil {
+			continue
+		}
+		if handler.present(model) {
+			found = append(found, name)
+		}
+	}
+	sort.Strings(found)
+	return found
+}
+
+func quoteAll(values []string) []string {
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = fmt.Sprintf("%q", v)
+	}
+	return out
 }
 
 func buildControlsAndData(model *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy) ([]map[string]interface{}, map[string]interface{}, diag.Diagnostics) {

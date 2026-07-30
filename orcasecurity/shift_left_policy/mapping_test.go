@@ -2,6 +2,7 @@ package shift_left_policy
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -610,6 +611,57 @@ func TestValidateTypeBlock(t *testing.T) {
 
 	if diags := validateTypeBlock("nope", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error for unknown policy type")
+	}
+}
+
+// A block belonging to another type is never read, so accepting it would silently drop
+// whatever the user configured there. Fail the plan instead.
+func TestValidateTypeBlock_RejectsForeignBlocks(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Sast: &sastBlockModel{},
+		Iac:  &iacBlockModel{},
+	}
+	diags := validateTypeBlock("sast", model)
+	if !diags.HasError() {
+		t.Fatal("expected an error when an iac block is set on a sast policy")
+	}
+	if detail := diags.Errors()[0].Detail(); !strings.Contains(detail, `"iac"`) {
+		t.Errorf("error should name the offending block, got: %s", detail)
+	}
+}
+
+// The message lists every offending block, in a stable order despite map iteration.
+func TestValidateTypeBlock_ForeignBlockListIsSorted(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Sast:       &sastBlockModel{},
+		Iac:        &iacBlockModel{},
+		FileSystem: &controlsBlockModel{},
+	}
+	for range 5 {
+		diags := validateTypeBlock("sast", model)
+		if !diags.HasError() {
+			t.Fatal("expected an error for the foreign blocks")
+		}
+		if detail := diags.Errors()[0].Detail(); !strings.Contains(detail, `"file_system", "iac"`) {
+			t.Fatalf("expected sorted block names, got: %s", detail)
+		}
+	}
+}
+
+// projects_ids = [] means "detach every project"; refresh must keep the empty set rather
+// than collapsing it to null, which would diverge from the configuration forever.
+func TestAPIToState_ProjectsIdsEmptySetSurvivesRefresh(t *testing.T) {
+	existing := &shiftLeftPolicyResourceModel{
+		Type:        types.StringValue("licenses"),
+		ProjectsIds: types.SetValueMust(types.StringType, nil),
+	}
+	api := &api_client.ShiftLeftPolicy{ID: "p1", Type: "licenses"}
+	state := apiToState(api, existing)
+	if state.ProjectsIds.IsNull() {
+		t.Fatal("an explicitly empty projects_ids must stay [] after refresh, not become null")
+	}
+	if got := tfconv.SetToStringSlice(state.ProjectsIds); len(got) != 0 {
+		t.Fatalf("expected an empty set, got %v", got)
 	}
 }
 

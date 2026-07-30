@@ -187,8 +187,10 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Sync projects only when known; null/unknown means leave as-is.
-	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
+	// Sync projects only when known and actually changed; null/unknown means leave as-is.
+	// SetShiftLeftPolicyProjects replaces the whole attachment set, so re-sending an
+	// unchanged set is a needless detach/reattach on every apply.
+	if tfconv.Known(plan.ProjectsIds) && !plan.ProjectsIds.Equal(state.ProjectsIds) {
 		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
 			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
 			return
