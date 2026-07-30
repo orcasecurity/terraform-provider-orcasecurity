@@ -108,7 +108,6 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	createReq := api_client.Group{
 		Name:        plan.Name.ValueString(),
 		SSOGroup:    plan.SSOGroup.ValueBool(),
-		Users:       users,
 		Description: plan.Description.ValueString(),
 	}
 
@@ -120,9 +119,17 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		)
 		return
 	}
+	plan.ID = types.StringValue(instance.ID)
 
 	// Create API ignores users; set via AddGroupUsers.
 	if err := r.apiClient.AddGroupUsers(instance.ID, users); err != nil {
+		// The group already exists remotely even though membership failed to apply.
+		// Persist the ID and known fields so Terraform keeps tracking it instead of
+		// leaking it — the next apply would otherwise 400 on the name, which is
+		// unique per org.
+		plan.SSOGroup = types.BoolValue(instance.SSOGroup)
+		plan.Users = types.SetNull(types.StringType)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		resp.Diagnostics.AddError(
 			"Error adding group users",
 			fmt.Sprintf("Group %s was created but its users could not be set: %s", instance.ID, err.Error()),
@@ -132,14 +139,16 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	instance, err = r.apiClient.GetGroup(instance.ID)
 	if err != nil {
+		// Create and AddGroupUsers both already succeeded remotely; persist what we
+		// know rather than leaking the group over a refresh failure.
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		resp.Diagnostics.AddError(
 			"Error refreshing group",
-			"Could not create group, unexpected error: "+err.Error(),
+			fmt.Sprintf("Group %s was created but could not be refreshed: %s", plan.ID.ValueString(), err.Error()),
 		)
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
 	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance, plan.Users)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -245,18 +254,21 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	users := userIDsFromSet(plan.Users)
+	var prior groupResourceModel
+	diags = req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	updateReq := api_client.Group{
 		ID:          plan.ID.ValueString(),
 		Name:        plan.Name.ValueString(),
 		SSOGroup:    plan.SSOGroup.ValueBool(),
-		Users:       users,
 		Description: plan.Description.ValueString(),
 	}
 
-	_, err := r.apiClient.UpdateGroup(updateReq)
-	if err != nil {
+	if _, err := r.apiClient.UpdateGroup(updateReq); err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating group",
 			"Could not update group, unexpected error: "+err.Error(),
@@ -264,8 +276,46 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
+	// The update endpoint's users field only replaces membership when non-empty and can
+	// never clear it to zero (confirmed against the API), so the diff between prior and
+	// planned members is applied explicitly through the add/remove subresource instead.
+	priorUsers := userIDsFromSet(prior.Users)
+	toAdd, toRemove := diffUserIDs(priorUsers, userIDsFromSet(plan.Users))
+
+	if err := r.apiClient.AddGroupUsers(plan.ID.ValueString(), toAdd); err != nil {
+		// Name/description already changed remotely; membership did not. Persist the
+		// unchanged membership alongside the new name/description instead of losing them.
+		plan.SSOGroup = types.BoolValue(updateReq.SSOGroup)
+		plan.Users = prior.Users
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		resp.Diagnostics.AddError(
+			"Error adding group users",
+			fmt.Sprintf("Group %s was updated but new members could not be added: %s", plan.ID.ValueString(), err.Error()),
+		)
+		return
+	}
+
+	if err := r.apiClient.RemoveGroupUsers(plan.ID.ValueString(), toRemove); err != nil {
+		// Additions above already landed; removals did not. Persist that partial
+		// membership instead of the fully-planned set, which would overstate what
+		// actually changed.
+		appliedUsers, d := types.SetValueFrom(ctx, types.StringType, append(priorUsers, toAdd...))
+		resp.Diagnostics.Append(d...)
+		plan.SSOGroup = types.BoolValue(updateReq.SSOGroup)
+		plan.Users = appliedUsers
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		resp.Diagnostics.AddError(
+			"Error removing group users",
+			fmt.Sprintf("Group %s was updated and new members added but old members could not be removed: %s", plan.ID.ValueString(), err.Error()),
+		)
+		return
+	}
+
 	instance, err := r.apiClient.GetGroup(plan.ID.ValueString())
 	if err != nil {
+		// Name/description and membership all already changed remotely; persist them
+		// instead of losing track over a refresh failure.
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		resp.Diagnostics.AddError(
 			"Error updating group",
 			"Could not read group, unexpected error: "+err.Error(),
@@ -273,7 +323,6 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	plan.ID = types.StringValue(instance.ID)
 	plan.Description = types.StringValue(instance.Description)
 	plan.Name = types.StringValue(instance.Name)
 	resp.Diagnostics.Append(setGroupStateFromAPI(ctx, &plan, instance, plan.Users)...)
@@ -286,6 +335,30 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// diffUserIDs returns the members present in next but not prior (toAdd) and the members
+// present in prior but not next (toRemove).
+func diffUserIDs(prior, next []string) (toAdd, toRemove []string) {
+	priorSet := make(map[string]bool, len(prior))
+	for _, id := range prior {
+		priorSet[id] = true
+	}
+	nextSet := make(map[string]bool, len(next))
+	for _, id := range next {
+		nextSet[id] = true
+	}
+	for _, id := range next {
+		if !priorSet[id] {
+			toAdd = append(toAdd, id)
+		}
+	}
+	for _, id := range prior {
+		if !nextSet[id] {
+			toRemove = append(toRemove, id)
+		}
+	}
+	return toAdd, toRemove
 }
 
 func (r *groupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
