@@ -67,16 +67,12 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitO
 
 // deleteAccount resolves Orca id from account name when state lacks id (post-import).
 func deleteAccount(apiClient *api_client.APIClient, m *resourceModel) error {
-	id := m.ID.ValueString()
-	if id == "" {
-		a, err := apiClient.FindAzureDevopsAccountByName(m.InstallationID.ValueString(), m.AccountName.ValueString())
-		if err != nil {
-			return err
-		}
-		if a == nil {
-			return nil
-		}
-		id = a.ID
-	}
-	return apiClient.DeleteAzureDevopsAccount(m.InstallationID.ValueString(), id)
+	return shift_left_integration.DeleteByLookup(
+		m.ID.ValueString(),
+		func() (*api_client.AzureDevopsAccount, error) {
+			return apiClient.FindAzureDevopsAccountByName(m.InstallationID.ValueString(), m.AccountName.ValueString())
+		},
+		func(a *api_client.AzureDevopsAccount) string { return a.ID },
+		func(id string) error { return apiClient.DeleteAzureDevopsAccount(m.InstallationID.ValueString(), id) },
+	)
 }

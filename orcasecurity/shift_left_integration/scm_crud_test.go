@@ -50,7 +50,7 @@ func TestWriteAdopted_AdoptsAndUpdates(t *testing.T) {
 		PlanMode:    types.StringNull(),
 		PlanDefault: types.BoolValue(false),
 		PlanConfig: &ConfigSettingsModel{
-			PrSummaryComment: types.StringValue("NEVER"),
+			PRSettingsModel: PRSettingsModel{PrSummaryComment: types.StringValue("NEVER")},
 		},
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func TestCreateUnitBody_EnablesPullRequestScanningByDefault(t *testing.T) {
 		types.StringValue("SELECTED_REPOSITORIES"),
 		types.BoolNull(),
 		types.SetNull(types.StringType),
-		&ConfigSettingsModel{DisableScanPullRequests: types.BoolValue(true)},
+		&ConfigSettingsModel{PRSettingsModel: PRSettingsModel{DisableScanPullRequests: types.BoolValue(true)}},
 		ProjectIntent{},
 	)
 	if !optOut.ConfigSettings.DisableScanPullRequests {

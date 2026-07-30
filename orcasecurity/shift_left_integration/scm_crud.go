@@ -47,10 +47,6 @@ type AdoptWriteRequest[T any] struct {
 	PlanPolicies types.Set
 	PlanConfig   *ConfigSettingsModel
 	Project      ProjectIntent
-
-	Labels          AdoptLabels
-	NotFoundMsg     string
-	WriteErrorTitle string
 }
 
 func WriteAdopted[T any](req AdoptWriteRequest[T]) (*T, error) {

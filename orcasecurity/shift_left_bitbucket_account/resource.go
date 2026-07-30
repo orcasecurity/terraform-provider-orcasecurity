@@ -67,16 +67,12 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitO
 
 // deleteAccount resolves Orca id from account slug when state lacks id (post-import).
 func deleteAccount(apiClient *api_client.APIClient, m *resourceModel) error {
-	id := m.ID.ValueString()
-	if id == "" {
-		a, err := apiClient.FindBitbucketAccountBySlug(m.InstallationID.ValueString(), m.AccountID.ValueString())
-		if err != nil {
-			return err
-		}
-		if a == nil {
-			return nil
-		}
-		id = a.ID
-	}
-	return apiClient.DeleteBitbucketAccount(m.InstallationID.ValueString(), id)
+	return shift_left_integration.DeleteByLookup(
+		m.ID.ValueString(),
+		func() (*api_client.BitbucketAccount, error) {
+			return apiClient.FindBitbucketAccountBySlug(m.InstallationID.ValueString(), m.AccountID.ValueString())
+		},
+		func(a *api_client.BitbucketAccount) string { return a.ID },
+		func(id string) error { return apiClient.DeleteBitbucketAccount(m.InstallationID.ValueString(), id) },
+	)
 }

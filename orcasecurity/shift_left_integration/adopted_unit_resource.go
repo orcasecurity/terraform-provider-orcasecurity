@@ -2,6 +2,7 @@ package shift_left_integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -180,23 +181,28 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 ) {
 	planFields := o.Config(plan)
 	configFields := o.Config(config)
-	unit := AdoptWrite(diags, AdoptWriteRequest[A]{
+	unit, err := WriteAdopted(AdoptWriteRequest[A]{
 		Get:     func() (*A, error) { return o.Get(plan) },
 		Current: req.Current,
 		Update: func(current *A, body api_client.ScmInstallationUpdate) (*A, error) {
 			return o.Update(plan, current, body)
 		},
-		Snapshot:        o.Snapshot,
-		PlanMode:        planFields.InstallationMode,
-		PlanDefault:     planFields.DefaultPolicies,
-		PlanPolicies:    planFields.PoliciesIds,
-		PlanConfig:      planFields.ConfigSettings,
-		Project:         ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
-		Labels:          o.Labels,
-		NotFoundMsg:     req.NotFoundMsg,
-		WriteErrorTitle: req.Title,
+		Snapshot:     o.Snapshot,
+		PlanMode:     planFields.InstallationMode,
+		PlanDefault:  planFields.DefaultPolicies,
+		PlanPolicies: planFields.PoliciesIds,
+		PlanConfig:   planFields.ConfigSettings,
+		Project:      ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
 	})
-	if unit == nil {
+	switch {
+	case errors.Is(err, ErrUnitNotFound):
+		diags.AddError(o.Labels.NotFoundTitle, req.NotFoundMsg)
+		return
+	case err != nil:
+		diags.AddError(req.Title, err.Error())
+		return
+	case unit == nil:
+		diags.AddError(o.Labels.NilReadTitle, o.Labels.NilReadDetail)
 		return
 	}
 	o.setAdoptedState(ctx, diags, state, unit, plan)

@@ -193,7 +193,7 @@ func TestProjectIntentFrom_OnlyExplicitPoliciesCount(t *testing.T) {
 
 func TestAdopt_MergesConfigSettings(t *testing.T) {
 	overlay := &ConfigSettingsModel{
-		PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES"),
+		PRSettingsModel: PRSettingsModel{PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES")},
 	}
 	ad := Adopt(
 		types.StringNull(),

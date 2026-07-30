@@ -2,7 +2,6 @@ package shift_left_integration
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -86,23 +85,6 @@ func LooksLikeUUID(s string) bool {
 	return true
 }
 
-func AdoptWrite[T any](diags *diag.Diagnostics, req AdoptWriteRequest[T]) *T {
-	unit, err := WriteAdopted(req)
-	if errors.Is(err, ErrUnitNotFound) {
-		diags.AddError(req.Labels.NotFoundTitle, req.NotFoundMsg)
-		return nil
-	}
-	if err != nil {
-		diags.AddError(req.WriteErrorTitle, err.Error())
-		return nil
-	}
-	if unit == nil {
-		diags.AddError(req.Labels.NilReadTitle, req.Labels.NilReadDetail)
-		return nil
-	}
-	return unit
-}
-
 func ReadUnit[T any](
 	ctx context.Context,
 	diags *diag.Diagnostics,
@@ -126,4 +108,21 @@ func ReadUnit[T any](
 
 func DeleteNoop(ctx context.Context, labels AdoptLabels) {
 	tflog.Info(ctx, labels.DeleteLog)
+}
+
+// DeleteByLookup deletes a unit by id, resolving the id via lookup first when it's
+// absent (state left by import may lack the Orca id). A nil lookup result means the
+// unit is already gone remotely, which is treated as a successful delete.
+func DeleteByLookup[T any](id string, lookup func() (*T, error), idOf func(*T) string, del func(string) error) error {
+	if id == "" {
+		found, err := lookup()
+		if err != nil {
+			return err
+		}
+		if found == nil {
+			return nil
+		}
+		id = idOf(found)
+	}
+	return del(id)
 }

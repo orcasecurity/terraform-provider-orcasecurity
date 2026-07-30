@@ -67,18 +67,14 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitO
 
 // deleteGroup resolves Orca id from SCM group id when state lacks id (post-import).
 func deleteGroup(apiClient *api_client.APIClient, m *resourceModel) error {
-	id := m.ID.ValueString()
-	if id == "" {
-		g, err := apiClient.FindGitlabGroupByGitlabID(m.InstallationID.ValueString(), m.GitlabGroupID.ValueInt64())
-		if err != nil {
-			return err
-		}
-		if g == nil {
-			return nil
-		}
-		id = g.ID
-	}
-	return apiClient.DeleteGitlabGroup(m.InstallationID.ValueString(), id)
+	return shift_left_integration.DeleteByLookup(
+		m.ID.ValueString(),
+		func() (*api_client.GitlabGroup, error) {
+			return apiClient.FindGitlabGroupByGitlabID(m.InstallationID.ValueString(), m.GitlabGroupID.ValueInt64())
+		},
+		func(g *api_client.GitlabGroup) string { return g.ID },
+		func(id string) error { return apiClient.DeleteGitlabGroup(m.InstallationID.ValueString(), id) },
+	)
 }
 
 func importState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
