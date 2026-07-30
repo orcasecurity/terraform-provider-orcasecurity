@@ -48,7 +48,7 @@ resource "orcasecurity_shift_left_azure_devops_repository" "example" {
 - `disable_scan_pull_requests` (Boolean) Disable pull request scanning for this repository.
 - `disabled` (Boolean) Pause scanning for this repository (the repository stays integrated).
 - `pr_summary_comment` (String) When to add a summary comment on pull requests.
-- `project_id` (String) Shift Left project to place the repository in. When omitted on create, Orca creates a dedicated project for the repository. Changing it moves the repository between projects.
+- `project_id` (String) Shift Left project to place the repository in. When omitted on create, Orca creates a dedicated project for the repository. Changing it moves the repository between projects; omitting it once set leaves the repository where it is.
 - `skip_check_runs` (String) When to skip creating SCM check runs.
 
 ### Read-Only

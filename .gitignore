@@ -46,3 +46,7 @@ demo
 
 # Local superpowers plan/spec docs — never commit
 docs/superpowers/
+
+# Local agent state, alongside the checked-in notes under .claude/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
