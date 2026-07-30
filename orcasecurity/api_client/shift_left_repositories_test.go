@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -386,6 +387,33 @@ func TestFindBitbucketRepository_DisambiguatesByInstallation(t *testing.T) {
 	}
 	if row == nil || row.ID != "row-mine" {
 		t.Fatalf("expected row-mine (scoped by installation), got %+v", row)
+	}
+}
+
+// An unresolvable account is not evidence that the repository is gone: the lookup needs the account
+// row to scope the query at all. Returning (nil, nil) here would read as "deleted", and Read would
+// drop a live integration from state and then re-integrate an already-integrated repository.
+func TestFindRepository_AccountMissIsAnErrorNotAbsence(t *testing.T) {
+	empty := `{"total_items":0,"data":[]}`
+	client, _ := captureServer(t, map[string]string{
+		"GET /api/shiftleft/bitbucket/installations/inst-1/integrated_accounts/":    empty,
+		"GET /api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/": empty,
+	})
+
+	row, err := client.FindBitbucketRepository("inst-1", "workspace-slug", "bb-1")
+	if row != nil {
+		t.Errorf("expected no row, got %+v", row)
+	}
+	if err == nil || !strings.Contains(err.Error(), "workspace-slug") {
+		t.Errorf("bitbucket account miss must fail closed and name the account, got %v", err)
+	}
+
+	row, err = client.FindAzureRepository("inst-1", "org-name", "az-1")
+	if row != nil {
+		t.Errorf("expected no row, got %+v", row)
+	}
+	if err == nil || !strings.Contains(err.Error(), "org-name") {
+		t.Errorf("azure account miss must fail closed and name the account, got %v", err)
 	}
 }
 

@@ -77,6 +77,18 @@ func findScmRepository[T any](
 	return nil, nil
 }
 
+// Bitbucket and Azure repositories are addressed through their owning Orca account-installation row,
+// so a missing account means the repository's existence is unknown, not that it was removed. Reporting
+// absence would make Terraform drop a live integration from state and then try to re-integrate an
+// already-integrated repository, so the ambiguity has to surface as an error the operator can act on.
+func errAccountLookupFailed(scmName, accountKind, account, installationID string) error {
+	return fmt.Errorf(
+		"%s %s %q is not integrated under installation %s, so its repositories cannot be looked up. "+
+			"Check installation_id and account_id; if the account was de-integrated its repositories are "+
+			"gone too, so drop the repository from state with `terraform state rm`",
+		scmName, accountKind, account, installationID)
+}
+
 func (client *APIClient) updateScmRepositories(provider string, body ScmRepositoryConfigUpdate) error {
 	_, err := client.Patch(integratedRepositoriesPath(provider), body)
 	return err
@@ -349,7 +361,7 @@ func (client *APIClient) FindBitbucketRepository(installationID, accountSlug, bi
 		return nil, err
 	}
 	if account == nil {
-		return nil, nil // account not integrated under this installation
+		return nil, errAccountLookupFailed("Bitbucket", "account/workspace", accountSlug, installationID)
 	}
 	return findScmRepository(client, "bitbucket",
 		listFilters{"account_installation_id": account.ID},
@@ -425,7 +437,7 @@ func (client *APIClient) FindAzureRepository(installationID, accountName, azureR
 		return nil, err
 	}
 	if account == nil {
-		return nil, nil // account not integrated under this installation
+		return nil, errAccountLookupFailed("Azure DevOps", "account/organization", accountName, installationID)
 	}
 	return findScmRepository(client, "azure_devops",
 		listFilters{
