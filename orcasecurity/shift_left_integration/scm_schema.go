@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
@@ -45,12 +46,14 @@ func (nonEmptyPoliciesValidator) ValidateSet(_ context.Context, req validator.Se
 func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"account_name": rschema.StringAttribute{
-			Computed:    true,
-			Description: accountNameDescription,
+			Computed:      true,
+			Description:   accountNameDescription,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"integration_status": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.",
+			Computed:      true,
+			Description:   "Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"installation_mode": rschema.StringAttribute{
 			Optional:      true,
@@ -98,16 +101,19 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 		},
 		"scan_all_state": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).",
+			Computed:      true,
+			Description:   "Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"integrated_repositories_count": rschema.Int64Attribute{
-			Computed:    true,
-			Description: "Read-only count of repositories integrated under this unit.",
+			Computed:      true,
+			Description:   "Read-only count of repositories integrated under this unit.",
+			PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 		},
 		"scm_posture_policy_id": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Read-only ID of the SCM posture policy attached to this unit (null when none).",
+			Computed:      true,
+			Description:   "Read-only ID of the SCM posture policy attached to this unit (null when none).",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 	}
 }

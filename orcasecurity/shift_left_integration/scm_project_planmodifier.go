@@ -26,6 +26,11 @@ func (projectIDPlanModifier) PlanModifyString(ctx context.Context, req planmodif
 		return
 	}
 
+	// No prior state to carry forward yet (create): leave the core-proposed value alone.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
 	var policies types.Set
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("policies_ids"), &policies)...)
 	if resp.Diagnostics.HasError() {
@@ -37,7 +42,5 @@ func (projectIDPlanModifier) PlanModifyString(ctx context.Context, req planmodif
 		return
 	}
 
-	if !req.StateValue.IsNull() {
-		resp.PlanValue = req.StateValue
-	}
+	resp.PlanValue = req.StateValue
 }

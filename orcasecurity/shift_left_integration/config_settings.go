@@ -8,6 +8,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -22,38 +26,44 @@ type ConfigSettingsModel struct {
 func ConfigSettingsAttributes() map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
 		"disable_scan_pull_requests": schema.BoolAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Disable scanning pull requests.",
+			Optional:      true,
+			Computed:      true,
+			Description:   "Disable scanning pull requests.",
+			PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 		},
 		"comments_on_pull_requests": schema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "When to post scan result comments on pull requests.",
-			Validators:  PRCommentValidator(),
+			Optional:      true,
+			Computed:      true,
+			Description:   "When to post scan result comments on pull requests.",
+			Validators:    PRCommentValidator(),
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"pr_summary_comment": schema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "When to post a pull request summary comment.",
-			Validators:  PRCommentValidator(),
+			Optional:      true,
+			Computed:      true,
+			Description:   "When to post a pull request summary comment.",
+			Validators:    PRCommentValidator(),
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"skip_check_runs": schema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "When to skip posting check runs.",
-			Validators:  SkipCheckRunsValidator(FullSkipCheckRunValues),
+			Optional:      true,
+			Computed:      true,
+			Description:   "When to skip posting check runs.",
+			Validators:    SkipCheckRunsValidator(FullSkipCheckRunValues),
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"config_file_support": schema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Whether in-repo Orca config file support is enabled.",
-			Validators:  ConfigFileSupportValidator(),
+			Optional:      true,
+			Computed:      true,
+			Description:   "Whether in-repo Orca config file support is enabled.",
+			Validators:    ConfigFileSupportValidator(),
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"pr_summary_appendix": schema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Additional free-text appendix appended to the pull request summary comment.",
+			Optional:      true,
+			Computed:      true,
+			Description:   "Additional free-text appendix appended to the pull request summary comment.",
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 	}
 
@@ -65,6 +75,7 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 		Validators: []validator.List{
 			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
 		},
+		PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 	}
 	attrs["unavailable_conditions"] = schema.ListAttribute{
 		Optional:    true,
@@ -74,6 +85,7 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 		Validators: []validator.List{
 			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
 		},
+		PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 	}
 
 	return attrs
