@@ -26,19 +26,65 @@ func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	}
 }
 
-// mergeControlBlock: index-wise merge from prior state; API-added/removed controls still surface.
-func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls *[]C, srcControls []C, mergeControl func(dst *C, src C)) {
+func (c *baseControlModel) controlID() string { return c.ID.ValueString() }
+
+func (c *scmControlModel) controlID() string { return c.ID.ValueString() }
+
+// mergeControlBlock overlays the prior-state controls onto the ones the API returned, so controls
+// the API added or removed still surface as drift.
+func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls *[]C, srcControls []C,
+	controlID func(*C) string, mergeControl func(dst *C, src C)) {
 	*dstAll = srcAll
 	if tfconv.BoolIsTrue(srcAll) {
 		*dstControls = nil
 		return
 	}
-	d := *dstControls
-	for i := range d {
-		if i < len(srcControls) {
-			mergeControl(&d[i], srcControls[i])
+	apiControls := *dstControls
+	for i, prior := range pairControls(apiControls, srcControls, controlID) {
+		if prior != nil {
+			mergeControl(&apiControls[i], *prior)
 		}
 	}
+}
+
+// pairControls lines each API control up with the prior-state control it belongs to. The control id
+// is the only stable identity: the API is free to reorder or drop controls, and pairing by position
+// would then copy one control's priority/disabled override onto an unrelated control. An id is
+// optional in configuration, so a list that does not carry ids throughout still falls back to
+// position — which is no worse than the pairing such a list had before.
+func pairControls[C any](apiControls, prior []C, controlID func(*C) string) []*C {
+	paired := make([]*C, len(apiControls))
+	if byID, ok := indexControlsByID(apiControls, prior, controlID); ok {
+		for i := range apiControls {
+			paired[i] = byID[controlID(&apiControls[i])]
+		}
+		return paired
+	}
+	for i := range apiControls {
+		if i < len(prior) {
+			paired[i] = &prior[i]
+		}
+	}
+	return paired
+}
+
+// indexControlsByID keys the prior controls by id, reporting false when either side fails to
+// identify every control by a unique id and pairing therefore cannot rely on ids.
+func indexControlsByID[C any](apiControls, prior []C, controlID func(*C) string) (map[string]*C, bool) {
+	byID := make(map[string]*C, len(prior))
+	for i := range prior {
+		id := controlID(&prior[i])
+		if _, taken := byID[id]; id == "" || taken {
+			return nil, false
+		}
+		byID[id] = &prior[i]
+	}
+	for i := range apiControls {
+		if controlID(&apiControls[i]) == "" {
+			return nil, false
+		}
+	}
+	return byID, true
 }
 
 func mergeIacControlFromPlan(dst *iacControlModel, src iacControlModel) {
@@ -78,35 +124,40 @@ func mergeControlsBlockFromPlan(dst, src *controlsBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeBaseControlFromPlan)
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls,
+		(*baseControlModel).controlID, mergeBaseControlFromPlan)
 }
 
 func mergeIacBlockFromPlan(dst, src *iacBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeIacControlFromPlan)
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls,
+		(*iacControlModel).controlID, mergeIacControlFromPlan)
 }
 
 func mergeContainerScopeFromPlan(dst, src *containerScopeBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeContainerControlFromPlan)
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls,
+		(*containerControlModel).controlID, mergeContainerControlFromPlan)
 }
 
 func mergeSastBlockFromPlan(dst, src *sastBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeSastControlFromPlan)
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls,
+		(*sastControlModel).controlID, mergeSastControlFromPlan)
 }
 
 func mergeLicensesBlockFromPlan(dst, src *licensesBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls, mergeLicenseControlFromPlan)
+	mergeControlBlock(&dst.AllControls, src.AllControls, &dst.Controls, src.Controls,
+		(*licenseControlModel).controlID, mergeLicenseControlFromPlan)
 }
 
 func mergeContainerImageFromPlan(dst, src *containerImageBlockModel) {
@@ -141,9 +192,9 @@ func mergeScmPostureBlockFromPlan(dst, src *scmPostureBlockModel) {
 	if dst == nil || src == nil {
 		return
 	}
-	for i := range dst.Controls {
-		if i < len(src.Controls) {
-			mergeScmControlFromPlan(&dst.Controls[i], src.Controls[i])
+	for i, prior := range pairControls(dst.Controls, src.Controls, (*scmControlModel).controlID) {
+		if prior != nil {
+			mergeScmControlFromPlan(&dst.Controls[i], *prior)
 		}
 	}
 	// Scope stays from API so OOB scope changes surface as drift.
