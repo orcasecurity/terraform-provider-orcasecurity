@@ -79,11 +79,7 @@ func branchRequiresReplace() planmodifier.String {
 
 func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
-		"id": rschema.StringAttribute{
-			Computed:      true,
-			Description:   "Orca id of the integrated repository row.",
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		},
+		"id": shift_left_integration.ComputedString("Orca id of the integrated repository row."),
 		"name": rschema.StringAttribute{
 			Required:      true,
 			Description:   fmt.Sprintf("Repository name (path) as known to %s.", traits.name),
@@ -95,62 +91,27 @@ func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
 		"branch": branchAttribute(traits.branchRequired),
-		"project_id": rschema.StringAttribute{
-			Optional: true,
-			Computed: true,
-			Description: "Shift Left project to place the repository in. When omitted on create, Orca creates a dedicated " +
-				"project for the repository. Changing it moves the repository between projects.",
-		},
-		"disabled": rschema.BoolAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Pause scanning for this repository (the repository stays integrated).",
-		},
-		"disable_scan_pull_requests": rschema.BoolAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Disable pull request scanning for this repository.",
-		},
-		"comments_on_pull_requests": rschema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "When to comment on pull requests.",
-			Validators:  shift_left_integration.PRCommentValidator(),
-		},
-		"pr_summary_comment": rschema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "When to add a summary comment on pull requests.",
-			Validators:  shift_left_integration.PRCommentValidator(),
-		},
-		"skip_check_runs": rschema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "When to skip creating SCM check runs.",
-			Validators:  shift_left_integration.SkipCheckRunsValidator(traits.skipCheckRunsValues),
-		},
-		"config_file_support": rschema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Whether the in-repo Orca config file is honored.",
-			Validators:  shift_left_integration.ConfigFileSupportValidator(),
-		},
-		"status": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Aggregated initial scan status.",
-		},
-		"repository_context_id": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Repository context id; deleting this context is how the repository is un-integrated.",
-		},
-		"integration_status": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Health status of the owning installation. Empty when healthy.",
-		},
-		"scm_posture_policy_id": rschema.StringAttribute{
-			Computed:    true,
-			Description: "SCM posture policy that applies to this repository, if any.",
-		},
+		"project_id": shift_left_integration.OptionalComputedString(
+			"Shift Left project to place the repository in. When omitted on create, Orca creates a dedicated " +
+				"project for the repository. Changing it moves the repository between projects; omitting it once " +
+				"set leaves the repository where it is."),
+		"disabled": shift_left_integration.OptionalComputedBool(
+			"Pause scanning for this repository (the repository stays integrated)."),
+		"disable_scan_pull_requests": shift_left_integration.OptionalComputedBool(
+			"Disable pull request scanning for this repository."),
+		"comments_on_pull_requests": shift_left_integration.OptionalComputedString(
+			"When to comment on pull requests.", shift_left_integration.PRCommentValidator()...),
+		"pr_summary_comment": shift_left_integration.OptionalComputedString(
+			"When to add a summary comment on pull requests.", shift_left_integration.PRCommentValidator()...),
+		"skip_check_runs": shift_left_integration.OptionalComputedString(
+			"When to skip creating SCM check runs.", shift_left_integration.SkipCheckRunsValidator(traits.skipCheckRunsValues)...),
+		"config_file_support": shift_left_integration.OptionalComputedString(
+			"Whether the in-repo Orca config file is honored.", shift_left_integration.ConfigFileSupportValidator()...),
+		"status": shift_left_integration.ComputedString("Aggregated initial scan status."),
+		"repository_context_id": shift_left_integration.ComputedString(
+			"Repository context id; deleting this context is how the repository is un-integrated."),
+		"integration_status":    shift_left_integration.ComputedString("Health status of the owning installation. Empty when healthy."),
+		"scm_posture_policy_id": shift_left_integration.ComputedString("SCM posture policy that applies to this repository, if any."),
 	}
 }
 

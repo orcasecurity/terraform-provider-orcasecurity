@@ -53,19 +53,10 @@ type resourceModel struct {
 func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.InstallationBaseAttrs("GitLab", "https://gitlab.com",
 		"GitLab access token. Orca validates it on create, so it must be a valid group or personal access token.")
-	attrs["read_only"] = rschema.BoolAttribute{
-		Optional:    true,
-		Computed:    true,
-		Description: "Whether the token grants read-only access. Defaults to `false`. Must match the actual token permissions.",
-	}
-	attrs["access_token_name"] = rschema.StringAttribute{
-		Computed:    true,
-		Description: "Name of the token as reported by GitLab.",
-	}
-	attrs["access_token_type"] = rschema.StringAttribute{
-		Computed:    true,
-		Description: "Type of the token as reported by GitLab.",
-	}
+	attrs["read_only"] = shift_left_integration.OptionalComputedBool(
+		"Whether the token grants read-only access. Defaults to `false`. Must match the actual token permissions.")
+	attrs["access_token_name"] = shift_left_integration.ComputedString("Name of the token as reported by GitLab.")
+	attrs["access_token_type"] = shift_left_integration.ComputedString("Type of the token as reported by GitLab.")
 	return rschema.Schema{
 		Description: "Connects a GitLab server to Orca Shift Left by registering an access token " +
 			"(POST /api/shiftleft/gitlab/installations/). Orca validates the token on create, so it must be a valid " +

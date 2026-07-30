@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -55,24 +54,13 @@ type resourceModel struct {
 func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.InstallationBaseAttrs("Bitbucket", "https://bitbucket.org",
 		"Bitbucket access token.")
-	attrs["access_token_type"] = rschema.StringAttribute{
-		Optional:    true,
-		Computed:    true,
-		Description: "Token kind: `PAT` for a personal access token, `TOKEN` for a workspace (cloud) or project (server) token.",
-		Validators: []validator.String{
-			stringvalidator.OneOf("PAT", "TOKEN"),
-		},
-	}
-	attrs["username"] = rschema.StringAttribute{
-		Optional:    true,
-		Computed:    true,
-		Description: "Bitbucket username owning the token (used with `PAT` tokens).",
-	}
-	attrs["account_id"] = rschema.StringAttribute{
-		Optional:    true,
-		Computed:    true,
-		Description: "Workspace or project slug the token is scoped to (used with `TOKEN` tokens).",
-	}
+	attrs["access_token_type"] = shift_left_integration.OptionalComputedString(
+		"Token kind: `PAT` for a personal access token, `TOKEN` for a workspace (cloud) or project (server) token.",
+		stringvalidator.OneOf("PAT", "TOKEN"))
+	attrs["username"] = shift_left_integration.OptionalComputedString(
+		"Bitbucket username owning the token (used with `PAT` tokens).")
+	attrs["account_id"] = shift_left_integration.OptionalComputedString(
+		"Workspace or project slug the token is scoped to (used with `TOKEN` tokens).")
 	return rschema.Schema{
 		Description: "Connects a Bitbucket server or workspace to Orca Shift Left by registering an access token " +
 			"(POST /api/shiftleft/bitbucket/installations/). The API never returns the token, so after `terraform import` " +

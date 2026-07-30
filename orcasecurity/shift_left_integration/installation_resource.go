@@ -21,29 +21,17 @@ func InstallationBaseAttrs(scmName, cloudURL, tokenDesc string) map[string]rsche
 			Required:    true,
 			Description: "Display name for the installation.",
 		},
-		"server_url": rschema.StringAttribute{
-			Optional: true,
-			Computed: true,
-			Description: fmt.Sprintf("%s server URL without a trailing slash. Omit for %s cloud (%s).",
-				scmName, scmName, cloudURL),
-		},
+		"server_url": OptionalComputedString(fmt.Sprintf("%s server URL without a trailing slash. Omit for %s cloud (%s).",
+			scmName, scmName, cloudURL)),
 		"access_token": rschema.StringAttribute{
 			Required:    true,
 			Sensitive:   true,
 			Description: tokenDesc + " Write-only: never returned by the API.",
 		},
-		"external_server_url": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Externally visible server URL, if different.",
-		},
-		"integration_status": rschema.StringAttribute{
-			Computed:    true,
-			Description: "Health status. Empty when healthy; `DISABLED_DUE_TO_INVALID_TOKEN` or `INSTALLATION_UNREACHABLE` otherwise.",
-		},
-		"cloud_integration": rschema.BoolAttribute{
-			Computed:    true,
-			Description: fmt.Sprintf("True when connected to %s cloud.", scmName),
-		},
+		"external_server_url": ComputedString("Externally visible server URL, if different."),
+		"integration_status": ComputedString("Health status. Empty when healthy; " +
+			"`DISABLED_DUE_TO_INVALID_TOKEN` or `INSTALLATION_UNREACHABLE` otherwise."),
+		"cloud_integration": ComputedBool(fmt.Sprintf("True when connected to %s cloud.", scmName)),
 	}
 }
 

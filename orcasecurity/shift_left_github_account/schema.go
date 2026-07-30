@@ -22,14 +22,10 @@ func resourceSchema() rschema.Schema {
 			"account-level unit, so this is the unit's own id rather than a parent connection id.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
-	attrs["github_installation_id"] = rschema.Int64Attribute{
-		Computed:    true,
-		Description: "GitHub-side numeric installation ID of the Orca GitHub App.",
-	}
-	attrs["github_app_settings_url"] = rschema.StringAttribute{
-		Computed:    true,
-		Description: "URL of the Orca GitHub App settings page on GitHub (null when the API omits it).",
-	}
+	attrs["github_installation_id"] = shift_left_integration.ComputedInt64(
+		"GitHub-side numeric installation ID of the Orca GitHub App.")
+	attrs["github_app_settings_url"] = shift_left_integration.ComputedString(
+		"URL of the Orca GitHub App settings page on GitHub (null when the API omits it).")
 	return rschema.Schema{
 		Description: "Configures an existing Orca GitHub shift-left account/organization (default policies, scan mode, PR settings). " +
 			"This is the GitHub peer of `orcasecurity_shift_left_gitlab_group` and `orcasecurity_shift_left_azure_devops_account`. " +

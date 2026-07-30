@@ -58,14 +58,10 @@ func resourceSchema() rschema.Schema {
 		Description: "Azure DevOps organization name the token is scoped to. " +
 			"Set it for a single-organization token; omit for an all-organizations token.",
 	}
-	attrs["access_token_type"] = rschema.StringAttribute{
-		Computed:    true,
-		Description: "Token scope as classified by Orca: `SINGLE_ACCOUNT` or `ALL_ACCOUNTS`.",
-	}
-	attrs["access_token_account_name"] = rschema.StringAttribute{
-		Computed:    true,
-		Description: "Organization name the token is scoped to, as reported by the API.",
-	}
+	attrs["access_token_type"] = shift_left_integration.ComputedString(
+		"Token scope as classified by Orca: `SINGLE_ACCOUNT` or `ALL_ACCOUNTS`.")
+	attrs["access_token_account_name"] = shift_left_integration.ComputedString(
+		"Organization name the token is scoped to, as reported by the API.")
 	return rschema.Schema{
 		Description: "Connects an Azure DevOps server or organization to Orca Shift Left by registering a personal access token " +
 			"(POST /api/shiftleft/azure_devops/installations/). The API never returns the token, so after `terraform import` " +
