@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -18,18 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var (
-	_ resource.Resource                = &gitlabRepositoryResource{}
-	_ resource.ResourceWithConfigure   = &gitlabRepositoryResource{}
-	_ resource.ResourceWithImportState = &gitlabRepositoryResource{}
-)
-
-type gitlabRepositoryResource struct {
-	apiClient *api_client.APIClient
-}
-
-func NewGitlabRepositoryResource() resource.Resource { return &gitlabRepositoryResource{} }
-
 type gitlabRepositoryModel struct {
 	InstallationID  types.String `tfsdk:"installation_id"`
 	GitlabGroupID   types.Int64  `tfsdk:"gitlab_group_id"`
@@ -37,15 +24,17 @@ type gitlabRepositoryModel struct {
 	RepoConfigFields
 }
 
-func (r *gitlabRepositoryResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_shift_left_gitlab_repository"
+func NewGitlabRepositoryResource() resource.Resource {
+	return NewRepoResource(RepoSpec[gitlabRepositoryModel]{
+		TypeNameSuffix: "_shift_left_gitlab_repository",
+		SchemaFn:       gitlabRepositorySchema,
+		ImportFn:       gitlabRepositoryImportState,
+		Ops:            gitlabRepositoryOps,
+		Fields:         (*gitlabRepositoryModel).Fields,
+	})
 }
 
-func (r *gitlabRepositoryResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
-}
-
-func (r *gitlabRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func gitlabRepositorySchema() rschema.Schema {
 	attrs := sharedRepoAttributes(gitlabTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
@@ -63,7 +52,7 @@ func (r *gitlabRepositoryResource) Schema(_ context.Context, _ resource.SchemaRe
 		Description:   "Numeric GitLab project (repository) id.",
 		PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 	}
-	resp.Schema = rschema.Schema{
+	return rschema.Schema{
 		Description: "Integrates a single GitLab project (repository) into Orca Shift Left under an existing GitLab installation. " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the project on GitLab. " +
 			"Import with `installation_id:gitlab_group_id:gitlab_project_id`.",
@@ -71,14 +60,14 @@ func (r *gitlabRepositoryResource) Schema(_ context.Context, _ resource.SchemaRe
 	}
 }
 
-func (r *gitlabRepositoryResource) ops(plan *gitlabRepositoryModel) repoOps {
+func gitlabRepositoryOps(apiClient *api_client.APIClient, plan *gitlabRepositoryModel) repoOps {
 	installationID := plan.InstallationID.ValueString()
 	projectID := plan.GitlabProjectID.ValueInt64()
 	return repoOps{
-		client: r.apiClient,
+		client: apiClient,
 		traits: gitlabTraits,
 		integrate: func() error {
-			return r.apiClient.IntegrateGitlabRepository(api_client.GitlabRepositoryIntegrate{
+			return apiClient.IntegrateGitlabRepository(api_client.GitlabRepositoryIntegrate{
 				InstallationID:  installationID,
 				GitlabGroupID:   plan.GitlabGroupID.ValueInt64(),
 				GitlabProjectID: projectID,
@@ -90,29 +79,13 @@ func (r *gitlabRepositoryResource) ops(plan *gitlabRepositoryModel) repoOps {
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {
-			return r.apiClient.FindGitlabRepository(installationID, projectID)
+			return apiClient.FindGitlabRepository(installationID, projectID)
 		},
-		update: r.apiClient.UpdateGitlabRepositories,
+		update: apiClient.UpdateGitlabRepositories,
 	}
 }
 
-func (r *gitlabRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
-}
-
-func (r *gitlabRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
-}
-
-func (r *gitlabRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
-}
-
-func (r *gitlabRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, (*gitlabRepositoryModel).Fields)
-}
-
-func (r *gitlabRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func gitlabRepositoryImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, ":")
 	if len(parts) != 3 {
 		resp.Diagnostics.AddError("Invalid import ID", "expected format installation_id:gitlab_group_id:gitlab_project_id")

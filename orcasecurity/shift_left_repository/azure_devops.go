@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -15,18 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var (
-	_ resource.Resource                = &azureRepositoryResource{}
-	_ resource.ResourceWithConfigure   = &azureRepositoryResource{}
-	_ resource.ResourceWithImportState = &azureRepositoryResource{}
-)
-
-type azureRepositoryResource struct {
-	apiClient *api_client.APIClient
-}
-
-func NewAzureDevopsRepositoryResource() resource.Resource { return &azureRepositoryResource{} }
-
 type azureRepositoryModel struct {
 	InstallationID    types.String `tfsdk:"installation_id"`
 	AccountName       types.String `tfsdk:"account_name"`
@@ -35,15 +22,17 @@ type azureRepositoryModel struct {
 	RepoConfigFields
 }
 
-func (r *azureRepositoryResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_shift_left_azure_devops_repository"
+func NewAzureDevopsRepositoryResource() resource.Resource {
+	return NewRepoResource(RepoSpec[azureRepositoryModel]{
+		TypeNameSuffix: "_shift_left_azure_devops_repository",
+		SchemaFn:       azureRepositorySchema,
+		ImportFn:       azureRepositoryImportState,
+		Ops:            azureRepositoryOps,
+		Fields:         (*azureRepositoryModel).Fields,
+	})
 }
 
-func (r *azureRepositoryResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
-}
-
-func (r *azureRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func azureRepositorySchema() rschema.Schema {
 	attrs := sharedRepoAttributes(azureTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
@@ -65,7 +54,7 @@ func (r *azureRepositoryResource) Schema(_ context.Context, _ resource.SchemaReq
 		Description:   "Azure DevOps project UUID containing the repository.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
-	resp.Schema = rschema.Schema{
+	return rschema.Schema{
 		Description: "Integrates a single Azure DevOps repository into Orca Shift Left under an existing Azure DevOps installation. " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Azure DevOps. " +
 			"Import with `installation_id:account_name:azure_project_id:azure_repository_id`.",
@@ -73,15 +62,15 @@ func (r *azureRepositoryResource) Schema(_ context.Context, _ resource.SchemaReq
 	}
 }
 
-func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
+func azureRepositoryOps(apiClient *api_client.APIClient, plan *azureRepositoryModel) repoOps {
 	installationID := plan.InstallationID.ValueString()
 	accountName := plan.AccountName.ValueString()
 	repoID := plan.AzureRepositoryID.ValueString()
 	return repoOps{
-		client: r.apiClient,
+		client: apiClient,
 		traits: azureTraits,
 		integrate: func() error {
-			return r.apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{
+			return apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{
 				InstallationID:    plan.InstallationID.ValueString(),
 				AccountName:       accountName,
 				AzureRepositoryID: repoID,
@@ -94,29 +83,13 @@ func (r *azureRepositoryResource) ops(plan *azureRepositoryModel) repoOps {
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {
-			return r.apiClient.FindAzureRepository(installationID, accountName, repoID)
+			return apiClient.FindAzureRepository(installationID, accountName, repoID)
 		},
-		update: r.apiClient.UpdateAzureRepositories,
+		update: apiClient.UpdateAzureRepositories,
 	}
 }
 
-func (r *azureRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
-}
-
-func (r *azureRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
-}
-
-func (r *azureRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
-}
-
-func (r *azureRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, (*azureRepositoryModel).Fields)
-}
-
-func (r *azureRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func azureRepositoryImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, ":")
 	if len(parts) != 4 {
 		resp.Diagnostics.AddError("Invalid import ID", "expected format installation_id:account_name:azure_project_id:azure_repository_id")

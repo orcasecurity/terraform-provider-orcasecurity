@@ -29,7 +29,7 @@ func importErr(t *testing.T, r resource.ResourceWithImportState, id string) bool
 }
 
 func TestGithubImportState_RejectsMalformedID(t *testing.T) {
-	r := &githubRepositoryResource{}
+	r := NewGithubRepositoryResource().(resource.ResourceWithImportState)
 	for _, id := range []string{
 		"",                  // no separator
 		"inst-1",            // no separator
@@ -42,7 +42,7 @@ func TestGithubImportState_RejectsMalformedID(t *testing.T) {
 }
 
 func TestGitlabImportState_RejectsMalformedID(t *testing.T) {
-	r := &gitlabRepositoryResource{}
+	r := NewGitlabRepositoryResource().(resource.ResourceWithImportState)
 	for _, id := range []string{
 		"inst-1:7",     // too few parts
 		"inst-1:7:8:9", // too many parts
@@ -56,7 +56,7 @@ func TestGitlabImportState_RejectsMalformedID(t *testing.T) {
 }
 
 func TestAzureImportState_RejectsMalformedID(t *testing.T) {
-	r := &azureRepositoryResource{}
+	r := NewAzureDevopsRepositoryResource().(resource.ResourceWithImportState)
 	for _, id := range []string{
 		"a:b:c",     // too few parts
 		"a:b:c:d:e", // too many parts
@@ -68,7 +68,7 @@ func TestAzureImportState_RejectsMalformedID(t *testing.T) {
 }
 
 func TestBitbucketImportState_RejectsMalformedID(t *testing.T) {
-	r := &bitbucketRepositoryResource{}
+	r := NewBitbucketRepositoryResource().(resource.ResourceWithImportState)
 	for _, id := range []string{
 		"a:b",     // too few parts
 		"a:b:c:d", // too many parts

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -18,33 +17,23 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var (
-	_ resource.Resource                = &githubRepositoryResource{}
-	_ resource.ResourceWithConfigure   = &githubRepositoryResource{}
-	_ resource.ResourceWithImportState = &githubRepositoryResource{}
-)
-
-type githubRepositoryResource struct {
-	apiClient *api_client.APIClient
-}
-
-func NewGithubRepositoryResource() resource.Resource { return &githubRepositoryResource{} }
-
 type githubRepositoryModel struct {
 	InstallationID     types.String `tfsdk:"installation_id"`
 	GithubRepositoryID types.Int64  `tfsdk:"github_repository_id"`
 	RepoConfigFields
 }
 
-func (r *githubRepositoryResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_shift_left_github_repository"
+func NewGithubRepositoryResource() resource.Resource {
+	return NewRepoResource(RepoSpec[githubRepositoryModel]{
+		TypeNameSuffix: "_shift_left_github_repository",
+		SchemaFn:       githubRepositorySchema,
+		ImportFn:       githubRepositoryImportState,
+		Ops:            githubRepositoryOps,
+		Fields:         (*githubRepositoryModel).Fields,
+	})
 }
 
-func (r *githubRepositoryResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
-}
-
-func (r *githubRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func githubRepositorySchema() rschema.Schema {
 	attrs := sharedRepoAttributes(githubTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
@@ -56,7 +45,7 @@ func (r *githubRepositoryResource) Schema(_ context.Context, _ resource.SchemaRe
 		Description:   "Numeric GitHub repository id.",
 		PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 	}
-	resp.Schema = rschema.Schema{
+	return rschema.Schema{
 		Description: "Integrates a single GitHub repository into Orca Shift Left under an existing GitHub installation. " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. " +
 			"Import with `installation_id:github_repository_id`.",
@@ -64,14 +53,14 @@ func (r *githubRepositoryResource) Schema(_ context.Context, _ resource.SchemaRe
 	}
 }
 
-func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
+func githubRepositoryOps(apiClient *api_client.APIClient, plan *githubRepositoryModel) repoOps {
 	installationID := plan.InstallationID.ValueString()
 	githubRepositoryID := plan.GithubRepositoryID.ValueInt64()
 	return repoOps{
-		client: r.apiClient,
+		client: apiClient,
 		traits: githubTraits,
 		integrate: func() error {
-			return r.apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{
+			return apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{
 				InstallationID:     installationID,
 				GithubRepositoryID: githubRepositoryID,
 				Name:               plan.Name.ValueString(),
@@ -82,29 +71,13 @@ func (r *githubRepositoryResource) ops(plan *githubRepositoryModel) repoOps {
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {
-			return r.apiClient.FindGithubRepository(installationID, plan.Name.ValueString(), githubRepositoryID)
+			return apiClient.FindGithubRepository(installationID, plan.Name.ValueString(), githubRepositoryID)
 		},
-		update: r.apiClient.UpdateGithubRepositories,
+		update: apiClient.UpdateGithubRepositories,
 	}
 }
 
-func (r *githubRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
-}
-
-func (r *githubRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
-}
-
-func (r *githubRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
-}
-
-func (r *githubRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, (*githubRepositoryModel).Fields)
-}
-
-func (r *githubRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func githubRepositoryImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, ":")
 	if len(parts) != 2 {
 		resp.Diagnostics.AddError("Invalid import ID", "expected format installation_id:github_repository_id")

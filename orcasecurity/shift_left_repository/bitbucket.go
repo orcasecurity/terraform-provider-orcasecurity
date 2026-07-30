@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -15,18 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var (
-	_ resource.Resource                = &bitbucketRepositoryResource{}
-	_ resource.ResourceWithConfigure   = &bitbucketRepositoryResource{}
-	_ resource.ResourceWithImportState = &bitbucketRepositoryResource{}
-)
-
-type bitbucketRepositoryResource struct {
-	apiClient *api_client.APIClient
-}
-
-func NewBitbucketRepositoryResource() resource.Resource { return &bitbucketRepositoryResource{} }
-
 type bitbucketRepositoryModel struct {
 	InstallationID        types.String `tfsdk:"installation_id"`
 	AccountID             types.String `tfsdk:"account_id"`
@@ -35,15 +22,17 @@ type bitbucketRepositoryModel struct {
 	RepoConfigFields
 }
 
-func (r *bitbucketRepositoryResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_shift_left_bitbucket_repository"
+func NewBitbucketRepositoryResource() resource.Resource {
+	return NewRepoResource(RepoSpec[bitbucketRepositoryModel]{
+		TypeNameSuffix: "_shift_left_bitbucket_repository",
+		SchemaFn:       bitbucketRepositorySchema,
+		ImportFn:       bitbucketRepositoryImportState,
+		Ops:            bitbucketRepositoryOps,
+		Fields:         (*bitbucketRepositoryModel).Fields,
+	})
 }
 
-func (r *bitbucketRepositoryResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
-}
-
-func (r *bitbucketRepositoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func bitbucketRepositorySchema() rschema.Schema {
 	attrs := sharedRepoAttributes(bitbucketTraits)
 	attrs["installation_id"] = rschema.StringAttribute{
 		Required:      true,
@@ -65,7 +54,7 @@ func (r *bitbucketRepositoryResource) Schema(_ context.Context, _ resource.Schem
 		Description:   "Bitbucket repository slug.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
-	resp.Schema = rschema.Schema{
+	return rschema.Schema{
 		Description: "Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. " +
 			"Import with `installation_id:account_id:bitbucket_repository_id`.",
@@ -73,15 +62,15 @@ func (r *bitbucketRepositoryResource) Schema(_ context.Context, _ resource.Schem
 	}
 }
 
-func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOps {
+func bitbucketRepositoryOps(apiClient *api_client.APIClient, plan *bitbucketRepositoryModel) repoOps {
 	installationID := plan.InstallationID.ValueString()
 	accountID := plan.AccountID.ValueString()
 	repoID := plan.BitbucketRepositoryID.ValueString()
 	return repoOps{
-		client: r.apiClient,
+		client: apiClient,
 		traits: bitbucketTraits,
 		integrate: func() error {
-			return r.apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
+			return apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
 				InstallationID:        plan.InstallationID.ValueString(),
 				AccountID:             accountID,
 				BitbucketRepositoryID: repoID,
@@ -95,14 +84,10 @@ func (r *bitbucketRepositoryResource) ops(plan *bitbucketRepositoryModel) repoOp
 		},
 		syncIdentity: func(row *api_client.ScmRepository) { bitbucketSyncSlug(plan, row) },
 		find: func() (*api_client.ScmRepository, error) {
-			return r.apiClient.FindBitbucketRepository(installationID, accountID, repoID)
+			return apiClient.FindBitbucketRepository(installationID, accountID, repoID)
 		},
-		update: r.apiClient.UpdateBitbucketRepositories,
+		update: apiClient.UpdateBitbucketRepositories,
 	}
-}
-
-func (r *bitbucketRepositoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
 }
 
 // Import cannot set slug (Required+RequiresReplace) — backfill on read or import plans destroy/recreate.
@@ -110,19 +95,7 @@ func bitbucketSyncSlug(m *bitbucketRepositoryModel, row *api_client.ScmRepositor
 	m.Slug = types.StringValue(row.Slug)
 }
 
-func (r *bitbucketRepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
-}
-
-func (r *bitbucketRepositoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
-}
-
-func (r *bitbucketRepositoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, (*bitbucketRepositoryModel).Fields)
-}
-
-func (r *bitbucketRepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func bitbucketRepositoryImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, ":")
 	if len(parts) != 3 {
 		resp.Diagnostics.AddError("Invalid import ID", "expected format installation_id:account_id:bitbucket_repository_id")
