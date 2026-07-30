@@ -72,7 +72,7 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		ID:                       types.StringValue(apiPolicy.ID),
 		Type:                     types.StringValue(apiPolicy.Type),
 		Name:                     types.StringValue(apiPolicy.Name),
-		Description:              types.StringValue(apiPolicy.Description),
+		Description:              tfconv.StringOrNull(apiPolicy.Description),
 		Disabled:                 types.BoolValue(apiPolicy.Disabled),
 		WarnMode:                 types.BoolValue(apiPolicy.WarnMode),
 		PriorityFailureThreshold: types.StringValue(apiPolicy.PriorityFailureThreshold),
@@ -88,6 +88,12 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
 		tfconv.Known(existing.PriorityFailureThreshold) {
 		model.PriorityFailureThreshold = existing.PriorityFailureThreshold
+	}
+	// description is Optional-only: a configuration that omits it holds null, while the API reports
+	// no description as an empty string, so mapping "" to null keeps the two comparable. A caller who
+	// explicitly configured "" gets that empty string back rather than a permanent diff to null.
+	if apiPolicy.Description == "" && existing != nil && tfconv.Known(existing.Description) {
+		model.Description = existing.Description
 	}
 
 	policyType := apiPolicy.Type
