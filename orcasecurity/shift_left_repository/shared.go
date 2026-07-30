@@ -39,18 +39,42 @@ func (f *RepoConfigFields) Fields() *RepoConfigFields { return f }
 // GitHub/GitLab require branch on integrate (API 400); Azure/Bitbucket accept omitted branch.
 func branchAttribute(branchRequired bool) rschema.StringAttribute {
 	attr := rschema.StringAttribute{
-		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+		PlanModifiers: []planmodifier.String{branchRequiresReplace()},
 	}
+	// Create-only semantics and the import consequence are identical for all four SCMs; only
+	// whether the API demands a branch on integrate differs.
+	const createOnly = "Create-only: the API never returns or updates it, so Terraform cannot detect drift on " +
+		"this attribute, and changing it re-integrates the repository — a destroy and create that deletes and " +
+		"recreates its repository context. `terraform import` cannot read it back either, so an imported " +
+		"repository has no branch in state and the first apply records the configured value in place, without " +
+		"re-integrating."
 	if branchRequired {
 		attr.Required = true
-		attr.Description = "Branch to scan. Required by this SCM's integration API. Create-only: the API neither " +
-			"returns nor updates it after integration, so changing it forces re-integration."
+		attr.Description = "Branch to scan. Required by this SCM's integration API. " + createOnly
 	} else {
 		attr.Optional = true
-		attr.Description = "Branch to scan. Omit for the repository default branch. Create-only: the API neither returns " +
-			"nor updates it after integration, so changing it forces re-integration."
+		attr.Description = "Branch to scan. Optional for this SCM: leave it unset to scan the repository default " +
+			"branch, in which case no branch is ever stored and this attribute can never force a replacement. " +
+			createOnly
 	}
 	return attr
+}
+
+// branchRequiresReplace forces re-integration when branch moves between two known values, but
+// not when state holds no branch at all. The API never returns branch, so a freshly imported
+// repository has a null branch while the config supplies one; an unconditional RequiresReplace
+// reads that as a change and destroys and re-integrates every imported repository on its first
+// apply, deleting its repository context. Falling through to Update instead is safe because
+// fromAPI carries branch over from the plan, so state records the same value create would have.
+func branchRequiresReplace() planmodifier.String {
+	const description = "Changing the branch forces re-integration, except when state holds no branch " +
+		"(a freshly imported repository), because the API never returns it."
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull()
+		},
+		description, description,
+	)
 }
 
 func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {

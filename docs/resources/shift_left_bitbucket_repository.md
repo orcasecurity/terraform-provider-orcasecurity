@@ -10,6 +10,8 @@ Integrates a single Bitbucket repository into Orca Shift Left under an existing 
 
 -> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
 
+!> **`branch` is create-only.** The API never returns or updates it, so Terraform cannot detect drift on `branch`, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. Bitbucket does not require a branch on integrate, so the safest option is to leave `branch` unset: the repository default branch is scanned, nothing is stored, and the attribute can never force a replacement. If you do set it, note that `terraform import` cannot read it back — an imported repository has no branch in state, and the first apply records the configured value in place without re-integrating, so configure the branch the repository was actually integrated with.
+
 ## Example Usage
 
 ```terraform
@@ -39,7 +41,7 @@ resource "orcasecurity_shift_left_bitbucket_repository" "example" {
 
 ### Optional
 
-- `branch` (String) Branch to scan. Omit for the repository default branch. Create-only: the API neither returns nor updates it after integration, so changing it forces re-integration.
+- `branch` (String) Branch to scan. Optional for this SCM: leave it unset to scan the repository default branch, in which case no branch is ever stored and this attribute can never force a replacement. Create-only: the API never returns or updates it, so Terraform cannot detect drift on this attribute, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `terraform import` cannot read it back either, so an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating.
 - `comments_on_pull_requests` (String) When to comment on pull requests.
 - `config_file_support` (String) Whether the in-repo Orca config file is honored.
 - `disable_scan_pull_requests` (Boolean) Disable pull request scanning for this repository.

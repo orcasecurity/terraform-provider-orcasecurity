@@ -1,6 +1,7 @@
 package shift_left_repository
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -11,7 +12,11 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 func TestFromAPI_MapsAllFields(t *testing.T) {
@@ -251,6 +256,60 @@ func TestBranchAttribute(t *testing.T) {
 	// Both variants force replacement (create-only field).
 	if len(req.PlanModifiers) == 0 || len(opt.PlanModifiers) == 0 {
 		t.Error("branch must carry a RequiresReplace plan modifier in both variants")
+	}
+	// Both must use the conditional modifier, not a bare RequiresReplace: swapping it back would
+	// make the first apply after an import destroy and re-integrate the repository.
+	for name, attr := range map[string]rschema.StringAttribute{"required": req, "optional": opt} {
+		if replaceDecision(t, attr.PlanModifiers[0], types.StringNull(), types.StringValue("main")) {
+			t.Errorf("%s variant: absent prior branch must not force replacement", name)
+		}
+	}
+}
+
+// replaceDecision reports whether a string plan modifier forces replacement for a given
+// state -> plan transition. State.Raw and Plan.Raw only need to be non-null: the framework skips
+// the conditional outright on create (null state) and destroy (null plan), and the raw shape is
+// not consulted by the check itself.
+func replaceDecision(t *testing.T, modifier planmodifier.String, stateValue, planValue types.String) bool {
+	t.Helper()
+	present := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+	resp := &planmodifier.StringResponse{}
+	modifier.PlanModifyString(context.Background(), planmodifier.StringRequest{
+		State:      tfsdk.State{Raw: present},
+		Plan:       tfsdk.Plan{Raw: present},
+		StateValue: stateValue,
+		PlanValue:  planValue,
+	}, resp)
+	return resp.RequiresReplace
+}
+
+func branchReplaceDecision(t *testing.T, stateValue, planValue types.String) bool {
+	t.Helper()
+	return replaceDecision(t, branchRequiresReplace(), stateValue, planValue)
+}
+
+func TestBranchRequiresReplace(t *testing.T) {
+	// The API never returns branch, so a freshly imported repository has none in state. Recording
+	// the configured value must not destroy and re-integrate the repository (which would delete
+	// its repository context) — the whole point of the conditional.
+	if branchReplaceDecision(t, types.StringNull(), types.StringValue("main")) {
+		t.Error("absent prior branch (post-import) must not force replacement")
+	}
+	// Branch remains create-only, so a genuine change must still force re-integration.
+	if !branchReplaceDecision(t, types.StringValue("main"), types.StringValue("develop")) {
+		t.Error("changed branch must force replacement")
+	}
+	if branchReplaceDecision(t, types.StringValue("main"), types.StringValue("main")) {
+		t.Error("unchanged branch must not force replacement")
+	}
+	// Azure/Bitbucket make branch optional, and the docs tell users that leaving it unset means it
+	// "can never force a replacement". Nothing is ever stored in that case, so state stays null.
+	if branchReplaceDecision(t, types.StringNull(), types.StringNull()) {
+		t.Error("branch left unset must never force replacement")
+	}
+	// Dropping a branch that was set is still a change to a create-only field.
+	if !branchReplaceDecision(t, types.StringValue("main"), types.StringNull()) {
+		t.Error("removing a previously set branch must force replacement")
 	}
 }
 

@@ -10,6 +10,8 @@ Integrates a single GitLab project (repository) into Orca Shift Left under an ex
 
 -> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
 
+!> **`branch` is create-only.** The API never returns or updates it, so Terraform cannot detect drift on `branch`, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `branch` is required by the GitLab integration API, so it must always be set. Because `terraform import` cannot read it back, an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating — so configure the branch the repository was actually integrated with.
+
 ## Example Usage
 
 ```terraform
@@ -19,6 +21,7 @@ resource "orcasecurity_shift_left_gitlab_repository" "example" {
   gitlab_project_id = 123456789
   name              = "acme-group/service-api"
   url               = "https://gitlab.com/acme-group/service-api"
+  branch            = "main"
 
   disable_scan_pull_requests = false
   pr_summary_comment         = "ALWAYS"
@@ -30,7 +33,7 @@ resource "orcasecurity_shift_left_gitlab_repository" "example" {
 
 ### Required
 
-- `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API neither returns nor updates it after integration, so changing it forces re-integration.
+- `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API never returns or updates it, so Terraform cannot detect drift on this attribute, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `terraform import` cannot read it back either, so an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating.
 - `gitlab_group_id` (Number) Numeric GitLab group id owning the project. If the group is not yet integrated with Orca, integrating the first repository also creates the group unit.
 - `gitlab_project_id` (Number) Numeric GitLab project (repository) id.
 - `installation_id` (String) Orca id of the GitLab installation (see `orcasecurity_shift_left_gitlab_installation`).
