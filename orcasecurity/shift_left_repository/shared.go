@@ -355,9 +355,9 @@ func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
 
 func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	// Move project before config PATCH — move failure must not leave remote config ahead of state.
-	moveNeeded := tfconv.Known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString()
-	if moveNeeded {
-		ctxID := state.RepositoryContextID.ValueString()
+	ctxID := state.RepositoryContextID.ValueString()
+	moved := false
+	if tfconv.Known(plan.ProjectID) && plan.ProjectID.ValueString() != state.ProjectID.ValueString() {
 		if ctxID == "" {
 			diags.AddError(fmt.Sprintf("Error moving %s repository", ops.traits.name),
 				"repository_context_id is unknown; run terraform refresh and retry")
@@ -367,9 +367,13 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.traits.name), err.Error())
 			return nil
 		}
+		moved = true
 	}
 	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
 		if err := ops.update(body); err != nil {
+			if moved {
+				rollbackProjectMove(ops, state, ctxID, diags)
+			}
 			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.traits.name), err.Error())
 			return nil
 		}
@@ -383,6 +387,29 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 		return nil
 	}
 	return row
+}
+
+// An update takes two independent writes (move the project, then PATCH the config). Terraform throws
+// the plan away when Update reports an error, so a move left standing after a failed PATCH would be a
+// live change with no record in state — put the repository back where state says it is instead.
+func rollbackProjectMove(ops repoOps, state *RepoConfigFields, ctxID string, diags *diag.Diagnostics) {
+	priorProjectID := state.ProjectID.ValueString()
+	const detail = "The repository was moved to the configured project but applying its configuration failed"
+	if !tfconv.Known(state.ProjectID) || priorProjectID == "" {
+		diags.AddWarning(
+			fmt.Sprintf("%s repository left in its new project", ops.traits.name),
+			detail+", and state does not record which project it came from, so the move could not be undone. "+
+				"Re-run to reconcile.",
+		)
+		return
+	}
+	if err := ops.client.MoveRepositoryContexts(priorProjectID, []string{ctxID}); err != nil {
+		diags.AddWarning(
+			fmt.Sprintf("Failed to undo the %s repository project move", ops.traits.name),
+			fmt.Sprintf("%s, and moving it back to project %s also failed: %s. Re-run to reconcile.",
+				detail, priorProjectID, err.Error()),
+		)
+	}
 }
 
 func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {

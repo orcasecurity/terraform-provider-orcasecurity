@@ -1,9 +1,12 @@
 package shift_left_integration
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -41,4 +44,53 @@ func TestAdoptGuardDetail(t *testing.T) {
 	if one := adoptGuardDetail("unit", 1); !strings.Contains(one, "1 integrated repository ") {
 		t.Errorf("singular repository not rendered: %s", one)
 	}
+}
+
+// Create integrates and then reads the unit back. A failed read-back leaves an integration that
+// Terraform never records, so it has to be undone (or reported when it cannot be).
+func TestRollbackIntegration(t *testing.T) {
+	type unit struct{}
+	type model struct{}
+	newOps := func(del func(*model) error) AdoptedUnitOps[unit, model] {
+		return AdoptedUnitOps[unit, model]{
+			Describe: func(*model) string { return `GitLab group "acme"` },
+			Delete:   del,
+		}
+	}
+
+	t.Run("de-integrates the unit it just created", func(t *testing.T) {
+		deletes := 0
+		var diags diag.Diagnostics
+		newOps(func(*model) error { deletes++; return nil }).
+			rollbackIntegration(context.Background(), &model{}, &diags)
+		if deletes != 1 {
+			t.Errorf("expected one de-integrate call, got %d", deletes)
+		}
+		if len(diags) != 0 {
+			t.Errorf("a clean rollback needs no diagnostics, got %v", diags)
+		}
+	})
+
+	t.Run("warns when the rollback itself fails", func(t *testing.T) {
+		var diags diag.Diagnostics
+		newOps(func(*model) error { return errors.New("delete rejected") }).
+			rollbackIntegration(context.Background(), &model{}, &diags)
+		if diags.WarningsCount() != 1 || diags.HasError() {
+			t.Fatalf("expected exactly one warning, got %v", diags)
+		}
+		if detail := diags.Warnings()[0].Detail(); !strings.Contains(detail, "delete rejected") {
+			t.Errorf("warning must carry the underlying failure: %s", detail)
+		}
+	})
+
+	t.Run("warns when the resource cannot de-integrate at all", func(t *testing.T) {
+		var diags diag.Diagnostics
+		newOps(nil).rollbackIntegration(context.Background(), &model{}, &diags)
+		if diags.WarningsCount() != 1 {
+			t.Fatalf("expected a warning about the orphaned integration, got %v", diags)
+		}
+		if summary := diags.Warnings()[0].Summary(); !strings.Contains(summary, `GitLab group "acme"`) {
+			t.Errorf("warning must name the unit: %s", summary)
+		}
+	})
 }

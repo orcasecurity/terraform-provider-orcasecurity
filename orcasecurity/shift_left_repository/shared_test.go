@@ -636,6 +636,66 @@ func TestUpdateRepo_SameProjectDoesNotMove(t *testing.T) {
 	}
 }
 
+// The move and the config PATCH are separate writes and Terraform discards the plan when Update
+// errors, so a move that survives a failed PATCH is a live change nothing in state accounts for.
+func TestUpdateRepo_ConfigFailureUndoesProjectMove(t *testing.T) {
+	client, reqs := recordingClient(http.StatusOK)
+	ops := repoOps{
+		client: client,
+		traits: githubTraits,
+		update: func(api_client.ScmRepositoryConfigUpdate) error { return errors.New("config rejected") },
+		find: func() (*api_client.ScmRepository, error) {
+			t.Fatal("find must not run after update error")
+			return nil, nil
+		},
+	}
+	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-new"), Disabled: types.BoolValue(true)}
+	state := &RepoConfigFields{
+		ID:                  types.StringValue("row-1"),
+		ProjectID:           types.StringValue("proj-old"),
+		RepositoryContextID: types.StringValue("ctx-1"),
+	}
+	var diags diag.Diagnostics
+	if row := updateRepo(ops, plan, state, &diags); row != nil || !diags.HasError() {
+		t.Fatalf("expected nil row + error, got row=%+v hasErr=%v", row, diags.HasError())
+	}
+	if len(*reqs) != 2 {
+		t.Fatalf("expected the move and its undo, recorded: %v", *reqs)
+	}
+	for _, req := range *reqs {
+		if req != "POST /api/shiftleft/repository_contexts/move_project/" {
+			t.Fatalf("unexpected request %q, recorded: %v", req, *reqs)
+		}
+	}
+}
+
+// With no prior project in state there is nowhere to move the repository back to, so the operator
+// gets told rather than the provider guessing a target project.
+func TestUpdateRepo_ConfigFailureWarnsWhenPriorProjectUnknown(t *testing.T) {
+	client, reqs := recordingClient(http.StatusOK)
+	ops := repoOps{
+		client: client,
+		traits: githubTraits,
+		update: func(api_client.ScmRepositoryConfigUpdate) error { return errors.New("config rejected") },
+	}
+	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-new"), Disabled: types.BoolValue(true)}
+	state := &RepoConfigFields{
+		ID:                  types.StringValue("row-1"),
+		ProjectID:           types.StringNull(),
+		RepositoryContextID: types.StringValue("ctx-1"),
+	}
+	var diags diag.Diagnostics
+	if row := updateRepo(ops, plan, state, &diags); row != nil || !diags.HasError() {
+		t.Fatalf("expected nil row + error, got row=%+v hasErr=%v", row, diags.HasError())
+	}
+	if diags.WarningsCount() != 1 {
+		t.Errorf("expected one warning about the unreversed move, got %v", diags.Warnings())
+	}
+	if len(*reqs) != 1 {
+		t.Fatalf("expected only the forward move, recorded: %v", *reqs)
+	}
+}
+
 func TestDeleteRepo_UsesStateContextID(t *testing.T) {
 	client, reqs := recordingClient(http.StatusOK)
 	ops := repoOps{

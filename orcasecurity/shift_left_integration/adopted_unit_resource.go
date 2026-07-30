@@ -97,15 +97,39 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	}
 
 	created, err := o.Get(&plan)
-	if err != nil {
+	switch {
+	case err != nil:
+		o.rollbackIntegration(ctx, &plan, &resp.Diagnostics)
 		resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
 		return
-	}
-	if created == nil {
+	case created == nil:
+		o.rollbackIntegration(ctx, &plan, &resp.Diagnostics)
 		resp.Diagnostics.AddError(o.Labels.NilReadTitle, o.Labels.NilReadDetail)
 		return
 	}
 	o.setAdoptedState(ctx, &resp.Diagnostics, &resp.State, created, &plan)
+}
+
+// This path only runs for a unit that was not integrated before Create, so the integration is ours
+// to undo. Terraform records no state when Create reports an error, so a live integration left
+// behind here is invisible to Terraform: the next apply would try to integrate it again and hit the
+// adopt guard instead, with nothing explaining why.
+func (o AdoptedUnitOps[A, M]) rollbackIntegration(ctx context.Context, plan *M, diags *diag.Diagnostics) {
+	orphanWarning := func(reason string) {
+		diags.AddWarning(
+			fmt.Sprintf("Possible orphaned %s integration", o.Describe(plan)),
+			fmt.Sprintf("The integration succeeded but the unit could not be read back, so it is not tracked in "+
+				"Terraform state, and %s. De-integrate it manually or import it to bring it under management.", reason),
+		)
+	}
+	if o.Delete == nil {
+		orphanWarning("this resource cannot de-integrate units")
+		return
+	}
+	tflog.Info(ctx, fmt.Sprintf("Rolling back integration of %s after a failed read-back", o.Describe(plan)))
+	if err := o.Delete(plan); err != nil {
+		orphanWarning("rolling it back also failed: " + err.Error())
+	}
 }
 
 func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

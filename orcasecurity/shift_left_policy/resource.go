@@ -102,14 +102,23 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 		resp.Diagnostics.AddError("Error creating AppSec policy", "Could not create policy: "+err.Error())
 		return
 	}
+	policyID := instance.ID
 
+	// Attaching projects is a second call against the policy created above. Terraform records no
+	// state when Create reports an error, so anything that fails from here on has to take the new
+	// policy with it — otherwise it survives untracked and the next apply creates a duplicate.
 	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, instance.ID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
+			r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
 			resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
 			return
 		}
-		instance, err = r.apiClient.GetShiftLeftPolicy(policyType, instance.ID)
+		instance, err = r.apiClient.GetShiftLeftPolicy(policyType, policyID)
+		if err == nil && instance == nil {
+			err = fmt.Errorf("policy %s/%s could not be read back after attaching projects", policyType, policyID)
+		}
 		if err != nil {
+			r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
 			resp.Diagnostics.AddError("Error reading AppSec policy after project attach", err.Error())
 			return
 		}
@@ -117,6 +126,21 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 
 	state := stateFromPlanAfterWrite(&plan, instance)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *shiftLeftPolicyResource) rollbackCreatedPolicy(ctx context.Context, policyType, policyID string, diags *diag.Diagnostics) {
+	if policyID == "" {
+		return
+	}
+	tflog.Info(ctx, fmt.Sprintf("Rolling back AppSec policy %s/%s after a failed create", policyType, policyID))
+	if err := r.apiClient.DeleteShiftLeftPolicy(policyType, policyID); err != nil {
+		diags.AddWarning(
+			"Orphaned AppSec policy",
+			fmt.Sprintf("Policy %s/%s was created but the apply failed afterwards, and deleting it during "+
+				"rollback also failed: %s. It exists in Orca but not in Terraform state — delete it manually "+
+				"or import it.", policyType, policyID, err.Error()),
+		)
+	}
 }
 
 func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -198,6 +222,10 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	}
 
 	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
+	// The write already succeeded, so a missing policy here is a failed read-back, not a deletion.
+	if err == nil && instance == nil {
+		err = fmt.Errorf("policy %s/%s could not be read back after the update; run terraform refresh", policyType, policyID)
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading AppSec policy after update", err.Error())
 		return
