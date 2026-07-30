@@ -80,6 +80,7 @@ func (client *APIClient) GetBitbucketAccount(installationID, orcaAccountID strin
 
 func (client *APIClient) FindBitbucketAccountBySlug(installationID, slug string) (*BitbucketAccount, error) {
 	return findScmUnitBy[BitbucketAccount](client, bitbucketAccountsPath(installationID), installationID,
+		scmUnitNameFilter(slug),
 		func(a *BitbucketAccount) bool { return a.AccountID == slug })
 }
 

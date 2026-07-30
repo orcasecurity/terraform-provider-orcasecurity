@@ -82,6 +82,7 @@ func (client *APIClient) GetAzureDevopsAccount(installationID, orcaAccountID str
 
 func (client *APIClient) FindAzureDevopsAccountByName(installationID, accountName string) (*AzureDevopsAccount, error) {
 	return findScmUnitBy[AzureDevopsAccount](client, azureDevopsAccountsPath(installationID), installationID,
+		scmUnitNameFilter(accountName),
 		func(a *AzureDevopsAccount) bool { return a.AccountName == accountName })
 }
 

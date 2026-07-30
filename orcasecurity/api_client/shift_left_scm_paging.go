@@ -39,12 +39,38 @@ func listScmUnitsByInstallation[T any, PT interface {
 	return all, nil
 }
 
-// findScmUnitBy list-filters; the API has no single-unit GET route for SCM units.
+// scmUnitNameFilter narrows a unit list to rows whose name matches the term. Every SCM's unit list
+// exposes exactly one searchable name field (the GitLab group name, the Bitbucket account slug, the
+// Azure organization name), reached through the shared `name` alias. It is a hint only: the search is
+// a partial match, so the caller still has to match exactly.
+func scmUnitNameFilter(name string) listFilters {
+	if name == "" {
+		return nil
+	}
+	return listFilters{"search": name, "search_fields": "name"}
+}
+
+// findScmUnitBy list-filters; the API has no single-unit GET route for SCM units, and the unit lists
+// accept no filter on the unit id, so a lookup by id has to walk every page. Callers looking a unit
+// up by name pass scmUnitNameFilter to narrow that walk. A filtered miss falls back to the full scan
+// because the filter searches one specific name field: reporting absence on a filter mismatch would
+// make Terraform treat a live unit as deleted.
 func findScmUnitBy[T any, PT interface {
 	*T
 	scmUnit
-}](client *APIClient, unitsPath, installationID string, match func(*T) bool) (*T, error) {
-	all, err := getAllScmPages[T](client, unitsPath, nil)
+}](client *APIClient, unitsPath, installationID string, filters listFilters, match func(*T) bool) (*T, error) {
+	unit, err := findScmUnitOnPages[T, PT](client, unitsPath, installationID, filters, match)
+	if err != nil || unit != nil || filters == nil {
+		return unit, err
+	}
+	return findScmUnitOnPages[T, PT](client, unitsPath, installationID, nil, match)
+}
+
+func findScmUnitOnPages[T any, PT interface {
+	*T
+	scmUnit
+}](client *APIClient, unitsPath, installationID string, filters listFilters, match func(*T) bool) (*T, error) {
+	all, err := getAllScmPages[T](client, unitsPath, filters)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +88,7 @@ func findScmUnit[T any, PT interface {
 	*T
 	scmUnit
 }](client *APIClient, unitsPath, installationID, unitID string) (*T, error) {
-	return findScmUnitBy[T, PT](client, unitsPath, installationID, func(u *T) bool {
+	return findScmUnitBy[T, PT](client, unitsPath, installationID, nil, func(u *T) bool {
 		return PT(u).unitID() == unitID
 	})
 }

@@ -95,7 +95,9 @@ func (client *APIClient) GetGitlabGroup(installationID, orcaGroupID string) (*Gi
 }
 
 func (client *APIClient) FindGitlabGroupByGitlabID(installationID string, gitlabGroupID int64) (*GitlabGroup, error) {
-	return findScmUnitBy[GitlabGroup](client, gitlabGroupsPath(installationID), installationID,
+	// The GitLab unit list only searches the group name, and this lookup keys on the numeric GitLab
+	// group id, so there is nothing to narrow with server-side.
+	return findScmUnitBy[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, nil,
 		func(g *GitlabGroup) bool { return g.GitlabGroupID == gitlabGroupID })
 }
 

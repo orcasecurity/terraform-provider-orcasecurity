@@ -59,6 +59,59 @@ func TestScmUnitLookups_StampInstallationID(t *testing.T) {
 	})
 }
 
+// A unit lookup by name asks the server to narrow the list first, so the common case does not walk
+// every page of accounts. The search covers one name field per SCM, so a filtered miss must fall back
+// to the whole list rather than report the unit as absent.
+func TestFindScmUnitByName_FiltersServerSideThenFallsBack(t *testing.T) {
+	const instID = "inst-1"
+	accountsPath := "/api/shiftleft/bitbucket/installations/" + instID + "/integrated_accounts/"
+
+	newServer := func(searchHonored bool) (*APIClient, *[]string) {
+		var searches []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != accountsPath {
+				_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]string{}})
+				return
+			}
+			search := r.URL.Query().Get("search")
+			searches = append(searches, search+"|"+r.URL.Query().Get("search_fields"))
+			rows := []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "Target"}}
+			if search != "" && !searchHonored {
+				// Stands in for a search that cannot see the field the caller matches on.
+				rows = []map[string]string{}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": len(rows), "data": rows})
+		}))
+		t.Cleanup(srv.Close)
+		return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}, &searches
+	}
+
+	t.Run("narrows the list with a name search", func(t *testing.T) {
+		client, searches := newServer(true)
+		acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
+		if err != nil || acc == nil {
+			t.Fatalf("expected the account, got %+v (%v)", acc, err)
+		}
+		if len(*searches) != 1 || (*searches)[0] != "target-slug|name" {
+			t.Fatalf("expected a single name-filtered request, got %v", *searches)
+		}
+	})
+
+	t.Run("falls back to the unfiltered list on a filtered miss", func(t *testing.T) {
+		client, searches := newServer(false)
+		acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if acc == nil {
+			t.Fatal("a filtered miss must not be reported as an absent account")
+		}
+		if len(*searches) != 2 || (*searches)[1] != "|" {
+			t.Fatalf("expected a filtered attempt then an unfiltered scan, got %v", *searches)
+		}
+	})
+}
+
 func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
 	const total = 450 // > 2 pages at limit=200
 	var hits atomic.Int32
