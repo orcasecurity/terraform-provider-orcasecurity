@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"terraform-provider-orcasecurity/orcasecurity"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
@@ -21,7 +20,6 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 		t.Skip("ORCA_TEST_GL_INSTALLATION_ID / ORCA_TEST_GL_GROUP_ID / ORCA_TEST_GL_PROJECT_ID not set")
 	}
 
-	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 
 	original, err := client.GetGitlabGroup(installationID, groupID)

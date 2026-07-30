@@ -3,7 +3,6 @@ package shift_left_gitlab_group_test
 import (
 	"testing"
 
-	"terraform-provider-orcasecurity/orcasecurity"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
@@ -16,7 +15,6 @@ func snapshotGitlabGroupForTest(t *testing.T) (*api_client.APIClient, string, st
 	t.Helper()
 	installationID, gitlabGroupIDEnv, orcaGroupID := requireGitlabGroupTestEnv(t)
 
-	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 
 	original := fetchGitlabGroupForTest(t, client, installationID, gitlabGroupIDEnv, orcaGroupID)

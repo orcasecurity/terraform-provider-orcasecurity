@@ -21,7 +21,6 @@ func TestAccGitlabGroup_import(t *testing.T) {
 		t.Skip("ORCA_TEST_GL_ALLOW_DESTROY not set; refuse to DELETE a shared lab GitLab group")
 	}
 
-	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 
 	original := fetchGitlabGroupForTest(t, client, installationID, gitlabGroupIDEnv, orcaGroupID)

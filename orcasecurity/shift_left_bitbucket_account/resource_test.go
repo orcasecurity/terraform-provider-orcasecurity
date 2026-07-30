@@ -21,7 +21,6 @@ func TestAccBitbucketAccount_import(t *testing.T) {
 		t.Skip("ORCA_TEST_BB_INSTALLATION_ID and ORCA_TEST_BB_ACCOUNT_SLUG (or ORCA_TEST_BB_ORCA_ACCOUNT_ID) not set")
 	}
 
-	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 
 	var original *api_client.BitbucketAccount

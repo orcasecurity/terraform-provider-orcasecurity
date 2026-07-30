@@ -23,7 +23,6 @@ func TestAccScmPostureDefaultPolicy_adopt(t *testing.T) {
 	// Snapshot the live singleton and restore it after the test: the policy
 	// is org-wide and never deletable, so the applied config would otherwise
 	// leak into the lab environment.
-	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 	original, err := client.GetScmPostureDefaultPolicy()
 	if err != nil {

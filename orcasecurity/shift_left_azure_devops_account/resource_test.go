@@ -21,7 +21,6 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 		t.Skip("ORCA_TEST_AZ_INSTALLATION_ID and ORCA_TEST_AZ_ACCOUNT_NAME (or ORCA_TEST_AZ_ACCOUNT_ID) not set")
 	}
 
-	orcasecurity.TestAccPreCheck(t)
 	client := acctest.APIClient(t)
 
 	var original *api_client.AzureDevopsAccount
