@@ -4,6 +4,7 @@ resource "orcasecurity_shift_left_gitlab_repository" "example" {
   gitlab_project_id = 123456789
   name              = "acme-group/service-api"
   url               = "https://gitlab.com/acme-group/service-api"
+  branch            = "main"
 
   disable_scan_pull_requests = false
   pr_summary_comment         = "ALWAYS"

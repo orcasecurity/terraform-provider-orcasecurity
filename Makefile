@@ -19,3 +19,8 @@ test-ci:
 
 test-acc:
 	TF_ACC=1 go test -count=1 -parallel=4 -timeout 10m -v ${TESTARGS} ./${PKG_NAME}/...
+
+# examples/ is the source tfplugindocs embeds into docs/, so a stale attribute name there
+# ships into the published docs. No Go test covers example HCL.
+validate-examples:
+	./scripts/validate-examples.sh

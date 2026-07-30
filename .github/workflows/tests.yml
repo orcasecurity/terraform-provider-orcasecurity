@@ -70,6 +70,25 @@ jobs:
                   git diff --compact-summary --exit-code || \
                     (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
 
+    # examples/ is what tfplugindocs embeds into docs/, and go generate copies it verbatim.
+    # Without this gate a stale attribute name in an example ships into the published docs.
+    validate-examples:
+        name: Validate examples
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-go@v7
+              with:
+                  go-version-file: "go.mod"
+                  cache: true
+            - uses: hashicorp/setup-terraform@v4
+              with:
+                  terraform_version: "1.10.0"
+                  terraform_wrapper: false
+            - run: go mod download
+            - run: make validate-examples
+
     # Run acceptance tests in a matrix with Terraform CLI versions
     test:
         name: Terraform Provider Unit Tests

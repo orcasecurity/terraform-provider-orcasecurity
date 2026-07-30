@@ -13,10 +13,15 @@ Lists every Orca shift-left project in the organization, for fleet-wide for_each
 ```terraform
 data "orcasecurity_shift_left_projects" "all" {}
 
-# Attach one policy to every current shift-left project in a single apply,
-# e.g. a built-in policy previously imported into Terraform state.
+# Attach one policy to every current shift-left project in a single apply.
+# projects_ids is recomputed on each plan, so a project added in Orca is picked up
+# by the next apply.
 resource "orcasecurity_shift_left_policy" "malicious_packages" {
-  # ... (imported built-in policy; type/name/etc. come from state) ...
+  name                       = "Malicious packages - all projects"
+  type                       = "malicious_packages"
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
 
   projects_ids = [for p in data.orcasecurity_shift_left_projects.all.projects : p.id]
 }
