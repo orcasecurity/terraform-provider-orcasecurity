@@ -28,7 +28,6 @@ func NewAzureDevopsRepositoryResource() resource.Resource {
 		SchemaFn:       azureRepositorySchema,
 		ImportFn:       azureRepositoryImportState,
 		Ops:            azureRepositoryOps,
-		Fields:         (*azureRepositoryModel).Fields,
 	})
 }
 
@@ -71,6 +70,7 @@ func azureRepositoryOps(apiClient *api_client.APIClient, plan *azureRepositoryMo
 	return repoOps{
 		client: apiClient,
 		traits: azureTraits,
+		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			return apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{
 				InstallationID:    plan.InstallationID.ValueString(),

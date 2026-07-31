@@ -34,8 +34,6 @@ type RepoConfigFields struct {
 	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-func (f *RepoConfigFields) Fields() *RepoConfigFields { return f }
-
 // GitHub/GitLab require branch on integrate (API 400); Azure/Bitbucket accept omitted branch.
 func branchAttribute(branchRequired bool) rschema.StringAttribute {
 	attr := rschema.StringAttribute{
@@ -219,8 +217,11 @@ func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig
 }
 
 type repoOps struct {
-	client       *api_client.APIClient
-	traits       providerTraits
+	client *api_client.APIClient
+	traits providerTraits
+	// fields points into the model the ops were built from, so the shared CRUD
+	// can read the plan and write the API result back without a separate accessor.
+	fields       *RepoConfigFields
 	integrate    func() error
 	find         func() (*api_client.ScmRepository, error)
 	update       func(api_client.ScmRepositoryConfigUpdate) error
@@ -228,23 +229,23 @@ type repoOps struct {
 }
 
 func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
-	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	ops func(*M) repoOps) {
 	var plan M
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	o := ops(&plan)
-	row := createRepo(o, fields(&plan), &resp.Diagnostics)
+	row := createRepo(o, o.fields, &resp.Diagnostics)
 	if row == nil {
 		return
 	}
-	*fields(&plan) = fromAPI(*fields(&plan), row, o.traits)
+	*o.fields = fromAPI(*o.fields, row, o.traits)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
-	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	ops func(*M) repoOps) {
 	var state M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -260,7 +261,7 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	*fields(&state) = fromAPI(*fields(&state), row, o.traits)
+	*o.fields = fromAPI(*o.fields, row, o.traits)
 	if o.syncIdentity != nil {
 		o.syncIdentity(row)
 	}
@@ -268,7 +269,7 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 }
 
 func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
-	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	ops func(*M) repoOps) {
 	var plan, state M
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -276,22 +277,23 @@ func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *re
 		return
 	}
 	o := ops(&plan)
-	row := updateRepo(o, fields(&plan), fields(&state), &resp.Diagnostics)
+	row := updateRepo(o, o.fields, ops(&state).fields, &resp.Diagnostics)
 	if row == nil {
 		return
 	}
-	*fields(&plan) = fromAPI(*fields(&plan), row, o.traits)
+	*o.fields = fromAPI(*o.fields, row, o.traits)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func repoDelete[M any](ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
-	ops func(*M) repoOps, fields func(*M) *RepoConfigFields) {
+	ops func(*M) repoOps) {
 	var state M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	deleteRepo(ops(&state), fields(&state), &resp.Diagnostics)
+	o := ops(&state)
+	deleteRepo(o, o.fields, &resp.Diagnostics)
 }
 
 func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {

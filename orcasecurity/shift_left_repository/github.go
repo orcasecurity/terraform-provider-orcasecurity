@@ -32,7 +32,6 @@ func NewGithubRepositoryResource() resource.Resource {
 		SchemaFn:       githubRepositorySchema,
 		ImportFn:       githubRepositoryImportState,
 		Ops:            githubRepositoryOps,
-		Fields:         (*githubRepositoryModel).Fields,
 	})
 }
 
@@ -66,6 +65,7 @@ func githubRepositoryOps(apiClient *api_client.APIClient, plan *githubRepository
 	return repoOps{
 		client: apiClient,
 		traits: githubTraits,
+		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			return apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{
 				InstallationID:     accountID,

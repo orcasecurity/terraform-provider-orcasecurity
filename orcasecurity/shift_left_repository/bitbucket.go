@@ -28,7 +28,6 @@ func NewBitbucketRepositoryResource() resource.Resource {
 		SchemaFn:       bitbucketRepositorySchema,
 		ImportFn:       bitbucketRepositoryImportState,
 		Ops:            bitbucketRepositoryOps,
-		Fields:         (*bitbucketRepositoryModel).Fields,
 	})
 }
 
@@ -72,6 +71,7 @@ func bitbucketRepositoryOps(apiClient *api_client.APIClient, plan *bitbucketRepo
 	return repoOps{
 		client: apiClient,
 		traits: bitbucketTraits,
+		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			return apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
 				InstallationID:        plan.InstallationID.ValueString(),

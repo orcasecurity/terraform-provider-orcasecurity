@@ -17,7 +17,6 @@ type RepoSpec[M any] struct {
 	SchemaFn       func() rschema.Schema
 	ImportFn       func(context.Context, resource.ImportStateRequest, *resource.ImportStateResponse)
 	Ops            func(*api_client.APIClient, *M) repoOps
-	Fields         func(*M) *RepoConfigFields
 }
 
 // RepoResource shares Metadata/Configure/Schema/ImportState/CRUD across SCM
@@ -59,17 +58,17 @@ func (r *RepoResource[M]) ops(m *M) repoOps {
 }
 
 func (r *RepoResource[M]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	repoCreate(ctx, req, resp, r.ops, r.Spec.Fields)
+	repoCreate(ctx, req, resp, r.ops)
 }
 
 func (r *RepoResource[M]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	repoRead(ctx, req, resp, r.ops, r.Spec.Fields)
+	repoRead(ctx, req, resp, r.ops)
 }
 
 func (r *RepoResource[M]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	repoUpdate(ctx, req, resp, r.ops, r.Spec.Fields)
+	repoUpdate(ctx, req, resp, r.ops)
 }
 
 func (r *RepoResource[M]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	repoDelete(ctx, req, resp, r.ops, r.Spec.Fields)
+	repoDelete(ctx, req, resp, r.ops)
 }

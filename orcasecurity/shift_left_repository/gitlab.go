@@ -30,7 +30,6 @@ func NewGitlabRepositoryResource() resource.Resource {
 		SchemaFn:       gitlabRepositorySchema,
 		ImportFn:       gitlabRepositoryImportState,
 		Ops:            gitlabRepositoryOps,
-		Fields:         (*gitlabRepositoryModel).Fields,
 	})
 }
 
@@ -68,6 +67,7 @@ func gitlabRepositoryOps(apiClient *api_client.APIClient, plan *gitlabRepository
 	return repoOps{
 		client: apiClient,
 		traits: gitlabTraits,
+		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			return apiClient.IntegrateGitlabRepository(api_client.GitlabRepositoryIntegrate{
 				InstallationID:  installationID,
