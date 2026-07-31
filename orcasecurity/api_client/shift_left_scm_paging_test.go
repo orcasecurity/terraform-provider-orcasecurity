@@ -80,6 +80,26 @@ func newBitbucketAccountsSearchServer(t *testing.T, accountsPath string, searchH
 	return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}, &searches
 }
 
+func requireFoundBitbucketAccount(t *testing.T, acc *BitbucketAccount, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("expected the account, got %+v (%v)", acc, err)
+	}
+	if acc == nil {
+		t.Fatalf("expected the account, got %+v (%v)", acc, err)
+	}
+}
+
+func requireSearchTrace(t *testing.T, searches []string, wantLen, index int, want string) {
+	t.Helper()
+	if len(searches) != wantLen {
+		t.Fatalf("expected %d search request(s), got %v", wantLen, searches)
+	}
+	if searches[index] != want {
+		t.Fatalf("search[%d] = %q, want %q (all: %v)", index, searches[index], want, searches)
+	}
+}
+
 // A unit lookup by name asks the server to narrow the list first, so the common case does not walk
 // every page of accounts. The search covers one name field per SCM, so a filtered miss must fall back
 // to the whole list rather than report the unit as absent.
@@ -90,35 +110,15 @@ func TestFindScmUnitByName_FiltersServerSideThenFallsBack(t *testing.T) {
 	t.Run("narrows the list with a name search", func(t *testing.T) {
 		client, searches := newBitbucketAccountsSearchServer(t, accountsPath, true)
 		acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
-		if err != nil {
-			t.Fatalf("expected the account, got %+v (%v)", acc, err)
-		}
-		if acc == nil {
-			t.Fatalf("expected the account, got %+v (%v)", acc, err)
-		}
-		if len(*searches) != 1 {
-			t.Fatalf("expected a single name-filtered request, got %v", *searches)
-		}
-		if (*searches)[0] != "target-slug|name" {
-			t.Fatalf("expected a single name-filtered request, got %v", *searches)
-		}
+		requireFoundBitbucketAccount(t, acc, err)
+		requireSearchTrace(t, *searches, 1, 0, "target-slug|name")
 	})
 
 	t.Run("falls back to the unfiltered list on a filtered miss", func(t *testing.T) {
 		client, searches := newBitbucketAccountsSearchServer(t, accountsPath, false)
 		acc, err := client.FindBitbucketAccountBySlug(instID, "target-slug")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if acc == nil {
-			t.Fatal("a filtered miss must not be reported as an absent account")
-		}
-		if len(*searches) != 2 {
-			t.Fatalf("expected a filtered attempt then an unfiltered scan, got %v", *searches)
-		}
-		if (*searches)[1] != "|" {
-			t.Fatalf("expected a filtered attempt then an unfiltered scan, got %v", *searches)
-		}
+		requireFoundBitbucketAccount(t, acc, err)
+		requireSearchTrace(t, *searches, 2, 1, "|")
 	})
 }
 

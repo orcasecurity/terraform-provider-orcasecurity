@@ -57,6 +57,68 @@ func (s *updateStub) body() map[string]any {
 	}
 }
 
+func (s *updateStub) handleProjectsPut(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.projectPuts++
+	fail := s.failProjects && s.projectPuts > 1
+	s.mu.Unlock()
+	if fail {
+		http.Error(w, `{"detail":"project attach rejected"}`, http.StatusInternalServerError)
+		return
+	}
+	var body struct {
+		ProjectsIds []string `json:"projects_ids"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	s.mu.Lock()
+	s.projects = body.ProjectsIds
+	s.mu.Unlock()
+	_ = json.NewEncoder(w).Encode(s.body())
+}
+
+func (s *updateStub) handleBodyPut(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name string `json:"name"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	s.mu.Lock()
+	if body.Name != "" {
+		s.name = body.Name
+	}
+	s.mu.Unlock()
+	_ = json.NewEncoder(w).Encode(s.body())
+}
+
+func (s *updateStub) handleGet(w http.ResponseWriter) {
+	s.mu.Lock()
+	failRead := s.failReadWhileRenamed && s.name == "tf-stub-policy-renamed"
+	s.mu.Unlock()
+	if failRead {
+		http.Error(w, `{"detail":"transient"}`, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(s.body())
+}
+
+func (s *updateStub) handle(w http.ResponseWriter, r *http.Request, base string) {
+	s.record(r.Method, r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+	switch {
+	case r.Method == http.MethodPost && r.URL.Path == base:
+		_ = json.NewEncoder(w).Encode(s.body())
+	case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/projects/"):
+		s.handleProjectsPut(w, r)
+	case r.Method == http.MethodPut && r.URL.Path == base+stubPolicyID+"/":
+		s.handleBodyPut(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == base+stubPolicyID+"/":
+		s.handleGet(w)
+	case r.Method == http.MethodDelete:
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		http.Error(w, "unexpected request "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
+	}
+}
+
 func (s *updateStub) start(t *testing.T) {
 	t.Helper()
 	s.name = "tf-stub-policy"
@@ -64,53 +126,7 @@ func (s *updateStub) start(t *testing.T) {
 	const base = "/api/shiftleft/malicious_packages/policies/"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.record(r.Method, r.URL.Path)
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == base:
-			_ = json.NewEncoder(w).Encode(s.body())
-		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/projects/"):
-			s.mu.Lock()
-			s.projectPuts++
-			fail := s.failProjects && s.projectPuts > 1
-			s.mu.Unlock()
-			if fail {
-				http.Error(w, `{"detail":"project attach rejected"}`, http.StatusInternalServerError)
-				return
-			}
-			var body struct {
-				ProjectsIds []string `json:"projects_ids"`
-			}
-			_ = json.NewDecoder(r.Body).Decode(&body)
-			s.mu.Lock()
-			s.projects = body.ProjectsIds
-			s.mu.Unlock()
-			_ = json.NewEncoder(w).Encode(s.body())
-		case r.Method == http.MethodPut && r.URL.Path == base+stubPolicyID+"/":
-			var body struct {
-				Name string `json:"name"`
-			}
-			_ = json.NewDecoder(r.Body).Decode(&body)
-			s.mu.Lock()
-			if body.Name != "" {
-				s.name = body.Name
-			}
-			s.mu.Unlock()
-			_ = json.NewEncoder(w).Encode(s.body())
-		case r.Method == http.MethodGet && r.URL.Path == base+stubPolicyID+"/":
-			s.mu.Lock()
-			failRead := s.failReadWhileRenamed && s.name == "tf-stub-policy-renamed"
-			s.mu.Unlock()
-			if failRead {
-				http.Error(w, `{"detail":"transient"}`, http.StatusInternalServerError)
-				return
-			}
-			_ = json.NewEncoder(w).Encode(s.body())
-		case r.Method == http.MethodDelete:
-			w.WriteHeader(http.StatusNoContent)
-		default:
-			http.Error(w, "unexpected request "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
-		}
+		s.handle(w, r, base)
 	}))
 	t.Cleanup(srv.Close)
 
