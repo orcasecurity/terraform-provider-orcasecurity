@@ -68,21 +68,9 @@ func TestVerifyScmPostureScopeApplied_EmptyAPIScope(t *testing.T) {
 	}
 }
 
-func TestVerifyScmPostureScopeApplied_SkipsNonScmAndBuiltin(t *testing.T) {
+func TestVerifyScmPostureScopeApplied_SkipsNonScmTypes(t *testing.T) {
 	iac := &shiftLeftPolicyResourceModel{Type: types.StringValue("iac")}
 	if err := verifyScmPostureScopeApplied(iac, &api_client.ShiftLeftPolicy{}); err != nil {
 		t.Fatalf("iac should skip: %v", err)
-	}
-	builtin := &shiftLeftPolicyResourceModel{
-		Type:    types.StringValue("scm_posture"),
-		Builtin: types.BoolValue(true),
-		ScmPosture: &scmPostureBlockModel{
-			Scope: []scmScopeEntryModel{
-				{Key: types.StringValue("github_installations"), Ids: []types.String{types.StringValue("x")}},
-			},
-		},
-	}
-	if err := verifyScmPostureScopeApplied(builtin, &api_client.ShiftLeftPolicy{}); err != nil {
-		t.Fatalf("builtin should skip: %v", err)
 	}
 }

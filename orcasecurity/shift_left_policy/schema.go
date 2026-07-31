@@ -280,8 +280,9 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 			},
 		},
 		"builtin": schema.BoolAttribute{
-			Computed:    true,
-			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable.",
+			Computed: true,
+			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable. " +
+				"The org-wide built-in SCM posture policy is managed by orcasecurity_shift_left_scm_posture_default_policy instead and cannot be imported here.",
 			PlanModifiers: []planmodifier.Bool{
 				boolplanmodifier.UseStateForUnknown(),
 			},

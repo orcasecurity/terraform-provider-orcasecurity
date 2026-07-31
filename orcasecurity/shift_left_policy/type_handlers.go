@@ -157,23 +157,10 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 	"scm_posture": {
 		catalogType: "scm_posture",
 		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.ScmPosture != nil },
+		// Only custom scm_posture policies reach this write: the org-wide built-in
+		// one is owned exclusively by shift_left_scm_posture_default_policy
+		// (import of it is rejected in ImportState, and Create can never yield it).
 		buildWrite: func(m *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
-			// Built-in scm_posture policies are org-global: the API requires
-			// them to have no scope (only controls/disabled are updatable), so
-			// scope is omitted from the write instead of being required.
-			if m.Builtin.ValueBool() {
-				var diags diag.Diagnostics
-				if len(m.ScmPosture.Scope) > 0 {
-					diags.AddError(
-						"Invalid scope for built-in policy",
-						"Built-in scm_posture policies are global and cannot have a scope.",
-					)
-					return nil, diags
-				}
-				scmControls := scmControlsToMaps(m.ScmPosture.Controls)
-				policyData["controls"] = scmControls
-				return scmControls, diags
-			}
 			scopeRaw, scmControls, diags := buildScmScope(m.ScmPosture)
 			if diags.HasError() {
 				return nil, diags

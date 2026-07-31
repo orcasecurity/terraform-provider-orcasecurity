@@ -12,12 +12,11 @@ import (
 // on the API policy. The backend accepts unknown/unlinked UUIDs with HTTP 201 and
 // returns empty scope lists, which would otherwise settle in state (via
 // stateFromPlanAfterWrite) and then perpetual-drift on the next refresh.
-// Built-in scm_posture policies are org-global and must not carry scope.
 func verifyScmPostureScopeApplied(plan *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy) error {
 	if plan == nil || apiPolicy == nil {
 		return nil
 	}
-	if plan.Type.ValueString() != "scm_posture" || plan.Builtin.ValueBool() {
+	if plan.Type.ValueString() != "scm_posture" {
 		return nil
 	}
 	if plan.ScmPosture == nil || len(plan.ScmPosture.Scope) == 0 {

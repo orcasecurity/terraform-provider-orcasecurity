@@ -95,6 +95,18 @@ func (r *shiftLeftPolicyResource) ImportState(ctx context.Context, req resource.
 		resp.Diagnostics.AddError("Error importing AppSec policy", fmt.Sprintf("Policy %s/%s not found.", policyType, policyID))
 		return
 	}
+	// The org-wide built-in scm_posture policy has a dedicated singleton resource with
+	// its own PUT endpoint and locked fields. Owning it from two resource types at once
+	// invites conflicting writes, so this resource refuses to take it.
+	if policyType == "scm_posture" && instance.Builtin {
+		resp.Diagnostics.AddError(
+			"Built-in scm_posture policy has a dedicated resource",
+			"The org-wide built-in SCM posture policy is managed exclusively by "+
+				"orcasecurity_shift_left_scm_posture_default_policy, which adopts it on apply without "+
+				"an import. Use orcasecurity_shift_left_policy only for custom scm_posture policies.",
+		)
+		return
+	}
 
 	state := apiToState(instance, nil)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), state.ID.ValueString())...)
