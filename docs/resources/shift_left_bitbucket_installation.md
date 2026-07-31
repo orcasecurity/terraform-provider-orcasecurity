@@ -47,7 +47,7 @@ resource "orcasecurity_shift_left_bitbucket_installation" "server" {
 ### Optional
 
 - `access_token_type` (String) Token kind: `PAT` for a personal access token, `TOKEN` for a workspace (cloud) or project (server) token.
-- `account_id` (String) Workspace or project slug the token is scoped to (used with `TOKEN` tokens).
+- `account_id` (String) Workspace or project slug the installation token is scoped to (`TOKEN` tokens). Bitbucket-side slug only — not an Orca UUID, and not the same attribute as `orcasecurity_shift_left_bitbucket_account.account_id` (though values often match for workspace tokens).
 - `server_url` (String) Bitbucket server URL without a trailing slash. Omit for Bitbucket cloud (https://bitbucket.org).
 - `username` (String) Bitbucket username owning the token (used with `PAT` tokens).
 

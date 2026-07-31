@@ -32,7 +32,7 @@ resource "orcasecurity_shift_left_bitbucket_repository" "example" {
 
 ### Required
 
-- `account_id` (String) Bitbucket workspace slug (cloud) or project key (server) owning the repository.
+- `account_id` (String) Bitbucket workspace slug (cloud) or project key (server) owning the repository. Bitbucket-side identity — not an Orca UUID (see `orcasecurity_shift_left_bitbucket_accounts.account_id`).
 - `bitbucket_repository_id` (String) Bitbucket repository id.
 - `installation_id` (String) Orca id of the Bitbucket installation (see `orcasecurity_shift_left_bitbucket_installation`).
 - `name` (String) Repository name (path) as known to Bitbucket.

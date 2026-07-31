@@ -12,7 +12,9 @@ import (
 
 var accountsSpec = shift_left_integration.ScmUnitListSpec[api_client.BitbucketAccount]{
 	TypeNameSuffix: "_shift_left_bitbucket_accounts",
-	Description:    "Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. account_id is the Bitbucket slug.",
+	Description: "Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. " +
+		"`account_id` is the Bitbucket workspace slug (not an Orca UUID); `id` is the Orca unit UUID; " +
+		"`installation_id` is the parent Orca Bitbucket installation UUID.",
 	CollectionKey:  "accounts",
 	ListErrorTitle: "Error listing Bitbucket accounts",
 	Extra: map[string]attr.Type{

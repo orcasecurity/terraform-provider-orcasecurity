@@ -60,7 +60,9 @@ func resourceSchema() rschema.Schema {
 	attrs["username"] = shift_left_integration.OptionalComputedString(
 		"Bitbucket username owning the token (used with `PAT` tokens).")
 	attrs["account_id"] = shift_left_integration.OptionalComputedString(
-		"Workspace or project slug the token is scoped to (used with `TOKEN` tokens).")
+		"Workspace or project slug the installation token is scoped to (`TOKEN` tokens). " +
+			"Bitbucket-side slug only — not an Orca UUID, and not the same attribute as " +
+			"`orcasecurity_shift_left_bitbucket_account.account_id` (though values often match for workspace tokens).")
 	return rschema.Schema{
 		Description: "Connects a Bitbucket server or workspace to Orca Shift Left by registering an access token " +
 			"(POST /api/shiftleft/bitbucket/installations/). The API never returns the token, so after `terraform import` " +

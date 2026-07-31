@@ -39,8 +39,9 @@ func NewGithubRepositoryResource() resource.Resource {
 func githubRepositorySchema() rschema.Schema {
 	attrs := sharedRepoAttributes(githubTraits)
 	attrs["account_id"] = rschema.StringAttribute{
-		Required:      true,
-		Description:   "Orca UUID of the GitHub integrated account owning the repository (see `orcasecurity_shift_left_github_accounts`).",
+		Required: true,
+		Description: "Orca UUID of the GitHub integrated account owning the repository " +
+			"(see `orcasecurity_shift_left_github_accounts` — an Orca UUID, not a GitHub org slug).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	attrs["github_repository_id"] = rschema.Int64Attribute{

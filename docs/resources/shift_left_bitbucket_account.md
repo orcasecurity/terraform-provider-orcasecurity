@@ -48,7 +48,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 
 ### Required
 
-- `account_id` (String) Bitbucket-side account/workspace slug (API `account_id`, not the Orca UUID).
+- `account_id` (String) Bitbucket-side workspace slug (cloud) or project key (server). This is NOT an Orca UUID — the Orca unit id is the computed `id`. Do not confuse with `orcasecurity_shift_left_bitbucket_installation.account_id` (token-scope slug on the installation credential).
 - `installation_id` (String) Orca Bitbucket installation UUID.
 
 ### Optional

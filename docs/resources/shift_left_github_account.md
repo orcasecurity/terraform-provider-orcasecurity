@@ -51,7 +51,7 @@ resource "orcasecurity_shift_left_github_account" "project_bound" {
 
 ### Required
 
-- `account_id` (String) Orca UUID of the integrated GitHub account (see `orcasecurity_shift_left_github_accounts`). GitHub has no separate installation resource: the Orca GitHub App installation is itself the account-level unit, so this is the unit's own id rather than a parent connection id.
+- `account_id` (String) Orca UUID of the integrated GitHub account (see `orcasecurity_shift_left_github_accounts`). Unlike Bitbucket's `account_id` (an SCM slug), this is an Orca UUID. GitHub has no separate installation resource: the Orca GitHub App installation is itself the account-level unit, so this is the unit's own id rather than a parent connection id.
 
 ### Optional
 
@@ -67,7 +67,7 @@ resource "orcasecurity_shift_left_github_account" "project_bound" {
 - `account_name` (String) GitHub account/organization name.
 - `github_app_settings_url` (String) URL of the Orca GitHub App settings page on GitHub (null when the API omits it).
 - `github_installation_id` (Number) GitHub-side numeric installation ID of the Orca GitHub App.
-- `id` (String) Orca UUID of the integrated GitHub account (mirrors account_id).
+- `id` (String) Orca UUID of the integrated GitHub account (same value as `account_id`). Unlike Bitbucket, GitHub `account_id` is an Orca UUID, not an SCM-side slug.
 - `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
 - `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).

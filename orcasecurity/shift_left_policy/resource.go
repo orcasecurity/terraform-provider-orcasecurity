@@ -113,15 +113,24 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 			resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
 			return
 		}
-		instance, err = r.apiClient.GetShiftLeftPolicy(policyType, policyID)
-		if err == nil && instance == nil {
-			err = fmt.Errorf("policy %s/%s could not be read back after attaching projects", policyType, policyID)
-		}
-		if err != nil {
-			r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
-			resp.Diagnostics.AddError("Error reading AppSec policy after project attach", err.Error())
-			return
-		}
+	}
+
+	// Always re-read: create responses can echo an empty scm_posture scope even when the request
+	// carried ids (backend soft-drops unknown/unlinked units). Read-back is also what surfaces a
+	// successful project attach.
+	instance, err = r.apiClient.GetShiftLeftPolicy(policyType, policyID)
+	if err == nil && instance == nil {
+		err = fmt.Errorf("policy %s/%s could not be read back after create", policyType, policyID)
+	}
+	if err != nil {
+		r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
+		resp.Diagnostics.AddError("Error reading AppSec policy after create", err.Error())
+		return
+	}
+	if err := verifyScmPostureScopeApplied(&plan, instance); err != nil {
+		r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
+		resp.Diagnostics.AddError("Error applying AppSec policy scope", err.Error())
+		return
 	}
 
 	state := stateFromPlanAfterWrite(&plan, instance)
@@ -140,6 +149,54 @@ func (r *shiftLeftPolicyResource) rollbackCreatedPolicy(ctx context.Context, pol
 				"rollback also failed: %s. It exists in Orca but not in Terraform state — delete it manually "+
 				"or import it.", policyType, policyID, err.Error()),
 		)
+	}
+}
+
+// restorePriorPolicy rewrites the remote policy back to prior after a partial Update.
+// restoreProjects is true when the projects endpoint already accepted the new set.
+func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior *shiftLeftPolicyResourceModel, restoreProjects bool, diags *diag.Diagnostics) {
+	if prior == nil || prior.ID.ValueString() == "" {
+		return
+	}
+	policyType := prior.Type.ValueString()
+	policyID := prior.ID.ValueString()
+	tflog.Info(ctx, fmt.Sprintf("Restoring AppSec policy %s/%s after a partial update", policyType, policyID))
+
+	apiPolicy, d := planToAPI(prior)
+	if d.HasError() {
+		diags.AddWarning(
+			"Failed to restore AppSec policy after a partial update",
+			fmt.Sprintf("Could not rebuild the prior policy body for %s/%s: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
+				policyType, policyID, d.Errors()),
+		)
+		return
+	}
+	apiPolicy.ProjectsIds = nil
+	catalogDiags := diag.Diagnostics{}
+	if !r.applyCatalog(prior, &apiPolicy, &catalogDiags) {
+		diags.AddWarning(
+			"Failed to restore AppSec policy after a partial update",
+			fmt.Sprintf("Could not re-apply catalog enrichment for %s/%s: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
+				policyType, policyID, catalogDiags.Errors()),
+		)
+		return
+	}
+	if _, err := r.apiClient.UpdateShiftLeftPolicy(policyType, policyID, apiPolicy); err != nil {
+		diags.AddWarning(
+			"Failed to restore AppSec policy after a partial update",
+			fmt.Sprintf("Restoring the prior body of %s/%s failed: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
+				policyType, policyID, err.Error()),
+		)
+		return
+	}
+	if restoreProjects && tfconv.Known(prior.ProjectsIds) {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(prior.ProjectsIds)); err != nil {
+			diags.AddWarning(
+				"Failed to restore AppSec policy projects after a partial update",
+				fmt.Sprintf("Restoring projects on %s/%s failed: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
+					policyType, policyID, err.Error()),
+			)
+		}
 	}
 }
 
@@ -214,8 +271,11 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	// Sync projects only when known and actually changed; null/unknown means leave as-is.
 	// SetShiftLeftPolicyProjects replaces the whole attachment set, so re-sending an
 	// unchanged set is a needless detach/reattach on every apply.
-	if tfconv.Known(plan.ProjectsIds) && !plan.ProjectsIds.Equal(state.ProjectsIds) {
+	projectsChanged := tfconv.Known(plan.ProjectsIds) && !plan.ProjectsIds.Equal(state.ProjectsIds)
+	if projectsChanged {
 		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
+			// Body PUT already landed; restore the prior body so live matches the still-current state.
+			r.restorePriorPolicy(ctx, &state, false, &resp.Diagnostics)
 			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
 			return
 		}
@@ -227,7 +287,13 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 		err = fmt.Errorf("policy %s/%s could not be read back after the update; run terraform refresh", policyType, policyID)
 	}
 	if err != nil {
+		r.restorePriorPolicy(ctx, &state, projectsChanged, &resp.Diagnostics)
 		resp.Diagnostics.AddError("Error reading AppSec policy after update", err.Error())
+		return
+	}
+	if err := verifyScmPostureScopeApplied(&plan, instance); err != nil {
+		r.restorePriorPolicy(ctx, &state, projectsChanged, &resp.Diagnostics)
+		resp.Diagnostics.AddError("Error applying AppSec policy scope", err.Error())
 		return
 	}
 

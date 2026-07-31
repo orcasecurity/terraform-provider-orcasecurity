@@ -158,7 +158,7 @@ func TestShiftLeftPolicyCreate_FailedReadBackDeletesPolicy(t *testing.T) {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{{
 			Config:      stubPolicyConfig,
-			ExpectError: regexp.MustCompile(`read back after attaching projects`),
+			ExpectError: regexp.MustCompile(`read back after create`),
 		}},
 	})
 

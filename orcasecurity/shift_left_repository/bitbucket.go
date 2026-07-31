@@ -40,8 +40,9 @@ func bitbucketRepositorySchema() rschema.Schema {
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	attrs["account_id"] = rschema.StringAttribute{
-		Required:      true,
-		Description:   "Bitbucket workspace slug (cloud) or project key (server) owning the repository.",
+		Required: true,
+		Description: "Bitbucket workspace slug (cloud) or project key (server) owning the repository. " +
+			"Bitbucket-side identity — not an Orca UUID (see `orcasecurity_shift_left_bitbucket_accounts.account_id`).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	attrs["bitbucket_repository_id"] = rschema.StringAttribute{

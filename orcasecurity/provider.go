@@ -253,11 +253,18 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		rbac_role.NewRbacRolesDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_azure_devops_account.NewAccountsDataSource,
+		shift_left_azure_devops_installation.NewInstallationsDataSource,
 		shift_left_bitbucket_account.NewAccountsDataSource,
+		shift_left_bitbucket_installation.NewInstallationsDataSource,
 		shift_left_github_account.NewAccountsDataSource,
 		shift_left_gitlab_group.NewGroupsDataSource,
+		shift_left_gitlab_installation.NewInstallationsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		shift_left_projects.NewProjectsDataSource,
+		shift_left_repository.NewAzureDevopsRepositoriesDataSource,
+		shift_left_repository.NewBitbucketRepositoriesDataSource,
+		shift_left_repository.NewGithubRepositoriesDataSource,
+		shift_left_repository.NewGitlabRepositoriesDataSource,
 		automation_v2_priorities.NewAutomationPrioritiesDataSource,
 	}
 }

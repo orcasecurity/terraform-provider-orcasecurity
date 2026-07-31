@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_accounts Data Source - orcasecurity"
 description: |-
-  Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. account_id is the Bitbucket slug.
+  Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. account_id is the Bitbucket workspace slug (not an Orca UUID); id is the Orca unit UUID; installation_id is the parent Orca Bitbucket installation UUID.
 ---
 
 # orcasecurity_shift_left_bitbucket_accounts (Data Source)
 
-Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. account_id is the Bitbucket slug.
+Lists all Orca Bitbucket shift-left integrated accounts for fleet-wide for_each. `account_id` is the Bitbucket workspace slug (not an Orca UUID); `id` is the Orca unit UUID; `installation_id` is the parent Orca Bitbucket installation UUID.
 
 ## Example Usage
 

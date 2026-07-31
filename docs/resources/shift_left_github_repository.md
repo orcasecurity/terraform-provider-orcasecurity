@@ -33,7 +33,7 @@ resource "orcasecurity_shift_left_github_repository" "example" {
 
 ### Required
 
-- `account_id` (String) Orca UUID of the GitHub integrated account owning the repository (see `orcasecurity_shift_left_github_accounts`).
+- `account_id` (String) Orca UUID of the GitHub integrated account owning the repository (see `orcasecurity_shift_left_github_accounts` — an Orca UUID, not a GitHub org slug).
 - `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API never returns or updates it, so Terraform cannot detect drift on this attribute, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `terraform import` cannot read it back either, so an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating.
 - `github_repository_id` (Number) Numeric GitHub repository id.
 - `name` (String) Repository name (path) as known to GitHub.

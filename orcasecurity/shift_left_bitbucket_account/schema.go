@@ -21,8 +21,11 @@ func resourceSchema() rschema.Schema {
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	attrs["account_id"] = rschema.StringAttribute{
-		Required:      true,
-		Description:   "Bitbucket-side account/workspace slug (API `account_id`, not the Orca UUID).",
+		Required: true,
+		Description: "Bitbucket-side workspace slug (cloud) or project key (server). " +
+			"This is NOT an Orca UUID — the Orca unit id is the computed `id`. " +
+			"Do not confuse with `orcasecurity_shift_left_bitbucket_installation.account_id` " +
+			"(token-scope slug on the installation credential).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
