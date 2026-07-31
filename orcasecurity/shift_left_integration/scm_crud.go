@@ -10,9 +10,9 @@ import (
 
 var ErrUnitNotFound = errors.New("scm unit not found")
 
-// ScmUnit is satisfied by every concrete SCM unit API type via the embedded
+// Commoner is satisfied by every concrete SCM unit API type via the embedded
 // api_client.ScmUnitCommonFields.
-type ScmUnit interface {
+type Commoner interface {
 	Common() api_client.ScmUnitCommonFields
 }
 

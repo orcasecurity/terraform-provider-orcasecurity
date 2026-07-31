@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-type AdoptedUnitOps[A ScmUnit, M any] struct {
+type AdoptedUnitOps[A Commoner, M any] struct {
 	Labels           AdoptLabels
 	UnitID           func(m *M) string
 	Get              func(m *M) (*A, error)

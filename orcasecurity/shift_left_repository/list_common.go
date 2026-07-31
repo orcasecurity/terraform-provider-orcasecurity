@@ -43,7 +43,7 @@ func sharedRepoListValues(r api_client.ScmRepository) map[string]attr.Value {
 	}
 }
 
-func mergeAttrs(base map[string]dschema.Attribute, extra map[string]dschema.Attribute) map[string]dschema.Attribute {
+func mergeAttrs(base, extra map[string]dschema.Attribute) map[string]dschema.Attribute {
 	out := make(map[string]dschema.Attribute, len(base)+len(extra))
 	for k, v := range base {
 		out[k] = v
@@ -54,7 +54,7 @@ func mergeAttrs(base map[string]dschema.Attribute, extra map[string]dschema.Attr
 	return out
 }
 
-func mergeTypes(base map[string]attr.Type, extra map[string]attr.Type) map[string]attr.Type {
+func mergeTypes(base, extra map[string]attr.Type) map[string]attr.Type {
 	out := make(map[string]attr.Type, len(base)+len(extra))
 	for k, v := range base {
 		out[k] = v
@@ -65,7 +65,7 @@ func mergeTypes(base map[string]attr.Type, extra map[string]attr.Type) map[strin
 	return out
 }
 
-func mergeValues(base map[string]attr.Value, extra map[string]attr.Value) map[string]attr.Value {
+func mergeValues(base, extra map[string]attr.Value) map[string]attr.Value {
 	out := make(map[string]attr.Value, len(base)+len(extra))
 	for k, v := range base {
 		out[k] = v

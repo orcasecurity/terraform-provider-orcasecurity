@@ -17,8 +17,8 @@ type UnitOps interface {
 	DoDelete(context.Context, resource.DeleteRequest, *resource.DeleteResponse)
 }
 
-// planModifierOps is implemented by AdoptedUnitOps (not InstallationLifecycle).
-type planModifierOps interface {
+// planModifier is implemented by AdoptedUnitOps (not InstallationLifecycle).
+type planModifier interface {
 	ModifyPlan(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
 }
 
@@ -72,7 +72,7 @@ func (r *GenericResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *GenericResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if v, ok := r.OpsFn(r.client).(planModifierOps); ok {
+	if v, ok := r.OpsFn(r.client).(planModifier); ok {
 		v.ModifyPlan(ctx, req, resp)
 	}
 }
