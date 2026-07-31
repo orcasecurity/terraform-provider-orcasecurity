@@ -11,6 +11,7 @@ package orcasecurity
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -19,9 +20,10 @@ import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// The SCM connection/unit/repository resources, whose schemas are generated from shared builders
-// and therefore drift together. Listed explicitly so that renaming a resource out of the set is a
-// deliberate edit rather than a silent loss of coverage.
+// The SCM connection/unit/repository resources (plus the org-wide SCM posture
+// default-policy singleton), whose schemas drift together. Listed explicitly so
+// that renaming a resource out of the set is a deliberate edit rather than a
+// silent loss of coverage.
 var shiftLeftScmResourceTypes = []string{
 	"orcasecurity_shift_left_azure_devops_account",
 	"orcasecurity_shift_left_azure_devops_installation",
@@ -34,6 +36,7 @@ var shiftLeftScmResourceTypes = []string{
 	"orcasecurity_shift_left_gitlab_group",
 	"orcasecurity_shift_left_gitlab_installation",
 	"orcasecurity_shift_left_gitlab_repository",
+	"orcasecurity_shift_left_scm_posture_default_policy",
 }
 
 func TestShiftLeftScmSchemasSettle(t *testing.T) {
@@ -80,49 +83,88 @@ func assertComputedAttributesCarryForward(t *testing.T, typeName, prefix string,
 	t.Helper()
 	for name, attr := range attrs {
 		attrPath := prefix + name
-		if nested, ok := attr.(rschema.SingleNestedAttribute); ok {
+		switch nested := attr.(type) {
+		case rschema.SingleNestedAttribute:
 			assertComputedAttributesCarryForward(t, typeName, attrPath+".", nested.Attributes)
+		case rschema.ListNestedAttribute:
+			assertComputedAttributesCarryForward(t, typeName, attrPath+".", nested.NestedObject.Attributes)
+		case rschema.SetNestedAttribute:
+			assertComputedAttributesCarryForward(t, typeName, attrPath+".", nested.NestedObject.Attributes)
+		case rschema.MapNestedAttribute:
+			assertComputedAttributesCarryForward(t, typeName, attrPath+".", nested.NestedObject.Attributes)
 		}
 		if !attr.IsComputed() {
 			continue
 		}
-		modifiers, inspectable := planModifierCount(attr)
+		modifiers, inspectable := planModifiers(attr)
 		if !inspectable {
-			t.Errorf("%s: %s is a %T, which this test cannot inspect — add it to planModifierCount",
+			t.Errorf("%s: %s is a %T, which this test cannot inspect — add it to planModifiers",
 				typeName, attrPath, attr)
 			continue
 		}
-		if modifiers == 0 {
-			t.Errorf("%s: computed attribute %q has no plan modifier, so Terraform 1.0-1.3 replans it as "+
-				"\"known after apply\" on every apply and the plan never settles; declare it with the "+
-				"shift_left_integration.Computed*/OptionalComputed* helpers", typeName, attrPath)
+		// RequiresReplace alone is not enough: TF 1.0–1.3 still replans the
+		// attribute as "known after apply" forever without a carry-forward
+		// modifier (UseStateForUnknown, or a custom equivalent such as
+		// ProjectIDPlanModifier).
+		if !hasSettlingPlanModifier(modifiers) {
+			t.Errorf("%s: computed attribute %q has no carry-forward plan modifier (UseStateForUnknown or equivalent), "+
+				"so Terraform 1.0-1.3 replans it as \"known after apply\" on every apply and the plan never settles; "+
+				"declare it with the shift_left_integration.Computed*/OptionalComputed* helpers", typeName, attrPath)
 		}
 	}
 }
 
-func planModifierCount(attr rschema.Attribute) (count int, inspectable bool) {
+// hasSettlingPlanModifier is true when at least one modifier is not a
+// RequiresReplace* variant. len(PlanModifiers) > 0 used to pass a
+// RequiresReplace-only attribute that never settles on TF 1.0–1.3.
+func hasSettlingPlanModifier(modifiers []any) bool {
+	for _, m := range modifiers {
+		name := fmt.Sprintf("%T", m)
+		if strings.Contains(name, "requiresReplace") {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func planModifiers(attr rschema.Attribute) (modifiers []any, inspectable bool) {
 	switch a := attr.(type) {
 	case rschema.StringAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.BoolAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.Int64Attribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.Float64Attribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.NumberAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.SetAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.ListAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.MapAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.ObjectAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
 	case rschema.SingleNestedAttribute:
-		return len(a.PlanModifiers), true
+		return asAny(a.PlanModifiers), true
+	case rschema.ListNestedAttribute:
+		return asAny(a.PlanModifiers), true
+	case rschema.SetNestedAttribute:
+		return asAny(a.PlanModifiers), true
+	case rschema.MapNestedAttribute:
+		return asAny(a.PlanModifiers), true
 	default:
-		return 0, false
+		return nil, false
 	}
+}
+
+func asAny[T any](in []T) []any {
+	out := make([]any, len(in))
+	for i := range in {
+		out[i] = in[i]
+	}
+	return out
 }

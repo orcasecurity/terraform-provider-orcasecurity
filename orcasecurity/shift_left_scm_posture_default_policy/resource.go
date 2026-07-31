@@ -72,14 +72,12 @@ func (r *defaultPolicyResource) Schema(_ context.Context, _ resource.SchemaReque
 				Description:   "Policy UUID.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"name": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Policy name (read-only, server-managed).",
-			},
-			"description": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Policy description (read-only, server-managed).",
-			},
+			"name": shift_left_integration.ComputedString(
+				"Policy name (read-only, server-managed).",
+			),
+			"description": shift_left_integration.ComputedString(
+				"Policy description (read-only, server-managed).",
+			),
 			"disabled": rschema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,

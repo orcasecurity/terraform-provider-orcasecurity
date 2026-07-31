@@ -31,12 +31,14 @@ than red.
 | `ORCA_TEST_BUILTIN_POLICY_TYPE` / `ORCA_TEST_BUILTIN_POLICY_ID` | A built-in `licenses` policy to attach projects to |
 | `ORCA_TEST_MALICIOUS_PACKAGES_POLICY_ID` | The built-in `malicious_packages` policy |
 | `ORCASECURITY_ACC_SCM_INSTALLATION_ID` | GitHub installation used by the SCM posture policy test (must be a live install the API can assign scope to; deleted/orphan ids make create fail) |
+| `ORCA_TEST_SCM_POSTURE_DEFAULT_ALLOW` | Opt-in for the org-wide SCM posture default-policy adopt test (`orcasecurity_shift_left_scm_posture_default_policy`). Unset = skip. The test snapshots and restores the singleton; without this gate a normal `TF_ACC` suite would mutate every org's built-in posture policy. |
 
 Terraform destroys everything it created when a test case ends, and for an adopted unit that means
 de-integrating a unit the test did not integrate — which also drops every repository under it, and the
 restore only puts the empty unit back. Those cases therefore need a second opt-in
 (`ORCA_TEST_GH_ALLOW_DESTROY`, `ORCA_TEST_GL_ALLOW_DESTROY`, `ORCA_TEST_BB_ALLOW_DESTROY`,
-`ORCA_TEST_AZ_ALLOW_DESTROY`) and skip themselves when the unit they were pointed at has repositories.
+`ORCA_TEST_AZ_ALLOW_DESTROY`) and skip themselves when the unit they were pointed at has repositories
+(GitHub included — destroy has no Integrate restore path and needs the App flow to recover).
 Point them at a disposable empty unit, never at a shared one.
 
 Two areas are deliberately not covered against a live tenant:

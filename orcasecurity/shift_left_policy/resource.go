@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &shiftLeftPolicyResource{}
-	_ resource.ResourceWithConfigure   = &shiftLeftPolicyResource{}
-	_ resource.ResourceWithImportState = &shiftLeftPolicyResource{}
+	_ resource.Resource                   = &shiftLeftPolicyResource{}
+	_ resource.ResourceWithConfigure      = &shiftLeftPolicyResource{}
+	_ resource.ResourceWithImportState    = &shiftLeftPolicyResource{}
+	_ resource.ResourceWithValidateConfig = &shiftLeftPolicyResource{}
 )
 
 type shiftLeftPolicyResource struct {
@@ -44,6 +45,29 @@ func (r *shiftLeftPolicyResource) Schema(ctx context.Context, req resource.Schem
 		Description: "Provides an AppSec (Shift Left) policy resource. Use this resource to create and manage AppSec scan policies in Orca Security.",
 		Attributes:  resourceSchemaAttributes(),
 		Blocks:      resourceSchemaBlocks(),
+	}
+}
+
+// ValidateConfig rejects combinations the API cannot apply. scm_posture policies
+// are scoped via scm_posture.scope (installation/unit IDs); there is no
+// /api/shiftleft/scm_posture/policies/{id}/projects/ endpoint, so setting
+// projects_ids would 404 after the policy body had already been written.
+func (r *shiftLeftPolicyResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config shiftLeftPolicyResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if config.Type.IsUnknown() || config.ProjectsIds.IsUnknown() {
+		return
+	}
+	if config.Type.ValueString() == "scm_posture" && !config.ProjectsIds.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("projects_ids"),
+			"Unsupported attribute for scm_posture",
+			"scm_posture policies cannot use projects_ids — the API has no project-attachment endpoint for this type. "+
+				"Scope them with scm_posture.scope (installation/unit IDs) instead.",
+		)
 	}
 }
 

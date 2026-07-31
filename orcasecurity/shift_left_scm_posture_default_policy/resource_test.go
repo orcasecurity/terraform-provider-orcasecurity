@@ -19,6 +19,12 @@ func TestAccScmPostureDefaultPolicy_adopt(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
+	// This resource PUTs the org-wide built-in singleton. Require an explicit
+	// opt-in so a normal TF_ACC+credentials suite cannot mutate (or, on a
+	// failed decode restore, wipe) every control override in the lab org.
+	if os.Getenv("ORCA_TEST_SCM_POSTURE_DEFAULT_ALLOW") == "" {
+		t.Skip("ORCA_TEST_SCM_POSTURE_DEFAULT_ALLOW not set; refuse to mutate the org-wide SCM posture default policy")
+	}
 
 	// Snapshot the live singleton and restore it after the test: the policy
 	// is org-wide and never deletable, so the applied config would otherwise
@@ -31,7 +37,12 @@ func TestAccScmPostureDefaultPolicy_adopt(t *testing.T) {
 	t.Cleanup(func() {
 		var data api_client.ScmPostureDefaultPolicyData
 		if len(original.PolicyData) > 0 {
-			_ = json.Unmarshal(original.PolicyData, &data)
+			// Mirror production: a decode failure must not PUT PolicyData:{}
+			// and wipe every live control override org-wide.
+			if err := json.Unmarshal(original.PolicyData, &data); err != nil {
+				t.Errorf("failed to decode snapshotted scm posture default policy_data for restore: %s; leaving live policy untouched", err)
+				return
+			}
 		}
 		restore := api_client.ScmPostureDefaultPolicyWrite{
 			Disabled:   original.Disabled,

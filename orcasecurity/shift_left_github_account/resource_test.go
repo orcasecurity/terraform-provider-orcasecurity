@@ -29,6 +29,13 @@ func TestAccGithubAccount_import(t *testing.T) {
 	if original == nil {
 		t.Skipf("github account %s not found; cannot run adopt test", id)
 	}
+	// Destroy DELETEs the GitHub account unit and every integrated repository
+	// under it. There is no Integrate restore path (reinstall needs the GitHub
+	// App flow), so refuse to run against a unit that still has repositories.
+	if original.IntegratedRepositoriesCount > 0 {
+		t.Skipf("github account %s has %d integrated repositories; point ORCA_TEST_GH_ACCOUNT_ID at a disposable empty account (destroy removes repositories and they are not restored)",
+			id, original.IntegratedRepositoriesCount)
+	}
 	t.Cleanup(func() {
 		cur, err := client.GetGithubInstallation(id)
 		if err != nil || cur == nil {
