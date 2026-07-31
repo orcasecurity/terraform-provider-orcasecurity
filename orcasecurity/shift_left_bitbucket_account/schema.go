@@ -10,6 +10,11 @@ import (
 
 func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.SharedScmConfigAttributes("Bitbucket workspace/account name.")
+	// The backend has no Bitbucket scope on SCM posture policies, so the shared
+	// attribute can never carry a value here.
+	attrs["scm_posture_policy_id"] = shift_left_integration.ComputedVolatileString(
+		"Always null for Bitbucket: SCM posture policies cannot scope Bitbucket workspaces, so no posture policy ever attaches to this unit. Present for schema parity with the other SCM account resources.",
+	)
 	attrs["id"] = rschema.StringAttribute{
 		Computed:      true,
 		Description:   "Orca Bitbucket integrated account UUID.",

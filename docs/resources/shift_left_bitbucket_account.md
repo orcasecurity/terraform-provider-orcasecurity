@@ -1,14 +1,16 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_account Resource - orcasecurity"
 description: |-
-  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode (defaults to SELECTED_REPOSITORIES), and configuration (no repositories are attached on that call). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
+  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode, and configuration (no repositories are attached on that call). Integrating a not-yet-integrated workspace requires installation_mode = "SCAN_ALL_INCLUDE_FUTURE": the API accepts SELECTED_REPOSITORIES on integrate only together with an explicit repository list, which this resource does not send (you can switch modes on a later apply). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 ---
 
 # orcasecurity_shift_left_bitbucket_account (Resource)
 
-Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode` (defaults to `SELECTED_REPOSITORIES`), and configuration (no repositories are attached on that call). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
+Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode`, and configuration (no repositories are attached on that call). Integrating a not-yet-integrated workspace requires `installation_mode = "SCAN_ALL_INCLUDE_FUTURE"`: the API accepts `SELECTED_REPOSITORIES` on integrate only together with an explicit repository list, which this resource does not send (you can switch modes on a later apply). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+
+-> **Fresh integration requires scan-all:** integrating a workspace that is not yet in Orca requires `installation_mode = "SCAN_ALL_INCLUDE_FUTURE"` — the API accepts `SELECTED_REPOSITORIES` on integrate only together with an explicit repository list, which this resource does not send. Apply with scan-all first (or import an already-integrated account), then switch to `SELECTED_REPOSITORIES` on a later apply if desired.
 
 -> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out, matching the Orca UI. `terraform import` performs no write, so an imported account keeps whatever settings it already had.
 
@@ -67,7 +69,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 - `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit. Volatile: may change as a side effect of installation_mode changes (e.g. SCAN_ALL_INCLUDE_FUTURE enrollment); settled across no-op plans.
 - `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it. Volatile: re-read after writes; settled across no-op plans.
 - `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it). Volatile: re-read after writes; settled across no-op plans.
-- `scm_posture_policy_id` (String) Read-only ID of the SCM posture policy attached to this unit (null when none). Volatile: re-read after writes; settled across no-op plans.
+- `scm_posture_policy_id` (String) Always null for Bitbucket: SCM posture policies cannot scope Bitbucket workspaces, so no posture policy ever attaches to this unit. Present for schema parity with the other SCM account resources.
 
 <a id="nestedatt--configuration_settings"></a>
 ### Nested Schema for `configuration_settings`
