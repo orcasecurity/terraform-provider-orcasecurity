@@ -43,6 +43,17 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return apiClient.UpdateGitlabGroup(m.InstallationID.ValueString(), current.ID, body)
 		},
 		Integrate: func(m *resourceModel, body api_client.ScmInstallationUpdate) error {
+			// The GitLab integrate endpoint accepts only ALWAYS/NEVER for
+			// skip_check_runs; the full enum (ONLY_ON_INTERNAL_ISSUE) is accepted by
+			// the update endpoint once the group is integrated. Failing here replaces
+			// the backend's raw validation error with an actionable one.
+			if body.ConfigSettings.SkipCheckRuns == "ONLY_ON_INTERNAL_ISSUE" {
+				return fmt.Errorf(
+					"skip_check_runs = %q is not accepted when integrating a new GitLab group "+
+						"(the integrate API allows only ALWAYS or NEVER). Integrate with ALWAYS or NEVER "+
+						"and switch to ONLY_ON_INTERNAL_ISSUE on a later apply, or import an "+
+						"already-integrated group instead", "ONLY_ON_INTERNAL_ISSUE")
+			}
 			return apiClient.IntegrateGitlabUnit(api_client.GitlabUnitIntegrate{
 				InstallationID: m.InstallationID.ValueString(),
 				GitlabGroupID:  m.GitlabGroupID.ValueInt64(),

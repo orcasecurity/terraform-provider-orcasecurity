@@ -31,8 +31,10 @@ func resourceSchema() rschema.Schema {
 	return rschema.Schema{
 		Description: "Creates or configures an Orca Bitbucket shift-left integrated account. " +
 			"Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), " +
-			"`installation_mode` (defaults to `SELECTED_REPOSITORIES`), and configuration " +
-			"(no repositories are attached on that call). " +
+			"`installation_mode`, and configuration (no repositories are attached on that call). " +
+			"Integrating a not-yet-integrated workspace requires `installation_mode = \"SCAN_ALL_INCLUDE_FUTURE\"`: " +
+			"the API accepts `SELECTED_REPOSITORIES` on integrate only together with an explicit repository list, " +
+			"which this resource does not send (you can switch modes on a later apply). " +
 			"If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. " +
 			"Not covered: browse accounts, check_availability, scan-now. " +
 			"Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.",
