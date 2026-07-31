@@ -113,109 +113,148 @@ func writableConfigMatchesState(config, state tftypes.Value) bool {
 	if config.IsNull() {
 		return true
 	}
-	if !state.IsKnown() || state.IsNull() {
+	if !state.IsKnown() {
+		return false
+	}
+	if state.IsNull() {
 		return false
 	}
 
 	switch {
 	case config.Type().Is(tftypes.Object{}):
-		var configObj, stateObj map[string]tftypes.Value
-		if err := config.As(&configObj); err != nil {
-			return false
-		}
-		if err := state.As(&stateObj); err != nil {
-			return false
-		}
-		for k, cv := range configObj {
-			sv, ok := stateObj[k]
-			if !ok {
-				if !cv.IsKnown() {
-					return false
-				}
-				if cv.IsNull() {
-					continue
-				}
-				return false
-			}
-			if !writableConfigMatchesState(cv, sv) {
-				return false
-			}
-		}
-		return true
+		return writableConfigMatchesObject(config, state)
 	case config.Type().Is(tftypes.Map{}):
-		var configMap, stateMap map[string]tftypes.Value
-		if err := config.As(&configMap); err != nil {
-			return false
-		}
-		if err := state.As(&stateMap); err != nil {
-			return false
-		}
-		if len(configMap) != len(stateMap) {
-			return false
-		}
-		for k, cv := range configMap {
-			sv, ok := stateMap[k]
-			if !ok {
-				return false
-			}
-			if !writableConfigMatchesState(cv, sv) {
-				return false
-			}
-		}
-		return true
+		return writableConfigMatchesMap(config, state)
 	case config.Type().Is(tftypes.List{}), config.Type().Is(tftypes.Tuple{}):
-		var configList, stateList []tftypes.Value
-		if err := config.As(&configList); err != nil {
-			return false
-		}
-		if err := state.As(&stateList); err != nil {
-			return false
-		}
-		if len(configList) != len(stateList) {
-			return false
-		}
-		for i := range configList {
-			if !writableConfigMatchesState(configList[i], stateList[i]) {
-				return false
-			}
-		}
-		return true
+		return writableConfigMatchesSequence(config, state)
 	case config.Type().Is(tftypes.Set{}):
-		var configSet, stateSet []tftypes.Value
-		if err := config.As(&configSet); err != nil {
-			return false
-		}
-		if err := state.As(&stateSet); err != nil {
-			return false
-		}
-		if len(configSet) != len(stateSet) {
-			return false
-		}
-		used := make([]bool, len(stateSet))
-		for _, cv := range configSet {
-			if !cv.IsKnown() {
-				return false
-			}
-			if cv.IsNull() {
-				continue
-			}
-			matched := false
-			for j, sv := range stateSet {
-				if used[j] {
-					continue
-				}
-				if writableConfigMatchesState(cv, sv) {
-					used[j] = true
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				return false
-			}
-		}
-		return true
+		return writableConfigMatchesSet(config, state)
 	default:
 		return config.Equal(state)
 	}
+}
+
+func asValueMaps(config, state tftypes.Value) (map[string]tftypes.Value, map[string]tftypes.Value, bool) {
+	var configMap, stateMap map[string]tftypes.Value
+	if err := config.As(&configMap); err != nil {
+		return nil, nil, false
+	}
+	if err := state.As(&stateMap); err != nil {
+		return nil, nil, false
+	}
+	return configMap, stateMap, true
+}
+
+func asValueSlices(config, state tftypes.Value) ([]tftypes.Value, []tftypes.Value, bool) {
+	var configSlice, stateSlice []tftypes.Value
+	if err := config.As(&configSlice); err != nil {
+		return nil, nil, false
+	}
+	if err := state.As(&stateSlice); err != nil {
+		return nil, nil, false
+	}
+	return configSlice, stateSlice, true
+}
+
+func writableConfigMatchesObject(config, state tftypes.Value) bool {
+	configObj, stateObj, ok := asValueMaps(config, state)
+	if !ok {
+		return false
+	}
+	for k, cv := range configObj {
+		sv, found := stateObj[k]
+		if !found {
+			if !objectMissingKeyMatches(cv) {
+				return false
+			}
+			continue
+		}
+		if !writableConfigMatchesState(cv, sv) {
+			return false
+		}
+	}
+	return true
+}
+
+func objectMissingKeyMatches(cv tftypes.Value) bool {
+	if !cv.IsKnown() {
+		return false
+	}
+	return cv.IsNull()
+}
+
+func writableConfigMatchesMap(config, state tftypes.Value) bool {
+	configMap, stateMap, ok := asValueMaps(config, state)
+	if !ok {
+		return false
+	}
+	if len(configMap) != len(stateMap) {
+		return false
+	}
+	for k, cv := range configMap {
+		sv, found := stateMap[k]
+		if !found {
+			return false
+		}
+		if !writableConfigMatchesState(cv, sv) {
+			return false
+		}
+	}
+	return true
+}
+
+func writableConfigMatchesSequence(config, state tftypes.Value) bool {
+	configList, stateList, ok := asValueSlices(config, state)
+	if !ok {
+		return false
+	}
+	if len(configList) != len(stateList) {
+		return false
+	}
+	for i := range configList {
+		if !writableConfigMatchesState(configList[i], stateList[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func writableConfigMatchesSet(config, state tftypes.Value) bool {
+	configSet, stateSet, ok := asValueSlices(config, state)
+	if !ok {
+		return false
+	}
+	if len(configSet) != len(stateSet) {
+		return false
+	}
+	return setElementsMatch(configSet, stateSet)
+}
+
+func setElementsMatch(configSet, stateSet []tftypes.Value) bool {
+	used := make([]bool, len(stateSet))
+	for _, cv := range configSet {
+		if !matchSetElement(cv, stateSet, used) {
+			return false
+		}
+	}
+	return true
+}
+
+func matchSetElement(cv tftypes.Value, stateSet []tftypes.Value, used []bool) bool {
+	if !cv.IsKnown() {
+		return false
+	}
+	if cv.IsNull() {
+		return true
+	}
+	for j, sv := range stateSet {
+		if used[j] {
+			continue
+		}
+		if writableConfigMatchesState(cv, sv) {
+			used[j] = true
+			return true
+		}
+	}
+	return false
 }

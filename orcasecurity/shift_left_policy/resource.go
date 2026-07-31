@@ -188,6 +188,8 @@ func (r *shiftLeftPolicyResource) rollbackCreatedPolicy(ctx context.Context, pol
 	}
 }
 
+const restorePriorPolicyWarning = "Failed to restore AppSec policy after a partial update"
+
 // restorePriorPolicy rewrites the remote policy back to prior after a partial Update.
 // restoreProjects is true when the projects endpoint already accepted the new set.
 func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior *shiftLeftPolicyResourceModel, restoreProjects bool, diags *diag.Diagnostics) {
@@ -201,7 +203,7 @@ func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior 
 	apiPolicy, d := planToAPI(prior)
 	if d.HasError() {
 		diags.AddWarning(
-			"Failed to restore AppSec policy after a partial update",
+			restorePriorPolicyWarning,
 			fmt.Sprintf("Could not rebuild the prior policy body for %s/%s: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
 				policyType, policyID, d.Errors()),
 		)
@@ -211,7 +213,7 @@ func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior 
 	catalogDiags := diag.Diagnostics{}
 	if !r.applyCatalog(prior, &apiPolicy, &catalogDiags) {
 		diags.AddWarning(
-			"Failed to restore AppSec policy after a partial update",
+			restorePriorPolicyWarning,
 			fmt.Sprintf("Could not re-apply catalog enrichment for %s/%s: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
 				policyType, policyID, catalogDiags.Errors()),
 		)
@@ -219,7 +221,7 @@ func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior 
 	}
 	if _, err := r.apiClient.UpdateShiftLeftPolicy(policyType, policyID, apiPolicy); err != nil {
 		diags.AddWarning(
-			"Failed to restore AppSec policy after a partial update",
+			restorePriorPolicyWarning,
 			fmt.Sprintf("Restoring the prior body of %s/%s failed: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
 				policyType, policyID, err.Error()),
 		)
@@ -259,6 +261,14 @@ func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadReq
 
 	newState := apiToState(instance, &state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+}
+
+// projectsIdsChanged is true when plan has a known projects set that differs from state.
+func projectsIdsChanged(plan, state *shiftLeftPolicyResourceModel) bool {
+	if !tfconv.Known(plan.ProjectsIds) {
+		return false
+	}
+	return !plan.ProjectsIds.Equal(state.ProjectsIds)
 }
 
 func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -307,7 +317,7 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	// Sync projects only when known and actually changed; null/unknown means leave as-is.
 	// SetShiftLeftPolicyProjects replaces the whole attachment set, so re-sending an
 	// unchanged set is a needless detach/reattach on every apply.
-	projectsChanged := tfconv.Known(plan.ProjectsIds) && !plan.ProjectsIds.Equal(state.ProjectsIds)
+	projectsChanged := projectsIdsChanged(&plan, &state)
 	if projectsChanged {
 		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
 			// Body PUT already landed; restore the prior body so live matches the still-current state.
