@@ -75,10 +75,16 @@ func (s *scmUnitStub) applyPut(body map[string]any) {
 		s.unit["configuration_settings"] = cfg
 	}
 	if mode, ok := body["installation_mode"].(string); ok && mode != "" {
+		priorMode, _ := s.unit["installation_mode"].(string)
 		s.unit["installation_mode"] = mode
 		if s.volatileSideEffects && mode == "SCAN_ALL_INCLUDE_FUTURE" {
 			s.unit["integrated_repositories_count"] = 37
 			s.unit["scan_all_state"] = "RUNNING"
+		}
+		// Leaving legacy scan-all halts the enrollment flow server-side.
+		if s.volatileSideEffects && priorMode == "SCAN_ALL" && mode != "SCAN_ALL_INCLUDE_FUTURE" {
+			s.unit["scan_all_state"] = "STOPPED"
+			s.unit["integrated_repositories_count"] = 5
 		}
 	}
 	if defaultPolicies, ok := body["default_policies"].(bool); ok {

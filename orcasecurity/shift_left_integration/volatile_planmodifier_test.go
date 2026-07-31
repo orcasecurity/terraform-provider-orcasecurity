@@ -181,6 +181,66 @@ func TestVolatileInt64_LeaveUnknownOnUnknownWritable(t *testing.T) {
 	}
 }
 
+func TestLegacyModeMigrationPending(t *testing.T) {
+	objType := scmUnitType()
+	build := func(mode tftypes.Value) tftypes.Value {
+		return tftypes.NewValue(objType, map[string]tftypes.Value{
+			"project_id":                    tftypes.NewValue(tftypes.String, "proj-a"),
+			"installation_mode":             mode,
+			"integrated_repositories_count": tftypes.NewValue(tftypes.Number, 3),
+			"scan_all_state":                tftypes.NewValue(tftypes.String, "DONE"),
+		})
+	}
+	if !legacyModeMigrationPending(build(tftypes.NewValue(tftypes.String, "SCAN_ALL"))) {
+		t.Fatal("legacy SCAN_ALL in state means the next write migrates it")
+	}
+	if legacyModeMigrationPending(build(tftypes.NewValue(tftypes.String, "SELECTED_REPOSITORIES"))) {
+		t.Fatal("a settled mode is not a pending migration")
+	}
+	if legacyModeMigrationPending(build(tftypes.NewValue(tftypes.String, "SCAN_ALL_INCLUDE_FUTURE"))) {
+		t.Fatal("SCAN_ALL_INCLUDE_FUTURE is not remapped by the write path")
+	}
+	if legacyModeMigrationPending(build(tftypes.NewValue(tftypes.String, nil))) {
+		t.Fatal("a null mode carries no migration")
+	}
+	if legacyModeMigrationPending(tftypes.NewValue(objType, nil)) {
+		t.Fatal("create (null state) carries no migration")
+	}
+}
+
+// A pending legacy-mode migration must force the volatile attribute unknown even
+// though its planned value is known (the framework only marks Computed attributes
+// unknown when the proposed plan already differs from prior state, which the
+// modifier-generated migration write does not).
+func TestVolatileInt64_ForceUnknownOnLegacyModeMigration(t *testing.T) {
+	objType := scmUnitType()
+	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
+		"project_id":                    tftypes.NewValue(tftypes.String, "proj-a"),
+		"installation_mode":             tftypes.NewValue(tftypes.String, "SCAN_ALL"),
+		"integrated_repositories_count": tftypes.NewValue(tftypes.Number, 3),
+		"scan_all_state":                tftypes.NewValue(tftypes.String, "RUNNING"),
+	})
+	configRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
+		"project_id":                    tftypes.NewValue(tftypes.String, "proj-a"),
+		"installation_mode":             tftypes.NewValue(tftypes.String, nil),
+		"integrated_repositories_count": tftypes.NewValue(tftypes.Number, nil),
+		"scan_all_state":                tftypes.NewValue(tftypes.String, nil),
+	})
+
+	req := planmodifier.Int64Request{
+		State:      tfsdk.State{Raw: stateRaw},
+		Config:     tfsdk.Config{Raw: configRaw},
+		StateValue: types.Int64Value(3),
+		// Proposed plan equals prior state, so the framework left the value known.
+		PlanValue: types.Int64Value(3),
+	}
+	resp := planmodifier.Int64Response{PlanValue: req.PlanValue}
+	VolatileInt64().PlanModifyInt64(context.Background(), req, &resp)
+	if !resp.PlanValue.IsUnknown() {
+		t.Fatalf("pending SCAN_ALL migration must leave volatile unknown, got %#v", resp.PlanValue)
+	}
+}
+
 func TestVolatileInt64_LeaveUnknownOnWritableChange(t *testing.T) {
 	objType := scmUnitType()
 	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{

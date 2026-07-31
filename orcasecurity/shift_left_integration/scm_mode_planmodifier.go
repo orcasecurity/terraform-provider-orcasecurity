@@ -17,6 +17,12 @@ import (
 // returns SELECTED_REPOSITORIES, and the apply fails with "inconsistent result after
 // apply". Planning the remapped value instead keeps the apply consistent and shows the
 // migration in the plan, which is what the apply genuinely does.
+//
+// The rewrite must not be gated on the plan value being unknown: on Terraform >= 1.4
+// core carries the prior state value for an omitted Optional+Computed attribute, so
+// with an otherwise no-op configuration the plan arrives holding a known SCAN_ALL and
+// the framework never marks it unknown. Rewriting the known value keeps the migration
+// deterministic across Terraform versions instead of silently never running.
 type installationModePlanModifier struct{}
 
 func InstallationModePlanModifier() planmodifier.String { return installationModePlanModifier{} }
@@ -30,8 +36,8 @@ func (m installationModePlanModifier) MarkdownDescription(ctx context.Context) s
 }
 
 func (installationModePlanModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	// Configured explicitly, no prior state (create), or already resolved: leave it alone.
-	if !req.ConfigValue.IsNull() || req.State.Raw.IsNull() || !req.PlanValue.IsUnknown() {
+	// Configured explicitly or no prior state (create): leave it alone.
+	if !req.ConfigValue.IsNull() || req.State.Raw.IsNull() {
 		return
 	}
 	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {

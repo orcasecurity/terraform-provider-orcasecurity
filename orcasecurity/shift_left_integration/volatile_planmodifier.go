@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
@@ -36,6 +37,10 @@ func (m volatileStringModifier) MarkdownDescription(ctx context.Context) string 
 	return m.Description(ctx)
 }
 func (volatileStringModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if legacyModeMigrationPending(req.State.Raw) {
+		resp.PlanValue = types.StringUnknown()
+		return
+	}
 	if carryVolatileForward(req.State.Raw, req.Config.Raw, req.PlanValue.IsUnknown()) {
 		resp.PlanValue = req.StateValue
 	}
@@ -52,9 +57,41 @@ func (m volatileInt64Modifier) MarkdownDescription(ctx context.Context) string {
 	return m.Description(ctx)
 }
 func (volatileInt64Modifier) PlanModifyInt64(_ context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
+	if legacyModeMigrationPending(req.State.Raw) {
+		resp.PlanValue = types.Int64Unknown()
+		return
+	}
 	if carryVolatileForward(req.State.Raw, req.Config.Raw, req.PlanValue.IsUnknown()) {
 		resp.PlanValue = req.StateValue
 	}
+}
+
+// legacyModeMigrationPending reports whether prior state holds an
+// installation_mode the write path remaps (legacy SCAN_ALL, held only by
+// imported units). installationModePlanModifier turns that into a real write
+// even when the configuration is otherwise a no-op — and because the proposed
+// plan still equals prior state before attribute modifiers run, the framework
+// never marks Computed attributes unknown for it. Volatile attributes must
+// therefore go unknown here, or their carried values fail the apply when the
+// migration write moves them server-side. Decided from State.Raw, not
+// Plan.Raw, so the answer does not depend on attribute plan-modifier ordering.
+func legacyModeMigrationPending(state tftypes.Value) bool {
+	if state.IsNull() || !state.IsKnown() {
+		return false
+	}
+	var obj map[string]tftypes.Value
+	if err := state.As(&obj); err != nil {
+		return false
+	}
+	mode, ok := obj["installation_mode"]
+	if !ok || mode.IsNull() || !mode.IsKnown() {
+		return false
+	}
+	var s string
+	if err := mode.As(&s); err != nil {
+		return false
+	}
+	return normalizeInstallationMode(s) != s
 }
 
 // carryVolatileForward is true when prior state exists, the planned value is
