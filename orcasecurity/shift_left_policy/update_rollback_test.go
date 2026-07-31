@@ -25,6 +25,10 @@ type updateStub struct {
 	projects     []string
 	projectPuts  int
 	failProjects bool // fail projects PUTs after the create attach (put #2+)
+	// failReadWhileRenamed fails GETs while the updated body is live, standing in for a
+	// policy the API accepted but cannot serve back. Once the restore PUT lands the old
+	// name, reads recover — which is exactly what lets the assertion see the restored body.
+	failReadWhileRenamed bool
 }
 
 func (s *updateStub) record(method, path string) {
@@ -94,6 +98,13 @@ func (s *updateStub) start(t *testing.T) {
 			s.mu.Unlock()
 			_ = json.NewEncoder(w).Encode(s.body())
 		case r.Method == http.MethodGet && r.URL.Path == base+stubPolicyID+"/":
+			s.mu.Lock()
+			failRead := s.failReadWhileRenamed && s.name == "tf-stub-policy-renamed"
+			s.mu.Unlock()
+			if failRead {
+				http.Error(w, `{"detail":"transient"}`, http.StatusInternalServerError)
+				return
+			}
 			_ = json.NewEncoder(w).Encode(s.body())
 		case r.Method == http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
@@ -138,5 +149,45 @@ resource "orcasecurity_shift_left_policy" "stub" {
 	if name != "tf-stub-policy" {
 		t.Fatalf("expected prior body name restored after failed projects PUT, got %q; requests=%v",
 			name, stub.recorded())
+	}
+}
+
+// When the read-back after an update fails, both writes have already landed (body and
+// projects), so the restore has to rewind both: the prior body and the prior attachments.
+func TestShiftLeftPolicyUpdate_FailedReadBackRestoresBodyAndProjects(t *testing.T) {
+	stub := &updateStub{failReadWhileRenamed: true}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: stubPolicyConfig},
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_shift_left_policy" "stub" {
+  type                       = "malicious_packages"
+  name                       = "tf-stub-policy-renamed"
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
+  projects_ids               = ["proj-1", "proj-2"]
+}
+`,
+				ExpectError: regexp.MustCompile(`Error reading AppSec policy after update`),
+			},
+		},
+	})
+
+	stub.mu.Lock()
+	name := stub.name
+	projects := append([]string(nil), stub.projects...)
+	stub.mu.Unlock()
+	if name != "tf-stub-policy" {
+		t.Fatalf("expected prior body restored after failed read-back, got %q; requests=%v",
+			name, stub.recorded())
+	}
+	if len(projects) != 1 || projects[0] != "proj-1" {
+		t.Fatalf("expected prior projects [proj-1] restored after failed read-back, got %v; requests=%v",
+			projects, stub.recorded())
 	}
 }

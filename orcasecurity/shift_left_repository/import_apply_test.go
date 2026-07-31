@@ -190,9 +190,12 @@ func TestGithubRepositoryImport_ThenApplyUpdatesInPlace(t *testing.T) {
 
 	// resource.Test destroys at the end, so exactly one delete is expected — but no
 	// re-integration, which is what a replacement would have caused.
-	_, integrates, _ := stub.counts()
+	_, integrates, deletes := stub.counts()
 	if integrates != 0 {
 		t.Errorf("import must not re-integrate the repository, got %d POSTs", integrates)
+	}
+	if deletes != 1 {
+		t.Errorf("expected exactly the final-destroy DELETE, got %d", deletes)
 	}
 }
 
@@ -229,7 +232,12 @@ func TestGithubRepositoryImport_BranchChangeStillReplaces(t *testing.T) {
 		},
 	})
 
-	if _, integrates, _ := stub.counts(); integrates == 0 {
+	_, integrates, deletes := stub.counts()
+	if integrates == 0 {
 		t.Error("a branch change must re-integrate the repository")
+	}
+	// One DELETE for the replacement's destroy half, one for the end-of-test destroy.
+	if deletes != 2 {
+		t.Errorf("expected replace + final-destroy DELETEs, got %d", deletes)
 	}
 }
