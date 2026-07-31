@@ -111,8 +111,10 @@ func DeleteNoop(ctx context.Context, labels AdoptLabels) {
 }
 
 // DeleteByLookup deletes a unit by id, resolving the id via lookup first when it's
-// absent (state left by import may lack the Orca id). A nil lookup result means the
-// unit is already gone remotely, which is treated as a successful delete.
+// absent (state left by import may lack the Orca id). When id is empty and lookup
+// returns nil, it returns ErrUnitNotFound — DoDelete treats that as success (already
+// gone), but create-rollback must warn: Integrate just succeeded, so a nil lookup is
+// the silent-orphan case, not a clean delete.
 func DeleteByLookup[T any](id string, lookup func() (*T, error), idOf func(*T) string, del func(string) error) error {
 	if id == "" {
 		found, err := lookup()
@@ -120,7 +122,7 @@ func DeleteByLookup[T any](id string, lookup func() (*T, error), idOf func(*T) s
 			return err
 		}
 		if found == nil {
-			return nil
+			return ErrUnitNotFound
 		}
 		id = idOf(found)
 	}

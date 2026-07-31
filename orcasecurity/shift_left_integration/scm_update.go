@@ -15,10 +15,20 @@ func PolicyIDsToSet(ids []string) types.Set {
 	return tfconv.StringSliceToSet(ids)
 }
 
-// The API still returns SCAN_ALL on old units but rejects it on update, and has
-// no default for an absent mode (empty → 400), so both map to the safe default.
+// normalizeInstallationMode is write-side only: the API still returns SCAN_ALL on
+// old units but rejects it on update, and has no default for an absent mode
+// (empty → 400), so both map to the safe default on the wire.
 func normalizeInstallationMode(mode string) string {
 	if mode == "SCAN_ALL" || mode == "" {
+		return "SELECTED_REPOSITORIES"
+	}
+	return mode
+}
+
+// installationModeFromAPI is read-side: keep legacy SCAN_ALL visible so state
+// matches the API. Only an absent mode gets the schema default.
+func installationModeFromAPI(mode string) string {
+	if mode == "" {
 		return "SELECTED_REPOSITORIES"
 	}
 	return mode

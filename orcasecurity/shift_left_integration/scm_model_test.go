@@ -70,9 +70,7 @@ func TestSharedScmConfigAttributes_HasIntegrationStatus(t *testing.T) {
 	}
 }
 
-// The data source and the resource must report installation_mode identically, or
-// the same unit reads differently depending on which you use and a data-source
-// value cannot be fed into a resource config (the resource rejects raw SCAN_ALL).
+// The data source and the resource must report installation_mode identically.
 func TestInstallationModeAgreesBetweenResourceAndDataSource(t *testing.T) {
 	for _, mode := range []string{"SCAN_ALL", "", "SELECTED_REPOSITORIES", "SCAN_ALL_INCLUDE_FUTURE"} {
 		unit := api_client.ScmUnitCommonFields{InstallationMode: mode}
@@ -85,5 +83,17 @@ func TestInstallationModeAgreesBetweenResourceAndDataSource(t *testing.T) {
 		if !listValue.Equal(resourceValue) {
 			t.Errorf("mode %q: data source reports %v, resource reports %v", mode, listValue, resourceValue)
 		}
+	}
+}
+
+func TestScmConfigFieldsFromAPI_PreservesLegacyScanAll(t *testing.T) {
+	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL"})
+	if f.InstallationMode.ValueString() != "SCAN_ALL" {
+		t.Fatalf("read must not rewrite SCAN_ALL to SELECTED_REPOSITORIES, got %q", f.InstallationMode.ValueString())
+	}
+	// Absent mode still gets the schema default.
+	f = ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{})
+	if f.InstallationMode.ValueString() != "SELECTED_REPOSITORIES" {
+		t.Fatalf("empty mode should default, got %q", f.InstallationMode.ValueString())
 	}
 }

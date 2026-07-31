@@ -13,13 +13,13 @@ import (
 )
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.GenericResource[shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation]]{
+	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_gitlab_installation",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 			resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 		},
-		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation] {
+		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return shift_left_integration.InstallationLifecycle[resourceModel, api_client.GitlabInstallation]{
 				SCMName: "GitLab",
 				Create: func(plan *resourceModel) (*api_client.GitlabInstallation, error) {

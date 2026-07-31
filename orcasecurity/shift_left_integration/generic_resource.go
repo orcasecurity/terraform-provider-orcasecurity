@@ -9,8 +9,8 @@ import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// unitOps is the CRUD surface shared by AdoptedUnitOps and InstallationLifecycle.
-type unitOps interface {
+// UnitOps is the CRUD surface shared by AdoptedUnitOps and InstallationLifecycle.
+type UnitOps interface {
 	DoCreate(context.Context, resource.CreateRequest, *resource.CreateResponse)
 	DoRead(context.Context, resource.ReadRequest, *resource.ReadResponse)
 	DoUpdate(context.Context, resource.UpdateRequest, *resource.UpdateResponse)
@@ -23,58 +23,56 @@ type planModifierOps interface {
 }
 
 // GenericResource shares Metadata/Configure/Schema/ImportState/CRUD across SCM unit types.
-type GenericResource[Ops unitOps] struct {
+type GenericResource struct {
 	TypeNameSuffix string
 	SchemaFn       func() rschema.Schema
 	ImportFn       func(context.Context, resource.ImportStateRequest, *resource.ImportStateResponse)
-	OpsFn          func(*api_client.APIClient) Ops
+	OpsFn          func(*api_client.APIClient) UnitOps
 
 	client *api_client.APIClient
 }
 
 var (
-	_ resource.Resource                = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
-	_ resource.ResourceWithConfigure   = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
-	_ resource.ResourceWithImportState = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
-	_ resource.ResourceWithModifyPlan  = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
-	_ resource.Resource                = &GenericResource[InstallationLifecycle[struct{}, struct{}]]{}
+	_ resource.Resource                = &GenericResource{}
+	_ resource.ResourceWithConfigure   = &GenericResource{}
+	_ resource.ResourceWithImportState = &GenericResource{}
+	_ resource.ResourceWithModifyPlan  = &GenericResource{}
 )
 
-func (r *GenericResource[Ops]) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *GenericResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + r.TypeNameSuffix
 }
 
-func (r *GenericResource[Ops]) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *GenericResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	r.client = ConfigureAPIClient(req)
 }
 
-func (r *GenericResource[Ops]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *GenericResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = r.SchemaFn()
 }
 
-func (r *GenericResource[Ops]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *GenericResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	r.ImportFn(ctx, req, resp)
 }
 
-func (r *GenericResource[Ops]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *GenericResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	r.OpsFn(r.client).DoCreate(ctx, req, resp)
 }
 
-func (r *GenericResource[Ops]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *GenericResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	r.OpsFn(r.client).DoRead(ctx, req, resp)
 }
 
-func (r *GenericResource[Ops]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *GenericResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	r.OpsFn(r.client).DoUpdate(ctx, req, resp)
 }
 
-func (r *GenericResource[Ops]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *GenericResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	r.OpsFn(r.client).DoDelete(ctx, req, resp)
 }
 
-func (r *GenericResource[Ops]) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	ops := r.OpsFn(r.client)
-	if v, ok := any(ops).(planModifierOps); ok {
+func (r *GenericResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if v, ok := r.OpsFn(r.client).(planModifierOps); ok {
 		v.ModifyPlan(ctx, req, resp)
 	}
 }

@@ -13,7 +13,7 @@ import (
 var azureLabels = shift_left_integration.NewAdoptLabels("Azure DevOps account")
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.GenericResource[shift_left_integration.AdoptedUnitOps[api_client.AzureDevopsAccount, resourceModel]]{
+	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_azure_devops_account",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -23,7 +23,7 @@ func NewResource() resource.Resource {
 	}
 }
 
-func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitOps[api_client.AzureDevopsAccount, resourceModel] {
+func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 	return shift_left_integration.AdoptedUnitOps[api_client.AzureDevopsAccount, resourceModel]{
 		Labels: azureLabels,
 		UnitID: func(m *resourceModel) string {

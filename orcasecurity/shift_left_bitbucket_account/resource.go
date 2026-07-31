@@ -13,7 +13,7 @@ import (
 var bitbucketLabels = shift_left_integration.NewAdoptLabels("Bitbucket account")
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.GenericResource[shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel]]{
+	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_bitbucket_account",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -23,7 +23,7 @@ func NewResource() resource.Resource {
 	}
 }
 
-func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel] {
+func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 	return shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel]{
 		Labels: bitbucketLabels,
 		UnitID: func(m *resourceModel) string {

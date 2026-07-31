@@ -14,13 +14,13 @@ import (
 var githubLabels = shift_left_integration.NewAdoptLabels("GitHub account")
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.GenericResource[shift_left_integration.AdoptedUnitOps[api_client.GithubInstallation, resourceModel]]{
+	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_github_account",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 			resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
 		},
-		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitOps[api_client.GithubInstallation, resourceModel] {
+		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return shift_left_integration.AdoptedUnitOps[api_client.GithubInstallation, resourceModel]{
 				Labels: githubLabels,
 				UnitID: func(m *resourceModel) string { return m.AccountID.ValueString() },

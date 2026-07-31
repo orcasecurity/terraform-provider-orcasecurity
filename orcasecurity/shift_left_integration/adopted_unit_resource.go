@@ -142,6 +142,12 @@ func (o AdoptedUnitOps[A, M]) rollbackIntegration(ctx context.Context, plan *M, 
 	}
 	tflog.Info(ctx, fmt.Sprintf("Rolling back integration of %s after a failed read-back", o.Describe(plan)))
 	if err := o.Delete(plan); err != nil {
+		if errors.Is(err, ErrUnitNotFound) {
+			// DeleteByLookup re-ran the same lookup that just returned nil — the
+			// integration is live but we have no id to tear it down with.
+			orphanWarning("it could not be found again to de-integrate")
+			return
+		}
 		orphanWarning("rolling it back also failed: " + err.Error())
 	}
 }
@@ -198,6 +204,10 @@ func (o AdoptedUnitOps[A, M]) DoDelete(ctx context.Context, req resource.DeleteR
 	}
 	tflog.Info(ctx, fmt.Sprintf("Deleting live %s", o.Describe(&state)))
 	if err := o.Delete(&state); err != nil {
+		if errors.Is(err, ErrUnitNotFound) {
+			// Already gone remotely — idempotent destroy.
+			return
+		}
 		title := o.DeleteErrorTitle
 		if title == "" {
 			title = "Error deleting " + o.Describe(&state)

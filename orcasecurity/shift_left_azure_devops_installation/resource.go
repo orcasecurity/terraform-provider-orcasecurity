@@ -13,13 +13,13 @@ import (
 )
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.GenericResource[shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation]]{
+	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_azure_devops_installation",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 			resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 		},
-		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation] {
+		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return shift_left_integration.InstallationLifecycle[resourceModel, api_client.AzureDevopsInstallation]{
 				SCMName: "Azure DevOps",
 				Create: func(plan *resourceModel) (*api_client.AzureDevopsInstallation, error) {

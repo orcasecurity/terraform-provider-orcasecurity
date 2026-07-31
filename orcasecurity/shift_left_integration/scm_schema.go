@@ -51,10 +51,12 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			"Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it. Volatile: re-read after writes; settled across no-op plans.",
 		),
 		"installation_mode": rschema.StringAttribute{
-			Optional:      true,
-			Computed:      true,
-			Description:   "Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.",
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Optional:    true,
+			Computed:    true,
+			Description: "Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.",
+			// Not UseStateForUnknown: state may hold a legacy SCAN_ALL after an import,
+			// which the write path remaps. See installationModePlanModifier.
+			PlanModifiers: []planmodifier.String{InstallationModePlanModifier()},
 			Validators: []validator.String{
 				stringvalidator.OneOf("SCAN_ALL_INCLUDE_FUTURE", "SELECTED_REPOSITORIES"),
 			},

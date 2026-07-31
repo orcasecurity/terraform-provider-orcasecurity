@@ -49,7 +49,7 @@ func SharedScmListUnitAttrTypes() map[string]attr.Type {
 func SharedScmListUnitValues(accountName string, u api_client.ScmUnitCommonFields) map[string]attr.Value {
 	return map[string]attr.Value{
 		"account_name":                  types.StringValue(accountName),
-		"installation_mode":             types.StringValue(normalizeInstallationMode(u.InstallationMode)),
+		"installation_mode":             types.StringValue(installationModeFromAPI(u.InstallationMode)),
 		"default_policies":              types.BoolValue(u.DefaultPolicies),
 		"integration_status":            tfconv.StringOrNull(u.IntegrationStatus),
 		"scan_all_state":                tfconv.StringOrNull(u.ScanAllState),

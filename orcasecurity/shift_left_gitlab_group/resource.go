@@ -15,7 +15,7 @@ import (
 var gitlabLabels = shift_left_integration.NewAdoptLabels("GitLab group")
 
 func NewResource() resource.Resource {
-	return &shift_left_integration.GenericResource[shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel]]{
+	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_gitlab_group",
 		SchemaFn:       resourceSchema,
 		ImportFn:       importState,
@@ -23,7 +23,7 @@ func NewResource() resource.Resource {
 	}
 }
 
-func newOps(apiClient *api_client.APIClient) shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel] {
+func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 	return shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel]{
 		Labels: gitlabLabels,
 		UnitID: func(m *resourceModel) string {

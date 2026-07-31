@@ -29,8 +29,10 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 	return ScmConfigFields{
 		AccountName:       types.StringValue(accountName),
 		IntegrationStatus: tfconv.StringOrNull(u.IntegrationStatus),
-		// API returns legacy SCAN_ALL on old units but rejects it on update; normalize on Read.
-		InstallationMode: types.StringValue(normalizeInstallationMode(u.InstallationMode)),
+		// Report the API value as-is. Write paths still remap legacy SCAN_ALL via
+		// normalizeInstallationMode; rewriting on read hid units that are not in
+		// SELECTED_REPOSITORIES and removed the drift signal.
+		InstallationMode: types.StringValue(installationModeFromAPI(u.InstallationMode)),
 		DefaultPolicies:  types.BoolValue(u.DefaultPolicies),
 		PoliciesIds:      PolicyIDsFromRefs(u.Policies),
 		ProjectID:        tfconv.StringOrNull(api_client.ProjectRefID(u.Project)),

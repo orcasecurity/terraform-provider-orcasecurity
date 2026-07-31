@@ -93,4 +93,30 @@ func TestRollbackIntegration(t *testing.T) {
 			t.Errorf("warning must name the unit: %s", summary)
 		}
 	})
+
+	// The create path that matters: Integrate succeeded, Get returned (nil, nil),
+	// DeleteByLookup re-runs the same empty-id lookup and used to return success
+	// with no warning — the silent orphan.
+	t.Run("warns when DeleteByLookup finds nothing to tear down", func(t *testing.T) {
+		var diags diag.Diagnostics
+		delCalls := 0
+		ops := newOps(func(*model) error {
+			return DeleteByLookup(
+				"", // plan has no Orca id yet
+				func() (*struct{ ID string }, error) { return nil, nil },
+				func(u *struct{ ID string }) string { return u.ID },
+				func(string) error { delCalls++; return nil },
+			)
+		})
+		ops.rollbackIntegration(context.Background(), &model{}, &diags)
+		if delCalls != 0 {
+			t.Errorf("DELETE must not run when lookup misses, got %d calls", delCalls)
+		}
+		if diags.WarningsCount() != 1 || diags.HasError() {
+			t.Fatalf("expected exactly one orphan warning, got %v", diags)
+		}
+		if detail := diags.Warnings()[0].Detail(); !strings.Contains(detail, "could not be found again") {
+			t.Errorf("warning must explain the lookup miss: %s", detail)
+		}
+	})
 }
