@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_account Resource - orcasecurity"
 description: |-
-  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode (defaults to SELECTED_REPOSITORIES), configuration, and empty repositories. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
+  Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs /api/shiftleft/bitbucket/integrated_repositories/ with Bitbucket account_id (slug), installation_mode (defaults to SELECTED_REPOSITORIES), and configuration (no repositories are attached on that call). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 ---
 
 # orcasecurity_shift_left_bitbucket_account (Resource)
 
-Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode` (defaults to `SELECTED_REPOSITORIES`), configuration, and empty `repositories`. If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
+Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode` (defaults to `SELECTED_REPOSITORIES`), and configuration (no repositories are attached on that call). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
 
@@ -55,19 +55,19 @@ resource "orcasecurity_shift_left_bitbucket_account" "project_bound" {
 
 - `adopt_existing` (Boolean) Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.
 - `configuration_settings` (Attributes) PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose. (see [below for nested schema](#nestedatt--configuration_settings))
-- `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with policies_ids; may accompany project_id.
+- `default_policies` (Boolean) On write, `true` attaches every Orca built-in policy (and clears any explicit `policies_ids`). On read the API derives this flag as true only when the unit has neither attached policies nor a project — it is not a stored boolean. Mutually exclusive with `policies_ids`; may accompany `project_id`. `false` alone (no `policies_ids`, no `project_id`) can never round-trip.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.
-- `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies. Must be non-empty: an empty list is treated by the API as "attach all built-in policies", not "none".
+- `policies_ids` (Set of String) Explicit policy IDs to attach. Mutually exclusive with `project_id` and with `default_policies = true`. Must be non-empty: an empty list is treated by the API as "attach all Orca built-in policies", not "none".
 - `project_id` (String) Bind this unit to a scan-all project. Mutually exclusive with policies_ids (the API rejects both); default_policies may still apply. Set to an empty string to clear the binding; omit to leave it unchanged.
 
 ### Read-Only
 
 - `account_name` (String) Bitbucket workspace/account name.
 - `id` (String) Orca Bitbucket integrated account UUID.
-- `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
-- `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
-- `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
-- `scm_posture_policy_id` (String) Read-only ID of the SCM posture policy attached to this unit (null when none).
+- `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit. Volatile: may change as a side effect of installation_mode changes (e.g. SCAN_ALL_INCLUDE_FUTURE enrollment); settled across no-op plans.
+- `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it. Volatile: re-read after writes; settled across no-op plans.
+- `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it). Volatile: re-read after writes; settled across no-op plans.
+- `scm_posture_policy_id` (String) Read-only ID of the SCM posture policy attached to this unit (null when none). Volatile: re-read after writes; settled across no-op plans.
 
 <a id="nestedatt--configuration_settings"></a>
 ### Nested Schema for `configuration_settings`

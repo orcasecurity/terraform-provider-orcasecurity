@@ -14,15 +14,18 @@ import (
 var gitlabRepositoriesSpec = shift_left_integration.ScmObjectListSpec[api_client.GitlabRepositoryListItem]{
 	TypeNameSuffix: "_shift_left_gitlab_repositories",
 	Description: "Lists all Orca GitLab shift-left integrated repositories for fleet-wide for_each. " +
-		"`installation_id` is the Orca GitLab installation UUID.",
+		"Each row includes `installation_id`, `gitlab_group_id`, and `gitlab_project_id` so it can " +
+		"round-trip into `orcasecurity_shift_left_gitlab_repository`.",
 	CollectionKey:  "repositories",
 	ListErrorTitle: "Error listing GitLab repositories",
 	Attrs: mergeAttrs(sharedRepoListAttrs(), map[string]dschema.Attribute{
 		"installation_id":   dschema.StringAttribute{Computed: true, Description: "Orca GitLab installation UUID."},
-		"gitlab_project_id": dschema.Int64Attribute{Computed: true},
+		"gitlab_group_id":   dschema.Int64Attribute{Computed: true, Description: "Numeric GitLab group id owning the project (from GitLab)."},
+		"gitlab_project_id": dschema.Int64Attribute{Computed: true, Description: "Numeric GitLab project (repository) id (from GitLab)."},
 	}),
 	AttrTypes: mergeTypes(sharedRepoListAttrTypes(), map[string]attr.Type{
 		"installation_id":   types.StringType,
+		"gitlab_group_id":   types.Int64Type,
 		"gitlab_project_id": types.Int64Type,
 	}),
 	List: func(c *api_client.APIClient) ([]api_client.GitlabRepositoryListItem, error) {
@@ -31,6 +34,7 @@ var gitlabRepositoriesSpec = shift_left_integration.ScmObjectListSpec[api_client
 	Row: func(a *api_client.GitlabRepositoryListItem) map[string]attr.Value {
 		return mergeValues(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
 			"installation_id":   types.StringValue(a.InstallationID),
+			"gitlab_group_id":   types.Int64Value(a.GitlabGroupID),
 			"gitlab_project_id": types.Int64Value(a.GitlabProjectID),
 		})
 	},

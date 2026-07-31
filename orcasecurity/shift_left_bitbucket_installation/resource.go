@@ -91,11 +91,21 @@ func setState(m *resourceModel, api *api_client.BitbucketInstallation) {
 	m.ExternalServerURL = types.StringValue(api.ExternalServerURL)
 	m.IntegrationStatus = types.StringValue(api.IntegrationStatus)
 	m.CloudIntegration = types.BoolValue(api.CloudIntegration)
+	// access_token is write-only and already stays untouched. The token-echo
+	// fields (type/username/account_id) are often null/omitted on read — leave
+	// prior state alone when the API is silent so a configured username is not
+	// wiped to "" (which then fails the next apply for PAT tokens).
 	td := api.AccessTokenDetails
 	if td == nil {
-		td = &api_client.BitbucketAccessTokenDetails{}
+		return
 	}
-	m.AccessTokenType = types.StringValue(td.AccessTokenType)
-	m.Username = types.StringValue(td.Username)
-	m.AccountID = types.StringValue(td.AccountID)
+	if td.AccessTokenType != "" {
+		m.AccessTokenType = types.StringValue(td.AccessTokenType)
+	}
+	if td.Username != "" {
+		m.Username = types.StringValue(td.Username)
+	}
+	if td.AccountID != "" {
+		m.AccountID = types.StringValue(td.AccountID)
+	}
 }

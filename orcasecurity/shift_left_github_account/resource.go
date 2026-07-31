@@ -30,7 +30,9 @@ func NewResource() resource.Resource {
 				Update: func(m *resourceModel, current *api_client.GithubInstallation, body api_client.ScmInstallationUpdate) (*api_client.GithubInstallation, error) {
 					return apiClient.UpdateGithubInstallation(current.ID, body)
 				},
-				// nil: GitHub units come from the App install callback.
+				// GitHub units come from the App install callback — there is no
+				// Integrate POST, so Create always takes the adopt (PUT) path.
+				Integrate: nil,
 				Delete: func(m *resourceModel) error {
 					return apiClient.DeleteGithubInstallation(m.AccountID.ValueString())
 				},

@@ -112,6 +112,12 @@ func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set
 	case project.PoliciesIntent:
 		projectID = ""
 	}
+	// Explicit policies_ids always means default_policies=false on the wire.
+	// Plan may still carry default_policies=true via UseStateForUnknown when the
+	// attribute was omitted; ExpandUpdate would otherwise discard the ids.
+	if project.PoliciesIntent {
+		defaultPolicies = types.BoolValue(false)
+	}
 
 	body := ExpandUpdate(mode, defaultPolicies, policies, &merged)
 	if projectID != "" {

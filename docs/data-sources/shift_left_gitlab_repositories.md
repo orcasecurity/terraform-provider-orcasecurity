@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_gitlab_repositories Data Source - orcasecurity"
 description: |-
-  Lists all Orca GitLab shift-left integrated repositories for fleet-wide for_each. installation_id is the Orca GitLab installation UUID.
+  Lists all Orca GitLab shift-left integrated repositories for fleet-wide for_each. Each row includes installation_id, gitlab_group_id, and gitlab_project_id so it can round-trip into orcasecurity_shift_left_gitlab_repository.
 ---
 
 # orcasecurity_shift_left_gitlab_repositories (Data Source)
 
-Lists all Orca GitLab shift-left integrated repositories for fleet-wide for_each. `installation_id` is the Orca GitLab installation UUID.
+Lists all Orca GitLab shift-left integrated repositories for fleet-wide for_each. Each row includes `installation_id`, `gitlab_group_id`, and `gitlab_project_id` so it can round-trip into `orcasecurity_shift_left_gitlab_repository`.
 
 ## Example Usage
 
@@ -31,7 +31,8 @@ output "gitlab_repository_names" {
 Read-Only:
 
 - `disabled` (Boolean)
-- `gitlab_project_id` (Number)
+- `gitlab_group_id` (Number) Numeric GitLab group id owning the project (from GitLab).
+- `gitlab_project_id` (Number) Numeric GitLab project (repository) id (from GitLab).
 - `id` (String) Orca integrated-repository UUID.
 - `installation_id` (String) Orca GitLab installation UUID.
 - `integration_status` (String)

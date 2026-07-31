@@ -28,7 +28,8 @@ func resourceSchema() rschema.Schema {
 	return rschema.Schema{
 		Description: "Creates or configures an Orca Azure DevOps shift-left integrated account (organization). " +
 			"Create POSTs `/api/shiftleft/azure_devops/integrated_repositories/` with `azure_account_name`, " +
-			"`installation_mode` (defaults to `SELECTED_REPOSITORIES`), configuration, and empty `repositories`. " +
+			"`installation_mode` (defaults to `SELECTED_REPOSITORIES`), and configuration " +
+			"(no repositories are attached on that call). " +
 			"If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. " +
 			"Not covered: browse accounts, check_availability, scan-now. " +
 			"Schema follows the Shift-Left API (a superset of the Azure UI, which hides skip_check_runs and archive actions).",

@@ -3,7 +3,7 @@ package api_client_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,7 +15,7 @@ func TestAutomationsV2_DoesAutomationV2Exist(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -34,7 +34,7 @@ func TestAutomationsV2_DoesAutomationV2ExistFalse(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -89,7 +89,7 @@ func TestAutomationsV2_GetAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -122,7 +122,7 @@ func TestAutomationsV2_GetAutomationV2NotFound(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
-			Body:       ioutil.NopCloser(strings.NewReader(`{"error": "not found"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
 			Request:    req,
 		}
 	})}
@@ -207,7 +207,7 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 201,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -255,7 +255,7 @@ func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 201,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -349,7 +349,7 @@ func TestAutomationsV2_UpdateAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -385,7 +385,7 @@ func TestAutomationsV2_DeleteAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 204,
-			Body:       ioutil.NopCloser(strings.NewReader("")),
+			Body:       io.NopCloser(strings.NewReader("")),
 			Request:    req,
 		}
 	})}
@@ -488,7 +488,7 @@ func TestAutomationsV2_GetAutomationV2DecodesPriority(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -527,7 +527,7 @@ func TestAutomationsV2_SetAutomationV2Priority(t *testing.T) {
 		if req.URL.Path != expectedURL {
 			t.Errorf("expected URL path %s, got %s", expectedURL, req.URL.Path)
 		}
-		body, _ := ioutil.ReadAll(req.Body)
+		body, _ := io.ReadAll(req.Body)
 		var payload map[string]interface{}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("request body is not JSON: %v", err)
@@ -537,7 +537,7 @@ func TestAutomationsV2_SetAutomationV2Priority(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -572,7 +572,7 @@ func TestAutomationsV2_SetAutomationV2PriorityClamped(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -614,7 +614,7 @@ func TestAutomationsV2_ListAutomationsV2Paginates(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}
 	})}
@@ -646,7 +646,7 @@ func TestAutomationsV2_ListAutomationsV2StopsOnEmptyPage(t *testing.T) {
 		body := `{"total_items": 50, "data": []}`
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}
 	})}
@@ -677,7 +677,7 @@ func TestAutomationsV2_ListAutomationsV2AbsentTotalItems(t *testing.T) {
 				`{"id":"a%d","name":"auto","status":"enabled","filter":{"sonar_query":{"models":["Alert"],"type":"object_set"}},"actions":[]}`, i))
 		}
 		body := `{"data": [` + strings.Join(items, ",") + `]}`
-		return &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(body)), Request: req}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}

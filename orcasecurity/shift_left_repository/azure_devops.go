@@ -46,16 +46,18 @@ func azureRepositorySchema() rschema.Schema {
 	}
 	attrs["azure_repository_id"] = rschema.StringAttribute{
 		Required:      true,
-		Description:   "Azure DevOps repository UUID.",
+		Description:   "Azure DevOps repository UUID (from Azure DevOps, not minted by Orca).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	attrs["azure_project_id"] = rschema.StringAttribute{
 		Required:      true,
-		Description:   "Azure DevOps project UUID containing the repository.",
+		Description:   "Azure DevOps project UUID containing the repository (from Azure DevOps, not minted by Orca).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
 		Description: "Integrates a single Azure DevOps repository into Orca Shift Left under an existing Azure DevOps installation. " +
+			"`azure_project_id` and `azure_repository_id` are Azure DevOps-side identifiers (obtain them from Azure DevOps; " +
+			"`orcasecurity_shift_left_azure_devops_repositories` returns the repository id but not the project id). " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Azure DevOps. " +
 			"Import with `installation_id:account_name:azure_project_id:azure_repository_id`.",
 		Attributes: attrs,

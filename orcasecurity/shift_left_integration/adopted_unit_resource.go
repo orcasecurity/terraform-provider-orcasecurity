@@ -31,6 +31,20 @@ type AdoptedUnitOps[A any, M any] struct {
 	DeleteErrorTitle string
 }
 
+// ModifyPlan rejects default_policies combinations that cannot round-trip after
+// plan modifiers have applied (so carried-forward values are visible).
+func (o AdoptedUnitOps[A, M]) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var plan M
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	ValidateScmBindingPlan(o.Config(&plan), &resp.Diagnostics)
+}
+
 // Block create when unit already has repos unless adopt_existing=true — destroy would de-integrate out-of-band repos.
 func guardAdopt(repoCount int64, adoptExisting types.Bool) bool {
 	return repoCount > 0 && !adoptExisting.ValueBool()

@@ -58,15 +58,35 @@ func TestSetState_MapsNestedTokenDetails(t *testing.T) {
 	}
 }
 
-func TestSetState_NilTokenDetailsIsSafe(t *testing.T) {
-	// A read that omits access_token_details must not panic and must yield empty
-	// (non-null) strings for the token-derived attributes.
-	m := &resourceModel{}
-	setState(m, &api_client.BitbucketInstallation{ID: "inst-1", Name: "bb-conn"})
-	if m.AccessTokenType.ValueString() != "" || m.Username.ValueString() != "" || m.AccountID.ValueString() != "" {
-		t.Errorf("nil token details must map to empty strings: %+v", m)
+func TestSetState_NilTokenDetailsLeavesEchoFieldsUntouched(t *testing.T) {
+	// A read that omits access_token_details must not wipe configured echo fields
+	// (same rule as access_token: the API is silent, so prior state wins).
+	m := &resourceModel{
+		AccessTokenType: types.StringValue("PAT"),
+		Username:        types.StringValue("alice"),
+		AccountID:       types.StringValue("ws"),
 	}
-	if m.AccessTokenType.IsNull() {
-		t.Error("token fields should be empty-value strings, not null")
+	setState(m, &api_client.BitbucketInstallation{ID: "inst-1", Name: "bb-conn"})
+	if m.AccessTokenType.ValueString() != "PAT" || m.Username.ValueString() != "alice" || m.AccountID.ValueString() != "ws" {
+		t.Errorf("nil token details must leave echo fields untouched: %+v", m)
+	}
+}
+
+func TestSetState_EmptyEchoFieldsLeavePriorUntouched(t *testing.T) {
+	m := &resourceModel{Username: types.StringValue("alice")}
+	setState(m, &api_client.BitbucketInstallation{
+		ID:   "inst-1",
+		Name: "bb-conn",
+		AccessTokenDetails: &api_client.BitbucketAccessTokenDetails{
+			AccessTokenType: "PAT",
+			Username:        "", // API null → ""
+			AccountID:       "",
+		},
+	})
+	if m.AccessTokenType.ValueString() != "PAT" {
+		t.Errorf("non-empty type should update: %v", m.AccessTokenType)
+	}
+	if m.Username.ValueString() != "alice" {
+		t.Errorf("empty username must not wipe configured value: %v", m.Username)
 	}
 }

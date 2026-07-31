@@ -43,17 +43,19 @@ func gitlabRepositorySchema() rschema.Schema {
 	}
 	attrs["gitlab_group_id"] = rschema.Int64Attribute{
 		Required: true,
-		Description: "Numeric GitLab group id owning the project. If the group is not yet integrated with Orca, " +
-			"integrating the first repository also creates the group unit.",
+		Description: "Numeric GitLab group id owning the project (from GitLab, not minted by Orca). " +
+			"If the group is not yet integrated with Orca, integrating the first repository also creates the group unit.",
 		PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 	}
 	attrs["gitlab_project_id"] = rschema.Int64Attribute{
 		Required:      true,
-		Description:   "Numeric GitLab project (repository) id.",
+		Description:   "Numeric GitLab project (repository) id (from GitLab, not minted by Orca).",
 		PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
 		Description: "Integrates a single GitLab project (repository) into Orca Shift Left under an existing GitLab installation. " +
+			"`gitlab_group_id` and `gitlab_project_id` are GitLab-side identifiers (obtain them from GitLab or " +
+			"`orcasecurity_shift_left_gitlab_repositories`). " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the project on GitLab. " +
 			"Import with `installation_id:gitlab_group_id:gitlab_project_id`.",
 		Attributes: attrs,

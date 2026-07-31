@@ -24,6 +24,7 @@ func TestGitlabRepositoriesToListValue(t *testing.T) {
 	list, diags := gitlabRepositoriesToListValue([]api_client.GitlabRepositoryListItem{{
 		ScmRepository:   api_client.ScmRepository{ID: "r1", RepositoryName: "group/proj"},
 		InstallationID:  "inst-1",
+		GitlabGroupID:   7,
 		GitlabProjectID: 99,
 	}})
 	if diags.HasError() || len(list.Elements()) != 1 {

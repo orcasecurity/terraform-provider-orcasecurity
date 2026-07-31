@@ -10,7 +10,7 @@ description: |-
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
 
--> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out. GitHub's own API default for `disable_scan_pull_requests` is `true`, so the provider deliberately diverges from it here to match the Orca UI and the other SCM providers. `terraform import` performs no write, so an imported account keeps whatever settings it already had.
+-> **Omitted settings inherit live values:** this resource always adopts an existing GitHub App installation (there is no create/Integrate path, so provider create-defaults such as `disable_scan_pull_requests = false` are never applied). The first `apply` re-sends whatever the account already has for any configuration attribute you leave unset. Set each attribute explicitly when you want to change it. `terraform import` performs no write.
 
 -> **No connection resource:** unlike GitLab, Bitbucket and Azure DevOps, GitHub has no `*_installation` resource to register a server and token — the Orca GitHub App installation is itself the account-level unit. That is why `account_id` holds this unit's own Orca UUID rather than a parent connection id.
 

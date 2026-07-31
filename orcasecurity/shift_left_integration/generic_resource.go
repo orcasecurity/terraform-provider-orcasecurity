@@ -17,6 +17,11 @@ type unitOps interface {
 	DoDelete(context.Context, resource.DeleteRequest, *resource.DeleteResponse)
 }
 
+// planModifierOps is implemented by AdoptedUnitOps (not InstallationLifecycle).
+type planModifierOps interface {
+	ModifyPlan(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
+}
+
 // GenericResource shares Metadata/Configure/Schema/ImportState/CRUD across SCM unit types.
 type GenericResource[Ops unitOps] struct {
 	TypeNameSuffix string
@@ -31,6 +36,7 @@ var (
 	_ resource.Resource                = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
 	_ resource.ResourceWithConfigure   = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
 	_ resource.ResourceWithImportState = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
+	_ resource.ResourceWithModifyPlan  = &GenericResource[AdoptedUnitOps[struct{}, struct{}]]{}
 	_ resource.Resource                = &GenericResource[InstallationLifecycle[struct{}, struct{}]]{}
 )
 
@@ -64,4 +70,11 @@ func (r *GenericResource[Ops]) Update(ctx context.Context, req resource.UpdateRe
 
 func (r *GenericResource[Ops]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	r.OpsFn(r.client).DoDelete(ctx, req, resp)
+}
+
+func (r *GenericResource[Ops]) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	ops := r.OpsFn(r.client)
+	if v, ok := any(ops).(planModifierOps); ok {
+		v.ModifyPlan(ctx, req, resp)
+	}
 }

@@ -1,7 +1,7 @@
 package api_client
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -16,7 +16,7 @@ func TestShiftLeftProjectSummary_UnmarshalLiveShape(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(fixture)),
+			Body:       io.NopCloser(strings.NewReader(fixture)),
 			Request:    req,
 		}
 	})}
@@ -70,7 +70,7 @@ func TestListShiftLeftProjects_PagesUsingStartAtIndex(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}
 	})}
@@ -95,7 +95,7 @@ func TestListShiftLeftProjects_StopsOnEmptyPage(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`{"total_items": 50, "data": []}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"total_items": 50, "data": []}`)),
 			Request:    req,
 		}
 	})}

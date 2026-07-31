@@ -104,20 +104,20 @@ func assertComputedAttributesCarryForward(t *testing.T, typeName, prefix string,
 		}
 		// RequiresReplace alone is not enough: TF 1.0–1.3 still replans the
 		// attribute as "known after apply" forever without a carry-forward
-		// modifier (UseStateForUnknown, or a custom equivalent such as
-		// ProjectIDPlanModifier).
-		if !hasSettlingPlanModifier(modifiers) {
-			t.Errorf("%s: computed attribute %q has no carry-forward plan modifier (UseStateForUnknown or equivalent), "+
+		// modifier (UseStateForUnknown / ProjectIDPlanModifier / …) or an
+		// explicit volatile marker (ComputedVolatile*).
+		if !hasAcceptableComputedModifier(modifiers) {
+			t.Errorf("%s: computed attribute %q has no carry-forward or volatile plan modifier, "+
 				"so Terraform 1.0-1.3 replans it as \"known after apply\" on every apply and the plan never settles; "+
-				"declare it with the shift_left_integration.Computed*/OptionalComputed* helpers", typeName, attrPath)
+				"declare it with shift_left_integration.Computed*/OptionalComputed* or ComputedVolatile*", typeName, attrPath)
 		}
 	}
 }
 
-// hasSettlingPlanModifier is true when at least one modifier is not a
-// RequiresReplace* variant. len(PlanModifiers) > 0 used to pass a
-// RequiresReplace-only attribute that never settles on TF 1.0–1.3.
-func hasSettlingPlanModifier(modifiers []any) bool {
+// hasAcceptableComputedModifier is true when at least one modifier is not a
+// RequiresReplace* variant (carry-forward OR explicit volatile). len(PlanModifiers) > 0
+// used to pass a RequiresReplace-only attribute that never settles on TF 1.0–1.3.
+func hasAcceptableComputedModifier(modifiers []any) bool {
 	for _, m := range modifiers {
 		name := fmt.Sprintf("%T", m)
 		if strings.Contains(name, "requiresReplace") {

@@ -29,8 +29,9 @@ func resourceSchema() rschema.Schema {
 	return rschema.Schema{
 		Description: "Creates or configures an Orca GitLab shift-left integrated group. " +
 			"Create POSTs `/api/shiftleft/gitlab/integrated_repositories/` with `group_id`, " +
-			"`installation_mode` (defaults to `SELECTED_REPOSITORIES`), configuration, and empty `repositories` " +
-			"(UI parity). If the group is already integrated, Create/Update PUT the unit config instead. " +
+			"`installation_mode` (defaults to `SELECTED_REPOSITORIES`), and configuration " +
+			"(no repositories are attached on that call). If the group is already integrated, " +
+			"Create/Update PUT the unit config instead. " +
 			"Destroy DELETEs the integrated group (tears down the live integration and its repos). " +
 			"Not covered: browse remote groups, check_availability, scan-now (UI operations).",
 		Attributes: attrs,

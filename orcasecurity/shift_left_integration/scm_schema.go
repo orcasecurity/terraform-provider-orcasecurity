@@ -6,11 +6,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -50,11 +47,9 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			Description:   accountNameDescription,
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
-		"integration_status": rschema.StringAttribute{
-			Computed:      true,
-			Description:   "Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.",
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		},
+		"integration_status": ComputedVolatileString(
+			"Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it. Volatile: re-read after writes; settled across no-op plans.",
+		),
 		"installation_mode": rschema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
@@ -65,17 +60,21 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			},
 		},
 		"default_policies": rschema.BoolAttribute{
-			Optional:      true,
-			Computed:      true,
-			Description:   "Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with policies_ids; may accompany project_id.",
-			PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			Optional: true,
+			Computed: true,
+			Description: "On write, `true` attaches every Orca built-in policy (and clears any explicit `policies_ids`). " +
+				"On read the API derives this flag as true only when the unit has neither attached policies nor a project — " +
+				"it is not a stored boolean. Mutually exclusive with `policies_ids`; may accompany `project_id`. " +
+				"`false` alone (no `policies_ids`, no `project_id`) can never round-trip.",
+			PlanModifiers: []planmodifier.Bool{DefaultPoliciesPlanModifier()},
 		},
 		"policies_ids": rschema.SetAttribute{
-			Optional:      true,
-			Computed:      true,
-			ElementType:   types.StringType,
-			Description:   "Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies. Must be non-empty: an empty list is treated by the API as \"attach all built-in policies\", not \"none\".",
-			PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
+			Optional:    true,
+			Computed:    true,
+			ElementType: types.StringType,
+			Description: "Explicit policy IDs to attach. Mutually exclusive with `project_id` and with `default_policies = true`. " +
+				"Must be non-empty: an empty list is treated by the API as \"attach all Orca built-in policies\", not \"none\".",
+			PlanModifiers: []planmodifier.Set{PoliciesIDsPlanModifier()},
 			Validators:    []validator.Set{nonEmptyPoliciesValidator{}},
 		},
 		"project_id": rschema.StringAttribute{
@@ -100,20 +99,14 @@ func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema
 			Attributes:    ConfigSettingsAttributes(),
 			PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 		},
-		"scan_all_state": rschema.StringAttribute{
-			Computed:      true,
-			Description:   "Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).",
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		},
-		"integrated_repositories_count": rschema.Int64Attribute{
-			Computed:      true,
-			Description:   "Read-only count of repositories integrated under this unit.",
-			PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
-		},
-		"scm_posture_policy_id": rschema.StringAttribute{
-			Computed:      true,
-			Description:   "Read-only ID of the SCM posture policy attached to this unit (null when none).",
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		},
+		"scan_all_state": ComputedVolatileString(
+			"Read-only state of the scan-all onboarding flow for this unit (null when the API omits it). Volatile: re-read after writes; settled across no-op plans.",
+		),
+		"integrated_repositories_count": ComputedVolatileInt64(
+			"Read-only count of repositories integrated under this unit. Volatile: may change as a side effect of installation_mode changes (e.g. SCAN_ALL_INCLUDE_FUTURE enrollment); settled across no-op plans.",
+		),
+		"scm_posture_policy_id": ComputedVolatileString(
+			"Read-only ID of the SCM posture policy attached to this unit (null when none). Volatile: re-read after writes; settled across no-op plans.",
+		),
 	}
 }

@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_bitbucket_repository Resource - orcasecurity"
 description: |-
-  Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. Import with installation_id:account_id:bitbucket_repository_id.
+  Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. account_id, bitbucket_repository_id, and slug are Bitbucket-side identifiers (obtain them from Bitbucket or orcasecurity_shift_left_bitbucket_repositories). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. Import with installation_id:account_id:bitbucket_repository_id.
 ---
 
 # orcasecurity_shift_left_bitbucket_repository (Resource)
 
-Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. Import with `installation_id:account_id:bitbucket_repository_id`.
+Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. `account_id`, `bitbucket_repository_id`, and `slug` are Bitbucket-side identifiers (obtain them from Bitbucket or `orcasecurity_shift_left_bitbucket_repositories`). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. Import with `installation_id:account_id:bitbucket_repository_id`.
 
 -> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
 
@@ -33,10 +33,10 @@ resource "orcasecurity_shift_left_bitbucket_repository" "example" {
 ### Required
 
 - `account_id` (String) Bitbucket workspace slug (cloud) or project key (server) owning the repository. Bitbucket-side identity — not an Orca UUID (see `orcasecurity_shift_left_bitbucket_accounts.account_id`).
-- `bitbucket_repository_id` (String) Bitbucket repository id.
+- `bitbucket_repository_id` (String) Bitbucket repository id (from Bitbucket, not minted by Orca).
 - `installation_id` (String) Orca id of the Bitbucket installation (see `orcasecurity_shift_left_bitbucket_installation`).
 - `name` (String) Repository name (path) as known to Bitbucket.
-- `slug` (String) Bitbucket repository slug.
+- `slug` (String) Bitbucket repository slug (from Bitbucket).
 - `url` (String) Repository URL.
 
 ### Optional

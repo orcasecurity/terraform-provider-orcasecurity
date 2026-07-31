@@ -47,16 +47,18 @@ func bitbucketRepositorySchema() rschema.Schema {
 	}
 	attrs["bitbucket_repository_id"] = rschema.StringAttribute{
 		Required:      true,
-		Description:   "Bitbucket repository id.",
+		Description:   "Bitbucket repository id (from Bitbucket, not minted by Orca).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	attrs["slug"] = rschema.StringAttribute{
 		Required:      true,
-		Description:   "Bitbucket repository slug.",
+		Description:   "Bitbucket repository slug (from Bitbucket).",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
 		Description: "Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. " +
+			"`account_id`, `bitbucket_repository_id`, and `slug` are Bitbucket-side identifiers (obtain them from Bitbucket or " +
+			"`orcasecurity_shift_left_bitbucket_repositories`). " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. " +
 			"Import with `installation_id:account_id:bitbucket_repository_id`.",
 		Attributes: attrs,

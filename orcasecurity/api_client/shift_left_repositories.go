@@ -243,6 +243,8 @@ type gitlabRepositoryItem struct {
 	scmRepoCommonFields
 	GitlabProjectID    int64    `json:"gitlab_project_id"`
 	GitlabInstallation scmIDRef `json:"gitlab_installation"`
+	// Orca UUID of the owning integrated group unit (not the numeric GitLab group id).
+	GitlabGroup scmIDRef `json:"gitlab_group"`
 }
 
 type GitlabRepositoryIntegrate struct {

@@ -36,11 +36,30 @@ func TestAdopt_UserPoliciesWin(t *testing.T) {
 		types.BoolValue(false),
 		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-9")}),
 		nil,
-		ProjectIntent{},
+		ProjectIntent{PoliciesIntent: true},
 		ExistingUnit{DefaultPolicies: false, PolicyIDs: []string{"pol-1", "pol-2"}},
 	)
 	if len(ad.Policies) != 1 || ad.Policies[0] != "pol-9" {
 		t.Fatalf("expected user policies to win, got %v", ad.Policies)
+	}
+}
+
+// Stale default_policies=true carried via UseStateForUnknown must not discard
+// an explicit policies_ids list on the wire.
+func TestAdopt_PoliciesIntentForcesDefaultPoliciesFalse(t *testing.T) {
+	ad := Adopt(
+		types.StringNull(),
+		types.BoolValue(true), // would silently clear policies without the force
+		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-9")}),
+		nil,
+		ProjectIntent{PoliciesIntent: true},
+		ExistingUnit{DefaultPolicies: true},
+	)
+	if ad.DefaultPolicies {
+		t.Error("expected default_policies forced false when policies_ids are explicit")
+	}
+	if len(ad.Policies) != 1 || ad.Policies[0] != "pol-9" {
+		t.Fatalf("expected policies preserved on the wire, got %v", ad.Policies)
 	}
 }
 

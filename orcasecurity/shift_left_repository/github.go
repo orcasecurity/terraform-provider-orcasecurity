@@ -46,12 +46,14 @@ func githubRepositorySchema() rschema.Schema {
 	}
 	attrs["github_repository_id"] = rschema.Int64Attribute{
 		Required:      true,
-		Description:   "Numeric GitHub repository id.",
+		Description:   "Numeric GitHub repository id (from GitHub, not minted by Orca).",
 		PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 	}
 	return rschema.Schema{
 		Description: "Integrates a single GitHub repository into Orca Shift Left under an existing GitHub account " +
 			"(`orcasecurity_shift_left_github_account`). " +
+			"`github_repository_id` is a GitHub-side identifier (obtain it from GitHub or " +
+			"`orcasecurity_shift_left_github_repositories`). " +
 			"Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. " +
 			"Import with `account_id:github_repository_id`.",
 		Attributes: attrs,

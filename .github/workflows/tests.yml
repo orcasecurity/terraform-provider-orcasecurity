@@ -46,11 +46,17 @@ jobs:
 
             - run: go mod download
 
+            # .golangci-version is the single source of truth, shared with `make lint`, so a
+            # developer's local run cannot report a different set of issues than this gate.
+            - name: Resolve golangci-lint version
+              id: golangci
+              run: echo "version=$(cat .golangci-version)" >> "$GITHUB_OUTPUT"
+
             - name: Run linters
               uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
               with:
                   # Must be built with Go >= module version (go 1.25+). See https://github.com/golangci/golangci-lint/releases
-                  version: v2.11.4
+                  version: ${{ steps.golangci.outputs.version }}
 
     generate:
         name: Generate artifacts

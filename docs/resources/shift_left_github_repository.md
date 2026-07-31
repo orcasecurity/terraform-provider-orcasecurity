@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_github_repository Resource - orcasecurity"
 description: |-
-  Integrates a single GitHub repository into Orca Shift Left under an existing GitHub account (orcasecurity_shift_left_github_account). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. Import with account_id:github_repository_id.
+  Integrates a single GitHub repository into Orca Shift Left under an existing GitHub account (orcasecurity_shift_left_github_account). github_repository_id is a GitHub-side identifier (obtain it from GitHub or orcasecurity_shift_left_github_repositories). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. Import with account_id:github_repository_id.
 ---
 
 # orcasecurity_shift_left_github_repository (Resource)
 
-Integrates a single GitHub repository into Orca Shift Left under an existing GitHub account (`orcasecurity_shift_left_github_account`). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. Import with `account_id:github_repository_id`.
+Integrates a single GitHub repository into Orca Shift Left under an existing GitHub account (`orcasecurity_shift_left_github_account`). `github_repository_id` is a GitHub-side identifier (obtain it from GitHub or `orcasecurity_shift_left_github_repositories`). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. Import with `account_id:github_repository_id`.
 
 -> **Per-repository scope:** this resource integrates one repository at a time under an account that scans selected repositories. Account-level settings (installation mode, policies, shared configuration) belong to `orcasecurity_shift_left_github_account` and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
 
@@ -35,7 +35,7 @@ resource "orcasecurity_shift_left_github_repository" "example" {
 
 - `account_id` (String) Orca UUID of the GitHub integrated account owning the repository (see `orcasecurity_shift_left_github_accounts` — an Orca UUID, not a GitHub org slug).
 - `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API never returns or updates it, so Terraform cannot detect drift on this attribute, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `terraform import` cannot read it back either, so an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating.
-- `github_repository_id` (Number) Numeric GitHub repository id.
+- `github_repository_id` (Number) Numeric GitHub repository id (from GitHub, not minted by Orca).
 - `name` (String) Repository name (path) as known to GitHub.
 - `url` (String) Repository URL.
 

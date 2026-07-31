@@ -12,6 +12,7 @@ type GithubRepositoryListItem struct {
 type GitlabRepositoryListItem struct {
 	ScmRepository
 	InstallationID  string
+	GitlabGroupID   int64 // numeric GitLab group id (stamped from the owning group unit)
 	GitlabProjectID int64
 }
 
@@ -46,6 +47,16 @@ func (client *APIClient) ListGithubRepositories() ([]GithubRepositoryListItem, e
 }
 
 func (client *APIClient) ListGitlabRepositories() ([]GitlabRepositoryListItem, error) {
+	// List rows expose gitlab_group.id (Orca unit UUID), not the numeric
+	// gitlab_group_id the repository resource requires — stamp it from groups.
+	groups, err := client.ListGitlabGroups()
+	if err != nil {
+		return nil, err
+	}
+	groupIDByOrcaID := make(map[string]int64, len(groups))
+	for _, g := range groups {
+		groupIDByOrcaID[g.ID] = g.GitlabGroupID
+	}
 	rows, err := getAllScmPages[gitlabRepositoryItem](client, integratedRepositoriesPath("gitlab"), nil)
 	if err != nil {
 		return nil, err
@@ -55,6 +66,7 @@ func (client *APIClient) ListGitlabRepositories() ([]GitlabRepositoryListItem, e
 		out[i] = GitlabRepositoryListItem{
 			ScmRepository:   rows[i].common(),
 			InstallationID:  rows[i].GitlabInstallation.ID,
+			GitlabGroupID:   groupIDByOrcaID[rows[i].GitlabGroup.ID],
 			GitlabProjectID: rows[i].GitlabProjectID,
 		}
 	}

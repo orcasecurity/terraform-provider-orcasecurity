@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_repository Resource - orcasecurity"
 description: |-
-  Integrates a single Azure DevOps repository into Orca Shift Left under an existing Azure DevOps installation. Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Azure DevOps. Import with installation_id:account_name:azure_project_id:azure_repository_id.
+  Integrates a single Azure DevOps repository into Orca Shift Left under an existing Azure DevOps installation. azure_project_id and azure_repository_id are Azure DevOps-side identifiers (obtain them from Azure DevOps; orcasecurity_shift_left_azure_devops_repositories returns the repository id but not the project id). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Azure DevOps. Import with installation_id:account_name:azure_project_id:azure_repository_id.
 ---
 
 # orcasecurity_shift_left_azure_devops_repository (Resource)
 
-Integrates a single Azure DevOps repository into Orca Shift Left under an existing Azure DevOps installation. Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Azure DevOps. Import with `installation_id:account_name:azure_project_id:azure_repository_id`.
+Integrates a single Azure DevOps repository into Orca Shift Left under an existing Azure DevOps installation. `azure_project_id` and `azure_repository_id` are Azure DevOps-side identifiers (obtain them from Azure DevOps; `orcasecurity_shift_left_azure_devops_repositories` returns the repository id but not the project id). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Azure DevOps. Import with `installation_id:account_name:azure_project_id:azure_repository_id`.
 
 -> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
 
@@ -34,8 +34,8 @@ resource "orcasecurity_shift_left_azure_devops_repository" "example" {
 ### Required
 
 - `account_name` (String) Azure DevOps organization name owning the repository.
-- `azure_project_id` (String) Azure DevOps project UUID containing the repository.
-- `azure_repository_id` (String) Azure DevOps repository UUID.
+- `azure_project_id` (String) Azure DevOps project UUID containing the repository (from Azure DevOps, not minted by Orca).
+- `azure_repository_id` (String) Azure DevOps repository UUID (from Azure DevOps, not minted by Orca).
 - `installation_id` (String) Orca id of the Azure DevOps installation (see `orcasecurity_shift_left_azure_devops_installation`).
 - `name` (String) Repository name (path) as known to Azure DevOps.
 - `url` (String) Repository URL.

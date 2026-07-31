@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_gitlab_repository Resource - orcasecurity"
 description: |-
-  Integrates a single GitLab project (repository) into Orca Shift Left under an existing GitLab installation. Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the project on GitLab. Import with installation_id:gitlab_group_id:gitlab_project_id.
+  Integrates a single GitLab project (repository) into Orca Shift Left under an existing GitLab installation. gitlab_group_id and gitlab_project_id are GitLab-side identifiers (obtain them from GitLab or orcasecurity_shift_left_gitlab_repositories). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the project on GitLab. Import with installation_id:gitlab_group_id:gitlab_project_id.
 ---
 
 # orcasecurity_shift_left_gitlab_repository (Resource)
 
-Integrates a single GitLab project (repository) into Orca Shift Left under an existing GitLab installation. Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the project on GitLab. Import with `installation_id:gitlab_group_id:gitlab_project_id`.
+Integrates a single GitLab project (repository) into Orca Shift Left under an existing GitLab installation. `gitlab_group_id` and `gitlab_project_id` are GitLab-side identifiers (obtain them from GitLab or `orcasecurity_shift_left_gitlab_repositories`). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the project on GitLab. Import with `installation_id:gitlab_group_id:gitlab_project_id`.
 
 -> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
 
@@ -34,8 +34,8 @@ resource "orcasecurity_shift_left_gitlab_repository" "example" {
 ### Required
 
 - `branch` (String) Branch to scan. Required by this SCM's integration API. Create-only: the API never returns or updates it, so Terraform cannot detect drift on this attribute, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `terraform import` cannot read it back either, so an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating.
-- `gitlab_group_id` (Number) Numeric GitLab group id owning the project. If the group is not yet integrated with Orca, integrating the first repository also creates the group unit.
-- `gitlab_project_id` (Number) Numeric GitLab project (repository) id.
+- `gitlab_group_id` (Number) Numeric GitLab group id owning the project (from GitLab, not minted by Orca). If the group is not yet integrated with Orca, integrating the first repository also creates the group unit.
+- `gitlab_project_id` (Number) Numeric GitLab project (repository) id (from GitLab, not minted by Orca).
 - `installation_id` (String) Orca id of the GitLab installation (see `orcasecurity_shift_left_gitlab_installation`).
 - `name` (String) Repository name (path) as known to GitLab.
 - `url` (String) Repository URL.

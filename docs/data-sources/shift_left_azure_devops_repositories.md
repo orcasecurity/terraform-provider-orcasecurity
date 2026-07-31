@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_repositories Data Source - orcasecurity"
 description: |-
-  Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. installation_id is joined from the owning integrated account.
+  Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. installation_id is joined from the owning integrated account. The list API does not return azure_project_id, so rows alone cannot round-trip into orcasecurity_shift_left_azure_devops_repository — supply that Azure DevOps project UUID separately.
 ---
 
 # orcasecurity_shift_left_azure_devops_repositories (Data Source)
 
-Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. `installation_id` is joined from the owning integrated account.
+Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. `installation_id` is joined from the owning integrated account. The list API does not return `azure_project_id`, so rows alone cannot round-trip into `orcasecurity_shift_left_azure_devops_repository` — supply that Azure DevOps project UUID separately.
 
 ## Example Usage
 
@@ -31,7 +31,7 @@ output "azure_devops_repository_names" {
 Read-Only:
 
 - `account_name` (String) Azure DevOps organization name.
-- `azure_repository_id` (String)
+- `azure_repository_id` (String) Azure DevOps repository UUID (from Azure DevOps).
 - `disabled` (Boolean)
 - `id` (String) Orca integrated-repository UUID.
 - `installation_id` (String) Orca Azure DevOps installation UUID.

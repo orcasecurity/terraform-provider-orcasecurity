@@ -35,6 +35,52 @@ func TestListGithubRepositories(t *testing.T) {
 	}
 }
 
+func TestListGitlabRepositoriesStampsGitlabGroupID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/shiftleft/gitlab/installations/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        []map[string]any{{"id": "inst-1", "name": "GL"}},
+			})
+		case "/api/shiftleft/gitlab/installations/inst-1/integrated_groups/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data": []map[string]any{{
+					"id": "group-orca-1", "gitlab_group_id": 133143428, "gitlab_group_name": "acme",
+				}},
+			})
+		case "/api/shiftleft/gitlab/integrated_repositories/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data": []map[string]any{{
+					"id": "repo-1", "gitlab_project_id": 99,
+					"repository":            map[string]any{"name": "acme/proj", "url": "https://gitlab.com/acme/proj"},
+					"gitlab_installation":   map[string]any{"id": "inst-1"},
+					"gitlab_group":          map[string]any{"id": "group-orca-1", "gitlab_group_name": "acme"},
+					"repository_context_id": "ctx-1",
+				}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	rows, err := client.ListGitlabRepositories()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %+v", rows)
+	}
+	if rows[0].InstallationID != "inst-1" || rows[0].GitlabGroupID != 133143428 || rows[0].GitlabProjectID != 99 {
+		t.Fatalf("stamp/identity mismatch: %+v", rows[0])
+	}
+}
+
 func TestListBitbucketRepositoriesStampsInstallationID(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

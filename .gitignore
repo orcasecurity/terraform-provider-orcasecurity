@@ -49,3 +49,6 @@ docs/superpowers/
 
 # Local agent notes and state — never commit
 .claude/
+
+# Pinned tool binaries installed by `make lint` (version from .golangci-version)
+/bin/

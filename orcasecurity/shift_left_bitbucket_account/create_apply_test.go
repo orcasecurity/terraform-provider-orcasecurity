@@ -38,6 +38,11 @@ type scmUnitStub struct {
 	mu   sync.Mutex
 	unit map[string]any
 	puts []map[string]any
+
+	// volatileSideEffects makes a write move server-owned Computed fields the way
+	// the real API does (scan-all enrols repositories; a project rebind re-evaluates
+	// posture). Opt-in so the existing cases keep their fixed, side-effect-free unit.
+	volatileSideEffects bool
 }
 
 func newSCMUnitStub() *scmUnitStub {
@@ -71,6 +76,10 @@ func (s *scmUnitStub) applyPut(body map[string]any) {
 	}
 	if mode, ok := body["installation_mode"].(string); ok && mode != "" {
 		s.unit["installation_mode"] = mode
+		if s.volatileSideEffects && mode == "SCAN_ALL_INCLUDE_FUTURE" {
+			s.unit["integrated_repositories_count"] = 37
+			s.unit["scan_all_state"] = "RUNNING"
+		}
 	}
 	if defaultPolicies, ok := body["default_policies"].(bool); ok {
 		s.unit["default_policies"] = defaultPolicies
@@ -78,6 +87,9 @@ func (s *scmUnitStub) applyPut(body map[string]any) {
 	// project_id is omitempty on the wire, so an absent or empty key means "unbound".
 	if projectID, ok := body["project_id"].(string); ok && projectID != "" {
 		s.unit["project"] = map[string]any{"id": projectID}
+		if s.volatileSideEffects {
+			s.unit["scm_posture_policy_id"] = "policy-" + projectID
+		}
 	} else {
 		delete(s.unit, "project")
 	}

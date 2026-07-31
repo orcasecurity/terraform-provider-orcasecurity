@@ -10,7 +10,7 @@ Configures an existing Orca GitHub shift-left account/organization (default poli
 
 -> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
 
--> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out. GitHub's own API default for `disable_scan_pull_requests` is `true`, so the provider deliberately diverges from it here to match the Orca UI and the other SCM providers. `terraform import` performs no write, so an imported account keeps whatever settings it already had.
+-> **Omitted settings inherit live values:** this resource always adopts an existing GitHub App installation (there is no create/Integrate path, so provider create-defaults such as `disable_scan_pull_requests = false` are never applied). The first `apply` re-sends whatever the account already has for any configuration attribute you leave unset. Set each attribute explicitly when you want to change it. `terraform import` performs no write.
 
 -> **No connection resource:** unlike GitLab, Bitbucket and Azure DevOps, GitHub has no `*_installation` resource to register a server and token — the Orca GitHub App installation is itself the account-level unit. That is why `account_id` holds this unit's own Orca UUID rather than a parent connection id.
 
@@ -57,9 +57,9 @@ resource "orcasecurity_shift_left_github_account" "project_bound" {
 
 - `adopt_existing` (Boolean) Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.
 - `configuration_settings` (Attributes) PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose. (see [below for nested schema](#nestedatt--configuration_settings))
-- `default_policies` (Boolean) Attach all Orca built-in policies. When true, policies_ids is ignored. Mutually exclusive with policies_ids; may accompany project_id.
+- `default_policies` (Boolean) On write, `true` attaches every Orca built-in policy (and clears any explicit `policies_ids`). On read the API derives this flag as true only when the unit has neither attached policies nor a project — it is not a stored boolean. Mutually exclusive with `policies_ids`; may accompany `project_id`. `false` alone (no `policies_ids`, no `project_id`) can never round-trip.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.
-- `policies_ids` (Set of String) Explicit policy IDs to attach (used when default_policies is false). Mutually exclusive with project_id and default_policies. Must be non-empty: an empty list is treated by the API as "attach all built-in policies", not "none".
+- `policies_ids` (Set of String) Explicit policy IDs to attach. Mutually exclusive with `project_id` and with `default_policies = true`. Must be non-empty: an empty list is treated by the API as "attach all Orca built-in policies", not "none".
 - `project_id` (String) Bind this unit to a scan-all project. Mutually exclusive with policies_ids (the API rejects both); default_policies may still apply. Set to an empty string to clear the binding; omit to leave it unchanged.
 
 ### Read-Only
@@ -68,10 +68,10 @@ resource "orcasecurity_shift_left_github_account" "project_bound" {
 - `github_app_settings_url` (String) URL of the Orca GitHub App settings page on GitHub (null when the API omits it).
 - `github_installation_id` (Number) GitHub-side numeric installation ID of the Orca GitHub App.
 - `id` (String) Orca UUID of the integrated GitHub account (same value as `account_id`). Unlike Bitbucket, GitHub `account_id` is an Orca UUID, not an SCM-side slug.
-- `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit.
-- `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it.
-- `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it).
-- `scm_posture_policy_id` (String) Read-only ID of the SCM posture policy attached to this unit (null when none).
+- `integrated_repositories_count` (Number) Read-only count of repositories integrated under this unit. Volatile: may change as a side effect of installation_mode changes (e.g. SCAN_ALL_INCLUDE_FUTURE enrollment); settled across no-op plans.
+- `integration_status` (String) Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it. Volatile: re-read after writes; settled across no-op plans.
+- `scan_all_state` (String) Read-only state of the scan-all onboarding flow for this unit (null when the API omits it). Volatile: re-read after writes; settled across no-op plans.
+- `scm_posture_policy_id` (String) Read-only ID of the SCM posture policy attached to this unit (null when none). Volatile: re-read after writes; settled across no-op plans.
 
 <a id="nestedatt--configuration_settings"></a>
 ### Nested Schema for `configuration_settings`
