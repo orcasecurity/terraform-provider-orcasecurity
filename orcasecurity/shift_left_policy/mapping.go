@@ -68,6 +68,12 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 }
 
 func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicyResourceModel) *shiftLeftPolicyResourceModel {
+	// Detaching every project is configured as projects_ids = [], so an empty API
+	// answer must stay [] when the prior state was configured, and null otherwise.
+	priorProjects := types.SetNull(types.StringType)
+	if existing != nil {
+		priorProjects = existing.ProjectsIds
+	}
 	model := &shiftLeftPolicyResourceModel{
 		ID:                       types.StringValue(apiPolicy.ID),
 		Type:                     types.StringValue(apiPolicy.Type),
@@ -76,14 +82,8 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		Disabled:                 types.BoolValue(apiPolicy.Disabled),
 		WarnMode:                 types.BoolValue(apiPolicy.WarnMode),
 		PriorityFailureThreshold: types.StringValue(apiPolicy.PriorityFailureThreshold),
-		ProjectsIds:              tfconv.StringSliceToSet(apiPolicy.ProjectsIds),
+		ProjectsIds:              tfconv.StringSliceToSetPreserveNull(priorProjects, apiPolicy.ProjectsIds),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
-	}
-	// StringSliceToSet maps no projects to null. Detaching every project is configured as
-	// projects_ids = [], so collapsing to null there would leave the config permanently
-	// diverged from state; keep the empty set the caller asked for.
-	if len(apiPolicy.ProjectsIds) == 0 && existing != nil && tfconv.Known(existing.ProjectsIds) {
-		model.ProjectsIds = types.SetValueMust(types.StringType, nil)
 	}
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
 		tfconv.Known(existing.PriorityFailureThreshold) {

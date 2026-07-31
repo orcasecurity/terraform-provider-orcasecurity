@@ -3,10 +3,7 @@
 package tfconv
 
 import (
-	"context"
-
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -25,21 +22,58 @@ func StringIsSet(s types.String) bool {
 	return Known(s) && s.ValueString() != ""
 }
 
-// SetToStringSlice converts a set of strings to a Go slice without a context.
-// Null/unknown sets and null/unknown elements are dropped. Prefer StringSetToAPI
-// when a context is available and an empty [] must be distinguished from omitted.
-func SetToStringSlice(s types.Set) []string {
-	if s.IsNull() || s.IsUnknown() {
-		return nil
-	}
-	elems := s.Elements()
+func stringElements(elems []attr.Value) []string {
 	out := make([]string, 0, len(elems))
 	for _, e := range elems {
-		if v, ok := e.(types.String); ok && !v.IsNull() && !v.IsUnknown() {
+		if v, ok := e.(types.String); ok && Known(v) {
 			out = append(out, v.ValueString())
 		}
 	}
 	return out
+}
+
+func stringValues(values []string) []attr.Value {
+	elems := make([]attr.Value, len(values))
+	for i, v := range values {
+		elems[i] = types.StringValue(v)
+	}
+	return elems
+}
+
+// SetToStringSlice converts a set of strings to a Go slice.
+// Null and unknown sets become nil (omitted from the JSON payload).
+func SetToStringSlice(s types.Set) []string {
+	if !Known(s) {
+		return nil
+	}
+	return stringElements(s.Elements())
+}
+
+// SetToStringSliceNonNull never returns nil — send [] to clear on PATCH
+// endpoints where omitted keys are unchanged.
+func SetToStringSliceNonNull(s types.Set) []string {
+	if out := SetToStringSlice(s); out != nil {
+		return out
+	}
+	return []string{}
+}
+
+// ListToStringSlice converts a list of strings to a Go slice.
+// Null and unknown lists become nil (omitted from the JSON payload).
+func ListToStringSlice(l types.List) []string {
+	if !Known(l) {
+		return nil
+	}
+	return stringElements(l.Elements())
+}
+
+// ListToStringSliceNonNull never returns nil — send [] to clear on PATCH
+// endpoints where omitted keys are unchanged.
+func ListToStringSliceNonNull(l types.List) []string {
+	if out := ListToStringSlice(l); out != nil {
+		return out
+	}
+	return []string{}
 }
 
 // StringSliceToSet builds a set of strings; an empty slice becomes a null set.
@@ -47,75 +81,26 @@ func StringSliceToSet(values []string) types.Set {
 	if len(values) == 0 {
 		return types.SetNull(types.StringType)
 	}
-	elems := make([]attr.Value, len(values))
-	for i, v := range values {
-		elems[i] = types.StringValue(v)
-	}
-	return types.SetValueMust(types.StringType, elems)
+	return types.SetValueMust(types.StringType, stringValues(values))
 }
 
-// StringListToAPI converts a types.List of strings to a Go slice.
-// Null and unknown lists become nil (omitted from the JSON payload).
-func StringListToAPI(ctx context.Context, list types.List) []string {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
+// StringSliceToSetPreserveNull builds a set of strings from an API value while
+// keeping null-vs-[] stable: when the API reports no values, a null prior stays
+// null and a configured prior becomes an empty set (not null), so an explicitly
+// configured [] never drifts.
+func StringSliceToSetPreserveNull(prior types.Set, values []string) types.Set {
+	if len(values) == 0 && prior.IsNull() {
+		return types.SetNull(types.StringType)
 	}
-	var out []string
-	_ = list.ElementsAs(ctx, &out, false)
-	return out
+	return types.SetValueMust(types.StringType, stringValues(values))
 }
 
-// Never returns nil — send [] to clear on PATCH endpoints where omitted keys are unchanged.
-func StringListToAPINonNull(ctx context.Context, list types.List) []string {
-	if out := StringListToAPI(ctx, list); out != nil {
-		return out
+// StringSliceToListPreserveNull is StringSliceToSetPreserveNull for lists.
+func StringSliceToListPreserveNull(prior types.List, values []string) types.List {
+	if len(values) == 0 && prior.IsNull() {
+		return types.ListNull(types.StringType)
 	}
-	return []string{}
-}
-
-// Preserve null when API returns empty and prior state was null (avoids null-vs-[] drift).
-func StringListFromAPIPreserveNull(ctx context.Context, prior types.List, values []string) (types.List, diag.Diagnostics) {
-	if len(values) == 0 {
-		if prior.IsNull() {
-			return types.ListNull(types.StringType), nil
-		}
-		// a nil slice would convert to a null list; the attribute was
-		// configured, so state must hold an empty list, not null
-		values = []string{}
-	}
-	return types.ListValueFrom(ctx, types.StringType, values)
-}
-
-// StringSetToAPI converts a types.Set of strings to a Go slice.
-// Null and unknown sets become nil (omitted from the JSON payload).
-func StringSetToAPI(ctx context.Context, set types.Set) []string {
-	if set.IsNull() || set.IsUnknown() {
-		return nil
-	}
-	var out []string
-	_ = set.ElementsAs(ctx, &out, false)
-	return out
-}
-
-// Never returns nil — send [] to clear on PATCH endpoints where omitted keys are unchanged.
-func StringSetToAPINonNull(ctx context.Context, set types.Set) []string {
-	if out := StringSetToAPI(ctx, set); out != nil {
-		return out
-	}
-	return []string{}
-}
-
-// Preserve null when API returns empty and prior state was null.
-func StringSetFromAPIPreserveNull(ctx context.Context, prior types.Set, values []string) (types.Set, diag.Diagnostics) {
-	if len(values) == 0 {
-		if prior.IsNull() {
-			return types.SetNull(types.StringType), nil
-		}
-		// a nil slice would convert to a null set; the attribute was
-		// configured, so state must hold an empty set, not null
-		values = []string{}
-	}
-	return types.SetValueFrom(ctx, types.StringType, values)
+	return types.ListValueMust(types.StringType, stringValues(values))
 }
 
 // StringOrNull maps optional API strings: empty string becomes null.
