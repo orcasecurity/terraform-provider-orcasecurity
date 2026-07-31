@@ -60,10 +60,7 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 				Body:           body,
 			})
 		},
-		Delete: func(m *resourceModel) error { return deleteGroup(apiClient, m) },
-		Snapshot: func(u *api_client.GitlabGroup) shift_left_integration.ExistingUnit {
-			return shift_left_integration.ExistingFromCommon(u.ScmUnitCommonFields)
-		},
+		Delete:  func(m *resourceModel) error { return deleteGroup(apiClient, m) },
 		ToState: apiToState,
 		Config:  func(m *resourceModel) *shift_left_integration.ScmConfigFields { return &m.ScmConfigFields },
 		Describe: func(m *resourceModel) string {

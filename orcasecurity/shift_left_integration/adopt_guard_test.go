@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -49,7 +51,7 @@ func TestAdoptGuardDetail(t *testing.T) {
 // Create integrates and then reads the unit back. A failed read-back leaves an integration that
 // Terraform never records, so it has to be undone (or reported when it cannot be).
 func TestRollbackIntegration(t *testing.T) {
-	type unit struct{}
+	type unit struct{ api_client.ScmUnitCommonFields }
 	type model struct{}
 	newOps := func(del func(*model) error) AdoptedUnitOps[unit, model] {
 		return AdoptedUnitOps[unit, model]{

@@ -14,14 +14,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-type AdoptedUnitOps[A any, M any] struct {
+type AdoptedUnitOps[A ScmUnit, M any] struct {
 	Labels           AdoptLabels
 	UnitID           func(m *M) string
 	Get              func(m *M) (*A, error)
 	Update           func(m *M, current *A, body api_client.ScmInstallationUpdate) (*A, error)
 	Integrate        func(m *M, body api_client.ScmInstallationUpdate) error
 	Delete           func(m *M) error
-	Snapshot         func(*A) ExistingUnit
 	ToState          func(*A) M
 	Config           func(*M) *ScmConfigFields
 	Describe         func(m *M) string
@@ -80,9 +79,9 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		return
 	}
 	if existing != nil {
-		snap := o.Snapshot(existing)
-		if guardAdopt(snap.RepoCount, o.Config(&plan).AdoptExisting) {
-			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), snap.RepoCount))
+		repoCount := (*existing).Common().IntegratedRepositoriesCount
+		if guardAdopt(repoCount, o.Config(&plan).AdoptExisting) {
+			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), repoCount))
 			return
 		}
 		// Reuse unit fetched above instead of re-reading in writeAdopted.
@@ -222,30 +221,34 @@ type writeAdoptedRequest[A any] struct {
 	Current     *A // pre-fetched unit; nil means writeAdopted fetches it itself
 }
 
+// writeAdopted hydrates the plan against the live unit (Adopt) and PUTs the result.
 func (o AdoptedUnitOps[A, M]) writeAdopted(
 	ctx context.Context, plan, config *M,
 	diags *diag.Diagnostics, state *tfsdk.State,
 	req writeAdoptedRequest[A],
 ) {
-	planFields := o.Config(plan)
-	configFields := o.Config(config)
-	unit, err := WriteAdopted(AdoptWriteRequest[A]{
-		Get:     func() (*A, error) { return o.Get(plan) },
-		Current: req.Current,
-		Update: func(current *A, body api_client.ScmInstallationUpdate) (*A, error) {
-			return o.Update(plan, current, body)
-		},
-		Snapshot:     o.Snapshot,
-		PlanMode:     planFields.InstallationMode,
-		PlanDefault:  planFields.DefaultPolicies,
-		PlanPolicies: planFields.PoliciesIds,
-		PlanConfig:   ConfigSettingsFromObject(planFields.ConfigSettings),
-		Project:      ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
-	})
-	switch {
-	case errors.Is(err, ErrUnitNotFound):
+	current := req.Current
+	if current == nil {
+		var err error
+		if current, err = o.Get(plan); err != nil {
+			diags.AddError(req.Title, err.Error())
+			return
+		}
+	}
+	if current == nil {
 		diags.AddError(o.Labels.NotFoundTitle, req.NotFoundMsg)
 		return
+	}
+
+	planFields := o.Config(plan)
+	configFields := o.Config(config)
+	body := Adopt(planFields.InstallationMode, planFields.DefaultPolicies, planFields.PoliciesIds,
+		ConfigSettingsFromObject(planFields.ConfigSettings),
+		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
+		(*current).Common())
+
+	unit, err := o.Update(plan, current, body)
+	switch {
 	case err != nil:
 		diags.AddError(req.Title, err.Error())
 		return

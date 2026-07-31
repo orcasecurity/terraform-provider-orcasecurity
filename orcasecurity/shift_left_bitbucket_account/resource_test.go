@@ -85,7 +85,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "t" {
 
 func restoreBitbucketAccount(t *testing.T, client *api_client.APIClient, installationID, accountSlug string, original *api_client.BitbucketAccount) {
 	t.Helper()
-	body := acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)
+	body := acctest.RestoreScmBody(original.ScmUnitCommonFields)
 	cur, err := client.FindBitbucketAccountBySlug(installationID, accountSlug)
 	if err != nil {
 		t.Errorf("restore lookup: %s", err)

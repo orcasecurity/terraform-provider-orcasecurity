@@ -41,14 +41,12 @@ func assertConditionsCleared(t *testing.T, repos *api_client.ShiftLeftInstallati
 func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 	client, installationID, groupID, original := snapshotGitlabGroupForTest(t)
 
-	withConditions := original.ConfigSettings
-	withConditions.InstallationReposConfig = &api_client.ShiftLeftInstallationReposConfig{
+	withConditions := original.ScmUnitCommonFields
+	withConditions.ConfigSettings.InstallationReposConfig = &api_client.ShiftLeftInstallationReposConfig{
 		ArchiveActions:     &api_client.ShiftLeftArchiveActions{Conditions: []string{"AVOID_SCAN", "DELETE_REPO"}},
 		UnavailableActions: &api_client.ShiftLeftArchiveActions{Conditions: []string{"DELETE_REPO"}},
 	}
-	set, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
-		original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, withConditions,
-	))
+	set, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(withConditions))
 	if err != nil {
 		t.Fatalf("set conditions failed: %s", err)
 	}
@@ -63,7 +61,7 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 	ad := shift_left_integration.Adopt(
 		types.StringNull(), types.BoolNull(), types.SetNull(types.StringType), overlay,
 		shift_left_integration.ProjectIntent{},
-		shift_left_integration.ExistingFromAPI(set.InstallationMode, set.DefaultPolicies, set.Policies, set.Project, set.ConfigSettings),
+		set.ScmUnitCommonFields,
 	)
 	if ad.ConfigSettings.InstallationReposConfig == nil {
 		t.Fatal("Expand must send explicit empty installation_repositories_configuration on clear")

@@ -10,56 +10,12 @@ import (
 
 var ErrUnitNotFound = errors.New("scm unit not found")
 
-func ExistingFromAPI(
-	mode string,
-	defaultPolicies bool,
-	policies []api_client.ScmPolicyRef,
-	project *api_client.ScmProjectRef,
-	cfg api_client.ShiftLeftConfigSettings,
-) ExistingUnit {
-	return ExistingUnit{
-		InstallationMode: mode,
-		DefaultPolicies:  defaultPolicies,
-		PolicyIDs:        api_client.PolicyRefIDs(policies),
-		ConfigSettings:   cfg,
-		ProjectID:        api_client.ProjectRefID(project),
-	}
-}
-
-func ExistingFromCommon(c api_client.ScmUnitCommonFields) ExistingUnit {
-	ex := ExistingFromAPI(c.InstallationMode, c.DefaultPolicies, c.Policies, c.Project, c.ConfigSettings)
-	ex.RepoCount = c.IntegratedRepositoriesCount
-	return ex
+// ScmUnit is satisfied by every concrete SCM unit API type via the embedded
+// api_client.ScmUnitCommonFields.
+type ScmUnit interface {
+	Common() api_client.ScmUnitCommonFields
 }
 
 func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
 	return PolicyIDsToSet(api_client.PolicyRefIDs(refs))
-}
-
-type AdoptWriteRequest[T any] struct {
-	Get      func() (*T, error)
-	Current  *T // optional pre-fetched unit; when set, Get is skipped
-	Update   func(current *T, body api_client.ScmInstallationUpdate) (*T, error)
-	Snapshot func(*T) ExistingUnit
-
-	PlanMode     types.String
-	PlanDefault  types.Bool
-	PlanPolicies types.Set
-	PlanConfig   *ConfigSettingsModel
-	Project      ProjectIntent
-}
-
-func WriteAdopted[T any](req AdoptWriteRequest[T]) (*T, error) {
-	current := req.Current
-	if current == nil {
-		var err error
-		if current, err = req.Get(); err != nil {
-			return nil, err
-		}
-	}
-	if current == nil {
-		return nil, ErrUnitNotFound
-	}
-	body := Adopt(req.PlanMode, req.PlanDefault, req.PlanPolicies, req.PlanConfig, req.Project, req.Snapshot(current))
-	return req.Update(current, body)
 }

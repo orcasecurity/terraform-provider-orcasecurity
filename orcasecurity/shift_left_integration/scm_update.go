@@ -47,15 +47,6 @@ func ExpandUpdate(mode types.String, defaultPolicies types.Bool, policiesIds typ
 	}
 }
 
-type ExistingUnit struct {
-	InstallationMode string
-	DefaultPolicies  bool
-	PolicyIDs        []string
-	ConfigSettings   api_client.ShiftLeftConfigSettings
-	ProjectID        string
-	RepoCount        int64
-}
-
 // Plan values are unreliable for project intent because UseStateForUnknown backfills omitted fields.
 type ProjectIntent struct {
 	FromConfig     types.String
@@ -88,7 +79,7 @@ func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 
 // CreateUnitBody is Adopt seeded with defaults for a brand-new unit.
 func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) api_client.ScmInstallationUpdate {
-	seed := ExistingUnit{
+	seed := api_client.ScmUnitCommonFields{
 		InstallationMode: mode.ValueString(),
 		DefaultPolicies:  !project.PoliciesIntent,
 		ConfigSettings:   defaultConfigSettings(),
@@ -98,7 +89,7 @@ func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies type
 
 // Adopt hydrates unset plan fields from the live unit (seed on create).
 // PUT sends project_id XOR explicit policies; default_policies may accompany project_id.
-func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent, ex ExistingUnit) api_client.ScmInstallationUpdate {
+func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent, ex api_client.ScmUnitCommonFields) api_client.ScmInstallationUpdate {
 	base := FlattenConfigSettings(ex.ConfigSettings)
 	merged := MergeConfigSettings(base, planConfig)
 
@@ -112,10 +103,10 @@ func Adopt(planMode types.String, planDefault types.Bool, planPolicies types.Set
 	}
 	policies := planPolicies
 	if policies.IsNull() || policies.IsUnknown() {
-		policies = PolicyIDsToSet(ex.PolicyIDs)
+		policies = PolicyIDsFromRefs(ex.Policies)
 	}
 
-	projectID := ex.ProjectID
+	projectID := api_client.ProjectRefID(ex.Project)
 	switch {
 	case !project.FromConfig.IsNull() && !project.FromConfig.IsUnknown():
 		projectID = project.FromConfig.ValueString() // explicit project_id wins (may be "" to clear)

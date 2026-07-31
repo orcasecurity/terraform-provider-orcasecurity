@@ -9,6 +9,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+func policyRefs(ids ...string) []api_client.ScmPolicyRef {
+	refs := make([]api_client.ScmPolicyRef, 0, len(ids))
+	for _, id := range ids {
+		refs = append(refs, api_client.ScmPolicyRef{ID: id})
+	}
+	return refs
+}
+
+func projectRef(id string) *api_client.ScmProjectRef { return &api_client.ScmProjectRef{ID: id} }
+
 func TestAdopt_HydratesPoliciesFromExisting(t *testing.T) {
 	ad := Adopt(
 		types.StringNull(),
@@ -16,10 +26,10 @@ func TestAdopt_HydratesPoliciesFromExisting(t *testing.T) {
 		types.SetNull(types.StringType), // policies_ids unset
 		nil,
 		ProjectIntent{},
-		ExistingUnit{
+		api_client.ScmUnitCommonFields{
 			InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
 			DefaultPolicies:  false,
-			PolicyIDs:        []string{"pol-1", "pol-2"},
+			Policies:         policyRefs("pol-1", "pol-2"),
 		},
 	)
 	if len(ad.Policies) != 2 {
@@ -37,7 +47,7 @@ func TestAdopt_UserPoliciesWin(t *testing.T) {
 		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-9")}),
 		nil,
 		ProjectIntent{PoliciesIntent: true},
-		ExistingUnit{DefaultPolicies: false, PolicyIDs: []string{"pol-1", "pol-2"}},
+		api_client.ScmUnitCommonFields{DefaultPolicies: false, Policies: policyRefs("pol-1", "pol-2")},
 	)
 	if len(ad.Policies) != 1 || ad.Policies[0] != "pol-9" {
 		t.Fatalf("expected user policies to win, got %v", ad.Policies)
@@ -53,7 +63,7 @@ func TestAdopt_PoliciesIntentForcesDefaultPoliciesFalse(t *testing.T) {
 		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-9")}),
 		nil,
 		ProjectIntent{PoliciesIntent: true},
-		ExistingUnit{DefaultPolicies: true},
+		api_client.ScmUnitCommonFields{DefaultPolicies: true},
 	)
 	if ad.DefaultPolicies {
 		t.Error("expected default_policies forced false when policies_ids are explicit")
@@ -70,7 +80,7 @@ func TestAdopt_DefaultPoliciesClearsPolicies(t *testing.T) {
 		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-1")}),
 		nil,
 		ProjectIntent{},
-		ExistingUnit{DefaultPolicies: false, PolicyIDs: []string{"pol-1", "pol-2"}},
+		api_client.ScmUnitCommonFields{DefaultPolicies: false, Policies: policyRefs("pol-1", "pol-2")},
 	)
 	if len(ad.Policies) != 0 {
 		t.Fatalf("expected empty policies when default_policies=true, got %v", ad.Policies)
@@ -87,10 +97,10 @@ func TestAdopt_PreservesProject(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{},
-		ExistingUnit{
+		api_client.ScmUnitCommonFields{
 			DefaultPolicies: false,
-			PolicyIDs:       []string{"pol-1"},
-			ProjectID:       "proj-1",
+			Policies:        policyRefs("pol-1"),
+			Project:         projectRef("proj-1"),
 		},
 	)
 	if ad.ProjectID != "proj-1" {
@@ -108,7 +118,7 @@ func TestAdopt_BindsProjectFromConfig(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{FromConfig: types.StringValue("proj-new")},
-		ExistingUnit{PolicyIDs: []string{"pol-1"}},
+		api_client.ScmUnitCommonFields{Policies: policyRefs("pol-1")},
 	)
 	if ad.ProjectID != "proj-new" {
 		t.Fatalf("expected project bound from config, got %q", ad.ProjectID)
@@ -125,7 +135,7 @@ func TestAdopt_ClearsProjectWhenConfigEmpty(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{FromConfig: types.StringValue("")},
-		ExistingUnit{PolicyIDs: []string{"pol-1"}, ProjectID: "proj-old"},
+		api_client.ScmUnitCommonFields{Policies: policyRefs("pol-1"), Project: projectRef("proj-old")},
 	)
 	if ad.ProjectID != "" {
 		t.Fatalf("expected project cleared, got %q", ad.ProjectID)
@@ -142,7 +152,7 @@ func TestAdopt_PoliciesIntentClearsProject(t *testing.T) {
 		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-9")}),
 		nil,
 		ProjectIntent{PoliciesIntent: true},
-		ExistingUnit{ProjectID: "proj-old"},
+		api_client.ScmUnitCommonFields{Project: projectRef("proj-old")},
 	)
 	if ad.ProjectID != "" {
 		t.Fatalf("expected project cleared by policies intent, got %q", ad.ProjectID)
@@ -160,7 +170,7 @@ func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{},
-		ExistingUnit{InstallationMode: "SCAN_ALL", PolicyIDs: []string{"pol-1"}},
+		api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL", Policies: policyRefs("pol-1")},
 	)
 	if ad.InstallationMode != "SELECTED_REPOSITORIES" {
 		t.Fatalf("expected legacy SCAN_ALL remapped to SELECTED_REPOSITORIES, got %q", ad.InstallationMode)
@@ -173,7 +183,7 @@ func TestAdopt_RemapsLegacyScanAllMode(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{},
-		ExistingUnit{InstallationMode: "SCAN_ALL"},
+		api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL"},
 	)
 	if ad.InstallationMode != "SCAN_ALL_INCLUDE_FUTURE" {
 		t.Fatalf("expected user mode kept, got %q", ad.InstallationMode)
@@ -188,7 +198,7 @@ func TestAdopt_DefaultPoliciesKeepsProject(t *testing.T) {
 		types.SetNull(types.StringType), // no explicit policies list
 		nil,
 		ProjectIntent{}, // no explicit-policies intent, project_id omitted in config
-		ExistingUnit{ProjectID: "proj-1", PolicyIDs: []string{"pol-1"}},
+		api_client.ScmUnitCommonFields{Project: projectRef("proj-1"), Policies: policyRefs("pol-1")},
 	)
 	if ad.ProjectID != "proj-1" {
 		t.Fatalf("expected project preserved with default_policies, got %q", ad.ProjectID)
@@ -220,7 +230,7 @@ func TestAdopt_MergesConfigSettings(t *testing.T) {
 		types.SetNull(types.StringType),
 		overlay,
 		ProjectIntent{},
-		ExistingUnit{
+		api_client.ScmUnitCommonFields{
 			ConfigSettings: api_client.ShiftLeftConfigSettings{
 				CommentsOnPullRequests: "ALWAYS",
 				PrSummaryComment:       "ALWAYS",

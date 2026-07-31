@@ -36,9 +36,6 @@ func NewResource() resource.Resource {
 				Delete: func(m *resourceModel) error {
 					return apiClient.DeleteGithubInstallation(m.AccountID.ValueString())
 				},
-				Snapshot: func(u *api_client.GithubInstallation) shift_left_integration.ExistingUnit {
-					return shift_left_integration.ExistingFromCommon(u.ScmUnitCommonFields)
-				},
 				ToState: apiToState,
 				Config:  func(m *resourceModel) *shift_left_integration.ScmConfigFields { return &m.ScmConfigFields },
 				Describe: func(m *resourceModel) string {

@@ -32,18 +32,15 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	// Always restore the group to exactly how we found it (policies + config,
 	// no project) once the test finishes.
 	t.Cleanup(func() {
-		if _, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
-			original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings,
-		)); err != nil {
+		if _, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(original.ScmUnitCommonFields)); err != nil {
 			t.Errorf("restore failed for %s/%s: %s", installationID, groupID, err)
 		}
 	})
 
 	// 1) Bind a project (project_id XOR policies, mirroring the UI).
-	bound, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(
-		original.InstallationMode, original.DefaultPolicies, original.Policies,
-		&api_client.ScmProjectRef{ID: projectID}, original.ConfigSettings,
-	))
+	withProject := original.ScmUnitCommonFields
+	withProject.Project = &api_client.ScmProjectRef{ID: projectID}
+	bound, err := client.UpdateGitlabGroup(installationID, groupID, acctest.RestoreScmBody(withProject))
 	if err != nil {
 		t.Fatalf("bind project failed: %s", err)
 	}
@@ -58,13 +55,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	ad := shift_left_integration.Adopt(
 		types.StringNull(), types.BoolNull(), types.SetNull(types.StringType), overlay,
 		shift_left_integration.ProjectIntent{},
-		shift_left_integration.ExistingUnit{
-			InstallationMode: bound.InstallationMode,
-			DefaultPolicies:  bound.DefaultPolicies,
-			PolicyIDs:        api_client.PolicyRefIDs(bound.Policies),
-			ConfigSettings:   bound.ConfigSettings,
-			ProjectID:        api_client.ProjectRefID(bound.Project),
-		},
+		bound.ScmUnitCommonFields,
 	)
 	if ad.ProjectID != projectID {
 		t.Fatalf("Adopt dropped project from PUT body: got project_id=%q", ad.ProjectID)

@@ -42,7 +42,7 @@ func TestAccGithubAccount_import(t *testing.T) {
 			t.Logf("github account %s deleted (expected); reinstall via GitHub App to restore", id)
 			return
 		}
-		if _, err := client.UpdateGithubInstallation(id, acctest.RestoreScmBody(original.InstallationMode, original.DefaultPolicies, original.Policies, original.Project, original.ConfigSettings)); err != nil {
+		if _, err := client.UpdateGithubInstallation(id, acctest.RestoreScmBody(original.ScmUnitCommonFields)); err != nil {
 			t.Errorf("failed to restore github account %s: %s", id, err)
 		}
 	})

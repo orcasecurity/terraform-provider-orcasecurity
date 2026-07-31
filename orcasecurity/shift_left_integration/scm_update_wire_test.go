@@ -32,7 +32,7 @@ func TestAdopt_ClearsProjectWhenConfigEmpty_WireFormat(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{FromConfig: types.StringValue("")},
-		ExistingUnit{PolicyIDs: []string{"pol-1"}, ProjectID: "proj-old"},
+		api_client.ScmUnitCommonFields{Policies: policyRefs("pol-1"), Project: projectRef("proj-old")},
 	)
 	got := marshalToMap(t, ad)
 	// Cleared project_id must omit the key (omitempty), not send "".
@@ -52,7 +52,7 @@ func TestAdopt_BindsProjectFromConfig_WireFormat(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{FromConfig: types.StringValue("proj-new")},
-		ExistingUnit{PolicyIDs: []string{"pol-1"}},
+		api_client.ScmUnitCommonFields{Policies: policyRefs("pol-1")},
 	)
 	got := marshalToMap(t, ad)
 	if got["project_id"] != "proj-new" {
@@ -71,7 +71,7 @@ func TestAdopt_DefaultPoliciesClearsPolicies_WireFormat(t *testing.T) {
 		types.SetValueMust(types.StringType, []attr.Value{types.StringValue("pol-1")}),
 		nil,
 		ProjectIntent{},
-		ExistingUnit{DefaultPolicies: false, PolicyIDs: []string{"pol-1", "pol-2"}},
+		api_client.ScmUnitCommonFields{DefaultPolicies: false, Policies: policyRefs("pol-1", "pol-2")},
 	)
 	got := marshalToMap(t, ad)
 	if got["default_policies"] != true {
@@ -90,7 +90,7 @@ func TestAdopt_RemapsLegacyScanAllMode_WireFormat(t *testing.T) {
 		types.SetNull(types.StringType),
 		nil,
 		ProjectIntent{},
-		ExistingUnit{InstallationMode: "SCAN_ALL", PolicyIDs: []string{"pol-1"}},
+		api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL", Policies: policyRefs("pol-1")},
 	)
 	got := marshalToMap(t, ad)
 	// installation_mode has no omitempty; key must always be present.
@@ -112,7 +112,7 @@ func TestAdopt_MergesConfigSettings_WireFormat(t *testing.T) {
 		types.SetNull(types.StringType),
 		overlay,
 		ProjectIntent{},
-		ExistingUnit{
+		api_client.ScmUnitCommonFields{
 			ConfigSettings: api_client.ShiftLeftConfigSettings{
 				CommentsOnPullRequests: "ALWAYS",
 				PrSummaryComment:       "ALWAYS",
