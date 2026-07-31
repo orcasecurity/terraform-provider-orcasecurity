@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 // These cases pin the volatile-attribute contract at the Terraform plan/apply level.
@@ -92,6 +93,12 @@ resource "orcasecurity_shift_left_bitbucket_account" "test" {
 	}
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		// The unknown value is driven through terraform_data, which the builtin
+		// provider only ships from Terraform 1.4. The modifier logic itself is
+		// version-independent and unit-tested in shift_left_integration.
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_4_0),
+		},
 		Steps: []resource.TestStep{
 			{Config: config("proj-1")},
 			{Config: config("proj-2")},
