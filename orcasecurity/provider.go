@@ -64,6 +64,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/terraform_cloud"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_cloud_account"
 	"terraform-provider-orcasecurity/orcasecurity/trusted_dynamic_ip_range"
+	"terraform-provider-orcasecurity/orcasecurity/user"
 	"terraform-provider-orcasecurity/orcasecurity/user_access"
 	"terraform-provider-orcasecurity/orcasecurity/user_preferences"
 	"terraform-provider-orcasecurity/orcasecurity/webhook"
@@ -251,6 +252,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		organizations.NewOrganizationDataSource,
 		user_preferences.NewUserPreferencesDataSource,
 		rbac_role.NewRbacRolesDataSource,
+		user.NewUsersDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_azure_devops_account.NewAccountsDataSource,
 		shift_left_azure_devops_installation.NewInstallationsDataSource,

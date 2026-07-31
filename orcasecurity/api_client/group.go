@@ -5,11 +5,14 @@ import (
 )
 
 type Group struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	SSOGroup    bool     `json:"sso_group"`
-	Users       []string `json:"users"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	SSOGroup    bool   `json:"sso_group"`
+	// omitempty: update fully replaces membership via this field, but only when it is
+	// non-empty, and never clears it to zero. Callers manage membership explicitly via
+	// AddGroupUsers/RemoveGroupUsers instead of relying on that side effect.
+	Users []string `json:"users,omitempty"`
 }
 
 type groupAPIResponseType struct {
@@ -70,5 +73,29 @@ func (client *APIClient) UpdateGroup(data Group) (*Group, error) {
 
 func (client *APIClient) DeleteGroup(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/rbac/group/%s", id))
+	return err
+}
+
+// Create ignores users; membership is set via POST /api/rbac/group/{id}/users (no-op when empty).
+func (client *APIClient) AddGroupUsers(groupID string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	_, err := client.Post(
+		fmt.Sprintf("/api/rbac/group/%s/users", groupID),
+		map[string][]string{"user_ids": userIDs},
+	)
+	return err
+}
+
+// RemoveGroupUsers removes members via DELETE /api/rbac/group/{id}/users (no-op when empty).
+func (client *APIClient) RemoveGroupUsers(groupID string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	_, err := client.DeleteWithBody(
+		fmt.Sprintf("/api/rbac/group/%s/users", groupID),
+		map[string][]string{"user_ids": userIDs},
+	)
 	return err
 }

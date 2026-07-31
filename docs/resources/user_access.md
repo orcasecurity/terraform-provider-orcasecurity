@@ -16,8 +16,10 @@ This is the per-user counterpart of `orcasecurity_group_access`. To invite a new
 
 ```terraform
 // POST /api/rbac/access/user — grant an RBAC role to an existing user, scoped to a business unit.
+data "orcasecurity_users" "all" {}
+
 resource "orcasecurity_user_access" "role_on_bu" {
-  user_id            = "{place-user-id-here}" // from the /api/users endpoint
+  user_id            = one([for u in data.orcasecurity_users.all.users : u.user_id if u.email == "jane@example.com"])
   role_id            = orcasecurity_custom_role.example.id
   all_cloud_accounts = false
   user_filters       = [orcasecurity_business_unit.example.id]
@@ -55,3 +57,11 @@ resource "orcasecurity_business_unit" "example" {
 ### Read-Only
 
 - `id` (String) Orca assignment id returned by the API.
+
+## Import
+
+Import is supported using the following syntax (id = Orca assignment id):
+
+```shell
+terraform import orcasecurity_user_access.example ASSIGNMENT_ID
+```

@@ -1,0 +1,1 @@
+terraform import orcasecurity_group_access.example ASSIGNMENT_ID

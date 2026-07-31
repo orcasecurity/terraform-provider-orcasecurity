@@ -10,9 +10,30 @@ import (
 
 const (
 	ResourceType = "orcasecurity_custom_sonar_alert"
-	Resource     = "terraformTestResource"
+	Resource     = "test"
 	OrcaObject   = "terraformTestResourceInOrca"
 )
+
+// Per-package name; acceptance tests run concurrently.
+const frameworkName = "tf-acc-sonar-framework"
+
+// Inline framework fixture; alert API resolves frameworks by name and section.
+var frameworkConfig = fmt.Sprintf(`
+resource "orcasecurity_custom_compliance_framework" "test_framework" {
+    name        = %q
+    description = "Framework fixture for custom sonar alert acceptance tests"
+    sections = [
+        {
+            name  = "section_1"
+            tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "1" }]
+        },
+        {
+            name  = "section_2"
+            tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "2" }]
+        }
+    ]
+}
+`, frameworkName)
 
 func TestAccCustomSonarAlertResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -25,18 +46,18 @@ resource "%s" "%s" {
   name = "%s"
   description = "test description"
   rule = "ActivityLogDetection"
-  score = 5.5
+  orca_score = 5.5
   category = "Best practices"
-  allow_adjusting = false
+  context_score = false
 }
 `, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "name", OrcaObject),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "description", "test description"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "rule", "ActivityLogDetection"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "score", "5.5"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "orca_score", "5.5"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "category", "Best practices"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "allow_adjusting", "false"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "context_score", "false"),
 					resource.TestCheckResourceAttrSet("orcasecurity_custom_sonar_alert.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_custom_sonar_alert.test", "organization_id"),
 				),
@@ -54,18 +75,18 @@ resource "%s" "%s" {
 				name = "test name updated"
 				description = "test description updated"
 				rule = "Address"
-				score = 9.5
+				orca_score = 9.5
 				category = "Malware"
-				allow_adjusting = true
+				context_score = true
 			}
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "name", "test name updated"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "description", "test description updated"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "rule", "Address"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "score", "9.5"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "orca_score", "9.5"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "category", "Malware"),
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "allow_adjusting", "true"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "context_score", "true"),
 					resource.TestCheckResourceAttrSet("orcasecurity_custom_sonar_alert.test", "id"),
 					resource.TestCheckResourceAttrSet("orcasecurity_custom_sonar_alert.test", "organization_id"),
 				),
@@ -85,9 +106,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
   rule = "ActivityLogDetection"
-  score = 5.5
+  orca_score = 5.5
   category = "Best practices"
-  allow_adjusting = true
+  context_score = true
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -101,9 +122,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
 					rule = "ActivityLogDetection"
-					score = 5.5
+					orca_score = 5.5
 					category = "Best practices"
-					allow_adjusting = true
+					context_score = true
 					remediation_text = {
 						enable = true
 						text   = "test text"
@@ -130,9 +151,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
   rule = "ActivityLogDetection"
-  score = 5.5
+  orca_score = 5.5
   category = "Best practices"
-  allow_adjusting = false
+  context_score = false
   remediation_text = {
 	   enable = true
 	   text   = "test text"
@@ -157,9 +178,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
 					rule = "ActivityLogDetection"
-					score = 5.5
+					orca_score = 5.5
 					category = "Best practices"
-					allow_adjusting = false
+					context_score = false
 					remediation_text = {
 						 enable = false
 						 text   = "test text update"
@@ -186,9 +207,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
   rule = "ActivityLogDetection"
-  score = 5.5
+  orca_score = 5.5
   category = "Best practices"
-  allow_adjusting = false
+  context_score = false
   remediation_text = {
 	   enable = true
 	   text   = "test text"
@@ -207,9 +228,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
 					rule = "ActivityLogDetection"
-					score = 5.5
+					orca_score = 5.5
 					category = "Best practices"
-					allow_adjusting = false
+					context_score = false
 				  }
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -226,14 +247,14 @@ func TestAccCustomSonarAlertResource_AddComplianceFramework(t *testing.T) {
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + `
 resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
   rule = "ActivityLogDetection"
-  score = 5.5
+  orca_score = 5.5
   category = "Best practices"
-  allow_adjusting = true
+  context_score = true
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -248,21 +269,22 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
 				resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
 					rule = "ActivityLogDetection"
-					score = 5.5
+					orca_score = 5.5
 					category = "Best practices"
-					allow_adjusting = true
+					context_score = true
 					compliance_frameworks = [
-						{ name = "test_terraform", section = "section_2", priority = "medium" }
+						{ name = %q, section = "section_2", priority = "medium" }
 					 ]
+					depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 				  }
-			`,
+			`, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", frameworkName),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.section", "section_2"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.priority", "medium"),
 				),
@@ -272,26 +294,31 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 }
 
 func TestAccCustomSonarAlertResource_UpdateComplianceFramework(t *testing.T) {
+	alertConfig := func(section, priority string) string {
+		return orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
+resource "orcasecurity_custom_sonar_alert" "test" {
+  name = "test name2"
+  description = "test description"
+  rule = "ActivityLogDetection"
+  orca_score = 5.5
+  category = "Best practices"
+  context_score = true
+  compliance_frameworks = [
+	{ name = %q, section = %q, priority = %q }
+ ]
+  depends_on = [orcasecurity_custom_compliance_framework.test_framework]
+}
+`, frameworkName, section, priority)
+	}
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
-resource "orcasecurity_custom_sonar_alert" "test" {
-  name = "test name2"
-  description = "test description"
-  rule = "ActivityLogDetection"
-  score = 5.5
-  category = "Best practices"
-  allow_adjusting = true
-  compliance_frameworks = [
-	{ name = "test_terraform", section = "section_1", priority = "medium" }
- ]
-}
-`,
+				Config: alertConfig("section_1", "medium"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", frameworkName),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.section", "section_1"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.priority", "medium"),
 				),
@@ -304,21 +331,9 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
-				resource "orcasecurity_custom_sonar_alert" "test" {
-					name = "test name2"
-					description = "test description"
-					rule = "ActivityLogDetection"
-					score = 5.5
-					category = "Best practices"
-					allow_adjusting = true
-					compliance_frameworks = [
-						{ name = "test_terraform", section = "section_2", priority = "low" }
-					 ]
-				  }
-			`,
+				Config: alertConfig("section_2", "low"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", frameworkName),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.section", "section_2"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.priority", "low"),
 				),
@@ -333,31 +348,32 @@ func TestAccCustomSonarAlertResource_DeleteComplianceFramework(t *testing.T) {
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
 resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
   rule = "ActivityLogDetection"
-  score = 5.5
+  orca_score = 5.5
   category = "Best practices"
-  allow_adjusting = true
+  context_score = true
   compliance_frameworks = [
-	{ name = "test_terraform", section = "section_2", priority = "medium" }
+	{ name = %q, section = "section_2", priority = "medium" }
  ]
+  depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 }
-`,
+`, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(),
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + `
 				resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
 					rule = "ActivityLogDetection"
-					score = 5.5
+					orca_score = 5.5
 					category = "Best practices"
-					allow_adjusting = true
+					context_score = true
 
 				  }
 			`,

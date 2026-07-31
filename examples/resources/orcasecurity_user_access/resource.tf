@@ -1,6 +1,8 @@
 // POST /api/rbac/access/user — grant an RBAC role to an existing user, scoped to a business unit.
+data "orcasecurity_users" "all" {}
+
 resource "orcasecurity_user_access" "role_on_bu" {
-  user_id            = "{place-user-id-here}" // from the /api/users endpoint
+  user_id            = one([for u in data.orcasecurity_users.all.users : u.user_id if u.email == "jane@example.com"])
   role_id            = orcasecurity_custom_role.example.id
   all_cloud_accounts = false
   user_filters       = [orcasecurity_business_unit.example.id]

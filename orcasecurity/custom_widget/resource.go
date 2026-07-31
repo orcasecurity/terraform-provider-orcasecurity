@@ -169,11 +169,9 @@ func (r *customWidgetResource) Schema(ctx context.Context, req resource.SchemaRe
 						Required:    true,
 					},
 					"title": schema.StringAttribute{
-						Description: "Custom widget title that will be presented in the UI.",
+						Description: "Custom widget title that will be presented in the UI. Mirrors `name`.",
 						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
+						// Backend derives title from name; UseStateForUnknown leaves a stale title on rename.
 					},
 					"subtitle": schema.StringAttribute{
 						Description: "Custom widget subtitle that will be presented in the UI. Server-owned: some widget types (e.g. donut/PIE_CHART_SINGLE) do not persist it, so it is Computed and reflects whatever the API returns.",

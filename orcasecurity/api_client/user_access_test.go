@@ -90,8 +90,8 @@ func TestFindUserAccess(t *testing.T) {
 		if req.Method != "GET" {
 			t.Errorf("expected GET, got %s", req.Method)
 		}
-		if req.URL.Query().Get("user_id") != testUserAccessUserID {
-			t.Errorf("expected user_id query, got %s", req.URL.RawQuery)
+		if req.URL.RawQuery != "" {
+			t.Errorf("user endpoint is one-shot; expected no query params, got %s", req.URL.RawQuery)
 		}
 		return &http.Response{
 			StatusCode: 200,
@@ -110,6 +110,54 @@ func TestFindUserAccess(t *testing.T) {
 	}
 	if ua.ID != testUserAccessID || ua.RoleID != testUserAccessRoleID || !ua.AllCloudAccounts {
 		t.Errorf("unexpected assignment: %+v", ua)
+	}
+}
+
+// User list is one-shot; filter client-side by nested user id.
+func TestListUserAccessForUser_FetchesAllInOneRequest(t *testing.T) {
+	requests := 0
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		requests++
+		if req.URL.RawQuery != "" {
+			t.Errorf("user endpoint ignores pagination params; expected none, got %s", req.URL.RawQuery)
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(testUserAccessListResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := newTestAPIClient(httpClient)
+	got, err := apiClient.ListUserAccessForUser(testUserAccessUserID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("expected a single request (endpoint is not offset-pageable), got %d", requests)
+	}
+	if len(got) != 1 || got[0].ID != testUserAccessID {
+		t.Fatalf("expected the user's row filtered from the collection, got %+v", got)
+	}
+}
+
+// Import: only assignment id known — scan whole collection.
+func TestFindUserAccess_ScansAllWhenUserUnknown(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(testUserAccessListResponse)),
+			Request:    req,
+		}
+	})}
+
+	apiClient := newTestAPIClient(httpClient)
+	ua, err := apiClient.FindUserAccess(testUserAccessID, UserAccess{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ua == nil || ua.ID != testUserAccessID || ua.UserID != testUserAccessUserID {
+		t.Fatalf("expected imported assignment, got %+v", ua)
 	}
 }
 
