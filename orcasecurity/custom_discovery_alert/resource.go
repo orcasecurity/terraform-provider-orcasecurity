@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"terraform-provider-orcasecurity/orcasecurity/alert_common"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -339,6 +340,12 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 		return
 	}
 
+	var state stateModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if plan.ID.ValueString() == "" {
 		resp.Diagnostics.AddError(
 			"ID is null",
@@ -384,12 +391,25 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 		}
 	}
 
-	_, err = r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), updateReq)
+	clearedButFailed, err := alert_common.ReplaceFrameworks(len(state.Frameworks) > 0, len(plan.Frameworks) > 0,
+		func() error {
+			clearReq := updateReq
+			clearReq.ComplianceFrameworks = nil
+			_, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), clearReq)
+			return err
+		},
+		func() error {
+			_, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), updateReq)
+			return err
+		},
+	)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating Alert",
-			"Could not update Alert, unexpected error: "+err.Error(),
-		)
+		if clearedButFailed {
+			// Clear succeeded remotely; persist empty frameworks on apply failure.
+			plan.Frameworks = nil
+			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		}
+		resp.Diagnostics.AddError("Error updating Alert", err.Error())
 		return
 	}
 

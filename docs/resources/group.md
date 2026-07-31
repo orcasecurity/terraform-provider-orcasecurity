@@ -13,6 +13,8 @@ Provides a group resource.
 ## Example Usage
 
 ```terraform
+data "orcasecurity_users" "all" {}
+
 //Group
 resource "orcasecurity_group" "tf-group-1" {
   name = "Orca Terraform Group 1"
@@ -20,7 +22,7 @@ resource "orcasecurity_group" "tf-group-1" {
   sso_group   = true
   description = "string"
   users = [
-    "{place-user-id-here}"
+    one([for u in data.orcasecurity_users.all.users : u.user_id if u.email == "jane@example.com"])
   ]
 }
 ```
@@ -45,11 +47,11 @@ resource "orcasecurity_group" "tf-group-empty-members" {
 
 - `description` (String) Group description.
 - `name` (String) Group name. Must be unique across your Orca org.
-- `sso_group` (Boolean) Configures whether this group may be used for SSO permissions, or if it should be used purely for use within Orca.
+- `sso_group` (Boolean) SSO permissions group vs Orca-only. Create-time only; changing it replaces the resource.
 
 ### Optional
 
-- `users` (Set of String) Optional. Set of Orca user IDs for group members; IDs can be determined from the /api/users endpoint. Omit the attribute or use an empty set for a group with no members.
+- `users` (Set of String) Member user IDs (see the [orcasecurity_users](../data-sources/users.md) data source). API does not return membership on read; external removals are not detected.
 
 ### Read-Only
 

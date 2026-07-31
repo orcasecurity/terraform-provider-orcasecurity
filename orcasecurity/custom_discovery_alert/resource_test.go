@@ -1,11 +1,33 @@
 package custom_discovery_alert_test
 
 import (
+	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+// Per-package name; acceptance tests run concurrently.
+const frameworkName = "tf-acc-discovery-framework"
+
+// Inline framework fixture; alert API resolves frameworks by name and section.
+var frameworkConfig = fmt.Sprintf(`
+resource "orcasecurity_custom_compliance_framework" "test_framework" {
+    name        = %q
+    description = "Framework fixture for custom discovery alert acceptance tests"
+    sections = [
+        {
+            name  = "section_1"
+            tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "1" }]
+        },
+        {
+            name  = "section_2"
+            tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "2" }]
+        }
+    ]
+}
+`, frameworkName)
 
 func TestAccCustomDiscoveryAlertResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -15,7 +37,7 @@ func TestAccCustomDiscoveryAlertResource_Basic(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name"
+  name = "disco test name"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
@@ -24,7 +46,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "name", "test name"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "name", "disco test name"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "description", "test description"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "orca_score", "5.5"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "category", "Best practices"),
@@ -43,7 +65,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 			resource "orcasecurity_custom_discovery_alert" "test" {
-				name = "test name updated"
+				name = "disco test name updated"
 				description = "test description updated"
 				rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 				orca_score = 9.5
@@ -52,7 +74,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			}
 			`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "name", "test name updated"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "name", "disco test name updated"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "description", "test description updated"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "orca_score", "9.5"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "category", "Malware"),
@@ -72,7 +94,7 @@ func TestAccCustomDiscoveryAlertResource_AddRemediationText(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name2"
+  name = "disco test name2"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   context_score = true
@@ -88,7 +110,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 				resource "orcasecurity_custom_discovery_alert" "test" {
-					name = "test name2"
+					name = "disco test name2"
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
@@ -117,7 +139,7 @@ func TestAccCustomDiscoveryAlertResource_UpdateRemediationText(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name2"
+  name = "disco test name2"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
@@ -144,7 +166,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 				resource "orcasecurity_custom_discovery_alert" "test" {
-					name = "test name2"
+					name = "disco test name2"
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
@@ -173,7 +195,7 @@ func TestAccCustomDiscoveryAlertResource_DeleteRemediationText(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name2"
+  name = "disco test name2"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
@@ -194,7 +216,7 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			{
 				Config: orcasecurity.TestProviderConfig + `
 				resource "orcasecurity_custom_discovery_alert" "test" {
-					name = "test name2"
+					name = "disco test name2"
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
@@ -217,9 +239,9 @@ func TestAccCustomDiscoveryAlertResource_AddComplianceFramework(t *testing.T) {
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + `
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name2"
+  name = "disco test name2"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
@@ -239,9 +261,9 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
 				resource "orcasecurity_custom_discovery_alert" "test" {
-					name = "test name2"
+					name = "disco test name2"
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
@@ -249,12 +271,13 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 					category = "Best practices"
 					context_score = true
 					compliance_frameworks = [
-						{ name = "test_terraform", section = "section_2", priority = "medium" }
+						{ name = %q, section = "section_2", priority = "medium" }
 					 ]
+					depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 				  }
-			`,
+			`, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.name", frameworkName),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.section", "section_2"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.priority", "medium"),
 				),
@@ -264,26 +287,31 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 }
 
 func TestAccCustomDiscoveryAlertResource_UpdateComplianceFramework(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			// create
-			{
-				Config: orcasecurity.TestProviderConfig + `
+	alertConfig := func(section, priority string) string {
+		return orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name2"
+  name = "disco test name2"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
   category = "Best practices"
   context_score = true
   compliance_frameworks = [
-	{ name = "test_terraform", section = "section_1", priority = "medium" }
+	{ name = %q, section = %q, priority = %q }
  ]
+  depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 }
-`,
+`, frameworkName, section, priority)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create
+			{
+				Config: alertConfig("section_1", "medium"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.name", frameworkName),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.section", "section_1"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.priority", "medium"),
 				),
@@ -296,22 +324,9 @@ resource "orcasecurity_custom_discovery_alert" "test" {
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
-				resource "orcasecurity_custom_discovery_alert" "test" {
-					name = "test name2"
-					description = "test description"
-					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
-					orca_score = 5.5
-			
-					category = "Best practices"
-					context_score = true
-					compliance_frameworks = [
-						{ name = "test_terraform", section = "section_2", priority = "low" }
-					 ]
-				  }
-			`,
+				Config: alertConfig("section_2", "low"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.name", "test_terraform"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.name", frameworkName),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.section", "section_2"),
 					resource.TestCheckResourceAttr("orcasecurity_custom_discovery_alert.test", "compliance_frameworks.0.priority", "low"),
 				),
@@ -326,26 +341,27 @@ func TestAccCustomDiscoveryAlertResource_DeleteComplianceFramework(t *testing.T)
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
 resource "orcasecurity_custom_discovery_alert" "test" {
-  name = "test name2"
+  name = "disco test name2"
   description = "test description"
   rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
   orca_score = 5.5
   category = "Best practices"
   context_score = true
   compliance_frameworks = [
-	{ name = "test_terraform", section = "section_2", priority = "medium" }
+	{ name = %q, section = "section_2", priority = "medium" }
  ]
+  depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 }
-`,
+`, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(),
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + `
+				Config: orcasecurity.TestProviderConfig + frameworkConfig + `
 				resource "orcasecurity_custom_discovery_alert" "test" {
-					name = "test name2"
+					name = "disco test name2"
 					description = "test description"
 					rule_json = jsonencode({"models":["AzureAksCluster"],"type":"object_set"})
 					orca_score = 5.5
