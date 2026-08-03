@@ -84,6 +84,36 @@ func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 			other, err := client.FindGitlabRepository(mismatchedUUID, row.GitlabProjectID)
 			assertNotFound(t, "gitlab/wrong-installation", other, err)
 		})
+		t.Run("bitbucket", func(t *testing.T) {
+			row := firstRepoRow[bitbucketRepositoryItem](t, client, "bitbucket")
+			// FindBitbucketRepository resolves the workspace by slug under an
+			// installation, so drive it the way the resource does.
+			accounts, err := client.ListBitbucketAccounts()
+			if err != nil {
+				t.Fatalf("bitbucket accounts: %v", err)
+			}
+			var installationID string
+			for _, a := range accounts {
+				if a.ID == row.AccountInstallation.ID {
+					installationID = a.InstallationID
+					break
+				}
+			}
+			if installationID == "" {
+				t.Skipf("no bitbucket installation found for account installation %s", row.AccountInstallation.ID)
+			}
+			slug := row.AccountInstallation.AccountID
+			found, err := client.FindBitbucketRepository(installationID, slug, row.BitbucketRepositoryID)
+			assertFound(t, row.Repository.Name, found, err)
+			// A repository id the workspace does not contain is genuinely absent.
+			missing, err := client.FindBitbucketRepository(installationID, slug, "orca-no-such-repository-id")
+			assertNotFound(t, "bitbucket/unknown-repository-id", missing, err)
+			// An unknown workspace must fail closed (account lookup error), not
+			// read as absence and drop a live integration from state.
+			if _, err := client.FindBitbucketRepository(installationID, "orca-no-such-workspace", row.BitbucketRepositoryID); err == nil {
+				t.Error("bitbucket/wrong-workspace: expected an account-lookup error, got none")
+			}
+		})
 		t.Run("azure_devops", func(t *testing.T) {
 			row := firstRepoRow[azureRepositoryItem](t, client, "azure_devops")
 			// FindAzureRepository resolves the account by name under an

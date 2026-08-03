@@ -15,11 +15,17 @@ import (
 )
 
 type AdoptedUnitOps[A Commoner, M any] struct {
-	Labels           AdoptLabels
-	UnitID           func(m *M) string
-	Get              func(m *M) (*A, error)
-	Update           func(m *M, current *A, body api_client.ScmInstallationUpdate) (*A, error)
-	Integrate        func(m *M, body api_client.ScmInstallationUpdate) error
+	Labels    AdoptLabels
+	UnitID    func(m *M) string
+	Get       func(m *M) (*A, error)
+	Update    func(m *M, current *A, body api_client.ScmInstallationUpdate) (*A, error)
+	Integrate func(m *M, body api_client.ScmInstallationUpdate) error
+	// IntegrateGuard rejects bodies the integrate endpoint cannot accept
+	// (constraints that hold only while the unit is not yet integrated; the
+	// update endpoint accepts the full surface). It fails the plan when the
+	// pending create is provably a fresh integrate, and runs again in DoCreate
+	// as the backstop before the wire.
+	IntegrateGuard   func(body api_client.ScmInstallationUpdate) error
 	Delete           func(m *M) error
 	ToState          func(*A) M
 	Config           func(*M) *ScmConfigFields
@@ -46,7 +52,47 @@ func (o AdoptedUnitOps[A, M]) ModifyPlan(ctx context.Context, req resource.Modif
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	o.guardIntegratePlan(ctx, req, resp, &plan)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	settleVolatileAttrs(req, resp)
+}
+
+// guardIntegratePlan fails a create plan whose write can only be an integrate
+// (the unit does not exist yet) with a body the integrate endpoint rejects.
+// The lookup runs only after the guard trips, so settled plans cost nothing.
+// When the unit exists (adopt path) or the lookup cannot answer at plan time
+// (unknown identity references resolve to zero values and error out), the
+// plan is left alone and DoCreate re-checks before the wire.
+func (o AdoptedUnitOps[A, M]) guardIntegratePlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse, plan *M) {
+	if o.IntegrateGuard == nil || !req.State.Raw.IsNull() {
+		return
+	}
+	var config M
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	guardErr := o.IntegrateGuard(o.integrateBody(ctx, plan, &config))
+	if guardErr == nil {
+		return
+	}
+	existing, err := o.Get(plan)
+	if err != nil || existing != nil {
+		return
+	}
+	resp.Diagnostics.AddError(o.CreateErrorTitle, guardErr.Error())
+}
+
+// integrateBody builds the write body a fresh integrate would send, from the
+// same plan/config split DoCreate uses.
+func (o AdoptedUnitOps[A, M]) integrateBody(ctx context.Context, plan, config *M) api_client.ScmInstallationUpdate {
+	planFields := o.Config(plan)
+	configFields := o.Config(config)
+	return CreateUnitBody(planFields.InstallationMode, planFields.DefaultPolicies, planFields.PoliciesIds,
+		ConfigSettingsFromObject(ctx, planFields.ConfigSettings),
+		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
 }
 
 // Block create when unit already has repos unless adopt_existing=true — destroy would de-integrate out-of-band repos.
@@ -103,12 +149,13 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	planFields := o.Config(&plan)
-	configFields := o.Config(&config)
-
-	body := CreateUnitBody(planFields.InstallationMode, planFields.DefaultPolicies, planFields.PoliciesIds,
-		ConfigSettingsFromObject(ctx, planFields.ConfigSettings),
-		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
+	body := o.integrateBody(ctx, &plan, &config)
+	if o.IntegrateGuard != nil {
+		if err := o.IntegrateGuard(body); err != nil {
+			resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
+			return
+		}
+	}
 	if err := o.Integrate(&plan, body); err != nil {
 		resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
 		return

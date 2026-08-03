@@ -13,6 +13,25 @@ import (
 
 var bitbucketLabels = shift_left_integration.NewAdoptLabels("Bitbucket account")
 
+// integrateGuard: the Bitbucket integrate endpoint requires an explicit
+// repositories list under SELECTED_REPOSITORIES and rejects the request
+// without one — and this resource intentionally does not model per-repository
+// selection (that is orcasecurity_shift_left_bitbucket_repository). Failing
+// here replaces the backend's raw validation error with an actionable one.
+// Only integrate is affected: updating an existing account to
+// SELECTED_REPOSITORIES is accepted.
+func integrateGuard(body api_client.ScmInstallationUpdate) error {
+	if body.InstallationMode != "SELECTED_REPOSITORIES" {
+		return nil
+	}
+	return fmt.Errorf(
+		"integrating a new Bitbucket workspace requires installation_mode = %q: "+
+			"the API only accepts SELECTED_REPOSITORIES on integrate together with an explicit "+
+			"repository list, which this resource does not send. Integrate with SCAN_ALL_INCLUDE_FUTURE "+
+			"(you can switch to SELECTED_REPOSITORIES on a later apply), or import an already-integrated "+
+			"account instead", "SCAN_ALL_INCLUDE_FUTURE")
+}
+
 func NewResource() resource.Resource {
 	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_bitbucket_account",
@@ -43,22 +62,8 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 		Update: func(m *resourceModel, current *api_client.BitbucketAccount, body api_client.ScmInstallationUpdate) (*api_client.BitbucketAccount, error) {
 			return apiClient.UpdateBitbucketAccount(m.InstallationID.ValueString(), current.ID, body)
 		},
+		IntegrateGuard: integrateGuard,
 		Integrate: func(m *resourceModel, body api_client.ScmInstallationUpdate) error {
-			// The Bitbucket integrate endpoint requires an explicit repositories list
-			// under SELECTED_REPOSITORIES and rejects the request without one — and
-			// this resource intentionally does not model per-repository selection
-			// (that is orcasecurity_shift_left_bitbucket_repository). Failing here
-			// replaces the backend's raw validation error with an actionable one.
-			// Only integrate is affected: updating an existing account to
-			// SELECTED_REPOSITORIES is accepted.
-			if body.InstallationMode == "SELECTED_REPOSITORIES" {
-				return fmt.Errorf(
-					"integrating a new Bitbucket workspace requires installation_mode = %q: "+
-						"the API only accepts SELECTED_REPOSITORIES on integrate together with an explicit "+
-						"repository list, which this resource does not send. Integrate with SCAN_ALL_INCLUDE_FUTURE "+
-						"(you can switch to SELECTED_REPOSITORIES on a later apply), or import an already-integrated "+
-						"account instead", "SCAN_ALL_INCLUDE_FUTURE")
-			}
 			return apiClient.IntegrateBitbucketUnit(api_client.BitbucketUnitIntegrate{
 				InstallationID: m.InstallationID.ValueString(),
 				AccountID:      m.AccountID.ValueString(),

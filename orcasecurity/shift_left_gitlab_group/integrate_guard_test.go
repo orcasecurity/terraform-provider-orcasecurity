@@ -15,7 +15,7 @@ import (
 // with an actionable message instead of surfacing the backend's raw 400.
 func TestIntegrateGuard_RejectsOnlyOnInternalIssue(t *testing.T) {
 	ops := newOps(nil).(shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel])
-	err := ops.Integrate(&resourceModel{}, api_client.ScmInstallationUpdate{
+	err := ops.IntegrateGuard(api_client.ScmInstallationUpdate{
 		InstallationMode: "SELECTED_REPOSITORIES",
 		ConfigSettings:   api_client.ShiftLeftConfigSettings{SkipCheckRuns: "ONLY_ON_INTERNAL_ISSUE"},
 	})
@@ -40,10 +40,14 @@ func TestIntegrateGuard_AllowsAlways(t *testing.T) {
 		t.Fatal(err)
 	}
 	ops := newOps(client).(shift_left_integration.AdoptedUnitOps[api_client.GitlabGroup, resourceModel])
-	if err := ops.Integrate(&resourceModel{}, api_client.ScmInstallationUpdate{
+	body := api_client.ScmInstallationUpdate{
 		InstallationMode: "SELECTED_REPOSITORIES",
 		ConfigSettings:   api_client.ShiftLeftConfigSettings{SkipCheckRuns: "ALWAYS"},
-	}); err != nil {
-		t.Fatalf("ALWAYS must pass the guard and reach the API: %v", err)
+	}
+	if err := ops.IntegrateGuard(body); err != nil {
+		t.Fatalf("ALWAYS must pass the guard: %v", err)
+	}
+	if err := ops.Integrate(&resourceModel{}, body); err != nil {
+		t.Fatalf("ALWAYS must reach the API: %v", err)
 	}
 }

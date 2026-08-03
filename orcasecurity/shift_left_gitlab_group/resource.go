@@ -15,6 +15,21 @@ import (
 
 var gitlabLabels = shift_left_integration.NewAdoptLabels("GitLab group")
 
+// integrateGuard: the GitLab integrate endpoint accepts only ALWAYS/NEVER for
+// skip_check_runs; the full enum (ONLY_ON_INTERNAL_ISSUE) is accepted by the
+// update endpoint once the group is integrated. Failing here replaces the
+// backend's raw validation error with an actionable one.
+func integrateGuard(body api_client.ScmInstallationUpdate) error {
+	if body.ConfigSettings.SkipCheckRuns != "ONLY_ON_INTERNAL_ISSUE" {
+		return nil
+	}
+	return fmt.Errorf(
+		"skip_check_runs = %q is not accepted when integrating a new GitLab group "+
+			"(the integrate API allows only ALWAYS or NEVER). Integrate with ALWAYS or NEVER "+
+			"and switch to ONLY_ON_INTERNAL_ISSUE on a later apply, or import an "+
+			"already-integrated group instead", "ONLY_ON_INTERNAL_ISSUE")
+}
+
 func NewResource() resource.Resource {
 	return &shift_left_integration.GenericResource{
 		TypeNameSuffix: "_shift_left_gitlab_group",
@@ -43,18 +58,8 @@ func newOps(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 		Update: func(m *resourceModel, current *api_client.GitlabGroup, body api_client.ScmInstallationUpdate) (*api_client.GitlabGroup, error) {
 			return apiClient.UpdateGitlabGroup(m.InstallationID.ValueString(), current.ID, body)
 		},
+		IntegrateGuard: integrateGuard,
 		Integrate: func(m *resourceModel, body api_client.ScmInstallationUpdate) error {
-			// The GitLab integrate endpoint accepts only ALWAYS/NEVER for
-			// skip_check_runs; the full enum (ONLY_ON_INTERNAL_ISSUE) is accepted by
-			// the update endpoint once the group is integrated. Failing here replaces
-			// the backend's raw validation error with an actionable one.
-			if body.ConfigSettings.SkipCheckRuns == "ONLY_ON_INTERNAL_ISSUE" {
-				return fmt.Errorf(
-					"skip_check_runs = %q is not accepted when integrating a new GitLab group "+
-						"(the integrate API allows only ALWAYS or NEVER). Integrate with ALWAYS or NEVER "+
-						"and switch to ONLY_ON_INTERNAL_ISSUE on a later apply, or import an "+
-						"already-integrated group instead", "ONLY_ON_INTERNAL_ISSUE")
-			}
 			return apiClient.IntegrateGitlabUnit(api_client.GitlabUnitIntegrate{
 				InstallationID: m.InstallationID.ValueString(),
 				GitlabGroupID:  m.GitlabGroupID.ValueInt64(),

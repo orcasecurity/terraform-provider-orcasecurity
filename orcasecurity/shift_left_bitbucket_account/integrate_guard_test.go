@@ -16,7 +16,7 @@ import (
 // backend's raw 400.
 func TestIntegrateGuard_RejectsSelectedRepositories(t *testing.T) {
 	ops := newOps(nil).(shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel])
-	err := ops.Integrate(&resourceModel{}, api_client.ScmInstallationUpdate{
+	err := ops.IntegrateGuard(api_client.ScmInstallationUpdate{
 		InstallationMode: "SELECTED_REPOSITORIES",
 	})
 	if err == nil {
@@ -40,9 +40,11 @@ func TestIntegrateGuard_AllowsScanAll(t *testing.T) {
 		t.Fatal(err)
 	}
 	ops := newOps(client).(shift_left_integration.AdoptedUnitOps[api_client.BitbucketAccount, resourceModel])
-	if err := ops.Integrate(&resourceModel{}, api_client.ScmInstallationUpdate{
-		InstallationMode: "SCAN_ALL_INCLUDE_FUTURE",
-	}); err != nil {
-		t.Fatalf("SCAN_ALL_INCLUDE_FUTURE must pass the guard and reach the API: %v", err)
+	body := api_client.ScmInstallationUpdate{InstallationMode: "SCAN_ALL_INCLUDE_FUTURE"}
+	if err := ops.IntegrateGuard(body); err != nil {
+		t.Fatalf("SCAN_ALL_INCLUDE_FUTURE must pass the guard: %v", err)
+	}
+	if err := ops.Integrate(&resourceModel{}, body); err != nil {
+		t.Fatalf("SCAN_ALL_INCLUDE_FUTURE must reach the API: %v", err)
 	}
 }
