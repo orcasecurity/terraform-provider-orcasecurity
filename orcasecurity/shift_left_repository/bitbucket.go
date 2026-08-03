@@ -73,6 +73,7 @@ func bitbucketRepositoryOps(apiClient *api_client.APIClient, plan *bitbucketRepo
 		traits: bitbucketTraits,
 		fields: &plan.RepoConfigFields,
 		integrate: func() error {
+			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
 				InstallationID:        plan.InstallationID.ValueString(),
 				AccountID:             accountID,
@@ -82,7 +83,7 @@ func bitbucketRepositoryOps(apiClient *api_client.APIClient, plan *bitbucketRepo
 				URL:                   plan.URL.ValueString(),
 				Branch:                plan.Branch.ValueString(),
 				ProjectID:             plan.ProjectID.ValueString(),
-				Config:                integrateConfig(&plan.RepoConfigFields),
+				Config:                cfg,
 			})
 		},
 		syncIdentity: func(row *api_client.ScmRepository) { bitbucketSyncSlug(plan, row) },

@@ -2,7 +2,7 @@ package shift_left_azure_devops_installation
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var installationsSpec = shift_left_integration.ScmObjectListSpec[api_client.AzureDevopsInstallation]{
+var installationsSpec = shift_left_common.ScmObjectListSpec[api_client.AzureDevopsInstallation]{
 	TypeNameSuffix: "_shift_left_azure_devops_installations",
 	Description: "Lists all Orca Azure DevOps shift-left server connections (installations) for fleet-wide for_each. " +
 		"Use each installation's `id` as `installation_id` on `orcasecurity_shift_left_azure_devops_account` / repository resources.",
@@ -52,7 +52,7 @@ var installationsSpec = shift_left_integration.ScmObjectListSpec[api_client.Azur
 }
 
 func NewInstallationsDataSource() datasource.DataSource {
-	return shift_left_integration.NewScmObjectListDataSource(installationsSpec)
+	return shift_left_common.NewScmObjectListDataSource(installationsSpec)
 }
 
 func installationsToListValue(rows []api_client.AzureDevopsInstallation) (types.List, diag.Diagnostics) {

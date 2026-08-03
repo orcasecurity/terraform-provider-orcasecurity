@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -77,7 +77,7 @@ func branchRequiresReplace() planmodifier.String {
 
 func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
-		"id": shift_left_integration.ComputedString("Orca id of the integrated repository row."),
+		"id": shift_left_common.ComputedString("Orca id of the integrated repository row."),
 		"name": rschema.StringAttribute{
 			Required:      true,
 			Description:   fmt.Sprintf("Repository name (path) as known to %s.", traits.name),
@@ -89,27 +89,27 @@ func sharedRepoAttributes(traits providerTraits) map[string]rschema.Attribute {
 			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
 		"branch": branchAttribute(traits.branchRequired),
-		"project_id": shift_left_integration.OptionalComputedString(
+		"project_id": shift_left_common.OptionalComputedString(
 			"Shift Left project to place the repository in. When omitted on create, Orca creates a dedicated " +
 				"project for the repository. Changing it moves the repository between projects; omitting it once " +
 				"set leaves the repository where it is."),
-		"disabled": shift_left_integration.OptionalComputedBool(
+		"disabled": shift_left_common.OptionalComputedBool(
 			"Pause scanning for this repository (the repository stays integrated)."),
-		"disable_scan_pull_requests": shift_left_integration.OptionalComputedBool(
+		"disable_scan_pull_requests": shift_left_common.OptionalComputedBool(
 			"Disable pull request scanning for this repository."),
-		"comments_on_pull_requests": shift_left_integration.OptionalComputedString(
-			"When to comment on pull requests.", shift_left_integration.PRCommentValidator()...),
-		"pr_summary_comment": shift_left_integration.OptionalComputedString(
-			"When to add a summary comment on pull requests.", shift_left_integration.PRCommentValidator()...),
-		"skip_check_runs": shift_left_integration.OptionalComputedString(
-			"When to skip creating SCM check runs.", shift_left_integration.SkipCheckRunsValidator(traits.skipCheckRunsValues)...),
-		"config_file_support": shift_left_integration.OptionalComputedString(
-			"Whether the in-repo Orca config file is honored.", shift_left_integration.ConfigFileSupportValidator()...),
-		"status": shift_left_integration.ComputedString("Aggregated initial scan status."),
-		"repository_context_id": shift_left_integration.ComputedString(
+		"comments_on_pull_requests": shift_left_common.OptionalComputedString(
+			"When to comment on pull requests.", shift_left_common.PRCommentValidator()...),
+		"pr_summary_comment": shift_left_common.OptionalComputedString(
+			"When to add a summary comment on pull requests.", shift_left_common.PRCommentValidator()...),
+		"skip_check_runs": shift_left_common.OptionalComputedString(
+			"When to skip creating SCM check runs.", shift_left_common.SkipCheckRunsValidator(traits.skipCheckRunsValues)...),
+		"config_file_support": shift_left_common.OptionalComputedString(
+			"Whether the in-repo Orca config file is honored.", shift_left_common.ConfigFileSupportValidator()...),
+		"status": shift_left_common.ComputedString("Aggregated initial scan status."),
+		"repository_context_id": shift_left_common.ComputedString(
 			"Repository context id; deleting this context is how the repository is un-integrated."),
-		"integration_status":    shift_left_integration.ComputedString("Health status of the owning installation. Empty when healthy."),
-		"scm_posture_policy_id": shift_left_integration.ComputedString("SCM posture policy that applies to this repository, if any."),
+		"integration_status":    shift_left_common.ComputedString("Health status of the owning installation. Empty when healthy."),
+		"scm_posture_policy_id": shift_left_common.ComputedString("SCM posture policy that applies to this repository, if any."),
 	}
 }
 
@@ -124,21 +124,21 @@ var (
 	githubTraits = providerTraits{
 		name:                "GitHub",
 		branchRequired:      true,
-		skipCheckRunsValues: shift_left_integration.FullSkipCheckRunValues,
+		skipCheckRunsValues: shift_left_common.FullSkipCheckRunValues,
 	}
 	gitlabTraits = providerTraits{
 		name:                "GitLab",
 		branchRequired:      true,
-		skipCheckRunsValues: shift_left_integration.GitlabSkipCheckRunValues,
+		skipCheckRunsValues: shift_left_common.GitlabSkipCheckRunValues,
 	}
 	azureTraits = providerTraits{
 		name:                    "Azure DevOps",
-		skipCheckRunsValues:     shift_left_integration.FullSkipCheckRunValues,
+		skipCheckRunsValues:     shift_left_common.FullSkipCheckRunValues,
 		skipCheckRunsUnreadable: true,
 	}
 	bitbucketTraits = providerTraits{
 		name:                "Bitbucket",
-		skipCheckRunsValues: shift_left_integration.FullSkipCheckRunValues,
+		skipCheckRunsValues: shift_left_common.FullSkipCheckRunValues,
 	}
 )
 
@@ -209,11 +209,6 @@ func disabledUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRep
 	}
 	disabled := plan.Disabled.ValueBool()
 	return api_client.ScmRepositoryConfigUpdate{IDs: []string{rowID}, Disabled: &disabled}, true
-}
-
-func integrateConfig(plan *RepoConfigFields) api_client.ScmRepoIntegrationConfig {
-	cfg, _ := planRepoConfig(plan)
-	return cfg
 }
 
 type repoOps struct {

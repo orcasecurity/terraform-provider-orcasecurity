@@ -6,7 +6,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -56,18 +55,4 @@ func SharedScmListUnitValues(accountName string, u api_client.ScmUnitCommonField
 		"integrated_repositories_count": types.Int64Value(u.IntegratedRepositoriesCount),
 		"scm_posture_policy_id":         tfconv.StringOrNull(u.ScmPosturePolicyID),
 	}
-}
-
-func ObjectListFromValues(attrTypes map[string]attr.Type, elems []map[string]attr.Value) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	elemType := types.ObjectType{AttrTypes: attrTypes}
-	values := make([]attr.Value, len(elems))
-	for i, m := range elems {
-		obj, d := types.ObjectValue(attrTypes, m)
-		diags.Append(d...)
-		values[i] = obj
-	}
-	list, d := types.ListValue(elemType, values)
-	diags.Append(d...)
-	return list, diags
 }

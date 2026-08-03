@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -42,7 +42,7 @@ func (r *RepoResource[M]) Metadata(_ context.Context, req resource.MetadataReque
 }
 
 func (r *RepoResource[M]) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
+	r.apiClient = shift_left_common.ConfigureAPIClient(req)
 }
 
 func (r *RepoResource[M]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

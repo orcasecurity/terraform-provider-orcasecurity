@@ -1,4 +1,4 @@
-package shift_left_integration
+package shift_left_common
 
 import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -49,25 +49,5 @@ func ComputedInt64(description string) rschema.Int64Attribute {
 		Computed:      true,
 		Description:   description,
 		PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
-	}
-}
-
-// ComputedVolatileString is Computed and server-owned: carried forward only when
-// the plan has no writable changes, otherwise left unknown so a side-effecting
-// write cannot produce an inconsistent apply result.
-func ComputedVolatileString(description string) rschema.StringAttribute {
-	return rschema.StringAttribute{
-		Computed:      true,
-		Description:   description,
-		PlanModifiers: []planmodifier.String{VolatileString()},
-	}
-}
-
-// ComputedVolatileInt64 is the int64 counterpart of ComputedVolatileString.
-func ComputedVolatileInt64(description string) rschema.Int64Attribute {
-	return rschema.Int64Attribute{
-		Computed:      true,
-		Description:   description,
-		PlanModifiers: []planmodifier.Int64{VolatileInt64()},
 	}
 }

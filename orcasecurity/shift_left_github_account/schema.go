@@ -1,6 +1,7 @@
 package shift_left_github_account
 
 import (
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -24,9 +25,9 @@ func resourceSchema() rschema.Schema {
 			"account-level unit, so this is the unit's own id rather than a parent connection id.",
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 	}
-	attrs["github_installation_id"] = shift_left_integration.ComputedInt64(
+	attrs["github_installation_id"] = shift_left_common.ComputedInt64(
 		"GitHub-side numeric installation ID of the Orca GitHub App.")
-	attrs["github_app_settings_url"] = shift_left_integration.ComputedString(
+	attrs["github_app_settings_url"] = shift_left_common.ComputedString(
 		"URL of the Orca GitHub App settings page on GitHub (null when the API omits it).")
 	return rschema.Schema{
 		Description: "Configures an existing Orca GitHub shift-left account/organization (default policies, scan mode, PR settings). " +

@@ -69,6 +69,7 @@ func gitlabRepositoryOps(apiClient *api_client.APIClient, plan *gitlabRepository
 		traits: gitlabTraits,
 		fields: &plan.RepoConfigFields,
 		integrate: func() error {
+			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateGitlabRepository(api_client.GitlabRepositoryIntegrate{
 				InstallationID:  installationID,
 				GitlabGroupID:   plan.GitlabGroupID.ValueInt64(),
@@ -77,7 +78,7 @@ func gitlabRepositoryOps(apiClient *api_client.APIClient, plan *gitlabRepository
 				URL:             plan.URL.ValueString(),
 				Branch:          plan.Branch.ValueString(),
 				ProjectID:       plan.ProjectID.ValueString(),
-				Config:          integrateConfig(&plan.RepoConfigFields),
+				Config:          cfg,
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {

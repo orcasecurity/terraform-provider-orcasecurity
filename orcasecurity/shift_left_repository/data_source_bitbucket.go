@@ -2,7 +2,7 @@ package shift_left_repository
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -12,14 +12,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var bitbucketRepositoriesSpec = shift_left_integration.ScmObjectListSpec[api_client.BitbucketRepositoryListItem]{
+var bitbucketRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.BitbucketRepositoryListItem]{
 	TypeNameSuffix: "_shift_left_bitbucket_repositories",
 	Description: "Lists all Orca Bitbucket shift-left integrated repositories for fleet-wide for_each. " +
 		"`account_id` is the Bitbucket workspace slug (cloud) or project key (server) — not an Orca UUID. " +
 		"`installation_id` is joined from the owning integrated account.",
 	CollectionKey:  "repositories",
 	ListErrorTitle: "Error listing Bitbucket repositories",
-	Attrs: mergeAttrs(sharedRepoListAttrs(), map[string]dschema.Attribute{
+	Attrs: mergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
 		"installation_id": dschema.StringAttribute{Computed: true, Description: "Orca Bitbucket installation UUID."},
 		"account_id": dschema.StringAttribute{
 			Computed:    true,
@@ -28,7 +28,7 @@ var bitbucketRepositoriesSpec = shift_left_integration.ScmObjectListSpec[api_cli
 		"bitbucket_repository_id": dschema.StringAttribute{Computed: true},
 		"slug":                    dschema.StringAttribute{Computed: true},
 	}),
-	AttrTypes: mergeTypes(sharedRepoListAttrTypes(), map[string]attr.Type{
+	AttrTypes: mergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
 		"installation_id":         types.StringType,
 		"account_id":              types.StringType,
 		"bitbucket_repository_id": types.StringType,
@@ -38,7 +38,7 @@ var bitbucketRepositoriesSpec = shift_left_integration.ScmObjectListSpec[api_cli
 		return c.ListBitbucketRepositories()
 	},
 	Row: func(a *api_client.BitbucketRepositoryListItem) map[string]attr.Value {
-		return mergeValues(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
+		return mergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
 			"installation_id":         tfconv.StringOrNull(a.InstallationID),
 			"account_id":              types.StringValue(a.AccountID),
 			"bitbucket_repository_id": types.StringValue(a.BitbucketRepositoryID),
@@ -48,7 +48,7 @@ var bitbucketRepositoriesSpec = shift_left_integration.ScmObjectListSpec[api_cli
 }
 
 func NewBitbucketRepositoriesDataSource() datasource.DataSource {
-	return shift_left_integration.NewScmObjectListDataSource(bitbucketRepositoriesSpec)
+	return shift_left_common.NewScmObjectListDataSource(bitbucketRepositoriesSpec)
 }
 
 func bitbucketRepositoriesToListValue(rows []api_client.BitbucketRepositoryListItem) (types.List, diag.Diagnostics) {

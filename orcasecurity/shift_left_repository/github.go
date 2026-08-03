@@ -67,6 +67,7 @@ func githubRepositoryOps(apiClient *api_client.APIClient, plan *githubRepository
 		traits: githubTraits,
 		fields: &plan.RepoConfigFields,
 		integrate: func() error {
+			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{
 				InstallationID:     accountID,
 				GithubRepositoryID: githubRepositoryID,
@@ -74,7 +75,7 @@ func githubRepositoryOps(apiClient *api_client.APIClient, plan *githubRepository
 				URL:                plan.URL.ValueString(),
 				Branch:             plan.Branch.ValueString(),
 				ProjectID:          plan.ProjectID.ValueString(),
-				Config:             integrateConfig(&plan.RepoConfigFields),
+				Config:             cfg,
 			})
 		},
 		find: func() (*api_client.ScmRepository, error) {

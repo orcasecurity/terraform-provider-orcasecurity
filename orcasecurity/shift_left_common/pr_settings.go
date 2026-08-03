@@ -1,21 +1,12 @@
-package shift_left_integration
+package shift_left_common
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// PRSettingsModel is the PR-behavior fragment shared by unit-level (account/group)
-// and repo-level config models: same wire concepts, embedded anonymously so tfsdk
-// promotes the tags and each embedder keeps its own (nested or flat) attribute shape.
-type PRSettingsModel struct {
-	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
-	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
-	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
-	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
-	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
-}
+// PR-behavior enums and validators shared by unit-level (account/group) and
+// repository-level configuration: the same wire concepts appear on both surfaces.
 
 // PRCommentValues is the enum shared by comments_on_pull_requests and pr_summary_comment.
 var PRCommentValues = []string{"ALWAYS", "ONLY_ON_FAILED_ISSUES", "NEVER"}

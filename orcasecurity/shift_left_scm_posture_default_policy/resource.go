@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfvalidate"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -57,7 +57,7 @@ func (r *defaultPolicyResource) Metadata(_ context.Context, req resource.Metadat
 }
 
 func (r *defaultPolicyResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	r.apiClient = shift_left_integration.ConfigureAPIClient(req)
+	r.apiClient = shift_left_common.ConfigureAPIClient(req)
 }
 
 func (r *defaultPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -72,10 +72,10 @@ func (r *defaultPolicyResource) Schema(_ context.Context, _ resource.SchemaReque
 				Description:   "Policy UUID.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"name": shift_left_integration.ComputedString(
+			"name": shift_left_common.ComputedString(
 				"Policy name (read-only, server-managed).",
 			),
-			"description": shift_left_integration.ComputedString(
+			"description": shift_left_common.ComputedString(
 				"Policy description (read-only, server-managed).",
 			),
 			"disabled": rschema.BoolAttribute{

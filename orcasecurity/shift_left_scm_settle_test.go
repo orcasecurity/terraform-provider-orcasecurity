@@ -109,7 +109,7 @@ func assertComputedAttributesCarryForward(t *testing.T, typeName, prefix string,
 		if !hasAcceptableComputedModifier(modifiers) {
 			t.Errorf("%s: computed attribute %q has no carry-forward or volatile plan modifier, "+
 				"so Terraform 1.0-1.3 replans it as \"known after apply\" on every apply and the plan never settles; "+
-				"declare it with shift_left_integration.Computed*/OptionalComputed* or ComputedVolatile*", typeName, attrPath)
+				"declare it with shift_left_common.Computed*/OptionalComputed* or shift_left_integration.ComputedVolatile*", typeName, attrPath)
 		}
 	}
 }

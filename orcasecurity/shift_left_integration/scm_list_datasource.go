@@ -1,18 +1,19 @@
 package shift_left_integration
 
 import (
-	"context"
-
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// ScmUnitListSpec adapts a unit collection (accounts, groups) onto the shared
+// shift_left_common object-list data source: the shared unit attributes are
+// merged with Extra and each row is flattened from ScmUnitCommonFields.
 type ScmUnitListSpec[A any] struct {
 	TypeNameSuffix string
 	Description    string
@@ -23,81 +24,41 @@ type ScmUnitListSpec[A any] struct {
 	Row            func(a *A) (accountName string, common api_client.ScmUnitCommonFields, extras map[string]attr.Value)
 }
 
-func (s ScmUnitListSpec[A]) ListValue(rows []A) (types.List, diag.Diagnostics) {
+func (s ScmUnitListSpec[A]) objectSpec() shift_left_common.ScmObjectListSpec[A] {
+	attrs := SharedScmListUnitAttrs()
 	attrTypes := SharedScmListUnitAttrTypes()
 	for k, t := range s.Extra {
 		attrTypes[k] = t
-	}
-	elems := make([]map[string]attr.Value, len(rows))
-	for i := range rows {
-		name, common, extras := s.Row(&rows[i])
-		m := SharedScmListUnitValues(name, common)
-		for k, v := range extras {
-			m[k] = v
-		}
-		elems[i] = m
-	}
-	return ObjectListFromValues(attrTypes, elems)
-}
-
-func NewScmUnitListDataSource[A any](spec ScmUnitListSpec[A]) datasource.DataSource {
-	return &scmUnitListDataSource[A]{spec: spec}
-}
-
-type scmUnitListDataSource[A any] struct {
-	apiClient *api_client.APIClient
-	spec      ScmUnitListSpec[A]
-}
-
-var (
-	_ datasource.DataSource              = &scmUnitListDataSource[struct{}]{}
-	_ datasource.DataSourceWithConfigure = &scmUnitListDataSource[struct{}]{}
-)
-
-func (ds *scmUnitListDataSource[A]) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + ds.spec.TypeNameSuffix
-}
-
-func (ds *scmUnitListDataSource[A]) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	ds.apiClient = req.ProviderData.(*api_client.APIClient)
-}
-
-func (ds *scmUnitListDataSource[A]) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	nested := SharedScmListUnitAttrs()
-	for k, t := range ds.spec.Extra {
 		switch t {
 		case types.Int64Type:
-			nested[k] = dschema.Int64Attribute{Computed: true}
+			attrs[k] = dschema.Int64Attribute{Computed: true}
 		default:
-			nested[k] = dschema.StringAttribute{Computed: true}
+			attrs[k] = dschema.StringAttribute{Computed: true}
 		}
 	}
-	resp.Schema = dschema.Schema{
-		Description: ds.spec.Description,
-		Attributes: map[string]dschema.Attribute{
-			ds.spec.CollectionKey: dschema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: dschema.NestedAttributeObject{
-					Attributes: nested,
-				},
-			},
+	return shift_left_common.ScmObjectListSpec[A]{
+		TypeNameSuffix: s.TypeNameSuffix,
+		Description:    s.Description,
+		CollectionKey:  s.CollectionKey,
+		ListErrorTitle: s.ListErrorTitle,
+		Attrs:          attrs,
+		AttrTypes:      attrTypes,
+		List:           s.List,
+		Row: func(a *A) map[string]attr.Value {
+			name, common, extras := s.Row(a)
+			m := SharedScmListUnitValues(name, common)
+			for k, v := range extras {
+				m[k] = v
+			}
+			return m
 		},
 	}
 }
 
-func (ds *scmUnitListDataSource[A]) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
-	rows, err := ds.spec.List(ds.apiClient)
-	if err != nil {
-		resp.Diagnostics.AddError(ds.spec.ListErrorTitle, err.Error())
-		return
-	}
-	list, diags := ds.spec.ListValue(rows)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(ds.spec.CollectionKey), list)...)
+func (s ScmUnitListSpec[A]) ListValue(rows []A) (types.List, diag.Diagnostics) {
+	return s.objectSpec().ListValue(rows)
+}
+
+func NewScmUnitListDataSource[A any](spec ScmUnitListSpec[A]) datasource.DataSource {
+	return shift_left_common.NewScmObjectListDataSource(spec.objectSpec())
 }

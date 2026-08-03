@@ -3,10 +3,31 @@ package shift_left_integration
 import (
 	"context"
 
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
+
+// ComputedVolatileString is Computed and server-owned: carried forward only when
+// the plan has no writable changes, otherwise left unknown so a side-effecting
+// write cannot produce an inconsistent apply result.
+func ComputedVolatileString(description string) rschema.StringAttribute {
+	return rschema.StringAttribute{
+		Computed:      true,
+		Description:   description,
+		PlanModifiers: []planmodifier.String{VolatileString()},
+	}
+}
+
+// ComputedVolatileInt64 is the int64 counterpart of ComputedVolatileString.
+func ComputedVolatileInt64(description string) rschema.Int64Attribute {
+	return rschema.Int64Attribute{
+		Computed:      true,
+		Description:   description,
+		PlanModifiers: []planmodifier.Int64{VolatileInt64()},
+	}
+}
 
 // volatile* plan modifiers are for Computed attributes the server may change as
 // a side effect of other updates (repo enrollment, health flaps, scan-all

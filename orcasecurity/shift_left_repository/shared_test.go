@@ -211,9 +211,9 @@ func testConfigUpdateBodyNullUnknownSkipped(t *testing.T) {
 	}
 }
 
-func TestIntegrateConfig(t *testing.T) {
+func TestPlanRepoConfig_IntegrateBody(t *testing.T) {
 	t.Run("empty plan yields empty config", func(t *testing.T) {
-		cfg := integrateConfig(&RepoConfigFields{})
+		cfg, _ := planRepoConfig(&RepoConfigFields{})
 		if cfg.DisableScanPullRequests != nil || cfg.CommentsOnPullRequests != "" ||
 			cfg.PrSummaryComment != "" || cfg.SkipCheckRuns != "" || cfg.ConfigFileSupport != "" {
 			t.Errorf("expected zero-value config, got %+v", cfg)
@@ -231,7 +231,7 @@ func TestIntegrateConfig(t *testing.T) {
 			SkipCheckRuns:           types.StringValue("NEVER"),
 			ConfigFileSupport:       types.StringValue("DISABLED"),
 		}
-		cfg := integrateConfig(plan)
+		cfg, _ := planRepoConfig(plan)
 		if cfg.DisableScanPullRequests == nil || !*cfg.DisableScanPullRequests {
 			t.Errorf("disable_scan_pull_requests: %v", cfg.DisableScanPullRequests)
 		}

@@ -1,4 +1,4 @@
-package shift_left_integration
+package shift_left_common
 
 import (
 	"context"
@@ -13,8 +13,22 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ScmObjectListSpec is a thin list data source for non-unit collections (installations,
-// repositories) that do not share ScmUnitCommonFields.
+func ObjectListFromValues(attrTypes map[string]attr.Type, elems []map[string]attr.Value) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	elemType := types.ObjectType{AttrTypes: attrTypes}
+	values := make([]attr.Value, len(elems))
+	for i, m := range elems {
+		obj, d := types.ObjectValue(attrTypes, m)
+		diags.Append(d...)
+		values[i] = obj
+	}
+	list, d := types.ListValue(elemType, values)
+	diags.Append(d...)
+	return list, diags
+}
+
+// ScmObjectListSpec drives the shared read-only list data source used by every
+// shift-left collection (installations, repositories, units via an adapter).
 type ScmObjectListSpec[A any] struct {
 	TypeNameSuffix string
 	Description    string

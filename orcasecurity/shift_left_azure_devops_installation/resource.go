@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -58,9 +59,9 @@ func resourceSchema() rschema.Schema {
 		Description: "Azure DevOps organization name the token is scoped to. " +
 			"Set it for a single-organization token; omit for an all-organizations token.",
 	}
-	attrs["access_token_type"] = shift_left_integration.ComputedString(
+	attrs["access_token_type"] = shift_left_common.ComputedString(
 		"Token scope as classified by Orca: `SINGLE_ACCOUNT` or `ALL_ACCOUNTS`.")
-	attrs["access_token_account_name"] = shift_left_integration.ComputedString(
+	attrs["access_token_account_name"] = shift_left_common.ComputedString(
 		"Organization name the token is scoped to, as reported by the API.")
 	return rschema.Schema{
 		Description: "Connects an Azure DevOps server or organization to Orca Shift Left by registering a personal access token " +

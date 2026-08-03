@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -17,7 +18,7 @@ func NewResource() resource.Resource {
 		TypeNameSuffix: "_shift_left_azure_devops_account",
 		SchemaFn:       resourceSchema,
 		ImportFn: func(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-			shift_left_integration.ImportScopedUnit(ctx, req, resp, "account_name", "<installation_id>/<account_name_or_orca_uuid>")
+			shift_left_common.ImportScopedUnit(ctx, req, resp, "account_name", "<installation_id>/<account_name_or_orca_uuid>")
 		},
 		OpsFn: newOps,
 	}

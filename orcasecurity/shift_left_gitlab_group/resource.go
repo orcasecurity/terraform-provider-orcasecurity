@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -86,7 +87,7 @@ func deleteGroup(apiClient *api_client.APIClient, m *resourceModel) error {
 }
 
 func importState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	rest, resolved := shift_left_integration.ImportScopedInstallation(ctx, req, resp, "<installation_id>/<group_uuid_or_gitlab_group_id>")
+	rest, resolved := shift_left_common.ImportScopedInstallation(ctx, req, resp, "<installation_id>/<group_uuid_or_gitlab_group_id>")
 	if resolved {
 		return
 	}

@@ -2,6 +2,7 @@ package shift_left_integration
 
 import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -15,6 +16,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// PRSettingsModel is the PR-behavior fragment of the unit-level configuration
+// settings, embedded anonymously so tfsdk promotes the tags. Repository-level
+// config carries the same wire concepts as flat fields (shift_left_repository).
+type PRSettingsModel struct {
+	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
+	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
+	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
+	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
+	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
+}
 
 type ConfigSettingsModel struct {
 	PRSettingsModel
@@ -35,28 +47,28 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 			Optional:      true,
 			Computed:      true,
 			Description:   "When to post scan result comments on pull requests.",
-			Validators:    PRCommentValidator(),
+			Validators:    shift_left_common.PRCommentValidator(),
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"pr_summary_comment": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
 			Description:   "When to post a pull request summary comment.",
-			Validators:    PRCommentValidator(),
+			Validators:    shift_left_common.PRCommentValidator(),
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"skip_check_runs": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
 			Description:   "When to skip posting check runs.",
-			Validators:    SkipCheckRunsValidator(FullSkipCheckRunValues),
+			Validators:    shift_left_common.SkipCheckRunsValidator(shift_left_common.FullSkipCheckRunValues),
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"config_file_support": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
 			Description:   "Whether in-repo Orca config file support is enabled.",
-			Validators:    ConfigFileSupportValidator(),
+			Validators:    shift_left_common.ConfigFileSupportValidator(),
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"pr_summary_appendix": schema.StringAttribute{

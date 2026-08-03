@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -54,12 +55,12 @@ type resourceModel struct {
 func resourceSchema() rschema.Schema {
 	attrs := shift_left_integration.InstallationBaseAttrs("Bitbucket", "https://bitbucket.org",
 		"Bitbucket access token.")
-	attrs["access_token_type"] = shift_left_integration.OptionalComputedString(
+	attrs["access_token_type"] = shift_left_common.OptionalComputedString(
 		"Token kind: `PAT` for a personal access token, `TOKEN` for a workspace (cloud) or project (server) token.",
 		stringvalidator.OneOf("PAT", "TOKEN"))
-	attrs["username"] = shift_left_integration.OptionalComputedString(
+	attrs["username"] = shift_left_common.OptionalComputedString(
 		"Bitbucket username owning the token (used with `PAT` tokens).")
-	attrs["account_id"] = shift_left_integration.OptionalComputedString(
+	attrs["account_id"] = shift_left_common.OptionalComputedString(
 		"Workspace or project slug the installation token is scoped to (`TOKEN` tokens). " +
 			"Bitbucket-side slug only — not an Orca UUID, and not the same attribute as " +
 			"`orcasecurity_shift_left_bitbucket_account.account_id` (though values often match for workspace tokens).")

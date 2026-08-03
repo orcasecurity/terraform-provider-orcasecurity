@@ -1,6 +1,8 @@
 package shift_left_repository
 
 import (
+	"maps"
+
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
@@ -43,35 +45,10 @@ func sharedRepoListValues(r api_client.ScmRepository) map[string]attr.Value {
 	}
 }
 
-func mergeAttrs(base, extra map[string]dschema.Attribute) map[string]dschema.Attribute {
-	out := make(map[string]dschema.Attribute, len(base)+len(extra))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range extra {
-		out[k] = v
-	}
-	return out
-}
-
-func mergeTypes(base, extra map[string]attr.Type) map[string]attr.Type {
-	out := make(map[string]attr.Type, len(base)+len(extra))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range extra {
-		out[k] = v
-	}
-	return out
-}
-
-func mergeValues(base, extra map[string]attr.Value) map[string]attr.Value {
-	out := make(map[string]attr.Value, len(base)+len(extra))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range extra {
-		out[k] = v
-	}
+// mergeMaps combines the shared repo-list maps with per-provider extras; extra wins on conflict.
+func mergeMaps[V any](base, extra map[string]V) map[string]V {
+	out := make(map[string]V, len(base)+len(extra))
+	maps.Copy(out, base)
+	maps.Copy(out, extra)
 	return out
 }

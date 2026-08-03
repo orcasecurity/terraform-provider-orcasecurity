@@ -7,14 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func PolicyIDsFromSet(s types.Set) []string {
-	return tfconv.SetToStringSlice(s)
-}
-
-func PolicyIDsToSet(ids []string) types.Set {
-	return tfconv.StringSliceToSet(ids)
-}
-
 // normalizeInstallationMode is write-side only: the API still returns SCAN_ALL on
 // old units but rejects it on update, and has no default for an absent mode
 // (empty → 400), so both map to the safe default on the wire.
@@ -35,7 +27,7 @@ func installationModeFromAPI(mode string) string {
 }
 
 func ExpandUpdate(mode types.String, defaultPolicies types.Bool, policiesIds types.Set, cfg *ConfigSettingsModel) api_client.ScmInstallationUpdate {
-	ids := PolicyIDsFromSet(policiesIds)
+	ids := tfconv.SetToStringSlice(policiesIds)
 	if defaultPolicies.ValueBool() {
 		ids = []string{}
 	}

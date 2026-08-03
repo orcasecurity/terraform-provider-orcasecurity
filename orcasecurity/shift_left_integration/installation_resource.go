@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -21,17 +23,17 @@ func InstallationBaseAttrs(scmName, cloudURL, tokenDesc string) map[string]rsche
 			Required:    true,
 			Description: "Display name for the installation.",
 		},
-		"server_url": OptionalComputedString(fmt.Sprintf("%s server URL without a trailing slash. Omit for %s cloud (%s).",
+		"server_url": shift_left_common.OptionalComputedString(fmt.Sprintf("%s server URL without a trailing slash. Omit for %s cloud (%s).",
 			scmName, scmName, cloudURL)),
 		"access_token": rschema.StringAttribute{
 			Required:    true,
 			Sensitive:   true,
 			Description: tokenDesc + " Write-only: never returned by the API.",
 		},
-		"external_server_url": ComputedString("Externally visible server URL, if different."),
-		"integration_status": ComputedString("Health status. Empty when healthy; " +
+		"external_server_url": shift_left_common.ComputedString("Externally visible server URL, if different."),
+		"integration_status": shift_left_common.ComputedString("Health status. Empty when healthy; " +
 			"`DISABLED_DUE_TO_INVALID_TOKEN` or `INSTALLATION_UNREACHABLE` otherwise."),
-		"cloud_integration": ComputedBool(fmt.Sprintf("True when connected to %s cloud.", scmName)),
+		"cloud_integration": shift_left_common.ComputedBool(fmt.Sprintf("True when connected to %s cloud.", scmName)),
 	}
 }
 
