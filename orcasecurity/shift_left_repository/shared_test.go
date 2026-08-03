@@ -10,8 +10,10 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -127,7 +129,8 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := fromAPI(RepoConfigFields{SkipCheckRuns: tc.prior}, &api_client.ScmRepository{SkipCheckRuns: tc.apiValue}, azureTraits)
+			prior := RepoConfigFields{PRSettingsModel: shift_left_common.PRSettingsModel{SkipCheckRuns: tc.prior}}
+			out := fromAPI(prior, &api_client.ScmRepository{SkipCheckRuns: tc.apiValue}, azureTraits)
 			if tc.want.IsNull() {
 				if !out.SkipCheckRuns.IsNull() {
 					t.Fatalf("expected null skip_check_runs, got %#v", out.SkipCheckRuns)
@@ -144,7 +147,8 @@ func TestFromAPI_SkipCheckRunsAzureFallback(t *testing.T) {
 // The other three providers do return skip_check_runs, so a cleared value must
 // surface as drift (null), not silently fall back to the stale prior value.
 func TestFromAPI_SkipCheckRunsClearedSurfacesDriftWhenReadable(t *testing.T) {
-	out := fromAPI(RepoConfigFields{SkipCheckRuns: types.StringValue("ALWAYS")}, &api_client.ScmRepository{SkipCheckRuns: ""}, githubTraits)
+	prior := RepoConfigFields{PRSettingsModel: shift_left_common.PRSettingsModel{SkipCheckRuns: types.StringValue("ALWAYS")}}
+	out := fromAPI(prior, &api_client.ScmRepository{SkipCheckRuns: ""}, githubTraits)
 	if !out.SkipCheckRuns.IsNull() {
 		t.Fatalf("expected skip_check_runs cleared to null, got %#v", out.SkipCheckRuns)
 	}
@@ -168,12 +172,14 @@ func testConfigUpdateBodyNothingSet(t *testing.T) {
 
 func testConfigUpdateBodyAllSet(t *testing.T) {
 	plan := &RepoConfigFields{
-		Disabled:                types.BoolValue(true),
-		DisableScanPullRequests: types.BoolValue(false),
-		CommentsOnPullRequests:  types.StringValue("ALWAYS"),
-		PrSummaryComment:        types.StringValue("NEVER"),
-		SkipCheckRuns:           types.StringValue("ALWAYS"),
-		ConfigFileSupport:       types.StringValue("ENABLED"),
+		Disabled: types.BoolValue(true),
+		PRSettingsModel: shift_left_common.PRSettingsModel{
+			DisableScanPullRequests: types.BoolValue(false),
+			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
+			PrSummaryComment:        types.StringValue("NEVER"),
+			SkipCheckRuns:           types.StringValue("ALWAYS"),
+			ConfigFileSupport:       types.StringValue("ENABLED"),
+		},
 	}
 	body, set := configUpdateBody("row-1", plan)
 	if !set {
@@ -195,9 +201,11 @@ func testConfigUpdateBodyAllSet(t *testing.T) {
 
 func testConfigUpdateBodyNullUnknownSkipped(t *testing.T) {
 	plan := &RepoConfigFields{
-		Disabled:               types.BoolValue(true), // only this is known
-		CommentsOnPullRequests: types.StringNull(),
-		PrSummaryComment:       types.StringUnknown(),
+		Disabled: types.BoolValue(true), // only this is known
+		PRSettingsModel: shift_left_common.PRSettingsModel{
+			CommentsOnPullRequests: types.StringNull(),
+			PrSummaryComment:       types.StringUnknown(),
+		},
 	}
 	body, set := configUpdateBody("row-1", plan)
 	if !set {
@@ -224,12 +232,14 @@ func TestPlanRepoConfig_IntegrateBody(t *testing.T) {
 		// Disabled is intentionally not part of ScmRepoIntegrationConfig (GitHub's
 		// integrate endpoint rejects it); it is applied post-integrate instead.
 		plan := &RepoConfigFields{
-			Disabled:                types.BoolValue(true),
-			DisableScanPullRequests: types.BoolValue(true),
-			CommentsOnPullRequests:  types.StringValue("NEVER"),
-			PrSummaryComment:        types.StringValue("ALWAYS"),
-			SkipCheckRuns:           types.StringValue("NEVER"),
-			ConfigFileSupport:       types.StringValue("DISABLED"),
+			Disabled: types.BoolValue(true),
+			PRSettingsModel: shift_left_common.PRSettingsModel{
+				DisableScanPullRequests: types.BoolValue(true),
+				CommentsOnPullRequests:  types.StringValue("NEVER"),
+				PrSummaryComment:        types.StringValue("ALWAYS"),
+				SkipCheckRuns:           types.StringValue("NEVER"),
+				ConfigFileSupport:       types.StringValue("DISABLED"),
+			},
 		}
 		cfg, _ := planRepoConfig(plan)
 		if cfg.DisableScanPullRequests == nil || !*cfg.DisableScanPullRequests {
@@ -340,6 +350,55 @@ func TestSharedRepoAttributes(t *testing.T) {
 	}
 }
 
+// RepoConfigFields nests shift_left_common.PRSettingsModel inside models that
+// themselves embed RepoConfigFields, so tfsdk reflection must promote tags
+// through two levels of embedding. Round-trip a full model through State
+// Set/Get against the real schema to prove every promoted field maps.
+func TestRepoModelEmbeddingRoundTrips(t *testing.T) {
+	ctx := context.Background()
+	var schemaResp resource.SchemaResponse
+	NewGithubRepositoryResource().Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("schema: %v", schemaResp.Diagnostics)
+	}
+
+	in := githubRepositoryModel{
+		AccountID:          types.StringValue("acc-1"),
+		GithubRepositoryID: types.Int64Value(42),
+		RepoConfigFields: RepoConfigFields{
+			ID:        types.StringValue("row-1"),
+			Name:      types.StringValue("acme/repo"),
+			URL:       types.StringValue("https://example.com/acme/repo"),
+			Branch:    types.StringValue("main"),
+			ProjectID: types.StringValue("proj-1"),
+			Disabled:  types.BoolValue(true),
+			PRSettingsModel: shift_left_common.PRSettingsModel{
+				DisableScanPullRequests: types.BoolValue(true),
+				CommentsOnPullRequests:  types.StringValue("NEVER"),
+				PrSummaryComment:        types.StringValue("ALWAYS"),
+				SkipCheckRuns:           types.StringValue("NEVER"),
+				ConfigFileSupport:       types.StringValue("ENABLED"),
+			},
+			Status:              types.StringValue("SUCCESS"),
+			RepositoryContextID: types.StringValue("ctx-1"),
+			IntegrationStatus:   types.StringNull(),
+			ScmPosturePolicyID:  types.StringNull(),
+		},
+	}
+
+	state := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := state.Set(ctx, &in); diags.HasError() {
+		t.Fatalf("state set: %v", diags)
+	}
+	var out githubRepositoryModel
+	if diags := state.Get(ctx, &out); diags.HasError() {
+		t.Fatalf("state get: %v", diags)
+	}
+	if out != in {
+		t.Fatalf("round-trip mismatch:\n in: %+v\nout: %+v", in, out)
+	}
+}
+
 // --- createRepo / updateRepo / deleteRepo decision logic ---
 
 func boolPtr(b bool) *bool { return &b }
@@ -430,11 +489,13 @@ func TestCreateRepo_ConfigOnlyPlanSkipsPatch(t *testing.T) {
 		},
 	}
 	plan := &RepoConfigFields{
-		CommentsOnPullRequests:  types.StringValue("NEVER"),
-		PrSummaryComment:        types.StringValue("NEVER"),
-		SkipCheckRuns:           types.StringValue("NEVER"),
-		ConfigFileSupport:       types.StringValue("DISABLED"),
-		DisableScanPullRequests: types.BoolValue(true),
+		PRSettingsModel: shift_left_common.PRSettingsModel{
+			CommentsOnPullRequests:  types.StringValue("NEVER"),
+			PrSummaryComment:        types.StringValue("NEVER"),
+			SkipCheckRuns:           types.StringValue("NEVER"),
+			ConfigFileSupport:       types.StringValue("DISABLED"),
+			DisableScanPullRequests: types.BoolValue(true),
+		},
 	}
 	var diags diag.Diagnostics
 	row := createRepo(ops, plan, &diags)
@@ -456,8 +517,10 @@ func TestDisabledUpdateBody(t *testing.T) {
 		t.Error("unset disabled must not produce a write")
 	}
 	cfgOnly := &RepoConfigFields{
-		CommentsOnPullRequests: types.StringValue("NEVER"),
-		SkipCheckRuns:          types.StringValue("NEVER"),
+		PRSettingsModel: shift_left_common.PRSettingsModel{
+			CommentsOnPullRequests: types.StringValue("NEVER"),
+			SkipCheckRuns:          types.StringValue("NEVER"),
+		},
 	}
 	if _, set := disabledUpdateBody("row-1", cfgOnly); set {
 		t.Error("config fields alone must not produce a post-integrate write")

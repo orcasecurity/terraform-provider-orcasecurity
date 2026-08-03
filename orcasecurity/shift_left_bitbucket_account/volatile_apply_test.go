@@ -11,15 +11,15 @@ import (
 )
 
 // These cases pin the volatile-attribute contract at the Terraform plan/apply level.
-// The unit tests in shift_left_integration cover writableConfigMatchesState in
-// isolation, but the two failure modes below only appear once Terraform drives a
-// real plan → apply → re-plan cycle, so they cannot be reproduced from a unit test:
+// The unit tests in shift_left_integration cover settleVolatileAttrs in isolation,
+// but the two failure modes below only appear once Terraform drives a real
+// plan → apply → re-plan cycle, so they cannot be reproduced from a unit test:
 //
 //   - carrying a stale value forward across a write that moves it fails the apply
 //     with "inconsistent result after apply";
-//   - deciding carry-forward from Plan.Raw (rather than Config.Raw) flips the
-//     attribute known → unknown between the two plan passes, which Terraform
-//     rejects as "inconsistent final plan".
+//   - treating an unknown writable as "no write" carries the volatile value
+//     forward as known and then replans it unknown on the apply re-plan once the
+//     reference resolves, which Terraform rejects as "inconsistent final plan".
 
 // newVolatileStub is the shared stub with server-side side effects switched on.
 func newVolatileStub() *scmUnitStub {

@@ -7,9 +7,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// normalizeInstallationMode is write-side only: the API still returns SCAN_ALL on
-// old units but rejects it on update, and has no default for an absent mode
-// (empty → 400), so both map to the safe default on the wire.
+// normalizeInstallationMode is the single decision point for "the API will not
+// store this mode": it still returns SCAN_ALL on old units but rejects it on
+// update, and has no default for an absent mode (empty → 400), so both map to
+// the safe default on the wire. Consumed by the write path and by
+// installationModePlanModifier, so the plan rewrite and the write remap cannot
+// desync (settleVolatileAttrs then sees the rewrite as a plain mode diff).
 func normalizeInstallationMode(mode string) string {
 	if mode == "SCAN_ALL" || mode == "" {
 		return "SELECTED_REPOSITORIES"

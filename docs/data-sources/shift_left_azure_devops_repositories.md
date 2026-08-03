@@ -32,12 +32,12 @@ Read-Only:
 
 - `account_name` (String) Azure DevOps organization name.
 - `azure_repository_id` (String) Azure DevOps repository UUID (from Azure DevOps).
-- `disabled` (Boolean)
+- `disabled` (Boolean) Whether scanning is paused for this repository.
 - `id` (String) Orca integrated-repository UUID.
 - `installation_id` (String) Orca Azure DevOps installation UUID.
-- `integration_status` (String)
-- `name` (String)
-- `project_id` (String)
-- `repository_context_id` (String)
-- `status` (String)
-- `url` (String)
+- `integration_status` (String) Health status of the owning installation. Empty when healthy.
+- `name` (String) Repository name (path) as known to the SCM.
+- `project_id` (String) Shift Left project the repository belongs to.
+- `repository_context_id` (String) Repository context id; deleting this context is how the repository is un-integrated.
+- `status` (String) Aggregated initial scan status.
+- `url` (String) Repository URL.

@@ -2,6 +2,7 @@ package shift_left_common
 
 import (
 	"context"
+	"maps"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -12,6 +13,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// MergeMaps combines a shared attribute/type/value map with per-provider extras;
+// extra wins on conflict.
+func MergeMaps[V any](base, extra map[string]V) map[string]V {
+	out := make(map[string]V, len(base)+len(extra))
+	maps.Copy(out, base)
+	maps.Copy(out, extra)
+	return out
+}
 
 func ObjectListFromValues(attrTypes map[string]attr.Type, elems []map[string]attr.Value) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics

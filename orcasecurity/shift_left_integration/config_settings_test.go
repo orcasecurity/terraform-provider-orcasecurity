@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -79,7 +80,7 @@ func TestExpandConfigSettings_NeverSendsEmptyRequiredEnums(t *testing.T) {
 // Live values must win over the fallback: defaulting may only fill blanks.
 func TestExpandConfigSettings_PreservesNonEmptyEnums(t *testing.T) {
 	m := &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			CommentsOnPullRequests: types.StringValue("NEVER"),
 			PrSummaryComment:       types.StringValue("ONLY_ON_FAILED_ISSUES"),
 			SkipCheckRuns:          types.StringValue("ONLY_ON_INTERNAL_ISSUE"),
@@ -114,7 +115,7 @@ func TestConfigSettingsAttributes_SkipCheckRunsAcceptsAllThreeValues(t *testing.
 
 func TestConfigSettingsRoundTrip(t *testing.T) {
 	m := &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(false),
 			CommentsOnPullRequests:  types.StringValue("ONLY_ON_FAILED_ISSUES"),
 			PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
@@ -138,7 +139,7 @@ func TestConfigSettingsRoundTrip(t *testing.T) {
 
 func TestExpandConfigSettings_NoConditionsOmitsInstallationReposConfig(t *testing.T) {
 	m := &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(true),
 			ConfigFileSupport:       types.StringValue("DISABLED"),
 		},
@@ -301,7 +302,7 @@ func TestFlattenConfigSettings_EmptyStringsBecomeNull(t *testing.T) {
 
 func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
 	base := ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(true),
 			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
 			PrSummaryComment:        types.StringValue("NEVER"),
@@ -317,7 +318,7 @@ func TestMergeConfigSettings_NilOverlayReturnsBase(t *testing.T) {
 
 func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 	base := ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(false),
 			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
 			PrSummaryComment:        types.StringValue("ALWAYS"),
@@ -329,7 +330,7 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 		UnavailableConditions: types.ListNull(types.StringType),
 	}
 	overlay := &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolNull(),
 			CommentsOnPullRequests:  types.StringNull(),
 			PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
@@ -374,7 +375,7 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 
 func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(false),
 			CommentsOnPullRequests:  types.StringValue("ALWAYS"),
 			PrSummaryComment:        types.StringValue("ALWAYS"),
@@ -386,7 +387,7 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 		UnavailableConditions: types.ListNull(types.StringType),
 	}
 	overlay := &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(true),
 			CommentsOnPullRequests:  types.StringValue("NEVER"),
 			PrSummaryComment:        types.StringValue("ONLY_ON_FAILED_ISSUES"),
@@ -428,11 +429,11 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 
 func TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
-		PRSettingsModel:   PRSettingsModel{PrSummaryComment: types.StringValue("ALWAYS")},
+		PRSettingsModel:   shift_left_common.PRSettingsModel{PrSummaryComment: types.StringValue("ALWAYS")},
 		ArchiveConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	overlay := &ConfigSettingsModel{
-		PRSettingsModel:   PRSettingsModel{PrSummaryComment: types.StringUnknown()},
+		PRSettingsModel:   shift_left_common.PRSettingsModel{PrSummaryComment: types.StringUnknown()},
 		ArchiveConditions: types.ListUnknown(types.StringType),
 	}
 

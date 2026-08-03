@@ -43,13 +43,13 @@ resource "orcasecurity_shift_left_github_account" "all" {
 
 Read-Only:
 
-- `account_id` (String)
-- `account_name` (String)
-- `default_policies` (Boolean)
-- `github_app_settings_url` (String)
-- `github_installation_id` (Number)
-- `id` (String)
-- `installation_mode` (String)
+- `account_id` (String) Orca UUID of the account (mirrors `id`; GitHub has no separate installation resource).
+- `account_name` (String) Display name of the unit on the SCM side (organization, group, or workspace).
+- `default_policies` (Boolean) Whether Orca default policies apply to this unit.
+- `github_app_settings_url` (String) GitHub URL for managing the App installation, when reported.
+- `github_installation_id` (Number) Numeric GitHub App installation id (from GitHub, not minted by Orca).
+- `id` (String) Orca UUID of the GitHub account unit.
+- `installation_mode` (String) Repository enrollment mode (for example SELECTED_REPOSITORIES or SCAN_ALL_INCLUDE_FUTURE).
 - `integrated_repositories_count` (Number) Count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API when present.
 - `scan_all_state` (String) State of the scan-all onboarding flow when present.

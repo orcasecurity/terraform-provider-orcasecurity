@@ -67,7 +67,6 @@ func gitlabRepositoryOps(apiClient *api_client.APIClient, plan *gitlabRepository
 	return repoOps{
 		client: apiClient,
 		traits: gitlabTraits,
-		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateGitlabRepository(api_client.GitlabRepositoryIntegrate{

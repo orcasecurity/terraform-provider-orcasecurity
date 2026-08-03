@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
@@ -79,6 +81,16 @@ func TestShiftLeftScmSchemasSettle(t *testing.T) {
 	}
 }
 
+// volatileSettledAttrs are the unit attributes settled at resource level by
+// AdoptedUnitOps.ModifyPlan rather than by attribute plan modifiers.
+var volatileSettledAttrs = func() map[string]bool {
+	m := map[string]bool{}
+	for _, name := range shift_left_integration.ScmVolatileAttrNames() {
+		m[name] = true
+	}
+	return m
+}()
+
 func assertComputedAttributesCarryForward(t *testing.T, typeName, prefix string, attrs map[string]rschema.Attribute) {
 	t.Helper()
 	for name, attr := range attrs {
@@ -100,6 +112,15 @@ func assertComputedAttributesCarryForward(t *testing.T, typeName, prefix string,
 		if !inspectable {
 			t.Errorf("%s: %s is a %T, which this test cannot inspect — add it to planModifiers",
 				typeName, attrPath, attr)
+			continue
+		}
+		// Unit-level volatile attributes deliberately carry no attribute
+		// modifiers: AdoptedUnitOps.ModifyPlan settles them at resource level
+		// (settleVolatileAttrs), including the TF 1.0–1.3 carry-forward. Only
+		// exempt the modifier-less top-level spelling; the repository resources
+		// reuse these names with ordinary carry-forward modifiers and stay
+		// subject to the check below.
+		if prefix == "" && volatileSettledAttrs[name] && len(modifiers) == 0 {
 			continue
 		}
 		// RequiresReplace alone is not enough: TF 1.0–1.3 still replans the

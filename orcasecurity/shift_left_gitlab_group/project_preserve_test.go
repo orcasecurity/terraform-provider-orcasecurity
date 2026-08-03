@@ -6,6 +6,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_integration"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -50,7 +51,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	t.Logf("group bound to project %q", projectID)
 
 	overlay := &shift_left_integration.ConfigSettingsModel{
-		PRSettingsModel: shift_left_integration.PRSettingsModel{PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES")},
+		PRSettingsModel: shift_left_common.PRSettingsModel{PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES")},
 	}
 	ad := shift_left_integration.Adopt(
 		types.StringNull(), types.BoolNull(), types.SetNull(types.StringType), overlay,

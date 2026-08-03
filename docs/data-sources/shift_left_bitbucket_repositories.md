@@ -31,14 +31,14 @@ output "bitbucket_repository_names" {
 Read-Only:
 
 - `account_id` (String) Bitbucket workspace slug (cloud) or project key (server); not an Orca UUID.
-- `bitbucket_repository_id` (String)
-- `disabled` (Boolean)
+- `bitbucket_repository_id` (String) Bitbucket repository id (from Bitbucket, not minted by Orca).
+- `disabled` (Boolean) Whether scanning is paused for this repository.
 - `id` (String) Orca integrated-repository UUID.
 - `installation_id` (String) Orca Bitbucket installation UUID.
-- `integration_status` (String)
-- `name` (String)
-- `project_id` (String)
-- `repository_context_id` (String)
-- `slug` (String)
-- `status` (String)
-- `url` (String)
+- `integration_status` (String) Health status of the owning installation. Empty when healthy.
+- `name` (String) Repository name (path) as known to the SCM.
+- `project_id` (String) Shift Left project the repository belongs to.
+- `repository_context_id` (String) Repository context id; deleting this context is how the repository is un-integrated.
+- `slug` (String) Bitbucket repository slug (from Bitbucket).
+- `status` (String) Aggregated initial scan status.
+- `url` (String) Repository URL.

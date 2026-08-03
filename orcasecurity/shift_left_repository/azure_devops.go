@@ -70,7 +70,6 @@ func azureRepositoryOps(apiClient *api_client.APIClient, plan *azureRepositoryMo
 	return repoOps{
 		client: apiClient,
 		traits: azureTraits,
-		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateAzureRepository(api_client.AzureRepositoryIntegrate{

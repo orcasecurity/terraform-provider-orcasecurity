@@ -31,7 +31,8 @@ type AdoptedUnitOps[A Commoner, M any] struct {
 }
 
 // ModifyPlan rejects default_policies combinations that cannot round-trip after
-// plan modifiers have applied (so carried-forward values are visible).
+// plan modifiers have applied (so carried-forward values are visible), then
+// settles the volatile server-owned attributes against the pending write.
 func (o AdoptedUnitOps[A, M]) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return
@@ -42,6 +43,10 @@ func (o AdoptedUnitOps[A, M]) ModifyPlan(ctx context.Context, req resource.Modif
 		return
 	}
 	ValidateScmBindingPlan(o.Config(&plan), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	settleVolatileAttrs(req, resp)
 }
 
 // Block create when unit already has repos unless adopt_existing=true — destroy would de-integrate out-of-band repos.
@@ -102,7 +107,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	configFields := o.Config(&config)
 
 	body := CreateUnitBody(planFields.InstallationMode, planFields.DefaultPolicies, planFields.PoliciesIds,
-		ConfigSettingsFromObject(planFields.ConfigSettings),
+		ConfigSettingsFromObject(ctx, planFields.ConfigSettings),
 		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
 	if err := o.Integrate(&plan, body); err != nil {
 		resp.Diagnostics.AddError(o.CreateErrorTitle, err.Error())
@@ -171,7 +176,7 @@ func (o AdoptedUnitOps[A, M]) setAdoptedState(ctx context.Context, diags *diag.D
 	priorFields := o.Config(prior)
 	nextFields := o.Config(&newState)
 	nextFields.AdoptExisting = priorFields.AdoptExisting
-	preserveKnownEmpties(nextFields, priorFields)
+	preserveKnownEmpties(ctx, nextFields, priorFields)
 	diags.Append(state.Set(ctx, &newState)...)
 }
 
@@ -243,7 +248,7 @@ func (o AdoptedUnitOps[A, M]) writeAdopted(
 	planFields := o.Config(plan)
 	configFields := o.Config(config)
 	body := Adopt(planFields.InstallationMode, planFields.DefaultPolicies, planFields.PoliciesIds,
-		ConfigSettingsFromObject(planFields.ConfigSettings),
+		ConfigSettingsFromObject(ctx, planFields.ConfigSettings),
 		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds),
 		(*current).Common())
 

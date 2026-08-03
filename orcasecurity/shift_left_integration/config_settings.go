@@ -1,6 +1,8 @@
 package shift_left_integration
 
 import (
+	"context"
+
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
@@ -15,21 +17,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-// PRSettingsModel is the PR-behavior fragment of the unit-level configuration
-// settings, embedded anonymously so tfsdk promotes the tags. Repository-level
-// config carries the same wire concepts as flat fields (shift_left_repository).
-type PRSettingsModel struct {
-	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
-	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
-	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
-	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
-	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
-}
-
 type ConfigSettingsModel struct {
-	PRSettingsModel
+	shift_left_common.PRSettingsModel
 	PrSummaryAppendix     types.String `tfsdk:"pr_summary_appendix"`
 	ArchiveConditions     types.List   `tfsdk:"archive_conditions"`
 	UnavailableConditions types.List   `tfsdk:"unavailable_conditions"`
@@ -124,40 +116,18 @@ func ConfigSettingsObjectNull() types.Object {
 }
 
 // ConfigSettingsFromObject decodes the nested block. A null or unknown object yields
-// nil, which Adopt reads as "inherit every field from the live unit".
-func ConfigSettingsFromObject(obj types.Object) *ConfigSettingsModel {
+// nil, which Adopt reads as "inherit every field from the live unit". The object
+// shape is provider-owned (ConfigSettingsAttrTypes), so a decode failure cannot
+// happen outside a programming error and maps to nil as well.
+func ConfigSettingsFromObject(ctx context.Context, obj types.Object) *ConfigSettingsModel {
 	if obj.IsNull() || obj.IsUnknown() {
 		return nil
 	}
-	attrs := obj.Attributes()
-	str := func(key string) types.String {
-		if v, ok := attrs[key].(types.String); ok {
-			return v
-		}
-		return types.StringNull()
+	var m ConfigSettingsModel
+	if diags := obj.As(ctx, &m, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return nil
 	}
-	list := func(key string) types.List {
-		if v, ok := attrs[key].(types.List); ok {
-			return v
-		}
-		return types.ListNull(types.StringType)
-	}
-	disableScan := types.BoolNull()
-	if v, ok := attrs["disable_scan_pull_requests"].(types.Bool); ok {
-		disableScan = v
-	}
-	return &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
-			DisableScanPullRequests: disableScan,
-			CommentsOnPullRequests:  str("comments_on_pull_requests"),
-			PrSummaryComment:        str("pr_summary_comment"),
-			SkipCheckRuns:           str("skip_check_runs"),
-			ConfigFileSupport:       str("config_file_support"),
-		},
-		PrSummaryAppendix:     str("pr_summary_appendix"),
-		ArchiveConditions:     list("archive_conditions"),
-		UnavailableConditions: list("unavailable_conditions"),
-	}
+	return &m
 }
 
 func ConfigSettingsToObject(m ConfigSettingsModel) types.Object {
@@ -252,7 +222,7 @@ func nonNilSlice(values []string) []string {
 
 func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsModel {
 	m := ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{
+		PRSettingsModel: shift_left_common.PRSettingsModel{
 			DisableScanPullRequests: types.BoolValue(c.DisableScanPullRequests),
 			CommentsOnPullRequests:  tfconv.StringOrNull(c.CommentsOnPullRequests),
 			PrSummaryComment:        tfconv.StringOrNull(c.PrSummaryComment),

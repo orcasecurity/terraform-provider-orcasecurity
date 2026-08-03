@@ -1,25 +1,13 @@
 package shift_left_integration
 
 import (
-	"errors"
+	"context"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-var ErrUnitNotFound = errors.New("scm unit not found")
-
-// Commoner is satisfied by every concrete SCM unit API type via the embedded
-// api_client.ScmUnitCommonFields.
-type Commoner interface {
-	Common() api_client.ScmUnitCommonFields
-}
-
-func PolicyIDsFromRefs(refs []api_client.ScmPolicyRef) types.Set {
-	return tfconv.StringSliceToSet(api_client.PolicyRefIDs(refs))
-}
 
 type ScmConfigFields struct {
 	AccountName       types.String `tfsdk:"account_name"`
@@ -64,13 +52,13 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 // to end up equal to a non-null configured value, and "", [] are the documented ways to
 // clear these. Applied on the write path (prior = plan) and the read path (prior = prior
 // state), so a cleared value neither fails the apply nor reappears as drift on refresh.
-func preserveKnownEmpties(next, prior *ScmConfigFields) {
+func preserveKnownEmpties(ctx context.Context, next, prior *ScmConfigFields) {
 	if next.ProjectID.IsNull() && isKnownEmptyString(prior.ProjectID) {
 		next.ProjectID = types.StringValue("")
 	}
 
-	nextCfg := ConfigSettingsFromObject(next.ConfigSettings)
-	priorCfg := ConfigSettingsFromObject(prior.ConfigSettings)
+	nextCfg := ConfigSettingsFromObject(ctx, next.ConfigSettings)
+	priorCfg := ConfigSettingsFromObject(ctx, prior.ConfigSettings)
 	if nextCfg == nil || priorCfg == nil {
 		return
 	}

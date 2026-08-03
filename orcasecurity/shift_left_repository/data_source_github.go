@@ -17,14 +17,17 @@ var githubRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.Gith
 		"`account_id` is the Orca GitHub account UUID (same identity as `orcasecurity_shift_left_github_account.account_id`).",
 	CollectionKey:  "repositories",
 	ListErrorTitle: "Error listing GitHub repositories",
-	Attrs: mergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
+	Attrs: shift_left_common.MergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
 		"account_id": dschema.StringAttribute{
 			Computed:    true,
 			Description: "Orca UUID of the GitHub integrated account owning the repository.",
 		},
-		"github_repository_id": dschema.Int64Attribute{Computed: true},
+		"github_repository_id": dschema.Int64Attribute{
+			Computed:    true,
+			Description: "Numeric GitHub repository id (from GitHub, not minted by Orca).",
+		},
 	}),
-	AttrTypes: mergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
+	AttrTypes: shift_left_common.MergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
 		"account_id":           types.StringType,
 		"github_repository_id": types.Int64Type,
 	}),
@@ -32,7 +35,7 @@ var githubRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.Gith
 		return c.ListGithubRepositories()
 	},
 	Row: func(a *api_client.GithubRepositoryListItem) map[string]attr.Value {
-		return mergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
+		return shift_left_common.MergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
 			"account_id":           types.StringValue(a.AccountID),
 			"github_repository_id": types.Int64Value(a.GithubRepositoryID),
 		})

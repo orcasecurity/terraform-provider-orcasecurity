@@ -19,16 +19,22 @@ var bitbucketRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.B
 		"`installation_id` is joined from the owning integrated account.",
 	CollectionKey:  "repositories",
 	ListErrorTitle: "Error listing Bitbucket repositories",
-	Attrs: mergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
+	Attrs: shift_left_common.MergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
 		"installation_id": dschema.StringAttribute{Computed: true, Description: "Orca Bitbucket installation UUID."},
 		"account_id": dschema.StringAttribute{
 			Computed:    true,
 			Description: "Bitbucket workspace slug (cloud) or project key (server); not an Orca UUID.",
 		},
-		"bitbucket_repository_id": dschema.StringAttribute{Computed: true},
-		"slug":                    dschema.StringAttribute{Computed: true},
+		"bitbucket_repository_id": dschema.StringAttribute{
+			Computed:    true,
+			Description: "Bitbucket repository id (from Bitbucket, not minted by Orca).",
+		},
+		"slug": dschema.StringAttribute{
+			Computed:    true,
+			Description: "Bitbucket repository slug (from Bitbucket).",
+		},
 	}),
-	AttrTypes: mergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
+	AttrTypes: shift_left_common.MergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
 		"installation_id":         types.StringType,
 		"account_id":              types.StringType,
 		"bitbucket_repository_id": types.StringType,
@@ -38,7 +44,7 @@ var bitbucketRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.B
 		return c.ListBitbucketRepositories()
 	},
 	Row: func(a *api_client.BitbucketRepositoryListItem) map[string]attr.Value {
-		return mergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
+		return shift_left_common.MergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
 			"installation_id":         tfconv.StringOrNull(a.InstallationID),
 			"account_id":              types.StringValue(a.AccountID),
 			"bitbucket_repository_id": types.StringValue(a.BitbucketRepositoryID),

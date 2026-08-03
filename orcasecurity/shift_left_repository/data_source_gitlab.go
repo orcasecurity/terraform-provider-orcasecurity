@@ -18,12 +18,12 @@ var gitlabRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.Gitl
 		"round-trip into `orcasecurity_shift_left_gitlab_repository`.",
 	CollectionKey:  "repositories",
 	ListErrorTitle: "Error listing GitLab repositories",
-	Attrs: mergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
+	Attrs: shift_left_common.MergeMaps(sharedRepoListAttrs(), map[string]dschema.Attribute{
 		"installation_id":   dschema.StringAttribute{Computed: true, Description: "Orca GitLab installation UUID."},
 		"gitlab_group_id":   dschema.Int64Attribute{Computed: true, Description: "Numeric GitLab group id owning the project (from GitLab)."},
 		"gitlab_project_id": dschema.Int64Attribute{Computed: true, Description: "Numeric GitLab project (repository) id (from GitLab)."},
 	}),
-	AttrTypes: mergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
+	AttrTypes: shift_left_common.MergeMaps(sharedRepoListAttrTypes(), map[string]attr.Type{
 		"installation_id":   types.StringType,
 		"gitlab_group_id":   types.Int64Type,
 		"gitlab_project_id": types.Int64Type,
@@ -32,7 +32,7 @@ var gitlabRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.Gitl
 		return c.ListGitlabRepositories()
 	},
 	Row: func(a *api_client.GitlabRepositoryListItem) map[string]attr.Value {
-		return mergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
+		return shift_left_common.MergeMaps(sharedRepoListValues(a.ScmRepository), map[string]attr.Value{
 			"installation_id":   types.StringValue(a.InstallationID),
 			"gitlab_group_id":   types.Int64Value(a.GitlabGroupID),
 			"gitlab_project_id": types.Int64Value(a.GitlabProjectID),

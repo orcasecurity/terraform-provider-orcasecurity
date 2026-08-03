@@ -31,12 +31,12 @@ output "github_repository_names" {
 Read-Only:
 
 - `account_id` (String) Orca UUID of the GitHub integrated account owning the repository.
-- `disabled` (Boolean)
-- `github_repository_id` (Number)
+- `disabled` (Boolean) Whether scanning is paused for this repository.
+- `github_repository_id` (Number) Numeric GitHub repository id (from GitHub, not minted by Orca).
 - `id` (String) Orca integrated-repository UUID.
-- `integration_status` (String)
-- `name` (String)
-- `project_id` (String)
-- `repository_context_id` (String)
-- `status` (String)
-- `url` (String)
+- `integration_status` (String) Health status of the owning installation. Empty when healthy.
+- `name` (String) Repository name (path) as known to the SCM.
+- `project_id` (String) Shift Left project the repository belongs to.
+- `repository_context_id` (String) Repository context id; deleting this context is how the repository is un-integrated.
+- `status` (String) Aggregated initial scan status.
+- `url` (String) Repository URL.

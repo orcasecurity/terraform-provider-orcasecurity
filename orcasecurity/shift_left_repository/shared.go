@@ -17,21 +17,27 @@ import (
 )
 
 type RepoConfigFields struct {
-	ID                      types.String `tfsdk:"id"`
-	Name                    types.String `tfsdk:"name"`
-	URL                     types.String `tfsdk:"url"`
-	Branch                  types.String `tfsdk:"branch"`
-	ProjectID               types.String `tfsdk:"project_id"`
-	Disabled                types.Bool   `tfsdk:"disabled"`
-	DisableScanPullRequests types.Bool   `tfsdk:"disable_scan_pull_requests"`
-	CommentsOnPullRequests  types.String `tfsdk:"comments_on_pull_requests"`
-	PrSummaryComment        types.String `tfsdk:"pr_summary_comment"`
-	SkipCheckRuns           types.String `tfsdk:"skip_check_runs"`
-	ConfigFileSupport       types.String `tfsdk:"config_file_support"`
-	Status                  types.String `tfsdk:"status"`
-	RepositoryContextID     types.String `tfsdk:"repository_context_id"`
-	IntegrationStatus       types.String `tfsdk:"integration_status"`
-	ScmPosturePolicyID      types.String `tfsdk:"scm_posture_policy_id"`
+	ID        types.String `tfsdk:"id"`
+	Name      types.String `tfsdk:"name"`
+	URL       types.String `tfsdk:"url"`
+	Branch    types.String `tfsdk:"branch"`
+	ProjectID types.String `tfsdk:"project_id"`
+	Disabled  types.Bool   `tfsdk:"disabled"`
+	shift_left_common.PRSettingsModel
+	Status              types.String `tfsdk:"status"`
+	RepositoryContextID types.String `tfsdk:"repository_context_id"`
+	IntegrationStatus   types.String `tfsdk:"integration_status"`
+	ScmPosturePolicyID  types.String `tfsdk:"scm_posture_policy_id"`
+}
+
+// configFields is promoted to every repository model that embeds RepoConfigFields,
+// letting the shared CRUD address the shared fields without per-model accessors.
+func (f *RepoConfigFields) configFields() *RepoConfigFields { return f }
+
+// repoModelPtr is satisfied by *M for every repository model embedding RepoConfigFields.
+type repoModelPtr[M any] interface {
+	*M
+	configFields() *RepoConfigFields
 }
 
 // GitHub/GitLab require branch on integrate (API 400); Azure/Bitbucket accept omitted branch.
@@ -144,20 +150,22 @@ var (
 
 func fromAPI(prior RepoConfigFields, api *api_client.ScmRepository, traits providerTraits) RepoConfigFields {
 	out := RepoConfigFields{
-		ID:                     types.StringValue(api.ID),
-		Name:                   types.StringValue(api.RepositoryName),
-		URL:                    types.StringValue(api.RepositoryURL),
-		Branch:                 prior.Branch,
-		ProjectID:              tfconv.StringOrNull(api.ProjectID),
-		Disabled:               types.BoolValue(api.Disabled),
-		CommentsOnPullRequests: tfconv.StringOrNull(api.CommentsOnPRs),
-		PrSummaryComment:       tfconv.StringOrNull(api.PrSummaryComment),
-		SkipCheckRuns:          tfconv.StringOrNull(api.SkipCheckRuns),
-		ConfigFileSupport:      tfconv.StringOrNull(api.ConfigFileSupport),
-		Status:                 tfconv.StringOrNull(api.Status),
-		RepositoryContextID:    tfconv.StringOrNull(api.RepositoryContextID),
-		IntegrationStatus:      tfconv.StringOrNull(api.IntegrationStatus),
-		ScmPosturePolicyID:     tfconv.StringOrNull(api.ScmPosturePolicyID),
+		ID:        types.StringValue(api.ID),
+		Name:      types.StringValue(api.RepositoryName),
+		URL:       types.StringValue(api.RepositoryURL),
+		Branch:    prior.Branch,
+		ProjectID: tfconv.StringOrNull(api.ProjectID),
+		Disabled:  types.BoolValue(api.Disabled),
+		PRSettingsModel: shift_left_common.PRSettingsModel{
+			CommentsOnPullRequests: tfconv.StringOrNull(api.CommentsOnPRs),
+			PrSummaryComment:       tfconv.StringOrNull(api.PrSummaryComment),
+			SkipCheckRuns:          tfconv.StringOrNull(api.SkipCheckRuns),
+			ConfigFileSupport:      tfconv.StringOrNull(api.ConfigFileSupport),
+		},
+		Status:              tfconv.StringOrNull(api.Status),
+		RepositoryContextID: tfconv.StringOrNull(api.RepositoryContextID),
+		IntegrationStatus:   tfconv.StringOrNull(api.IntegrationStatus),
+		ScmPosturePolicyID:  tfconv.StringOrNull(api.ScmPosturePolicyID),
 	}
 	if api.DisableScanPRs != nil {
 		out.DisableScanPullRequests = types.BoolValue(*api.DisableScanPRs)
@@ -212,34 +220,32 @@ func disabledUpdateBody(rowID string, plan *RepoConfigFields) (api_client.ScmRep
 }
 
 type repoOps struct {
-	client *api_client.APIClient
-	traits providerTraits
-	// fields points into the model the ops were built from, so the shared CRUD
-	// can read the plan and write the API result back without a separate accessor.
-	fields       *RepoConfigFields
+	client       *api_client.APIClient
+	traits       providerTraits
 	integrate    func() error
 	find         func() (*api_client.ScmRepository, error)
 	update       func(api_client.ScmRepositoryConfigUpdate) error
 	syncIdentity func(*api_client.ScmRepository) // Bitbucket slug backfill on read; nil elsewhere.
 }
 
-func repoCreate[M any](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
+func repoCreate[M any, PM repoModelPtr[M]](ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
 	ops func(*M) repoOps) {
 	var plan M
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	fields := PM(&plan).configFields()
 	o := ops(&plan)
-	row := createRepo(o, o.fields, &resp.Diagnostics)
+	row := createRepo(o, fields, &resp.Diagnostics)
 	if row == nil {
 		return
 	}
-	*o.fields = fromAPI(*o.fields, row, o.traits)
+	*fields = fromAPI(*fields, row, o.traits)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
+func repoRead[M any, PM repoModelPtr[M]](ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
 	ops func(*M) repoOps) {
 	var state M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -256,14 +262,15 @@ func repoRead[M any](ctx context.Context, req resource.ReadRequest, resp *resour
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	*o.fields = fromAPI(*o.fields, row, o.traits)
+	fields := PM(&state).configFields()
+	*fields = fromAPI(*fields, row, o.traits)
 	if o.syncIdentity != nil {
 		o.syncIdentity(row)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
+func repoUpdate[M any, PM repoModelPtr[M]](ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
 	ops func(*M) repoOps) {
 	var plan, state M
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -271,27 +278,41 @@ func repoUpdate[M any](ctx context.Context, req resource.UpdateRequest, resp *re
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	planFields := PM(&plan).configFields()
 	o := ops(&plan)
-	row := updateRepo(o, o.fields, ops(&state).fields, &resp.Diagnostics)
+	row := updateRepo(o, planFields, PM(&state).configFields(), &resp.Diagnostics)
 	if row == nil {
 		return
 	}
-	*o.fields = fromAPI(*o.fields, row, o.traits)
+	*planFields = fromAPI(*planFields, row, o.traits)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func repoDelete[M any](ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
+func repoDelete[M any, PM repoModelPtr[M]](ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
 	ops func(*M) repoOps) {
 	var state M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	o := ops(&state)
-	deleteRepo(o, o.fields, &resp.Diagnostics)
+	deleteRepo(ops(&state), PM(&state).configFields(), &resp.Diagnostics)
 }
 
+// createRepo is a two-phase apply forced by the API: integrate + confirm, then a
+// follow-up PATCH for disabled (not honored on the integrate POST). Each phase
+// owns one rollback policy.
 func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
+	row := integrateAndConfirm(ops, diags)
+	if row == nil {
+		return nil
+	}
+	return applyDisabledIfNeeded(ops, plan, row, diags)
+}
+
+// integrateAndConfirm integrates the repository and reads it back. On a failed
+// read-back the integration may or may not be live, so rollback goes through
+// rollbackUnconfirmedIntegration.
+func integrateAndConfirm(ops repoOps, diags *diag.Diagnostics) *api_client.ScmRepository {
 	if err := ops.integrate(); err != nil {
 		diags.AddError(fmt.Sprintf("Error integrating %s repository", ops.traits.name), err.Error())
 		return nil
@@ -305,24 +326,31 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 		diags.AddError(fmt.Sprintf("Error reading %s repository after integration", ops.traits.name), err.Error())
 		return nil
 	}
-	if body, set := disabledUpdateBody(row.ID, plan); set {
-		if err := ops.update(body); err != nil {
-			rollbackIntegration(ops, row, diags)
-			diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.traits.name), err.Error())
-			return nil
-		}
-		reread, err := ops.find()
-		if err == nil && reread == nil {
-			err = fmt.Errorf("repository disappeared after configuration update")
-		}
-		if err != nil {
-			rollbackIntegration(ops, row, diags)
-			diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.traits.name), err.Error())
-			return nil
-		}
-		row = reread
-	}
 	return row
+}
+
+// applyDisabledIfNeeded applies the disabled follow-up PATCH against a confirmed
+// row and re-reads it. A failure here rolls back the known integration.
+func applyDisabledIfNeeded(ops repoOps, plan *RepoConfigFields, row *api_client.ScmRepository, diags *diag.Diagnostics) *api_client.ScmRepository {
+	body, set := disabledUpdateBody(row.ID, plan)
+	if !set {
+		return row
+	}
+	if err := ops.update(body); err != nil {
+		rollbackIntegration(ops, row, diags)
+		diags.AddError(fmt.Sprintf("Error applying %s repository configuration", ops.traits.name), err.Error())
+		return nil
+	}
+	reread, err := ops.find()
+	if err == nil && reread == nil {
+		err = fmt.Errorf("repository disappeared after configuration update")
+	}
+	if err != nil {
+		rollbackIntegration(ops, row, diags)
+		diags.AddError(fmt.Sprintf("Error re-reading %s repository", ops.traits.name), err.Error())
+		return nil
+	}
+	return reread
 }
 
 // Delete repository_context on failed post-integrate config to avoid orphaned integrations.

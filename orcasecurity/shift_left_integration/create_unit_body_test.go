@@ -3,6 +3,8 @@ package shift_left_integration
 import (
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
+
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -46,7 +48,7 @@ func TestCreateUnitBody_EnablesPullRequestScanningByDefault(t *testing.T) {
 		types.StringValue("SELECTED_REPOSITORIES"),
 		types.BoolNull(),
 		types.SetNull(types.StringType),
-		&ConfigSettingsModel{PRSettingsModel: PRSettingsModel{DisableScanPullRequests: types.BoolValue(true)}},
+		&ConfigSettingsModel{PRSettingsModel: shift_left_common.PRSettingsModel{DisableScanPullRequests: types.BoolValue(true)}},
 		ProjectIntent{},
 	)
 	if !optOut.ConfigSettings.DisableScanPullRequests {

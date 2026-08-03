@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -222,7 +223,7 @@ func TestProjectIntentFrom_OnlyExplicitPoliciesCount(t *testing.T) {
 
 func TestAdopt_MergesConfigSettings(t *testing.T) {
 	overlay := &ConfigSettingsModel{
-		PRSettingsModel: PRSettingsModel{PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES")},
+		PRSettingsModel: shift_left_common.PRSettingsModel{PrSummaryComment: types.StringValue("ONLY_ON_FAILED_ISSUES")},
 	}
 	ad := Adopt(
 		types.StringNull(),

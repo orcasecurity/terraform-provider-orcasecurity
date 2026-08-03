@@ -11,9 +11,18 @@ import (
 
 func SharedScmListUnitAttrs() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"account_name":      schema.StringAttribute{Computed: true},
-		"installation_mode": schema.StringAttribute{Computed: true},
-		"default_policies":  schema.BoolAttribute{Computed: true},
+		"account_name": schema.StringAttribute{
+			Computed:    true,
+			Description: "Display name of the unit on the SCM side (organization, group, or workspace).",
+		},
+		"installation_mode": schema.StringAttribute{
+			Computed:    true,
+			Description: "Repository enrollment mode (for example SELECTED_REPOSITORIES or SCAN_ALL_INCLUDE_FUTURE).",
+		},
+		"default_policies": schema.BoolAttribute{
+			Computed:    true,
+			Description: "Whether Orca default policies apply to this unit.",
+		},
 		"integration_status": schema.StringAttribute{
 			Computed:    true,
 			Description: "Live integration health from the API when present.",

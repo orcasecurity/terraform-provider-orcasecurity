@@ -1,13 +1,10 @@
 package shift_left_integration
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -71,37 +68,18 @@ func TestValidateScmBindingPlan_FalseWithProjectOK(t *testing.T) {
 	}
 }
 
+// Every attribute settleVolatileAttrs manages must exist in the shared unit
+// schema as computed-only; a rename on either side would silently orphan the
+// attribute from the resource-level settling.
 func TestSharedScmConfigAttributes_VolatileStatusFields(t *testing.T) {
 	attrs := SharedScmConfigAttributes("name")
-	for _, name := range []string{"integration_status", "scan_all_state", "integrated_repositories_count", "scm_posture_policy_id"} {
+	for _, name := range ScmVolatileAttrNames() {
 		attr, ok := attrs[name]
 		if !ok {
 			t.Fatalf("missing %s", name)
 		}
-		if !attrHasVolatileModifier(attr) {
-			t.Errorf("%s must use a volatile plan modifier", name)
+		if !attr.IsComputed() || attr.IsOptional() || attr.IsRequired() {
+			t.Errorf("%s must be computed-only (server-owned)", name)
 		}
 	}
-}
-
-func attrHasVolatileModifier(attr rschema.Attribute) bool {
-	var modifiers []any
-	switch a := attr.(type) {
-	case rschema.StringAttribute:
-		for _, m := range a.PlanModifiers {
-			modifiers = append(modifiers, m)
-		}
-	case rschema.Int64Attribute:
-		for _, m := range a.PlanModifiers {
-			modifiers = append(modifiers, m)
-		}
-	default:
-		return false
-	}
-	for _, m := range modifiers {
-		if strings.Contains(fmt.Sprintf("%T", m), "volatile") {
-			return true
-		}
-	}
-	return false
 }

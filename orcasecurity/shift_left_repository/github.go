@@ -65,7 +65,6 @@ func githubRepositoryOps(apiClient *api_client.APIClient, plan *githubRepository
 	return repoOps{
 		client: apiClient,
 		traits: githubTraits,
-		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateGithubRepository(api_client.GithubRepositoryIntegrate{

@@ -44,12 +44,12 @@ resource "orcasecurity_shift_left_gitlab_group" "all" {
 
 Read-Only:
 
-- `account_name` (String)
-- `default_policies` (Boolean)
-- `gitlab_group_id` (Number)
-- `id` (String)
-- `installation_id` (String)
-- `installation_mode` (String)
+- `account_name` (String) Display name of the unit on the SCM side (organization, group, or workspace).
+- `default_policies` (Boolean) Whether Orca default policies apply to this unit.
+- `gitlab_group_id` (Number) Numeric GitLab group id (from GitLab, not minted by Orca).
+- `id` (String) Orca UUID of the GitLab group unit.
+- `installation_id` (String) Orca UUID of the parent GitLab installation.
+- `installation_mode` (String) Repository enrollment mode (for example SELECTED_REPOSITORIES or SCAN_ALL_INCLUDE_FUTURE).
 - `integrated_repositories_count` (Number) Count of repositories integrated under this unit.
 - `integration_status` (String) Live integration health from the API when present.
 - `scan_all_state` (String) State of the scan-all onboarding flow when present.

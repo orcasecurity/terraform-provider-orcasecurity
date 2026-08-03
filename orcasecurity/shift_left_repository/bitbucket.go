@@ -71,7 +71,6 @@ func bitbucketRepositoryOps(apiClient *api_client.APIClient, plan *bitbucketRepo
 	return repoOps{
 		client: apiClient,
 		traits: bitbucketTraits,
-		fields: &plan.RepoConfigFields,
 		integrate: func() error {
 			cfg, _ := planRepoConfig(&plan.RepoConfigFields)
 			return apiClient.IntegrateBitbucketRepository(api_client.BitbucketRepositoryIntegrate{
