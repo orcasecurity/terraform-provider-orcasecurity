@@ -1,4 +1,4 @@
-package shift_left_azure_devops_installation
+package shift_left_installation
 
 import (
 	"testing"
@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestWriteBody_CarriesTokenAndAccount(t *testing.T) {
-	body := writeBody(&resourceModel{
+func TestAzureWriteBody_CarriesTokenAndAccount(t *testing.T) {
+	body := azureWriteBody(&azureInstallationModel{
 		Name:        types.StringValue("azure-conn"),
 		ServerURL:   types.StringValue("https://dev.azure.com"),
 		AccessToken: types.StringValue("pat-123"),
@@ -26,9 +26,9 @@ func TestWriteBody_CarriesTokenAndAccount(t *testing.T) {
 	}
 }
 
-func TestSetState_MapsAPIFields(t *testing.T) {
-	m := &resourceModel{}
-	setState(m, &api_client.AzureDevopsInstallation{
+func TestAzureSetState_MapsAPIFields(t *testing.T) {
+	m := &azureInstallationModel{}
+	azureSetState(m, &api_client.AzureDevopsInstallation{
 		ID:                     "inst-1",
 		Name:                   "azure-conn",
 		ServerURL:              "https://dev.azure.com",
@@ -53,5 +53,17 @@ func TestSetState_MapsAPIFields(t *testing.T) {
 	// The API never echoes the token, so setState must not touch access_token.
 	if !m.AccessToken.IsNull() {
 		t.Errorf("access_token must remain untouched by setState, got %#v", m.AccessToken)
+	}
+}
+
+func TestAzureInstallationsToListValue(t *testing.T) {
+	list, diags := azureInstallationsSpec.ListValue([]api_client.AzureDevopsInstallation{
+		{ID: "inst-1", Name: "Azure", ServerURL: "https://dev.azure.com", CloudIntegration: true},
+	})
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if list.IsNull() || list.IsUnknown() || len(list.Elements()) != 1 {
+		t.Fatalf("expected one installation, got %#v", list)
 	}
 }

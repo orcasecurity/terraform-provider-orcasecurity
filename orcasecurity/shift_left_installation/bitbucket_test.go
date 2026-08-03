@@ -1,4 +1,4 @@
-package shift_left_bitbucket_installation
+package shift_left_installation
 
 import (
 	"testing"
@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestWriteBody_CarriesTokenDetails(t *testing.T) {
-	body := writeBody(&resourceModel{
+func TestBitbucketWriteBody_CarriesTokenDetails(t *testing.T) {
+	body := bitbucketWriteBody(&bitbucketInstallationModel{
 		Name:            types.StringValue("bb-conn"),
 		ServerURL:       types.StringValue("https://bitbucket.org"),
 		AccessToken:     types.StringValue("tok-123"),
@@ -29,9 +29,9 @@ func TestWriteBody_CarriesTokenDetails(t *testing.T) {
 	}
 }
 
-func TestSetState_MapsNestedTokenDetails(t *testing.T) {
-	m := &resourceModel{}
-	setState(m, &api_client.BitbucketInstallation{
+func TestBitbucketSetState_MapsNestedTokenDetails(t *testing.T) {
+	m := &bitbucketInstallationModel{}
+	bitbucketSetState(m, &api_client.BitbucketInstallation{
 		ID:                "inst-1",
 		Name:              "bb-conn",
 		ServerURL:         "https://bitbucket.org",
@@ -58,23 +58,23 @@ func TestSetState_MapsNestedTokenDetails(t *testing.T) {
 	}
 }
 
-func TestSetState_NilTokenDetailsLeavesEchoFieldsUntouched(t *testing.T) {
+func TestBitbucketSetState_NilTokenDetailsLeavesEchoFieldsUntouched(t *testing.T) {
 	// A read that omits access_token_details must not wipe configured echo fields
 	// (same rule as access_token: the API is silent, so prior state wins).
-	m := &resourceModel{
+	m := &bitbucketInstallationModel{
 		AccessTokenType: types.StringValue("PAT"),
 		Username:        types.StringValue("alice"),
 		AccountID:       types.StringValue("ws"),
 	}
-	setState(m, &api_client.BitbucketInstallation{ID: "inst-1", Name: "bb-conn"})
+	bitbucketSetState(m, &api_client.BitbucketInstallation{ID: "inst-1", Name: "bb-conn"})
 	if m.AccessTokenType.ValueString() != "PAT" || m.Username.ValueString() != "alice" || m.AccountID.ValueString() != "ws" {
 		t.Errorf("nil token details must leave echo fields untouched: %+v", m)
 	}
 }
 
-func TestSetState_EmptyEchoFieldsLeavePriorUntouched(t *testing.T) {
-	m := &resourceModel{Username: types.StringValue("alice")}
-	setState(m, &api_client.BitbucketInstallation{
+func TestBitbucketSetState_EmptyEchoFieldsLeavePriorUntouched(t *testing.T) {
+	m := &bitbucketInstallationModel{Username: types.StringValue("alice")}
+	bitbucketSetState(m, &api_client.BitbucketInstallation{
 		ID:   "inst-1",
 		Name: "bb-conn",
 		AccessTokenDetails: &api_client.BitbucketAccessTokenDetails{
@@ -88,5 +88,25 @@ func TestSetState_EmptyEchoFieldsLeavePriorUntouched(t *testing.T) {
 	}
 	if m.Username.ValueString() != "alice" {
 		t.Errorf("empty username must not wipe configured value: %v", m.Username)
+	}
+}
+
+func TestBitbucketInstallationsToListValue(t *testing.T) {
+	list, diags := bitbucketInstallationsSpec.ListValue([]api_client.BitbucketInstallation{
+		{
+			ID:   "inst-1",
+			Name: "Bitbucket",
+			AccessTokenDetails: &api_client.BitbucketAccessTokenDetails{
+				AccessTokenType: "TOKEN",
+				AccountID:       "my-workspace",
+			},
+			CloudIntegration: true,
+		},
+	})
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if list.IsNull() || list.IsUnknown() || len(list.Elements()) != 1 {
+		t.Fatalf("expected one installation, got %#v", list)
 	}
 }

@@ -1,4 +1,4 @@
-package shift_left_gitlab_installation
+package shift_left_installation
 
 import (
 	"testing"
@@ -8,9 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestWriteBody_AlwaysSendsReadOnly(t *testing.T) {
+func TestGitlabWriteBody_AlwaysSendsReadOnly(t *testing.T) {
 	// read_only is always sent: the API resets an omitted read_only to false.
-	body := writeBody(&resourceModel{
+	body := gitlabWriteBody(&gitlabInstallationModel{
 		Name:        types.StringValue("gl-conn"),
 		ServerURL:   types.StringValue("https://gitlab.com"),
 		AccessToken: types.StringValue("glpat-123"),
@@ -24,15 +24,15 @@ func TestWriteBody_AlwaysSendsReadOnly(t *testing.T) {
 	}
 
 	// A null read_only in the model marshals as an explicit false (never omitted).
-	def := writeBody(&resourceModel{Name: types.StringValue("gl-conn")})
+	def := gitlabWriteBody(&gitlabInstallationModel{Name: types.StringValue("gl-conn")})
 	if def.ReadOnly {
 		t.Errorf("null read_only must send false, got true")
 	}
 }
 
-func TestSetState_MapsAPIFields(t *testing.T) {
-	m := &resourceModel{}
-	setState(m, &api_client.GitlabInstallation{
+func TestGitlabSetState_MapsAPIFields(t *testing.T) {
+	m := &gitlabInstallationModel{}
+	gitlabSetState(m, &api_client.GitlabInstallation{
 		ID:                "inst-1",
 		Name:              "gl-conn",
 		ServerURL:         "https://gitlab.com",
@@ -61,5 +61,17 @@ func TestSetState_MapsAPIFields(t *testing.T) {
 	// The API never echoes the token, so setState must not touch access_token.
 	if !m.AccessToken.IsNull() {
 		t.Errorf("access_token must remain untouched by setState, got %#v", m.AccessToken)
+	}
+}
+
+func TestGitlabInstallationsToListValue(t *testing.T) {
+	list, diags := gitlabInstallationsSpec.ListValue([]api_client.GitlabInstallation{
+		{ID: "inst-1", Name: "GitLab", ServerURL: "https://gitlab.com", ReadOnly: true, CloudIntegration: true},
+	})
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if list.IsNull() || list.IsUnknown() || len(list.Elements()) != 1 {
+		t.Fatalf("expected one installation, got %#v", list)
 	}
 }

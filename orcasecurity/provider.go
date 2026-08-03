@@ -44,13 +44,11 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_itsm_template"
 	"terraform-provider-orcasecurity/orcasecurity/servicenow_sir_template"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_azure_devops_account"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_azure_devops_installation"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_bitbucket_account"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_bitbucket_installation"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_cve_exception_list"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_github_account"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_gitlab_group"
-	"terraform-provider-orcasecurity/orcasecurity/shift_left_gitlab_installation"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_installation"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy_catalog_controls"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_project"
@@ -255,12 +253,12 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		user.NewUsersDataSource,
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_azure_devops_account.NewAccountsDataSource,
-		shift_left_azure_devops_installation.NewInstallationsDataSource,
 		shift_left_bitbucket_account.NewAccountsDataSource,
-		shift_left_bitbucket_installation.NewInstallationsDataSource,
 		shift_left_github_account.NewAccountsDataSource,
 		shift_left_gitlab_group.NewGroupsDataSource,
-		shift_left_gitlab_installation.NewInstallationsDataSource,
+		shift_left_installation.NewAzureDevopsInstallationsDataSource,
+		shift_left_installation.NewBitbucketInstallationsDataSource,
+		shift_left_installation.NewGitlabInstallationsDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		shift_left_projects.NewProjectsDataSource,
 		shift_left_repository.NewAzureDevopsRepositoriesDataSource,
@@ -317,9 +315,9 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		shift_left_bitbucket_account.NewResource,
 		shift_left_github_account.NewResource,
 		shift_left_gitlab_group.NewResource,
-		shift_left_azure_devops_installation.NewResource,
-		shift_left_bitbucket_installation.NewResource,
-		shift_left_gitlab_installation.NewResource,
+		shift_left_installation.NewAzureDevopsInstallationResource,
+		shift_left_installation.NewBitbucketInstallationResource,
+		shift_left_installation.NewGitlabInstallationResource,
 		shift_left_repository.NewAzureDevopsRepositoryResource,
 		shift_left_repository.NewBitbucketRepositoryResource,
 		shift_left_repository.NewGithubRepositoryResource,
