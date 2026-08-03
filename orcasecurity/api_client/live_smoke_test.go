@@ -57,86 +57,94 @@ func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 	// rather than fail: these round-trips assert the filters still resolve a
 	// known row, and that a mismatched installation still resolves to nothing.
 	t.Run("find_by_filter_roundtrip", func(t *testing.T) {
-		t.Run("github", func(t *testing.T) {
-			row := firstRepoRow[githubRepositoryItem](t, client, "github")
-			found, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, row.GithubRepositoryID)
-			assertFound(t, row.Repository.Name, found, err)
-			// The name is a hint only: github_repository_id identifies the row and
-			// survives a rename, so a stale name must still resolve through the
-			// unfiltered fallback rather than read as "not found" and drop a live
-			// integration from state. Simulating a rename with a name that matches
-			// nothing also exercises the fallback exactly as an empty name (post-
-			// import, no hint at all) does.
-			renamed, err := client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
-			assertFound(t, row.Repository.Name, renamed, err)
-			found, err = client.FindGithubRepository(row.GithubInstallation.ID, "", row.GithubRepositoryID)
-			assertFound(t, row.Repository.Name, found, err)
-			// A repository id that exists under no installation is genuinely absent.
-			missing, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, -1)
-			assertNotFound(t, "github/unknown-repository-id", missing, err)
-			other, err := client.FindGithubRepository(mismatchedUUID, row.Repository.Name, row.GithubRepositoryID)
-			assertNotFound(t, "github/wrong-installation", other, err)
-		})
-		t.Run("gitlab", func(t *testing.T) {
-			row := firstRepoRow[gitlabRepositoryItem](t, client, "gitlab")
-			found, err := client.FindGitlabRepository(row.GitlabInstallation.ID, row.GitlabProjectID)
-			assertFound(t, row.Repository.Name, found, err)
-			other, err := client.FindGitlabRepository(mismatchedUUID, row.GitlabProjectID)
-			assertNotFound(t, "gitlab/wrong-installation", other, err)
-		})
-		t.Run("bitbucket", func(t *testing.T) {
-			row := firstRepoRow[bitbucketRepositoryItem](t, client, "bitbucket")
-			// FindBitbucketRepository resolves the workspace by slug under an
-			// installation, so drive it the way the resource does.
-			accounts, err := client.ListBitbucketAccounts()
-			if err != nil {
-				t.Fatalf("bitbucket accounts: %v", err)
-			}
-			var installationID string
-			for _, a := range accounts {
-				if a.ID == row.AccountInstallation.ID {
-					installationID = a.InstallationID
-					break
-				}
-			}
-			if installationID == "" {
-				t.Skipf("no bitbucket installation found for account installation %s", row.AccountInstallation.ID)
-			}
-			slug := row.AccountInstallation.AccountID
-			found, err := client.FindBitbucketRepository(installationID, slug, row.BitbucketRepositoryID)
-			assertFound(t, row.Repository.Name, found, err)
-			// A repository id the workspace does not contain is genuinely absent.
-			missing, err := client.FindBitbucketRepository(installationID, slug, "orca-no-such-repository-id")
-			assertNotFound(t, "bitbucket/unknown-repository-id", missing, err)
-			// An unknown workspace must fail closed (account lookup error), not
-			// read as absence and drop a live integration from state.
-			if _, err := client.FindBitbucketRepository(installationID, "orca-no-such-workspace", row.BitbucketRepositoryID); err == nil {
-				t.Error("bitbucket/wrong-workspace: expected an account-lookup error, got none")
-			}
-		})
-		t.Run("azure_devops", func(t *testing.T) {
-			row := firstRepoRow[azureRepositoryItem](t, client, "azure_devops")
-			// FindAzureRepository resolves the account by name under an
-			// installation, so drive it the way the resource does.
-			accounts, err := client.ListAzureDevopsAccounts()
-			if err != nil {
-				t.Fatalf("azure accounts: %v", err)
-			}
-			var installationID string
-			for _, a := range accounts {
-				if a.ID == row.AzureAccountInstallation.ID {
-					installationID = a.InstallationID
-					break
-				}
-			}
-			if installationID == "" {
-				t.Skipf("no azure installation found for account installation %s", row.AzureAccountInstallation.ID)
-			}
-			found, err := client.FindAzureRepository(
-				installationID, row.AzureAccountInstallation.AccountName, row.AzureRepositoryID)
-			assertFound(t, row.Repository.Name, found, err)
-		})
+		t.Run("github", func(t *testing.T) { smokeFindGithubRoundtrip(t, client) })
+		t.Run("gitlab", func(t *testing.T) { smokeFindGitlabRoundtrip(t, client) })
+		t.Run("bitbucket", func(t *testing.T) { smokeFindBitbucketRoundtrip(t, client) })
+		t.Run("azure_devops", func(t *testing.T) { smokeFindAzureRoundtrip(t, client) })
 	})
+}
+
+func smokeFindGithubRoundtrip(t *testing.T, client *APIClient) {
+	row := firstRepoRow[githubRepositoryItem](t, client, "github")
+	found, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, row.GithubRepositoryID)
+	assertFound(t, row.Repository.Name, found, err)
+	// The name is a hint only: github_repository_id identifies the row and
+	// survives a rename, so a stale name must still resolve through the
+	// unfiltered fallback rather than read as "not found" and drop a live
+	// integration from state. Simulating a rename with a name that matches
+	// nothing also exercises the fallback exactly as an empty name (post-
+	// import, no hint at all) does.
+	renamed, err := client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
+	assertFound(t, row.Repository.Name, renamed, err)
+	found, err = client.FindGithubRepository(row.GithubInstallation.ID, "", row.GithubRepositoryID)
+	assertFound(t, row.Repository.Name, found, err)
+	// A repository id that exists under no installation is genuinely absent.
+	missing, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, -1)
+	assertNotFound(t, "github/unknown-repository-id", missing, err)
+	other, err := client.FindGithubRepository(mismatchedUUID, row.Repository.Name, row.GithubRepositoryID)
+	assertNotFound(t, "github/wrong-installation", other, err)
+}
+
+func smokeFindGitlabRoundtrip(t *testing.T, client *APIClient) {
+	row := firstRepoRow[gitlabRepositoryItem](t, client, "gitlab")
+	found, err := client.FindGitlabRepository(row.GitlabInstallation.ID, row.GitlabProjectID)
+	assertFound(t, row.Repository.Name, found, err)
+	other, err := client.FindGitlabRepository(mismatchedUUID, row.GitlabProjectID)
+	assertNotFound(t, "gitlab/wrong-installation", other, err)
+}
+
+func smokeFindBitbucketRoundtrip(t *testing.T, client *APIClient) {
+	row := firstRepoRow[bitbucketRepositoryItem](t, client, "bitbucket")
+	// FindBitbucketRepository resolves the workspace by slug under an
+	// installation, so drive it the way the resource does.
+	accounts, err := client.ListBitbucketAccounts()
+	if err != nil {
+		t.Fatalf("bitbucket accounts: %v", err)
+	}
+	var installationID string
+	for _, a := range accounts {
+		if a.ID == row.AccountInstallation.ID {
+			installationID = a.InstallationID
+			break
+		}
+	}
+	if installationID == "" {
+		t.Skipf("no bitbucket installation found for account installation %s", row.AccountInstallation.ID)
+	}
+	slug := row.AccountInstallation.AccountID
+	found, err := client.FindBitbucketRepository(installationID, slug, row.BitbucketRepositoryID)
+	assertFound(t, row.Repository.Name, found, err)
+	// A repository id the workspace does not contain is genuinely absent.
+	missing, err := client.FindBitbucketRepository(installationID, slug, "orca-no-such-repository-id")
+	assertNotFound(t, "bitbucket/unknown-repository-id", missing, err)
+	// An unknown workspace must fail closed (account lookup error), not
+	// read as absence and drop a live integration from state.
+	if _, err := client.FindBitbucketRepository(installationID, "orca-no-such-workspace", row.BitbucketRepositoryID); err == nil {
+		t.Error("bitbucket/wrong-workspace: expected an account-lookup error, got none")
+	}
+}
+
+func smokeFindAzureRoundtrip(t *testing.T, client *APIClient) {
+	row := firstRepoRow[azureRepositoryItem](t, client, "azure_devops")
+	// FindAzureRepository resolves the account by name under an
+	// installation, so drive it the way the resource does.
+	accounts, err := client.ListAzureDevopsAccounts()
+	if err != nil {
+		t.Fatalf("azure accounts: %v", err)
+	}
+	var installationID string
+	for _, a := range accounts {
+		if a.ID == row.AzureAccountInstallation.ID {
+			installationID = a.InstallationID
+			break
+		}
+	}
+	if installationID == "" {
+		t.Skipf("no azure installation found for account installation %s", row.AzureAccountInstallation.ID)
+	}
+	found, err := client.FindAzureRepository(
+		installationID, row.AzureAccountInstallation.AccountName, row.AzureRepositoryID)
+	assertFound(t, row.Repository.Name, found, err)
 }
 
 // A syntactically valid UUID that will not match any real installation.
