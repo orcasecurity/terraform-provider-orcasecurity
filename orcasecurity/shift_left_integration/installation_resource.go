@@ -47,8 +47,10 @@ type InstallationLifecycle[M any, A any] struct {
 	SetState func(m *M, a *A)
 }
 
-// ModifyPlan is a no-op: installation resources have no cross-attribute plan rules.
 func (InstallationLifecycle[M, A]) ModifyPlan(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse) {
+	// Intentionally empty: UnitOps requires ModifyPlan, but installation
+	// resources have no cross-attribute plan rules and no volatile
+	// server-owned attributes to settle (unlike AdoptedUnitOps).
 }
 
 func (l InstallationLifecycle[M, A]) DoCreate(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
