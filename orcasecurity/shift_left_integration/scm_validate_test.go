@@ -72,7 +72,7 @@ func TestValidateScmBindingPlan_FalseWithProjectOK(t *testing.T) {
 // schema as computed-only; a rename on either side would silently orphan the
 // attribute from the resource-level settling.
 func TestSharedScmConfigAttributes_VolatileStatusFields(t *testing.T) {
-	attrs := SharedScmConfigAttributes("name")
+	attrs := SharedScmConfigAttributes()
 	for _, name := range ScmVolatileAttrNames() {
 		attr, ok := attrs[name]
 		if !ok {

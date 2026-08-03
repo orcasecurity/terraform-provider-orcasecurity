@@ -9,7 +9,8 @@ import (
 )
 
 func resourceSchema() rschema.Schema {
-	attrs := shift_left_integration.SharedScmConfigAttributes("Bitbucket workspace/account name.")
+	attrs := shift_left_integration.SharedScmConfigAttributes()
+	attrs["account_name"] = shift_left_integration.ComputedAccountName("Bitbucket workspace/account name.")
 	// The backend has no Bitbucket scope on SCM posture policies, so the shared
 	// attribute can never carry a value here.
 	attrs["scm_posture_policy_id"] = shift_left_integration.ComputedVolatileString(

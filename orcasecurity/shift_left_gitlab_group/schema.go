@@ -10,7 +10,8 @@ import (
 )
 
 func resourceSchema() rschema.Schema {
-	attrs := shift_left_integration.SharedScmConfigAttributes("GitLab group/account name.")
+	attrs := shift_left_integration.SharedScmConfigAttributes()
+	attrs["account_name"] = shift_left_integration.ComputedAccountName("GitLab group/account name.")
 	attrs["id"] = rschema.StringAttribute{
 		Computed:      true,
 		Description:   "Orca GitLab integrated group UUID.",

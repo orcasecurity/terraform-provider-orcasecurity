@@ -64,7 +64,7 @@ func TestExpandConfigSettings_UnavailableAvoidScan(t *testing.T) {
 }
 
 func TestSharedScmConfigAttributes_HasIntegrationStatus(t *testing.T) {
-	attrs := SharedScmConfigAttributes("name")
+	attrs := SharedScmConfigAttributes()
 	if _, ok := attrs["integration_status"]; !ok {
 		t.Fatal("expected integration_status attribute")
 	}

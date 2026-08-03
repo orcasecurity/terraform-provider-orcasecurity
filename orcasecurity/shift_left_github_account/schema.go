@@ -10,7 +10,8 @@ import (
 )
 
 func resourceSchema() rschema.Schema {
-	attrs := shift_left_integration.SharedScmConfigAttributes("GitHub account/organization name.")
+	attrs := shift_left_integration.SharedScmConfigAttributes()
+	attrs["account_name"] = shift_left_integration.ComputedAccountName("GitHub account/organization name.")
 	attrs["id"] = rschema.StringAttribute{
 		Computed: true,
 		Description: "Orca UUID of the integrated GitHub account (same value as `account_id`). " +

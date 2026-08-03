@@ -10,13 +10,17 @@ import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// UnitOps is the CRUD + plan surface shared by AdoptedUnitOps and
-// InstallationLifecycle (whose ModifyPlan is a no-op).
+// UnitOps is the CRUD surface shared by AdoptedUnitOps and InstallationLifecycle.
 type UnitOps interface {
 	DoCreate(context.Context, resource.CreateRequest, *resource.CreateResponse)
 	DoRead(context.Context, resource.ReadRequest, *resource.ReadResponse)
 	DoUpdate(context.Context, resource.UpdateRequest, *resource.UpdateResponse)
 	DoDelete(context.Context, resource.DeleteRequest, *resource.DeleteResponse)
+}
+
+// unitPlanModifier is implemented only by ops that have plan-time rules
+// (AdoptedUnitOps); InstallationLifecycle stays free of a no-op method.
+type unitPlanModifier interface {
 	ModifyPlan(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
 }
 
@@ -70,5 +74,7 @@ func (r *GenericResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *GenericResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	r.OpsFn(r.client).ModifyPlan(ctx, req, resp)
+	if pm, ok := r.OpsFn(r.client).(unitPlanModifier); ok {
+		pm.ModifyPlan(ctx, req, resp)
+	}
 }

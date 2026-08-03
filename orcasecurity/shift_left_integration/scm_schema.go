@@ -40,13 +40,23 @@ func (nonEmptyPoliciesValidator) ValidateSet(_ context.Context, req validator.Se
 	}
 }
 
-func SharedScmConfigAttributes(accountNameDescription string) map[string]rschema.Attribute {
+// ComputedAccountName is the server-reported account/group display name. Azure
+// DevOps does not use it: there account_name is the Required identity attribute,
+// defined by the resource itself. Keeping identity attributes out of
+// SharedScmConfigAttributes means no resource ever overwrites a shared key.
+func ComputedAccountName(description string) rschema.StringAttribute {
+	return rschema.StringAttribute{
+		Computed:      true,
+		Description:   description,
+		PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+	}
+}
+
+// SharedScmConfigAttributes carries only the attributes every SCM unit resource
+// exposes with identical semantics. Identity attributes (id, installation_id,
+// account_id/account_name/gitlab_group_id) belong to each resource's schema.
+func SharedScmConfigAttributes() map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
-		"account_name": rschema.StringAttribute{
-			Computed:      true,
-			Description:   accountNameDescription,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		},
 		"integration_status": ComputedVolatileString(
 			"Live integration health from the API (e.g. ENABLED, DISABLED_DUE_TO_INVALID_TOKEN, INSTALLATION_SUSPENDED, INSTALLATION_UNREACHABLE). Null when the API omits it. Volatile: re-read after writes; settled across no-op plans.",
 		),
