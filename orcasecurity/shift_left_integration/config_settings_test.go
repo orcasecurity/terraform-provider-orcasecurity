@@ -122,7 +122,7 @@ func TestConfigSettingsRoundTrip(t *testing.T) {
 			ConfigFileSupport:       types.StringValue("ENABLED"),
 		},
 		PrSummaryAppendix: types.StringValue("note"),
-		ArchiveConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		ArchiveConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	api := ExpandConfigSettings(m)
 	if api.CommentsOnPullRequests != "ONLY_ON_FAILED_ISSUES" || api.PrSummaryComment != "ONLY_ON_FAILED_ISSUES" {
@@ -152,8 +152,8 @@ func TestExpandConfigSettings_NoConditionsOmitsInstallationReposConfig(t *testin
 
 func TestExpandConfigSettings_ExplicitEmptyListsClearsReposConfig(t *testing.T) {
 	m := &ConfigSettingsModel{
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{}),
 	}
 	api := ExpandConfigSettings(m)
 	if api.InstallationReposConfig == nil {
@@ -178,8 +178,8 @@ func TestExpandConfigSettings_ExplicitEmptyListsClearsReposConfig(t *testing.T) 
 // archive conditions: previously the empty side was omitted and silently kept server-side.
 func TestExpandConfigSettings_AsymmetricClearStillSendsBothActions(t *testing.T) {
 	m := &ConfigSettingsModel{
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
 	}
 	api := ExpandConfigSettings(m)
 	if api.InstallationReposConfig == nil {
@@ -201,8 +201,8 @@ func TestExpandConfigSettings_AsymmetricClearStillSendsBothActions(t *testing.T)
 // conditions must serialize as [] rather than being dropped by omitempty.
 func TestExpandConfigSettings_EmptyConditionsSerializeAsArray(t *testing.T) {
 	m := &ConfigSettingsModel{
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{}),
 	}
 	raw, err := json.Marshal(ExpandConfigSettings(m).InstallationReposConfig)
 	if err != nil {
@@ -223,8 +223,8 @@ func TestMergeThenExpand_ClearArchiveConditions(t *testing.T) {
 		},
 	})
 	overlay := &ConfigSettingsModel{
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{}),
 	}
 	merged := MergeConfigSettings(base, overlay)
 	api := ExpandConfigSettings(&merged)
@@ -238,7 +238,7 @@ func TestMergeThenExpand_ClearArchiveConditions(t *testing.T) {
 
 func TestExpandConfigSettings_UnavailableConditionsOnly(t *testing.T) {
 	m := &ConfigSettingsModel{
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
 	}
 	api := ExpandConfigSettings(m)
 	if api.InstallationReposConfig == nil {
@@ -272,9 +272,9 @@ func TestConfigSettingsAttributes_ArchiveAlwaysPresent(t *testing.T) {
 	}
 
 	for _, k := range []string{"archive_conditions", "unavailable_conditions"} {
-		l, ok := attrs[k].(schema.ListAttribute)
-		if !ok || !l.Optional || !l.Computed {
-			t.Fatalf("%s must be Optional+Computed, got: %+v", k, attrs[k])
+		s, ok := attrs[k].(schema.SetAttribute)
+		if !ok || !s.Optional || !s.Computed {
+			t.Fatalf("%s must be an Optional+Computed SetAttribute, got: %+v", k, attrs[k])
 		}
 	}
 }
@@ -326,8 +326,8 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 			ConfigFileSupport:       types.StringValue("ENABLED"),
 		},
 		PrSummaryAppendix:     types.StringValue("base appendix"),
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
-		UnavailableConditions: types.ListNull(types.StringType),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		UnavailableConditions: types.SetNull(types.StringType),
 	}
 	overlay := &ConfigSettingsModel{
 		PRSettingsModel: shift_left_common.PRSettingsModel{
@@ -338,8 +338,8 @@ func TestMergeConfigSettings_PartialOverlayWinsOnSetFieldsOnly(t *testing.T) {
 			ConfigFileSupport:       types.StringNull(),
 		},
 		PrSummaryAppendix:     types.StringNull(),
-		ArchiveConditions:     types.ListNull(types.StringType),
-		UnavailableConditions: types.ListNull(types.StringType),
+		ArchiveConditions:     types.SetNull(types.StringType),
+		UnavailableConditions: types.SetNull(types.StringType),
 	}
 
 	merged := MergeConfigSettings(base, overlay)
@@ -383,8 +383,8 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 			ConfigFileSupport:       types.StringValue("ENABLED"),
 		},
 		PrSummaryAppendix:     types.StringValue("base"),
-		ArchiveConditions:     types.ListNull(types.StringType),
-		UnavailableConditions: types.ListNull(types.StringType),
+		ArchiveConditions:     types.SetNull(types.StringType),
+		UnavailableConditions: types.SetNull(types.StringType),
 	}
 	overlay := &ConfigSettingsModel{
 		PRSettingsModel: shift_left_common.PRSettingsModel{
@@ -395,8 +395,8 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 			ConfigFileSupport:       types.StringValue("DISABLED"),
 		},
 		PrSummaryAppendix:     types.StringValue("overlay"),
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("DELETE_REPO")}),
 	}
 
 	merged := MergeConfigSettings(base, overlay)
@@ -430,11 +430,11 @@ func TestMergeConfigSettings_OverlaySetFieldsAllOverrideBase(t *testing.T) {
 func TestMergeConfigSettings_UnknownOverlayFieldsDoNotOverrideBase(t *testing.T) {
 	base := ConfigSettingsModel{
 		PRSettingsModel:   shift_left_common.PRSettingsModel{PrSummaryComment: types.StringValue("ALWAYS")},
-		ArchiveConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		ArchiveConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	overlay := &ConfigSettingsModel{
 		PRSettingsModel:   shift_left_common.PRSettingsModel{PrSummaryComment: types.StringUnknown()},
-		ArchiveConditions: types.ListUnknown(types.StringType),
+		ArchiveConditions: types.SetUnknown(types.StringType),
 	}
 
 	merged := MergeConfigSettings(base, overlay)

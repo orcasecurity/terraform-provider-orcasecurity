@@ -55,8 +55,8 @@ func TestAccGitlabGroup_clearsArchiveConditions(t *testing.T) {
 	}
 
 	overlay := &shift_left_integration.ConfigSettingsModel{
-		ArchiveConditions:     types.ListValueMust(types.StringType, []attr.Value{}),
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{}),
+		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{}),
 	}
 	ad := shift_left_integration.Adopt(
 		types.StringNull(), types.BoolNull(), types.SetNull(types.StringType), overlay,

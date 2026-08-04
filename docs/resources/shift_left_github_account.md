@@ -78,14 +78,14 @@ resource "orcasecurity_shift_left_github_account" "project_bound" {
 
 Optional:
 
-- `archive_conditions` (List of String) Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO.
+- `archive_conditions` (Set of String) Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO.
 - `comments_on_pull_requests` (String) When to post scan result comments on pull requests.
 - `config_file_support` (String) Whether in-repo Orca config file support is enabled.
 - `disable_scan_pull_requests` (Boolean) Disable scanning pull requests.
 - `pr_summary_appendix` (String) Additional free-text appendix appended to the pull request summary comment.
 - `pr_summary_comment` (String) When to post a pull request summary comment.
 - `skip_check_runs` (String) When to skip posting check runs.
-- `unavailable_conditions` (List of String) Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO (same as archive_conditions).
+- `unavailable_conditions` (Set of String) Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO (same as archive_conditions).
 
 ## Import
 

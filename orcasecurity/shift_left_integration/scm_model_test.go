@@ -51,7 +51,7 @@ func TestScmConfigFieldsFromAPI_ReadOnlyStatusFields(t *testing.T) {
 
 func TestExpandConfigSettings_UnavailableAvoidScan(t *testing.T) {
 	m := &ConfigSettingsModel{
-		UnavailableConditions: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
 	}
 	api := ExpandConfigSettings(m)
 	if api.InstallationReposConfig == nil || api.InstallationReposConfig.UnavailableActions == nil {

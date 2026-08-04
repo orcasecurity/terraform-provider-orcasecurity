@@ -45,9 +45,13 @@ Two areas are deliberately not covered against a live tenant:
 
 - **Installation resources** (GitLab, Bitbucket, Azure DevOps). Creating one requires a working personal
   access token for the SCM itself, which is a credential the test environment cannot be expected to
-  hold. Their request and response mapping is unit-tested instead (`mapping_test.go` in each
-  installation package). GitHub has no installation resource at all: that installation is created by
-  the GitHub App flow, outside of Terraform.
+  hold. Their request and response mapping is unit-tested instead (`gitlab_test.go`,
+  `bitbucket_test.go` and `azure_devops_test.go` in `orcasecurity/shift_left_installation`). GitHub
+  has no installation resource at all: that installation is created by the GitHub App flow, outside
+  of Terraform. The installation-list and repository-list *data sources* are not part of this
+  carve-out: they are GET-only and need no PAT, so they do have live tests
+  (`shift_left_installation/data_source_acc_test.go`, `shift_left_repository/data_source_acc_test.go`)
+  that run under plain `TF_ACC` with tenant credentials.
 - **Repository create/update/delete.** Integrating a repository and then destroying it deletes its
   repository context in the tenant. `shift_left_repository/import_apply_test.go` drives import, apply,
   update, replace and destroy against a stateful in-process stub of the API instead, so the lifecycle is

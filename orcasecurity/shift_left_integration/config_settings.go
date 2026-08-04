@@ -7,13 +7,13 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -22,9 +22,12 @@ import (
 
 type ConfigSettingsModel struct {
 	shift_left_common.PRSettingsModel
-	PrSummaryAppendix     types.String `tfsdk:"pr_summary_appendix"`
-	ArchiveConditions     types.List   `tfsdk:"archive_conditions"`
-	UnavailableConditions types.List   `tfsdk:"unavailable_conditions"`
+	PrSummaryAppendix types.String `tfsdk:"pr_summary_appendix"`
+	// types.Set, not types.List: the backend treats conditions as an unordered
+	// membership set (queried via __contains, never index-accessed), so element
+	// order is not part of the API contract and must not produce a plan diff.
+	ArchiveConditions     types.Set `tfsdk:"archive_conditions"`
+	UnavailableConditions types.Set `tfsdk:"unavailable_conditions"`
 }
 
 func ConfigSettingsAttributes() map[string]schema.Attribute {
@@ -71,25 +74,25 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 		},
 	}
 
-	attrs["archive_conditions"] = schema.ListAttribute{
+	attrs["archive_conditions"] = schema.SetAttribute{
 		Optional:    true,
 		Computed:    true,
 		ElementType: types.StringType,
 		Description: "Conditions that trigger an archive action for repositories (installation_repositories_configuration.archive_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO.",
-		Validators: []validator.List{
-			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
+		Validators: []validator.Set{
+			setvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
 		},
-		PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+		PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
 	}
-	attrs["unavailable_conditions"] = schema.ListAttribute{
+	attrs["unavailable_conditions"] = schema.SetAttribute{
 		Optional:    true,
 		Computed:    true,
 		ElementType: types.StringType,
 		Description: "Conditions that trigger an action when a repository becomes unavailable (installation_repositories_configuration.unavailable_actions.conditions). API accepts AVOID_SCAN and DELETE_REPO (same as archive_conditions).",
-		Validators: []validator.List{
-			listvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
+		Validators: []validator.Set{
+			setvalidator.ValueStringsAre(stringvalidator.OneOf("AVOID_SCAN", "DELETE_REPO")),
 		},
-		PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+		PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
 	}
 
 	return attrs
@@ -106,8 +109,8 @@ func ConfigSettingsAttrTypes() map[string]attr.Type {
 		"skip_check_runs":            types.StringType,
 		"config_file_support":        types.StringType,
 		"pr_summary_appendix":        types.StringType,
-		"archive_conditions":         types.ListType{ElemType: types.StringType},
-		"unavailable_conditions":     types.ListType{ElemType: types.StringType},
+		"archive_conditions":         types.SetType{ElemType: types.StringType},
+		"unavailable_conditions":     types.SetType{ElemType: types.StringType},
 	}
 }
 
@@ -143,11 +146,11 @@ func ConfigSettingsToObject(m ConfigSettingsModel) types.Object {
 	})
 }
 
-func stringSliceFromList(l types.List) []string {
-	if l.IsNull() || l.IsUnknown() {
+func stringSliceFromSet(s types.Set) []string {
+	if s.IsNull() || s.IsUnknown() {
 		return nil
 	}
-	elements := l.Elements()
+	elements := s.Elements()
 	if len(elements) == 0 {
 		return nil
 	}
@@ -162,15 +165,15 @@ func stringSliceFromList(l types.List) []string {
 	return result
 }
 
-func stringSliceToList(values []string) types.List {
+func stringSliceToSet(values []string) types.Set {
 	if len(values) == 0 {
-		return types.ListNull(types.StringType)
+		return types.SetNull(types.StringType)
 	}
 	elems := make([]attr.Value, 0, len(values))
 	for _, v := range values {
 		elems = append(elems, types.StringValue(v))
 	}
-	return types.ListValueMust(types.StringType, elems)
+	return types.SetValueMust(types.StringType, elems)
 }
 
 // Required enums default when unset — legacy units return "" and PATCH rejects empty. pr_summary_appendix is not defaulted ("" clears it).
@@ -194,8 +197,8 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 
 	archiveKnown := tfconv.Known(m.ArchiveConditions)
 	unavailableKnown := tfconv.Known(m.UnavailableConditions)
-	archiveConditions := stringSliceFromList(m.ArchiveConditions)
-	unavailableConditions := stringSliceFromList(m.UnavailableConditions)
+	archiveConditions := stringSliceFromSet(m.ArchiveConditions)
+	unavailableConditions := stringSliceFromSet(m.UnavailableConditions)
 
 	// Send both action sets or neither. The API replaces this object wholesale, so
 	// omitting one key while setting the other would silently keep its old conditions
@@ -230,16 +233,16 @@ func FlattenConfigSettings(c api_client.ShiftLeftConfigSettings) ConfigSettingsM
 			ConfigFileSupport:       tfconv.StringOrNull(c.ConfigFileSupport),
 		},
 		PrSummaryAppendix:     tfconv.StringOrNull(c.PrSummaryAppendix),
-		ArchiveConditions:     types.ListNull(types.StringType),
-		UnavailableConditions: types.ListNull(types.StringType),
+		ArchiveConditions:     types.SetNull(types.StringType),
+		UnavailableConditions: types.SetNull(types.StringType),
 	}
 
 	if c.InstallationReposConfig != nil {
 		if c.InstallationReposConfig.ArchiveActions != nil {
-			m.ArchiveConditions = stringSliceToList(c.InstallationReposConfig.ArchiveActions.Conditions)
+			m.ArchiveConditions = stringSliceToSet(c.InstallationReposConfig.ArchiveActions.Conditions)
 		}
 		if c.InstallationReposConfig.UnavailableActions != nil {
-			m.UnavailableConditions = stringSliceToList(c.InstallationReposConfig.UnavailableActions.Conditions)
+			m.UnavailableConditions = stringSliceToSet(c.InstallationReposConfig.UnavailableActions.Conditions)
 		}
 	}
 

@@ -164,9 +164,10 @@ func (r *defaultPolicyResource) write(plan *resourceModel, diags *diag.Diagnosti
 		diags.AddError(errUpdateDefaultPolicy, err.Error())
 		return nil
 	}
-	if plan.Controls != nil {
-		state.Controls = plan.Controls
-	}
+	// controls is Optional (not Computed), so state must follow the plan exactly:
+	// when the config omits controls the planned value is null, and keeping the
+	// hydrated live overrides here would be an inconsistent result after apply.
+	state.Controls = plan.Controls
 	return state
 }
 
@@ -201,6 +202,12 @@ func (r *defaultPolicyResource) Read(ctx context.Context, req resource.ReadReque
 	}
 	if state.Controls == nil && newState.Controls != nil {
 		newState.Controls = nil
+	}
+	// controls = [] is the documented clear. The API then reports no controls,
+	// which maps to nil (null); without restoring the tracked empty list the
+	// cleared value would reappear as a permanent "+ controls = []" plan diff.
+	if state.Controls != nil && newState.Controls == nil {
+		newState.Controls = []controlModel{}
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 }

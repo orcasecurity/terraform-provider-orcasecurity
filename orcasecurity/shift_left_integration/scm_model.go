@@ -65,8 +65,8 @@ func preserveKnownEmpties(ctx context.Context, next, prior *ScmConfigFields) {
 	if nextCfg.PrSummaryAppendix.IsNull() && isKnownEmptyString(priorCfg.PrSummaryAppendix) {
 		nextCfg.PrSummaryAppendix = types.StringValue("")
 	}
-	preserveEmptyList(&nextCfg.ArchiveConditions, priorCfg.ArchiveConditions)
-	preserveEmptyList(&nextCfg.UnavailableConditions, priorCfg.UnavailableConditions)
+	preserveEmptySet(&nextCfg.ArchiveConditions, priorCfg.ArchiveConditions)
+	preserveEmptySet(&nextCfg.UnavailableConditions, priorCfg.UnavailableConditions)
 	next.ConfigSettings = ConfigSettingsToObject(*nextCfg)
 }
 
@@ -74,8 +74,8 @@ func isKnownEmptyString(v types.String) bool {
 	return tfconv.Known(v) && v.ValueString() == ""
 }
 
-func preserveEmptyList(next *types.List, prior types.List) {
+func preserveEmptySet(next *types.Set, prior types.Set) {
 	if next.IsNull() && tfconv.Known(prior) && len(prior.Elements()) == 0 {
-		*next = types.ListValueMust(types.StringType, nil)
+		*next = types.SetValueMust(types.StringType, nil)
 	}
 }

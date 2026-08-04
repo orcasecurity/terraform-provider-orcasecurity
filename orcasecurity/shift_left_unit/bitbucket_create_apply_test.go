@@ -246,7 +246,7 @@ func TestScmUnitApply_AsymmetricConditionClear(t *testing.T) {
   }`,
 		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.archive_conditions.#", "0"),
 		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.unavailable_conditions.#", "1"),
-		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.unavailable_conditions.0", "DELETE_REPO"),
+		resource.TestCheckTypeSetElemAttr(stubResourceName, "configuration_settings.unavailable_conditions.*", "DELETE_REPO"),
 	)
 
 	reposConfig := stub.lastPutConfigSettings(t)["installation_repositories_configuration"].(map[string]any)
@@ -297,7 +297,7 @@ func TestScmUnitApply_FullySpecifiedConfig(t *testing.T) {
 		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.skip_check_runs", "ONLY_ON_INTERNAL_ISSUE"),
 		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.config_file_support", "DISABLED"),
 		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.pr_summary_appendix", "reviewed by terraform"),
-		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.archive_conditions.0", "AVOID_SCAN"),
+		resource.TestCheckTypeSetElemAttr(stubResourceName, "configuration_settings.archive_conditions.*", "AVOID_SCAN"),
 	)
 }
 
@@ -315,7 +315,7 @@ func TestScmUnitApply_UpdateSettlesWithoutDrift(t *testing.T) {
     pr_summary_comment = "ALWAYS"
     archive_conditions = ["AVOID_SCAN"]
   }`),
-				Check: resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.archive_conditions.0", "AVOID_SCAN"),
+				Check: resource.TestCheckTypeSetElemAttr(stubResourceName, "configuration_settings.archive_conditions.*", "AVOID_SCAN"),
 			},
 			{
 				Config: stubConfig(`
