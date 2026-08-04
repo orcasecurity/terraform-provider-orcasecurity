@@ -50,5 +50,8 @@ docs/superpowers/
 # Local agent notes and state — never commit
 .claude/
 
+# Local import smoke-test harness (lab-specific IDs, not for CI)
+tests/lab/
+
 # Pinned tool binaries installed by `make lint` (version from .golangci-version)
 /bin/
