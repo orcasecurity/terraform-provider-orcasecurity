@@ -6,6 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -83,6 +84,37 @@ func TestInstallationModeAgreesBetweenResourceAndDataSource(t *testing.T) {
 		if !listValue.Equal(resourceValue) {
 			t.Errorf("mode %q: data source reports %v, resource reports %v", mode, listValue, resourceValue)
 		}
+	}
+}
+
+// Azure DevOps (live) reports default_policies=true while also expanding the
+// flag into the concrete built-in policy list. Storing both would put the pair
+// ValidateScmBindingPlan rejects into state, so an imported unit could never
+// plan. On read the flag owns the binding and the expansion maps to null.
+func TestScmConfigFieldsFromAPI_DefaultPoliciesOwnsBinding(t *testing.T) {
+	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		DefaultPolicies: true,
+		Policies:        []api_client.ScmPolicyRef{{ID: "pol-1"}, {ID: "pol-2"}},
+	})
+	if !f.DefaultPolicies.ValueBool() {
+		t.Fatalf("default_policies: %v", f.DefaultPolicies)
+	}
+	if !f.PoliciesIds.IsNull() {
+		t.Fatalf("policies_ids must be null when default_policies=true, got %#v", f.PoliciesIds)
+	}
+	var diags diag.Diagnostics
+	ValidateScmBindingPlan(&f, &diags)
+	if diags.HasError() {
+		t.Fatalf("read result must be plannable, got %v", diags)
+	}
+
+	// Explicit binding (flag false) still round-trips the ids untouched.
+	f = ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		DefaultPolicies: false,
+		Policies:        []api_client.ScmPolicyRef{{ID: "pol-1"}},
+	})
+	if f.PoliciesIds.IsNull() || len(f.PoliciesIds.Elements()) != 1 {
+		t.Fatalf("expected explicit policies preserved, got %#v", f.PoliciesIds)
 	}
 }
 

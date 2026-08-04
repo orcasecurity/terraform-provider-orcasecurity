@@ -36,7 +36,7 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 		// SELECTED_REPOSITORIES and removed the drift signal.
 		InstallationMode: types.StringValue(installationModeFromAPI(u.InstallationMode)),
 		DefaultPolicies:  types.BoolValue(u.DefaultPolicies),
-		PoliciesIds:      PolicyIDsFromRefs(u.Policies),
+		PoliciesIds:      readPolicyIDs(u),
 		ProjectID:        tfconv.StringOrNull(api_client.ProjectRefID(u.Project)),
 		ConfigSettings:   ConfigSettingsToObject(cs),
 
@@ -44,6 +44,20 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 		IntegratedRepositoriesCount: types.Int64Value(u.IntegratedRepositoriesCount),
 		ScmPosturePolicyID:          tfconv.StringOrNull(u.ScmPosturePolicyID),
 	}
+}
+
+// readPolicyIDs maps the unit's attached policies into state. Some APIs
+// (seen live on Azure DevOps) report default_policies=true while also
+// expanding the flag into the concrete built-in policy list; storing both
+// puts the exact pair ValidateScmBindingPlan rejects into state, so an
+// imported unit could never produce a valid plan. The flag owns the binding
+// (the write path clears the list when it is true), so on read the expansion
+// is implied and policies_ids maps to null.
+func readPolicyIDs(u api_client.ScmUnitCommonFields) types.Set {
+	if u.DefaultPolicies {
+		return types.SetNull(types.StringType)
+	}
+	return PolicyIDsFromRefs(u.Policies)
 }
 
 // preserveKnownEmpties reconciles the values the API cannot round-trip. Clearing a project
