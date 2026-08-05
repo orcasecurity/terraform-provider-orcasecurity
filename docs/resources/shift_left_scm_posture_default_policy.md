@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_scm_posture_default_policy Resource - orcasecurity"
 description: |-
-  Manages the org-wide built-in SCM Posture policy singleton (GET/PUT /api/shiftleft/scm_posture/policy/). The policy always exists in every Orca org, so this resource adopts it: Create and Update both PUT the configuration, and Delete only forgets the resource from state (the built-in policy can never be deleted). Its name and description are locked server-side; only disabled and control overrides are writable.
+  Manages the org-wide built-in SCM Posture policy singleton (GET/PUT /api/shiftleft/scm_posture/policy/). The policy always exists in every Orca org, so this resource adopts it: Create and Update both PUT the configuration, and Delete only forgets the resource from state (the built-in policy can never be deleted). Its name and description are locked server-side; only disabled and control overrides are writable. An attribute left unset in config is merged from the live value rather than reset, so a first apply never wipes pre-existing settings — but there is no cross-config lock: two Terraform configs (or a config and the Orca UI) that both explicitly set the same attribute on this shared org-wide object will last-writer-win on that attribute.
 ---
 
 # orcasecurity_shift_left_scm_posture_default_policy (Resource)
 
-Manages the org-wide built-in SCM Posture policy singleton (GET/PUT /api/shiftleft/scm_posture/policy/). The policy always exists in every Orca org, so this resource adopts it: Create and Update both PUT the configuration, and Delete only forgets the resource from state (the built-in policy can never be deleted). Its name and description are locked server-side; only `disabled` and control overrides are writable.
+Manages the org-wide built-in SCM Posture policy singleton (GET/PUT /api/shiftleft/scm_posture/policy/). The policy always exists in every Orca org, so this resource adopts it: Create and Update both PUT the configuration, and Delete only forgets the resource from state (the built-in policy can never be deleted). Its name and description are locked server-side; only `disabled` and control overrides are writable. An attribute left unset in config is merged from the live value rather than reset, so a first apply never wipes pre-existing settings — but there is no cross-config lock: two Terraform configs (or a config and the Orca UI) that both explicitly set the same attribute on this shared org-wide object will last-writer-win on that attribute.
 
 -> **Singleton semantics:** every Orca org has exactly one built-in SCM posture policy; this resource adopts it rather than creating it. `terraform destroy` only removes it from state — the policy itself always remains. Omitted attributes (`disabled`, `controls`) keep their live values; set `controls = []` to explicitly clear all control overrides. For named, scoped SCM posture policies use the SCM posture policies API instead.
 

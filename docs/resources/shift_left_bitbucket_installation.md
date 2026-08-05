@@ -10,6 +10,8 @@ Connects a Bitbucket server or workspace to Orca Shift Left by registering an ac
 
 -> **Write-only token:** the API never returns `access_token`. Terraform keeps the configured value in state; on `terraform import` the token is unknown and the next apply re-sends it. Use `access_token_type = "TOKEN"` with `account_id` for workspace (cloud) or project (server) tokens, or `access_token_type = "PAT"` with `username` for personal access tokens.
 
+!> **Destroy:** `terraform destroy` DELETEs the entire SCM server connection — every account under this installation, and every repository and configuration under those accounts, is torn down along with it. This is a much wider blast radius than destroying a single `orcasecurity_shift_left_bitbucket_account`, which only de-integrates that one account.
+
 ## Example Usage
 
 ```terraform

@@ -10,6 +10,8 @@ Connects an Azure DevOps server or organization to Orca Shift Left by registerin
 
 -> **Write-only token:** the API never returns `access_token`. Terraform keeps the configured value in state; on `terraform import` the token is unknown and the next apply re-sends it. Setting `account_name` scopes the token to one organization (`SINGLE_ACCOUNT`); omitting it registers an all-organizations token (`ALL_ACCOUNTS`).
 
+!> **Destroy:** `terraform destroy` DELETEs the entire SCM server connection — every account under this installation, and every repository and configuration under those accounts, is torn down along with it. This is a much wider blast radius than destroying a single `orcasecurity_shift_left_azure_devops_account`, which only de-integrates that one account.
+
 ## Example Usage
 
 ```terraform

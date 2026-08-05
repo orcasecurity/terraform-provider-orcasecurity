@@ -10,6 +10,8 @@ Connects a GitLab server to Orca Shift Left by registering an access token (POST
 
 -> **Write-only token:** the API validates `access_token` on create and never returns it. Terraform keeps the configured value in state; on `terraform import` the token is unknown and the next apply re-sends it. When updating any other attribute, the current `read_only` value is always re-sent because the API resets an omitted `read_only` to `false`.
 
+!> **Destroy:** `terraform destroy` DELETEs the entire SCM server connection — every group under this installation, and every repository and configuration under those groups, is torn down along with it. This is a much wider blast radius than destroying a single `orcasecurity_shift_left_gitlab_group`, which only de-integrates that one group.
+
 ## Example Usage
 
 ```terraform

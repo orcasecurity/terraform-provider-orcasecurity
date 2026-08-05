@@ -65,7 +65,10 @@ func (r *defaultPolicyResource) Schema(_ context.Context, _ resource.SchemaReque
 		Description: "Manages the org-wide built-in SCM Posture policy singleton (GET/PUT /api/shiftleft/scm_posture/policy/). " +
 			"The policy always exists in every Orca org, so this resource adopts it: Create and Update both PUT the configuration, " +
 			"and Delete only forgets the resource from state (the built-in policy can never be deleted). " +
-			"Its name and description are locked server-side; only `disabled` and control overrides are writable.",
+			"Its name and description are locked server-side; only `disabled` and control overrides are writable. " +
+			"An attribute left unset in config is merged from the live value rather than reset, so a first apply never wipes " +
+			"pre-existing settings — but there is no cross-config lock: two Terraform configs (or a config and the Orca UI) " +
+			"that both explicitly set the same attribute on this shared org-wide object will last-writer-win on that attribute.",
 		Attributes: map[string]rschema.Attribute{
 			"id": rschema.StringAttribute{
 				Computed:      true,
