@@ -134,6 +134,7 @@ func TestGetScheduledReport(t *testing.T) {
 	}
 	if report == nil {
 		t.Fatal("expected report, got nil")
+		return
 	}
 	if report.Name != "Weekly open alerts" {
 		t.Errorf("unexpected name: %s", report.Name)

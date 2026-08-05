@@ -91,6 +91,7 @@ func TestGetDiscoveryView_Found(t *testing.T) {
 	}
 	if view == nil {
 		t.Fatal("expected discovery view, got nil")
+		return
 	}
 	if view.ID != testDiscoveryViewID {
 		t.Errorf("unexpected id: %s", view.ID)

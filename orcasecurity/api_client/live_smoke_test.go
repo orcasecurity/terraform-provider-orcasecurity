@@ -153,6 +153,7 @@ func assertFound(t *testing.T, wantName string, got *ScmRepository, err error) {
 	}
 	if got == nil {
 		t.Fatalf("filtered lookup found nothing; expected %q", wantName)
+		return
 	}
 	if got.RepositoryName != wantName {
 		t.Errorf("filtered lookup returned %q, want %q", got.RepositoryName, wantName)

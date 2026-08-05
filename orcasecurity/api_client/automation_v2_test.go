@@ -102,6 +102,7 @@ func TestAutomationsV2_GetAutomationV2(t *testing.T) {
 
 	if automation == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 
 	if automation.ID != "test-id-123" {
@@ -220,6 +221,7 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 
 	if automation == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 
 	if automation.ID != "created-id-456" {
@@ -279,6 +281,7 @@ func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 	if result.ID != "created-id-789" {
 		t.Errorf("Expected ID 'created-id-789', got '%s'", result.ID)
@@ -362,6 +365,7 @@ func TestAutomationsV2_UpdateAutomationV2(t *testing.T) {
 
 	if automation == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 
 	if automation.Name != "Updated Automation" {

@@ -39,6 +39,7 @@ func TestScmUnitLookups_StampInstallationID(t *testing.T) {
 		}
 		if acc == nil {
 			t.Fatal("account not found")
+			return
 		}
 		if acc.InstallationID != instID {
 			t.Errorf("installation_id = %q, want %q", acc.InstallationID, instID)

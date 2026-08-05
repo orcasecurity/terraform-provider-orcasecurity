@@ -288,6 +288,7 @@ func TestFindGithubRepository_NormalizesFlatItem(t *testing.T) {
 	}
 	if row == nil {
 		t.Fatal("row not found")
+		return
 	}
 	if row.ProjectID != "proj-1" || row.RepositoryContextID != "ctx-1" {
 		t.Errorf("bad normalization: %+v", row)
@@ -321,6 +322,7 @@ func TestFindGitlabRepository_NormalizesFlatItem(t *testing.T) {
 	}
 	if row == nil {
 		t.Fatal("row not found")
+		return
 	}
 	if row.ProjectID != "proj-1" || row.RepositoryContextID != "ctx-1" {
 		t.Errorf("bad normalization: %+v", row)
@@ -354,6 +356,7 @@ func TestFindBitbucketRepository_NormalizesNestedConfig(t *testing.T) {
 	}
 	if row == nil {
 		t.Fatal("row not found")
+		return
 	}
 	if !row.Disabled || row.CommentsOnPRs != "ALWAYS" || row.ConfigFileSupport != "DISABLED" {
 		t.Errorf("nested configuration_settings not flattened: %+v", row)
@@ -435,6 +438,7 @@ func TestFindAzureRepository_NormalizesManagedProperties(t *testing.T) {
 	}
 	if row == nil {
 		t.Fatal("row not found")
+		return
 	}
 	if !row.Disabled || row.ConfigFileSupport != "ENABLED" {
 		t.Errorf("managed_repo_properties not flattened: %+v", row)

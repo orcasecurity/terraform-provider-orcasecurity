@@ -241,6 +241,7 @@ func TestFindRepository_LocalMatchGuardsIgnoredFilters(t *testing.T) {
 	}
 	if repo == nil {
 		t.Fatal("expected a match")
+		return
 	}
 	if repo.ID != "right" {
 		t.Errorf("matched the wrong installation's row: got id=%q, want %q", repo.ID, "right")

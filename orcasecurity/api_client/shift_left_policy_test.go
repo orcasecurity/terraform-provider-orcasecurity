@@ -173,6 +173,7 @@ func TestGetShiftLeftPolicy_PopulatesProjectsIdsFromProjects(t *testing.T) {
 	}
 	if policy == nil {
 		t.Fatal("expected non-nil policy")
+		return
 	}
 	if len(policy.ProjectsIds) != 2 || policy.ProjectsIds[0] != "proj-a" || policy.ProjectsIds[1] != "proj-b" {
 		t.Fatalf("expected ProjectsIds [proj-a proj-b], got %v", policy.ProjectsIds)
