@@ -7,22 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// installationModePlanModifier is UseStateForUnknown, except that a legacy SCAN_ALL
-// held in state plans as the value the write path will actually send.
-//
-// Read reports installation_mode verbatim so a unit still on the legacy SCAN_ALL is
-// visible rather than silently displayed as SELECTED_REPOSITORIES. Import performs no
-// write, so that is the value that lands in state. Carrying it forward unchanged would
-// promise a planned value the API rejects: the write remaps SCAN_ALL, the read-back
-// returns SELECTED_REPOSITORIES, and the apply fails with "inconsistent result after
-// apply". Planning the remapped value instead keeps the apply consistent and shows the
-// migration in the plan, which is what the apply genuinely does.
-//
-// The rewrite must not be gated on the plan value being unknown: on Terraform >= 1.4
-// core carries the prior state value for an omitted Optional+Computed attribute, so
-// with an otherwise no-op configuration the plan arrives holding a known SCAN_ALL and
-// the framework never marks it unknown. Rewriting the known value keeps the migration
-// deterministic across Terraform versions instead of silently never running.
+// Carry state forward, but plan legacy SCAN_ALL as the remapped write value (also when known on TF ≥1.4).
 type installationModePlanModifier struct{}
 
 func InstallationModePlanModifier() planmodifier.String { return installationModePlanModifier{} }
@@ -36,7 +21,6 @@ func (m installationModePlanModifier) MarkdownDescription(ctx context.Context) s
 }
 
 func (installationModePlanModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	// Configured explicitly or no prior state (create): leave it alone.
 	if !req.ConfigValue.IsNull() || req.State.Raw.IsNull() {
 		return
 	}

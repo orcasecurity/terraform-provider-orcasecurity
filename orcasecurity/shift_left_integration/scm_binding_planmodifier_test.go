@@ -1,10 +1,5 @@
 package shift_left_integration
 
-// Direct tests for the three policy-binding plan modifiers. They coordinate the
-// mutually exclusive policies_ids / default_policies / project_id triple, so each
-// case builds a schema-backed Config/State pair and asserts whether the omitted
-// attribute is carried forward from state or forced unknown for a re-read.
-
 import (
 	"context"
 	"testing"

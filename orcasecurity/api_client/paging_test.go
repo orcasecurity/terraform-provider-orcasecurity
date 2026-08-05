@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// automationPage renders one page of the /api/automations envelope.
 func automationPage(total int, ids ...string) map[string]any {
 	data := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
@@ -26,12 +25,7 @@ func automationPage(total int, ids ...string) map[string]any {
 	return map[string]any{"total_items": total, "data": data}
 }
 
-// Adding server-side filters changed how paginateOffset builds its query, from a
-// fmt.Sprintf to url.Values.Encode — which sorts keys and percent-escapes. Every
-// caller that passes nil filters (ListAutomationsV2 and all the SCM lists) must
-// keep the byte-identical query it sent before filters existed. Assertions via
-// URL.Query().Get() cannot catch an extra, renamed, or re-ordered key, so pin
-// RawQuery instead.
+// Nil filters must keep byte-identical RawQuery (Encode sorts/escapes); pin RawQuery not Query().Get.
 func TestPaginateOffset_NilFiltersSendOnlyPagingParams(t *testing.T) {
 	var rawQueries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,10 +63,7 @@ func TestPaginateOffset_NilFiltersSendOnlyPagingParams(t *testing.T) {
 	}
 }
 
-// The server caps limit at its own maximum (300 for OrcaLimitOffsetPaginator), so a caller
-// asking for more gets short pages. start_at_index must therefore advance by rows actually
-// received: advancing by the requested limit would skip everything the server declined to
-// serve, and treating a short page as the last page would truncate the list.
+// Advance start_at_index by rows received when the server clamps limit.
 func TestPaginateOffset_ShortPagesFromClampedLimitDoNotTruncate(t *testing.T) {
 	const serverMaxLimit = 3
 	var offsets []string

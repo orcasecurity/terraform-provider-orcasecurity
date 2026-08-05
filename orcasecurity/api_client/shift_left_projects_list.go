@@ -6,7 +6,6 @@ type ShiftLeftProjectSummary struct {
 	Key  string `json:"key"`
 }
 
-// Uses start_at_index paging via shared SCM list helper.
 func (client *APIClient) ListShiftLeftProjects() ([]ShiftLeftProjectSummary, error) {
 	return getAllScmPages[ShiftLeftProjectSummary](client, "/api/shiftleft/projects/", nil)
 }

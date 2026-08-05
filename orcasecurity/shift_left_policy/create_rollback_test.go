@@ -1,11 +1,6 @@
 package shift_left_policy_test
 
-// Creating a policy that attaches projects takes two writes: POST the policy, then PUT its projects.
-// Terraform records no state when Create reports an error, so a policy that survives a failed attach
-// is invisible to Terraform and the next apply creates a second one. These tests drive the whole
-// resource against an in-process stub of the Orca policy API, so they need no credentials and run in
-// normal CI. `malicious_packages` is used because it has no controls and no catalog, which keeps the
-// stub to the four endpoints the create path actually walks.
+// Create is POST then projects PUT; failed attach leaves an untracked policy unless rolled back. Stub uses malicious_packages (no controls/catalog).
 
 import (
 	"encoding/json"
@@ -27,8 +22,7 @@ type policyStub struct {
 	mu sync.Mutex
 	// attachStatus is the status the projects PUT answers with.
 	attachStatus int
-	// readBackMissing makes the post-attach GET 404, standing in for a policy the API
-	// accepted but cannot serve back yet.
+	// readBackMissing: post-attach GET 404 — API accepted the policy but cannot serve it yet.
 	readBackMissing bool
 	requests        []string
 	projects        []string
@@ -148,8 +142,7 @@ func TestShiftLeftPolicyCreate_FailedProjectAttachDeletesPolicy(t *testing.T) {
 	}
 }
 
-// A policy that cannot be read back is equally untracked, so it has to be rolled back too rather
-// than left behind for the next apply to duplicate.
+// Unreadable after attach is untracked too — roll back or the next apply duplicates.
 func TestShiftLeftPolicyCreate_FailedReadBackDeletesPolicy(t *testing.T) {
 	stub := &policyStub{attachStatus: http.StatusOK, readBackMissing: true}
 	stub.start(t)
@@ -168,9 +161,7 @@ func TestShiftLeftPolicyCreate_FailedReadBackDeletesPolicy(t *testing.T) {
 	}
 }
 
-// A create that succeeds end to end must not delete anything. resource.Test also refreshes and
-// re-plans after the apply, so this step doubles as the check that a policy created without a
-// description settles instead of replanning an in-place update forever.
+// Success must not DELETE; refresh/re-plan also checks a description-less create settles.
 func TestShiftLeftPolicyCreate_SuccessKeepsPolicy(t *testing.T) {
 	stub := &policyStub{attachStatus: http.StatusOK}
 	stub.start(t)
@@ -186,7 +177,7 @@ func TestShiftLeftPolicyCreate_SuccessKeepsPolicy(t *testing.T) {
 		}},
 	})
 
-	// resource.Test destroys at the end of the case, so exactly the teardown DELETE is expected.
+	// Only resource.Test teardown DELETE is expected.
 	if got := stub.deletes(); got != 1 {
 		t.Errorf("expected only the final destroy DELETE, got %d in %v", got, stub.recorded())
 	}

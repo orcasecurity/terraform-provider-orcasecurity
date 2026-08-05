@@ -1,11 +1,6 @@
 ### Shift Left (AppSec) acceptance tests
 
-The Shift Left SCM resources adopt objects that already exist in the tenant: an account, workspace or
-group is integrated through the SCM's own install flow, and the provider then manages its
-configuration. There is nothing for a test to create from scratch, so these tests need a tenant that
-already has an installation and at least one unit under it, identified by environment variables. Each
-test skips with the names it wanted when they are unset, so an incomplete environment is quiet rather
-than red.
+Shift Left SCM acceptance tests adopt tenant objects already integrated via each SCM's install flow — they cannot create units from scratch. Tests need env vars pointing at an existing installation and unit; unset vars cause a quiet skip, not a failure.
 
 #### Identity cheat-sheet (`account_id` and friends)
 
@@ -33,26 +28,9 @@ than red.
 | `ORCASECURITY_ACC_SCM_INSTALLATION_ID` | GitHub installation used by the SCM posture policy test (must be a live install the API can assign scope to; deleted/orphan ids make create fail) |
 | `ORCA_TEST_SCM_POSTURE_DEFAULT_ALLOW` | Opt-in for the org-wide SCM posture default-policy adopt test (`orcasecurity_shift_left_scm_posture_default_policy`). Unset = skip. The test snapshots and restores the singleton; without this gate a normal `TF_ACC` suite would mutate every org's built-in posture policy. |
 
-Terraform destroys everything it created when a test case ends, and for an adopted unit that means
-de-integrating a unit the test did not integrate — which also drops every repository under it, and the
-restore only puts the empty unit back. Those cases therefore need a second opt-in
-(`ORCA_TEST_GH_ALLOW_DESTROY`, `ORCA_TEST_GL_ALLOW_DESTROY`, `ORCA_TEST_BB_ALLOW_DESTROY`,
-`ORCA_TEST_AZ_ALLOW_DESTROY`) and skip themselves when the unit they were pointed at has repositories
-(GitHub included — destroy has no Integrate restore path and needs the App flow to recover).
-Point them at a disposable empty unit, never at a shared one.
+Destroy on adopted units de-integrates them and drops all repos; restore only recreates the empty unit. Opt in with `ORCA_TEST_GH_ALLOW_DESTROY`, `ORCA_TEST_GL_ALLOW_DESTROY`, `ORCA_TEST_BB_ALLOW_DESTROY`, or `ORCA_TEST_AZ_ALLOW_DESTROY`; tests skip when repos exist. Use a disposable empty unit — GitHub destroy has no Integrate restore and needs the App flow to recover.
 
-Two areas are deliberately not covered against a live tenant:
+Two areas are not covered against a live tenant:
 
-- **Installation resources** (GitLab, Bitbucket, Azure DevOps). Creating one requires a working personal
-  access token for the SCM itself, which is a credential the test environment cannot be expected to
-  hold. Their request and response mapping is unit-tested instead (`gitlab_test.go`,
-  `bitbucket_test.go` and `azure_devops_test.go` in `orcasecurity/shift_left_installation`). GitHub
-  has no installation resource at all: that installation is created by the GitHub App flow, outside
-  of Terraform. The installation-list and repository-list *data sources* are not part of this
-  carve-out: they are GET-only and need no PAT, so they do have live tests
-  (`shift_left_installation/data_source_acc_test.go`, `shift_left_repository/data_source_acc_test.go`)
-  that run under plain `TF_ACC` with tenant credentials.
-- **Repository create/update/delete.** Integrating a repository and then destroying it deletes its
-  repository context in the tenant. `shift_left_repository/import_apply_test.go` drives import, apply,
-  update, replace and destroy against a stateful in-process stub of the API instead, so the lifecycle is
-  covered without a tenant.
+- **Installation resources** (GitLab, Bitbucket, Azure DevOps). Creating one needs a real SCM PAT the test env cannot hold; mapping is unit-tested in `orcasecurity/shift_left_installation` instead. GitHub has no installation resource (App flow only). Installation-list and repository-list data sources are GET-only and do have live tests under plain `TF_ACC`.
+- **Repository create/update/delete.** Destroy deletes repository context in the tenant. `shift_left_repository/import_apply_test.go` covers import, apply, update, replace, and destroy against an in-process API stub instead.

@@ -1,15 +1,6 @@
 package shift_left_unit_test
 
-// These tests drive a full terraform apply against a stateful in-process stub of the Orca
-// SCM unit API. They need no credentials and no lab tenant, so they run in normal CI.
-//
-// They cover the shared shift_left_integration.AdoptedUnitOps create/update path, which
-// orcasecurity_shift_left_github_account, _gitlab_group, _azure_devops_account and
-// _bitbucket_account all use, plus the shared SharedScmConfigAttributes schema. Bitbucket
-// is the stand-in because it has the simplest identity (installation id + account slug).
-//
-// resource.Test asserts the plan is empty after each apply, so every case here is also a
-// guard against a value that applies successfully but never settles.
+// In-process SCM-unit stub applies (shared AdoptedUnitOps path); Bitbucket as stand-in.
 
 import (
 	"encoding/json"
@@ -32,16 +23,13 @@ const (
 	stubResourceName   = "orcasecurity_shift_left_bitbucket_account.test"
 )
 
-// scmUnitStub models the unit the way the API does: a PUT replaces configuration_settings
-// wholesale and rebinds or clears the project, and every later read returns what was stored.
+// Stub: PUT replaces configuration_settings wholesale; later reads return stored values.
 type scmUnitStub struct {
 	mu   sync.Mutex
 	unit map[string]any
 	puts []map[string]any
 
-	// volatileSideEffects makes a write move server-owned Computed fields the way
-	// the real API does (scan-all enrols repositories; a project rebind re-evaluates
-	// posture). Opt-in so the existing cases keep their fixed, side-effect-free unit.
+	// volatileSideEffects: opt-in server-side moves of Computed fields (scan-all, project rebind).
 	volatileSideEffects bool
 }
 
@@ -111,7 +99,6 @@ func (s *scmUnitStub) snapshot() map[string]any {
 	return out
 }
 
-// lastPutConfigSettings returns the configuration_settings of the most recent write.
 func (s *scmUnitStub) lastPutConfigSettings(t *testing.T) map[string]any {
 	t.Helper()
 	s.mu.Lock()
@@ -126,7 +113,6 @@ func (s *scmUnitStub) lastPutConfigSettings(t *testing.T) map[string]any {
 	return cfg
 }
 
-// start serves the unit list and config PUT, and points the provider at itself.
 func (s *scmUnitStub) start(t *testing.T) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +157,6 @@ resource "orcasecurity_shift_left_bitbucket_account" "test" {
 `, stubInstallationID, stubAccountSlug, body)
 }
 
-// runStubApply applies body once and runs checks against the resulting state.
 func runStubApply(t *testing.T, body string, checks ...resource.TestCheckFunc) *scmUnitStub {
 	t.Helper()
 	stub := newSCMUnitStub()
@@ -186,8 +171,7 @@ func runStubApply(t *testing.T, body string, checks ...resource.TestCheckFunc) *
 	return stub
 }
 
-// configuration_settings is Optional+Computed and so plans as unknown when omitted. A Go
-// struct pointer cannot hold unknown, which used to fail the apply outright.
+// configuration_settings must travel as types.Object (can hold unknown).
 func TestScmUnitApply_MinimalConfig(t *testing.T) {
 	runStubApply(t, ``,
 		resource.TestCheckResourceAttr(stubResourceName, "account_id", stubAccountSlug),
@@ -213,7 +197,6 @@ func TestScmUnitApply_AdoptExistingSet(t *testing.T) {
 	)
 }
 
-// Documented clear-by-empty-list: state must keep [] rather than collapsing to null.
 func TestScmUnitApply_EmptyArchiveConditionsStayEmpty(t *testing.T) {
 	stub := runStubApply(t, `
   configuration_settings = {
@@ -236,8 +219,7 @@ func TestScmUnitApply_EmptyArchiveConditionsStayEmpty(t *testing.T) {
 	}
 }
 
-// An empty archive list next to a populated unavailable list must still clear the archive
-// side; previously the empty side was dropped by omitempty and silently kept.
+// Asymmetric clear must still send the empty archive side.
 func TestScmUnitApply_AsymmetricConditionClear(t *testing.T) {
 	stub := runStubApply(t, `
   configuration_settings = {
@@ -255,7 +237,6 @@ func TestScmUnitApply_AsymmetricConditionClear(t *testing.T) {
 	}
 }
 
-// Documented clear-by-empty-string for the project binding.
 func TestScmUnitApply_EmptyProjectIDStaysEmpty(t *testing.T) {
 	runStubApply(t, `
   project_id = ""`,
@@ -263,7 +244,6 @@ func TestScmUnitApply_EmptyProjectIDStaysEmpty(t *testing.T) {
 	)
 }
 
-// pr_summary_appendix = "" is the documented way to clear the appendix.
 func TestScmUnitApply_EmptyPrSummaryAppendixStaysEmpty(t *testing.T) {
 	runStubApply(t, `
   configuration_settings = {
@@ -273,7 +253,6 @@ func TestScmUnitApply_EmptyPrSummaryAppendixStaysEmpty(t *testing.T) {
 	)
 }
 
-// A populated config must round-trip unchanged.
 func TestScmUnitApply_FullySpecifiedConfig(t *testing.T) {
 	runStubApply(t, `
   adopt_existing    = true
@@ -301,8 +280,6 @@ func TestScmUnitApply_FullySpecifiedConfig(t *testing.T) {
 	)
 }
 
-// Updating one nested attribute must not disturb the others, and the second apply must
-// still settle to an empty plan.
 func TestScmUnitApply_UpdateSettlesWithoutDrift(t *testing.T) {
 	stub := newSCMUnitStub()
 	stub.start(t)

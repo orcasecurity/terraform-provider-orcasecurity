@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// UseStateForUnknown for policies_ids unless config switches to built-ins or a project.
 type policiesIDsPlanModifier struct{}
 
 func PoliciesIDsPlanModifier() planmodifier.Set { return policiesIDsPlanModifier{} }
@@ -55,8 +54,6 @@ func (policiesIDsPlanModifier) PlanModifySet(ctx context.Context, req planmodifi
 	resp.PlanValue = req.StateValue
 }
 
-// policiesIDsShouldClear reports whether an omitted policies_ids must replan as
-// unknown because config is switching away from an explicit policy list.
 func policiesIDsShouldClear(defaultPoliciesTrue bool, configProjectID string, stateHasPolicies bool) bool {
 	if !stateHasPolicies {
 		return false
@@ -64,8 +61,7 @@ func policiesIDsShouldClear(defaultPoliciesTrue bool, configProjectID string, st
 	return defaultPoliciesTrue || configProjectID != ""
 }
 
-// UseStateForUnknown for default_policies unless config attaches policies or a project
-// (the API derives the read value from those, so a carried-forward true would be wrong).
+// Do not carry true forward when config switches to policies_ids or project_id.
 type defaultPoliciesPlanModifier struct{}
 
 func DefaultPoliciesPlanModifier() planmodifier.Bool { return defaultPoliciesPlanModifier{} }

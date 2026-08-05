@@ -98,9 +98,7 @@ func ConfigSettingsAttributes() map[string]schema.Attribute {
 	return attrs
 }
 
-// ConfigSettingsAttrTypes mirrors ConfigSettingsAttributes. configuration_settings is
-// Optional+Computed, so it plans as unknown on create; the model therefore travels as a
-// types.Object (which can hold unknown) and is decoded through ConfigSettingsFromObject.
+// types.Object so Optional+Computed unknown plans can be held.
 func ConfigSettingsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"disable_scan_pull_requests": types.BoolType,
@@ -118,10 +116,7 @@ func ConfigSettingsObjectNull() types.Object {
 	return types.ObjectNull(ConfigSettingsAttrTypes())
 }
 
-// ConfigSettingsFromObject decodes the nested block. A null or unknown object yields
-// nil, which Adopt reads as "inherit every field from the live unit". The object
-// shape is provider-owned (ConfigSettingsAttrTypes), so a decode failure cannot
-// happen outside a programming error and maps to nil as well.
+// Null/unknown → nil (Adopt inherits live fields).
 func ConfigSettingsFromObject(ctx context.Context, obj types.Object) *ConfigSettingsModel {
 	if obj.IsNull() || obj.IsUnknown() {
 		return nil
@@ -200,11 +195,7 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 	archiveConditions := stringSliceFromSet(m.ArchiveConditions)
 	unavailableConditions := stringSliceFromSet(m.UnavailableConditions)
 
-	// Send both action sets or neither. The API replaces this object wholesale, so
-	// omitting one key while setting the other would silently keep its old conditions
-	// (and an empty list would never clear). Callers reach here via Adopt, which has
-	// already hydrated any unset list from the live unit, so a total payload cannot
-	// clobber a value the plan did not mention.
+	// API replaces this object wholesale; send both action sets or neither.
 	if archiveKnown || unavailableKnown {
 		out.InstallationReposConfig = &api_client.ShiftLeftInstallationReposConfig{
 			ArchiveActions:     &api_client.ShiftLeftArchiveActions{Conditions: nonNilSlice(archiveConditions)},
@@ -215,7 +206,6 @@ func ExpandConfigSettings(m *ConfigSettingsModel) api_client.ShiftLeftConfigSett
 	return out
 }
 
-// nonNilSlice keeps an empty list serializing as [] rather than null.
 func nonNilSlice(values []string) []string {
 	if values == nil {
 		return []string{}

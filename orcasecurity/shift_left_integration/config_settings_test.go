@@ -36,13 +36,7 @@ func validateConfigSetting(t *testing.T, attrName, value string) diag.Diagnostic
 	return diags
 }
 
-// The account/group PUT types skip_check_runs as the three-value
-// PerformActionStatus for every provider. GitLab groups used to be restricted to
-// ALWAYS/NEVER here, which blocked a value the API accepts (verified live); the
-// two-value enum is the GitLab repository-level contract only.
-// The account PUT requires these four enums and rejects "", but the API returns
-// "" on some legacy units. Read maps that to null, so without a write-path
-// fallback an adopt/update of such a unit would send "" back and 400.
+// Account PUT uses the three-value skip_check_runs enum; default empty enums on write (API rejects "").
 func TestExpandConfigSettings_NeverSendsEmptyRequiredEnums(t *testing.T) {
 	// A unit whose live config has empty enums, round-tripped through Read.
 	flattened := FlattenConfigSettings(api_client.ShiftLeftConfigSettings{})
@@ -175,8 +169,7 @@ func TestExpandConfigSettings_ExplicitEmptyListsClearsReposConfig(t *testing.T) 
 	}
 }
 
-// A known-empty archive list alongside a populated unavailable list must still clear the
-// archive conditions: previously the empty side was omitted and silently kept server-side.
+// Known-empty archive list must still serialize so the clear reaches the server.
 func TestExpandConfigSettings_AsymmetricClearStillSendsBothActions(t *testing.T) {
 	m := &ConfigSettingsModel{
 		ArchiveConditions:     types.SetValueMust(types.StringType, []attr.Value{}),

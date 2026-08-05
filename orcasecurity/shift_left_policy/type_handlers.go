@@ -12,9 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// blockShape describes a flat (non-scoped) policy type whose block B carries an
-// all_controls flag and a flat control list. flatHandler builds the handler from
-// it so the five flat types collapse to one line each.
 type blockShape[B any] struct {
 	get         func(*shiftLeftPolicyResourceModel) *B
 	set         func(*shiftLeftPolicyResourceModel, *B)
@@ -242,8 +239,7 @@ func validateTypeBlock(policyType string, model *shiftLeftPolicyResourceModel) d
 	return diags
 }
 
-// foreignBlocks lists the type blocks set on model that policyType does not read, sorted
-// so the diagnostic is stable regardless of map iteration order.
+// Sorted for stable diagnostics.
 func foreignBlocks(policyType string, model *shiftLeftPolicyResourceModel) []string {
 	var found []string
 	for name, handler := range policyTypeHandlers {

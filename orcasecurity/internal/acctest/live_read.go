@@ -15,21 +15,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
-// LiveAttrCheck asserts one string attribute of the state a live Read produced.
 type LiveAttrCheck struct {
-	// Path is the attribute to inspect.
 	Path path.Path
-	// Want is the exact expected value. Leave it empty to assert only that Read populated the
-	// attribute at all, which is the only available check for server-assigned values like id.
+	// Empty Want: assert only that Read populated the attr.
 	Want string
 }
 
-// RunLiveImportRead drives ImportState followed by Read for r against the real API, then asserts
-// checks against the resulting state.
-//
-// It bypasses terraform apply/destroy entirely: nothing is ever written to Terraform state, so
-// there is nothing for the test harness to tear down afterward — no destroy call, no state rm
-// needed, no lab mutation. APIClient supplies the TF_ACC and credential gates.
+// ImportState+Read against the live API; no apply/destroy/state mutation.
 func RunLiveImportRead(t *testing.T, r resource.Resource, importID string, checks ...LiveAttrCheck) {
 	t.Helper()
 	client := APIClient(t)
@@ -72,8 +64,7 @@ func configureLive(ctx context.Context, t *testing.T, r resource.Resource, clien
 	failOnDiags(t, "configure", resp.Diagnostics)
 }
 
-// liveImportState seeds a null state from the schema and runs the resource's own ImportState, so
-// the test exercises real import ID parsing rather than hand-built state.
+// Exercise real ImportState parsing, not hand-built state.
 func liveImportState(ctx context.Context, t *testing.T, r resource.Resource, schema rschema.Schema, importID string) tfsdk.State {
 	t.Helper()
 	importable, ok := r.(resource.ResourceWithImportState)

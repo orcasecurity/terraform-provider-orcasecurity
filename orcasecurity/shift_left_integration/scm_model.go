@@ -46,13 +46,7 @@ func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields
 	}
 }
 
-// readPolicyIDs maps the unit's attached policies into state. Some APIs
-// (seen live on Azure DevOps) report default_policies=true while also
-// expanding the flag into the concrete built-in policy list; storing both
-// puts the exact pair ValidateScmBindingPlan rejects into state, so an
-// imported unit could never produce a valid plan. The flag owns the binding
-// (the write path clears the list when it is true), so on read the expansion
-// is implied and policies_ids maps to null.
+// When default_policies=true, drop expanded policy list so import state stays plannable.
 func readPolicyIDs(u api_client.ScmUnitCommonFields) types.Set {
 	if u.DefaultPolicies {
 		return types.SetNull(types.StringType)
@@ -60,12 +54,7 @@ func readPolicyIDs(u api_client.ScmUnitCommonFields) types.Set {
 	return PolicyIDsFromRefs(u.Policies)
 }
 
-// preserveKnownEmpties reconciles the values the API cannot round-trip. Clearing a project
-// binding, a PR summary appendix, or a condition list makes the API report the field as
-// absent, which maps back to null — but Terraform requires an Optional+Computed attribute
-// to end up equal to a non-null configured value, and "", [] are the documented ways to
-// clear these. Applied on the write path (prior = plan) and the read path (prior = prior
-// state), so a cleared value neither fails the apply nor reappears as drift on refresh.
+// Keep configured ""/[] when the API reports absent, or apply/refresh drifts.
 func preserveKnownEmpties(ctx context.Context, next, prior *ScmConfigFields) {
 	if next.ProjectID.IsNull() && isKnownEmptyString(prior.ProjectID) {
 		next.ProjectID = types.StringValue("")

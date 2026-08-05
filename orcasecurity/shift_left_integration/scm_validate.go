@@ -7,11 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 )
 
-// ValidateScmBindingPlan rejects default_policies combinations the API cannot
-// round-trip. On read, GitHub/GitLab (and peers that derive the flag the same
-// way) compute default_policies as !(has policies || has project) — it is not a
-// stored boolean. Call this from ModifyPlan after plan modifiers have run so
-// UseStateForUnknown-carried values are visible.
+// Reject default_policies combos that cannot round-trip; call after plan modifiers.
 func ValidateScmBindingPlan(f *ScmConfigFields, diags *diag.Diagnostics) {
 	if f == nil {
 		return

@@ -10,7 +10,6 @@ import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// UnitOps is the CRUD surface shared by AdoptedUnitOps and InstallationLifecycle.
 type UnitOps interface {
 	DoCreate(context.Context, resource.CreateRequest, *resource.CreateResponse)
 	DoRead(context.Context, resource.ReadRequest, *resource.ReadResponse)
@@ -18,13 +17,11 @@ type UnitOps interface {
 	DoDelete(context.Context, resource.DeleteRequest, *resource.DeleteResponse)
 }
 
-// unitPlanModifier is implemented only by ops that have plan-time rules
-// (AdoptedUnitOps); InstallationLifecycle stays free of a no-op method.
+// Optional; InstallationLifecycle has no plan rules.
 type unitPlanModifier interface {
 	ModifyPlan(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
 }
 
-// GenericResource shares Metadata/Configure/Schema/ImportState/CRUD across SCM unit types.
 type GenericResource struct {
 	TypeNameSuffix string
 	SchemaFn       func() rschema.Schema

@@ -8,17 +8,17 @@ description: |-
 
 Creates or configures an Orca Bitbucket shift-left integrated account. Create POSTs `/api/shiftleft/bitbucket/integrated_repositories/` with Bitbucket `account_id` (slug), `installation_mode`, and configuration (no repositories are attached on that call). Integrating a not-yet-integrated workspace requires `installation_mode = "SCAN_ALL_INCLUDE_FUTURE"`: the API accepts `SELECTED_REPOSITORIES` on integrate only together with an explicit repository list, which this resource does not send (you can switch modes on a later apply). If already integrated, Create/Update PUT the unit config. Destroy DELETEs the integrated account. Not covered: browse accounts, check_availability, scan-now. Archive/unavailable actions in configuration_settings may be ignored by the Bitbucket API.
 
--> **API vs UI:** This resource follows the Shift-Left **API** contract. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+-> **API vs UI:** Terraform follows the Shift-Left API. `unavailable_conditions`: `AVOID_SCAN`, `DELETE_REPO`.
 
--> **Fresh integration requires scan-all:** integrating a workspace that is not yet in Orca requires `installation_mode = "SCAN_ALL_INCLUDE_FUTURE"` — the API accepts `SELECTED_REPOSITORIES` on integrate only together with an explicit repository list, which this resource does not send. Apply with scan-all first (or import an already-integrated account), then switch to `SELECTED_REPOSITORIES` on a later apply if desired.
+-> **Fresh integration requires scan-all:** New workspaces need `installation_mode = "SCAN_ALL_INCLUDE_FUTURE"` — `SELECTED_REPOSITORIES` on integrate requires a repo list this resource does not send.
 
--> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out, matching the Orca UI. `terraform import` performs no write, so an imported account keeps whatever settings it already had.
+-> **Defaults on create:** Unset config attrs get integrate defaults: PR scan enabled (`disable_scan_pull_requests = false`), `comments_on_pull_requests`/`pr_summary_comment`/`skip_check_runs` = `ALWAYS`, `config_file_support` = `ENABLED`. Import writes nothing.
 
--> **Destroy:** `terraform destroy` DELETEs the integrated account (UI parity). That also removes its integrated repositories.
+-> **Destroy:** `terraform destroy` DELETEs the account and its integrated repositories.
 
-!> **Adopt semantics:** This resource **adopts** a pre-existing SCM account rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an account that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing account under management without a takeover write.
+!> **Adopt semantics:** Adopts a pre-existing account; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
 
--> **Coverage:** Browse accounts, `check_availability`, and scan-now are UI operations and are not managed here.
+-> **Coverage:** Browse accounts, `check_availability`, and scan-now are not managed here.
 
 ## Example Usage
 

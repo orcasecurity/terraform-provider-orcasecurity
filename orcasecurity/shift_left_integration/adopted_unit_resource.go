@@ -36,9 +36,7 @@ type AdoptedUnitOps[A Commoner, M any] struct {
 	DeleteErrorTitle string
 }
 
-// ModifyPlan rejects default_policies combinations that cannot round-trip after
-// plan modifiers have applied (so carried-forward values are visible), then
-// settles the volatile server-owned attributes against the pending write.
+// Validate bindings after modifiers, then settle volatile attrs.
 func (o AdoptedUnitOps[A, M]) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return
@@ -59,12 +57,7 @@ func (o AdoptedUnitOps[A, M]) ModifyPlan(ctx context.Context, req resource.Modif
 	settleVolatileAttrs(req, resp)
 }
 
-// guardIntegratePlan fails a create plan whose write can only be an integrate
-// (the unit does not exist yet) with a body the integrate endpoint rejects.
-// The lookup runs only after the guard trips, so settled plans cost nothing.
-// When the unit exists (adopt path) or the lookup cannot answer at plan time
-// (unknown identity references resolve to zero values and error out), the
-// plan is left alone and DoCreate re-checks before the wire.
+// Fail create plans that can only be a fresh integrate with a body IntegrateGuard rejects.
 func (o AdoptedUnitOps[A, M]) guardIntegratePlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse, plan *M) {
 	if o.IntegrateGuard == nil || !req.State.Raw.IsNull() {
 		return
@@ -85,8 +78,6 @@ func (o AdoptedUnitOps[A, M]) guardIntegratePlan(ctx context.Context, req resour
 	resp.Diagnostics.AddError(o.CreateErrorTitle, guardErr.Error())
 }
 
-// integrateBody builds the write body a fresh integrate would send, from the
-// same plan/config split DoCreate uses.
 func (o AdoptedUnitOps[A, M]) integrateBody(ctx context.Context, plan, config *M) api_client.ScmInstallationUpdate {
 	planFields := o.Config(plan)
 	configFields := o.Config(config)
@@ -135,7 +126,6 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), repoCount))
 			return
 		}
-		// Reuse unit fetched above instead of re-reading in writeAdopted.
 		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State, writeAdoptedRequest[A]{
 			NotFoundMsg: o.Describe(&plan) + " does not exist. " + o.CreateHint,
 			Title:       o.CreateErrorTitle,
@@ -175,10 +165,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	o.setAdoptedState(ctx, &resp.Diagnostics, &resp.State, created, &plan)
 }
 
-// This path only runs for a unit that was not integrated before Create, so the integration is ours
-// to undo. Terraform records no state when Create reports an error, so a live integration left
-// behind here is invisible to Terraform: the next apply would try to integrate it again and hit the
-// adopt guard instead, with nothing explaining why.
+// Create left no state; undo the integrate or warn about an orphan.
 func (o AdoptedUnitOps[A, M]) rollbackIntegration(ctx context.Context, plan *M, diags *diag.Diagnostics) {
 	orphanWarning := func(reason string) {
 		diags.AddWarning(
@@ -194,8 +181,7 @@ func (o AdoptedUnitOps[A, M]) rollbackIntegration(ctx context.Context, plan *M, 
 	tflog.Info(ctx, fmt.Sprintf("Rolling back integration of %s after a failed read-back", o.Describe(plan)))
 	if err := o.Delete(plan); err != nil {
 		if errors.Is(err, ErrUnitNotFound) {
-			// DeleteByLookup re-ran the same lookup that just returned nil — the
-			// integration is live but we have no id to tear it down with.
+			// Lookup missed again; cannot tear down without an id.
 			orphanWarning("it could not be found again to de-integrate")
 			return
 		}
@@ -216,8 +202,7 @@ func (o AdoptedUnitOps[A, M]) DoUpdate(ctx context.Context, req resource.UpdateR
 	})
 }
 
-// setAdoptedState carries adopt_existing over from the prior plan or state (input-only, not
-// on the API unit) and preserves values the API reports as absent but the caller set empty.
+// Carry input-only adopt_existing; preserve configured empties the API omits.
 func (o AdoptedUnitOps[A, M]) setAdoptedState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, unit *A, prior *M) {
 	newState := o.ToState(unit)
 	priorFields := o.Config(prior)
@@ -256,7 +241,6 @@ func (o AdoptedUnitOps[A, M]) DoDelete(ctx context.Context, req resource.DeleteR
 	tflog.Info(ctx, fmt.Sprintf("Deleting live %s", o.Describe(&state)))
 	if err := o.Delete(&state); err != nil {
 		if errors.Is(err, ErrUnitNotFound) {
-			// Already gone remotely — idempotent destroy.
 			return
 		}
 		title := o.DeleteErrorTitle
@@ -273,7 +257,6 @@ type writeAdoptedRequest[A any] struct {
 	Current     *A // pre-fetched unit; nil means writeAdopted fetches it itself
 }
 
-// writeAdopted hydrates the plan against the live unit (Adopt) and PUTs the result.
 func (o AdoptedUnitOps[A, M]) writeAdopted(
 	ctx context.Context, plan, config *M,
 	diags *diag.Diagnostics, state *tfsdk.State,

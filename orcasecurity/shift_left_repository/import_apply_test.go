@@ -1,14 +1,6 @@
 package shift_left_repository_test
 
-// These tests drive terraform import followed by a real apply against a stateful in-process stub
-// of the Orca integrated-repositories API. They need no credentials and no lab tenant, so they
-// run in normal CI.
-//
-// They exist because `branch` is create-only and the API never returns it: an imported repository
-// therefore has a null branch in state while the configuration supplies one. With an
-// unconditional RequiresReplace on branch, that difference reads as a change and the first apply
-// after an import DESTROYS and re-integrates the repository, deleting its repository context.
-// GitHub stands in for GitLab too, since both declare branchRequired.
+// Import+apply against in-process stub: branch is create-only and never returned, so import must not RequireReplace on null→config.
 
 import (
 	"encoding/json"
@@ -33,8 +25,7 @@ const (
 	stubRepoResourceName = "orcasecurity_shift_left_github_repository.test"
 )
 
-// repoStub models one integrated GitHub repository. It deliberately never returns `branch`,
-// matching the real list API, which is the whole reason the import path needs care.
+// repoStub never returns branch, matching the list API.
 type repoStub struct {
 	mu         sync.Mutex
 	row        map[string]any
@@ -153,8 +144,7 @@ resource "orcasecurity_shift_left_github_repository" "test" {
 `, stubRepoAccountID, stubGithubRepoID)
 }
 
-// The apply after an import must update in place. A DestroyBeforeCreate here would mean the
-// provider tears down a live integration purely because the API cannot report its branch.
+// Post-import apply must update in place, not DestroyBeforeCreate on null→config branch.
 func TestGithubRepositoryImport_ThenApplyUpdatesInPlace(t *testing.T) {
 	stub := newRepoStub()
 	stub.start(t)
@@ -188,8 +178,7 @@ func TestGithubRepositoryImport_ThenApplyUpdatesInPlace(t *testing.T) {
 		},
 	})
 
-	// resource.Test destroys at the end, so exactly one delete is expected — but no
-	// re-integration, which is what a replacement would have caused.
+	// Only final-destroy DELETE expected — no re-integration POST from a replacement.
 	_, integrates, deletes := stub.counts()
 	if integrates != 0 {
 		t.Errorf("import must not re-integrate the repository, got %d POSTs", integrates)

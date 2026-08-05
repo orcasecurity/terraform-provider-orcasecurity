@@ -65,9 +65,7 @@ func TestIntegrateGithubRepository_BodyShape(t *testing.T) {
 	}
 }
 
-// Asserts the actual configuration_settings wire contents (not just that the
-// key exists), and the documented invariant that `disabled` is never part of
-// it — GitHub's integrate endpoint rejects it, so it is applied post-integrate.
+// Pin configuration_settings contents; disabled must not appear (applied post-integrate).
 func TestIntegrateGithubRepository_ConfigurationSettingsContents(t *testing.T) {
 	client, last := captureServer(t, nil)
 	dspr := true
@@ -187,8 +185,7 @@ func TestIntegrateAzureRepository_BodyShape(t *testing.T) {
 	}
 }
 
-// No test previously called Update{Github,Gitlab,Bitbucket,Azure}Repositories;
-// a typo'd provider segment or wrong verb would have shipped undetected.
+// Pin Update* paths so a typo'd provider segment cannot ship undetected.
 func TestUpdateXRepositories_PatchesRightPath(t *testing.T) {
 	cases := []struct {
 		name   string

@@ -6,9 +6,7 @@ import (
 	"testing"
 )
 
-// Read-only breadth check against a live tenant: it walks the shift-left list and
-// lookup paths and asserts their shape, not the tenant's contents, so it stays
-// valid as lab data changes. The per-resource acceptance tests cover writes.
+// Live read-path shape smoke; writes covered by resource acceptance tests.
 func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 	client := liveSmokeClient(t)
 
@@ -47,15 +45,10 @@ func TestAccLiveSmoke_ShiftLeftReadPaths(t *testing.T) {
 
 	t.Run("scm_posture_default", func(t *testing.T) { smokeScmPostureDefault(t, client) })
 
-	// ListAutomationsV2 is the only paginateOffset caller outside the SCM lists.
-	// The priority_order resource covers it live, but the automations data source
-	// has no acceptance test, so this is its only live paging check.
+	// Only live paging check for ListAutomationsV2.
 	t.Run("automations_paging", func(t *testing.T) { smokeAutomationsPaging(t, client) })
 
-	// Find* narrows the list server-side. The API ignores filter keys it does not
-	// recognise, so a renamed or dropped filter would silently stop narrowing
-	// rather than fail: these round-trips assert the filters still resolve a
-	// known row, and that a mismatched installation still resolves to nothing.
+	// Filters are silently ignored if wrong; assert they still resolve/miss correctly.
 	t.Run("find_by_filter_roundtrip", func(t *testing.T) {
 		t.Run("github", func(t *testing.T) { smokeFindGithubRoundtrip(t, client) })
 		t.Run("gitlab", func(t *testing.T) { smokeFindGitlabRoundtrip(t, client) })
@@ -68,12 +61,7 @@ func smokeFindGithubRoundtrip(t *testing.T, client *APIClient) {
 	row := firstRepoRow[githubRepositoryItem](t, client, "github")
 	found, err := client.FindGithubRepository(row.GithubInstallation.ID, row.Repository.Name, row.GithubRepositoryID)
 	assertFound(t, row.Repository.Name, found, err)
-	// The name is a hint only: github_repository_id identifies the row and
-	// survives a rename, so a stale name must still resolve through the
-	// unfiltered fallback rather than read as "not found" and drop a live
-	// integration from state. Simulating a rename with a name that matches
-	// nothing also exercises the fallback exactly as an empty name (post-
-	// import, no hint at all) does.
+	// Stale/empty name must still resolve via unfiltered fallback.
 	renamed, err := client.FindGithubRepository(row.GithubInstallation.ID, "orca-no-such-repository", row.GithubRepositoryID)
 	assertFound(t, row.Repository.Name, renamed, err)
 	found, err = client.FindGithubRepository(row.GithubInstallation.ID, "", row.GithubRepositoryID)
@@ -95,8 +83,6 @@ func smokeFindGitlabRoundtrip(t *testing.T, client *APIClient) {
 
 func smokeFindBitbucketRoundtrip(t *testing.T, client *APIClient) {
 	row := firstRepoRow[bitbucketRepositoryItem](t, client, "bitbucket")
-	// FindBitbucketRepository resolves the workspace by slug under an
-	// installation, so drive it the way the resource does.
 	accounts, err := client.ListBitbucketAccounts()
 	if err != nil {
 		t.Fatalf("bitbucket accounts: %v", err)
@@ -126,8 +112,6 @@ func smokeFindBitbucketRoundtrip(t *testing.T, client *APIClient) {
 
 func smokeFindAzureRoundtrip(t *testing.T, client *APIClient) {
 	row := firstRepoRow[azureRepositoryItem](t, client, "azure_devops")
-	// FindAzureRepository resolves the account by name under an
-	// installation, so drive it the way the resource does.
 	accounts, err := client.ListAzureDevopsAccounts()
 	if err != nil {
 		t.Fatalf("azure accounts: %v", err)

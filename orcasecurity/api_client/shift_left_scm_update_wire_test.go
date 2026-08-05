@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// capturedRequest records one HTTP call. updateScmUnit PUTs then re-lists, so
-// captureServer (single slot) would lose the PUT body.
+// Multi-slot capture: PUT then re-list.
 type capturedRequest struct {
 	Method, Path string
 	Body         map[string]any
@@ -44,7 +43,6 @@ func findMethod(t *testing.T, reqs []capturedRequest, method string) capturedReq
 	return capturedRequest{}
 }
 
-// Assert Update* sends the expected JSON on the wire (not just struct fields).
 func TestUpdateGithubInstallation_BodyShape(t *testing.T) {
 	client, reqs := captureAllRequests(t, map[string]string{
 		"GET " + githubInstallationsPath: `{"total_items":1,"data":[{"id":"inst-1","account_name":"acme"}]}`,

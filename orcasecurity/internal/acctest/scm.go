@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// RestoreScmBody uses Adopt so restores follow project_id XOR policies.
+// Restore via Adopt (project XOR policies).
 func RestoreScmBody(common api_client.ScmUnitCommonFields) api_client.ScmInstallationUpdate {
 	return shift_left_integration.Adopt(
 		types.StringNull(),
@@ -23,12 +23,7 @@ func RestoreScmBody(common api_client.ScmUnitCommonFields) api_client.ScmInstall
 	)
 }
 
-// APIClient reads ORCASECURITY_API_* for live-state snapshot/restore tests.
-//
-// It is the single entry point for tests that mutate a real tenant directly, rather than
-// through resource.Test, so it also carries the TF_ACC gate those tests would otherwise
-// get for free. Without it, `go test ./...` on a machine that happens to have credentials
-// exported would write to a live tenant.
+// Live-tenant helper; gates on TF_ACC + ORCASECURITY_API_*.
 func APIClient(t *testing.T) *api_client.APIClient {
 	t.Helper()
 	if os.Getenv("TF_ACC") == "" {

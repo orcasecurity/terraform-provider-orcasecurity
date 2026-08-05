@@ -23,9 +23,7 @@ func (f listFilters) query() url.Values {
 	return q
 }
 
-// paginateOffset walks a limit/start_at_index-paginated endpoint until an empty
-// page or a known total is reached. maxPages guards against unbounded paging
-// from an inflated or bogus total_items.
+// Page until empty or total_items; maxPages guards bogus totals.
 func paginateOffset[T any](client *APIClient, path string, filters listFilters, limit, maxPages int) ([]T, error) {
 	var all []T
 	for page := 0; ; page++ {
@@ -34,9 +32,8 @@ func paginateOffset[T any](client *APIClient, path string, filters listFilters, 
 		}
 		query := filters.query()
 		query.Set("limit", strconv.Itoa(limit))
-		// Offset by rows accumulated, not page*limit. The server (DRF LimitOffsetPagination)
-		// clamps limit to its own maximum, so a page can be shorter than requested; advancing
-		// by the requested limit would then skip the rows the server declined to serve.
+		// Offset by rows accumulated, not page*limit — DRF clamps limit, so advancing by
+		// the requested limit would skip rows the server declined to serve.
 		query.Set("start_at_index", strconv.Itoa(len(all)))
 		resp, err := client.Get(path + "?" + query.Encode())
 		if err != nil {
@@ -51,9 +48,7 @@ func paginateOffset[T any](client *APIClient, path string, filters listFilters, 
 		}
 		data := *env.Data
 		all = append(all, data...)
-		// A short page is not a stop condition: the server may have clamped limit. Stop on an
-		// empty page, or once total_items (which the server slices after filtering, so it
-		// counts the narrowed set) says the list is complete.
+		// Short page ≠ done (limit may be clamped); stop on empty or total reached.
 		if len(data) == 0 || (env.TotalItems != nil && len(all) >= *env.TotalItems) {
 			return all, nil
 		}

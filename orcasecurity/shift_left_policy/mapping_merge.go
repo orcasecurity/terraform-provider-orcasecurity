@@ -30,8 +30,7 @@ func (c *baseControlModel) controlID() string { return c.ID.ValueString() }
 
 func (c *scmControlModel) controlID() string { return c.ID.ValueString() }
 
-// mergeControlBlock overlays the prior-state controls onto the ones the API returned, so controls
-// the API added or removed still surface as drift.
+// Overlay prior overrides onto API controls so OOB add/remove shows as drift.
 func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls *[]C, srcControls []C,
 	controlID func(*C) string, mergeControl func(dst *C, src C)) {
 	*dstAll = srcAll
@@ -47,11 +46,7 @@ func mergeControlBlock[C any](dstAll *types.Bool, srcAll types.Bool, dstControls
 	}
 }
 
-// pairControls lines each API control up with the prior-state control it belongs to. The control id
-// is the only stable identity: the API is free to reorder or drop controls, and pairing by position
-// would then copy one control's priority/disabled override onto an unrelated control. An id is
-// optional in configuration, so a list that does not carry ids throughout still falls back to
-// position — which is no worse than the pairing such a list had before.
+// Pair by control id when possible; else by position (id optional in config).
 func pairControls[C any](apiControls, prior []C, controlID func(*C) string) []*C {
 	paired := make([]*C, len(apiControls))
 	if byID, ok := indexControlsByID(apiControls, prior, controlID); ok {
@@ -68,8 +63,6 @@ func pairControls[C any](apiControls, prior []C, controlID func(*C) string) []*C
 	return paired
 }
 
-// indexControlsByID keys the prior controls by id, reporting false when either side fails to
-// identify every control by a unique id and pairing therefore cannot rely on ids.
 func indexControlsByID[C any](apiControls, prior []C, controlID func(*C) string) (map[string]*C, bool) {
 	byID := make(map[string]*C, len(prior))
 	for i := range prior {

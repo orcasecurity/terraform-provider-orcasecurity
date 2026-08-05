@@ -207,18 +207,8 @@ func TestUpdateScheduledReport(t *testing.T) {
 	}
 }
 
-// Deleting an optional attribute from a config leaves the plan value null, which
-// reaches the client as the zero value. Updates are a PATCH, where an omitted key
-// means "leave unchanged" — so every optional field must appear in the body at its
-// zero value, or removing it from a config silently fails and each later refresh
-// reports the stale server value as drift.
-//
-// The expected wire values are the ones the API accepts as "clear": "" for strings
-// and {} for objects. Objects must not go out as null; the reporting API answers
-// 500 to "config": null.
+// PATCH omits = unchanged: optional clears must send ""/{} (never null objects — API 500).
 func TestScheduledReportPayload_SendsClearableZeroValuesForEveryOptionalField(t *testing.T) {
-	// A report with nothing optional set: what Terraform sends once every optional
-	// attribute has been removed from the config.
 	cleared := ScheduledReport{
 		Name:       "Weekly open alerts",
 		Type:       "alerts_svl",
@@ -259,9 +249,6 @@ func TestScheduledReportPayload_SendsClearableZeroValuesForEveryOptionalField(t 
 	}
 }
 
-// captureScheduledReportBody runs one write against a stub transport and returns
-// the request body it produced, left as raw JSON per field so that an absent key,
-// a null and an empty value stay distinguishable.
 func captureScheduledReportBody(t *testing.T, send func(APIClient) error) map[string]json.RawMessage {
 	t.Helper()
 
@@ -298,9 +285,7 @@ func assertSentAs(t *testing.T, payload map[string]json.RawMessage, field, want 
 	}
 }
 
-// assertSentAsEmptyObject exists separately from assertSentAs only to name the
-// null case, which is a distinct bug rather than a wrong value: the reporting API
-// answers 500 to "config": null, so a nil map must still serialize as {}.
+// Distinguish null (API 500) from {}.
 func assertSentAsEmptyObject(t *testing.T, payload map[string]json.RawMessage, field string) {
 	t.Helper()
 

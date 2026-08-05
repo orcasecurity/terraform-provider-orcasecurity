@@ -8,9 +8,9 @@ description: |-
 
 Integrates a single GitHub repository into Orca Shift Left under an existing GitHub account (`orcasecurity_shift_left_github_account`). `github_repository_id` is a GitHub-side identifier (obtain it from GitHub or `orcasecurity_shift_left_github_repositories`). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on GitHub. Import with `account_id:github_repository_id`.
 
--> **Per-repository scope:** this resource integrates one repository at a time under an account that scans selected repositories. Account-level settings (installation mode, policies, shared configuration) belong to `orcasecurity_shift_left_github_account` and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
+-> **Per-repository scope:** integrates one repo under a selected-repositories account; account-level settings live on `orcasecurity_shift_left_github_account`. Unset config inherits server defaults; once set, values cannot be reset to inherit via the API.
 
-!> **`branch` is create-only.** The API never returns or updates it, so Terraform cannot detect drift on `branch`, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. `branch` is required by the GitHub integration API, so it must always be set. Because `terraform import` cannot read it back, an imported repository has no branch in state and the first apply records the configured value in place, without re-integrating — so configure the branch the repository was actually integrated with.
+!> **`branch` is create-only.** The API never returns it; changing it forces re-integrate. Required on GitHub. Import cannot read it back — set the branch the repo was integrated with.
 
 ## Example Usage
 

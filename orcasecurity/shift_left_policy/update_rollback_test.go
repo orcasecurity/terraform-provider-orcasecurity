@@ -1,8 +1,6 @@
 package shift_left_policy_test
 
-// Update is two writes (policy body, then projects). When the projects PUT fails the body has
-// already landed; Terraform discards the plan, so without compensation live ≠ state. This stub
-// drives Create then a failing Update and asserts the prior body is restored.
+// Update is body then projects; failed second write needs compensation or live ≠ state.
 
 import (
 	"encoding/json"
@@ -25,9 +23,7 @@ type updateStub struct {
 	projects     []string
 	projectPuts  int
 	failProjects bool // fail projects PUTs after the create attach (put #2+)
-	// failReadWhileRenamed fails GETs while the updated body is live, standing in for a
-	// policy the API accepted but cannot serve back. Once the restore PUT lands the old
-	// name, reads recover — which is exactly what lets the assertion see the restored body.
+	// failReadWhileRenamed: GET fails while renamed body is live; reads recover after restore PUT.
 	failReadWhileRenamed bool
 }
 
@@ -168,8 +164,7 @@ resource "orcasecurity_shift_left_policy" "stub" {
 	}
 }
 
-// When the read-back after an update fails, both writes have already landed (body and
-// projects), so the restore has to rewind both: the prior body and the prior attachments.
+// Failed read-back after update: both writes landed — restore must rewind body and projects.
 func TestShiftLeftPolicyUpdate_FailedReadBackRestoresBodyAndProjects(t *testing.T) {
 	stub := &updateStub{failReadWhileRenamed: true}
 	stub.start(t)

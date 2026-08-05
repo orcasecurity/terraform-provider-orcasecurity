@@ -7,12 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// normalizeInstallationMode is the single decision point for "the API will not
-// store this mode": it still returns SCAN_ALL on old units but rejects it on
-// update, and has no default for an absent mode (empty → 400), so both map to
-// the safe default on the wire. Consumed by the write path and by
-// installationModePlanModifier, so the plan rewrite and the write remap cannot
-// desync (settleVolatileAttrs then sees the rewrite as a plain mode diff).
+// Map SCAN_ALL/"" → SELECTED_REPOSITORIES so plan rewrite and write stay in sync.
 func normalizeInstallationMode(mode string) string {
 	if mode == "SCAN_ALL" || mode == "" {
 		return "SELECTED_REPOSITORIES"
@@ -20,8 +15,7 @@ func normalizeInstallationMode(mode string) string {
 	return mode
 }
 
-// installationModeFromAPI is read-side: keep legacy SCAN_ALL visible so state
-// matches the API. Only an absent mode gets the schema default.
+// Keep legacy SCAN_ALL visible; only empty gets the default.
 func installationModeFromAPI(mode string) string {
 	if mode == "" {
 		return "SELECTED_REPOSITORIES"
@@ -48,7 +42,6 @@ type ProjectIntent struct {
 	PoliciesIntent bool
 }
 
-// hasExplicitPolicies: only explicit policies_ids is mutually exclusive with project_id.
 func hasExplicitPolicies(policies types.Set) bool {
 	return tfconv.Known(policies)
 }
@@ -72,7 +65,6 @@ func defaultConfigSettings() api_client.ShiftLeftConfigSettings {
 	}
 }
 
-// CreateUnitBody is Adopt seeded with defaults for a brand-new unit.
 func CreateUnitBody(mode types.String, planDefault types.Bool, planPolicies types.Set, planConfig *ConfigSettingsModel, project ProjectIntent) api_client.ScmInstallationUpdate {
 	seed := api_client.ScmUnitCommonFields{
 		InstallationMode: mode.ValueString(),

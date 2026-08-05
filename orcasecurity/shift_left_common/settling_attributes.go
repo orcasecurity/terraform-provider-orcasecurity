@@ -9,11 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
-// Terraform core before 1.4 does not carry a prior state value forward for a Computed attribute on
-// its own. Without an explicit carry-forward modifier every unset Computed attribute replans as
-// "known after apply", so an apply against those versions never produces an empty follow-up plan.
-// These constructors make the modifier part of declaring the attribute, so a new SCM attribute
-// cannot quietly reintroduce that perpetual diff. TestShiftLeftScmSchemasSettle pins the invariant.
+// UseStateForUnknown is required so Computed attrs settle on TF <1.4; TestShiftLeftScmSchemasSettle pins this.
 
 func ComputedString(description string) rschema.StringAttribute {
 	return rschema.StringAttribute{

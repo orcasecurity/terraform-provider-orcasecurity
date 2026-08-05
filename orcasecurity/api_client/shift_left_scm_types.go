@@ -52,6 +52,4 @@ type ScmUnitCommonFields struct {
 	ScmPosturePolicyID          string `json:"scm_posture_policy_id,omitempty"`
 }
 
-// Common exposes the embedded shared fields, so any concrete SCM unit type that
-// embeds ScmUnitCommonFields satisfies the generic unit framework's constraint.
 func (c ScmUnitCommonFields) Common() ScmUnitCommonFields { return c }

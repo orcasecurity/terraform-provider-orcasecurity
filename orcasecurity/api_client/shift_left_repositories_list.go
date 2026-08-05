@@ -1,8 +1,5 @@
 package api_client
 
-// List DTOs for repository data sources. Provider-specific identity fields are filled so
-// for_each can feed the matching repository resource without an extra join when possible.
-
 type GithubRepositoryListItem struct {
 	ScmRepository
 	AccountID          string // Orca GitHub account UUID (= github_installation.id)

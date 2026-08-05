@@ -10,8 +10,6 @@ import (
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// RepoSpec is the per-provider wiring for a repository resource built on the
-// shared CRUD in repoCreate/repoRead/repoUpdate/repoDelete.
 type RepoSpec[M any] struct {
 	TypeNameSuffix string
 	SchemaFn       func() rschema.Schema
@@ -19,10 +17,6 @@ type RepoSpec[M any] struct {
 	Ops            func(*api_client.APIClient, *M) repoOps
 }
 
-// RepoResource shares Metadata/Configure/Schema/ImportState/CRUD across SCM
-// repository types, mirroring shift_left_integration.GenericResource for units.
-// PM is always *M; it carries the proof that M embeds RepoConfigFields, which
-// the shared CRUD uses to read the plan and write the API result back.
 type RepoResource[M any, PM repoModelPtr[M]] struct {
 	Spec RepoSpec[M]
 

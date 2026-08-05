@@ -77,10 +77,7 @@ func findScmRepository[T any](
 	return nil, nil
 }
 
-// Bitbucket and Azure repositories are addressed through their owning Orca account-installation row,
-// so a missing account means the repository's existence is unknown, not that it was removed. Reporting
-// absence would make Terraform drop a live integration from state and then try to re-integrate an
-// already-integrated repository, so the ambiguity has to surface as an error the operator can act on.
+// Missing owning account makes existence unknown — error instead of treating as deleted (would drop state and re-integrate).
 func errAccountLookupFailed(scmName, accountKind, account, installationID string) error {
 	return fmt.Errorf(
 		"%s %s %q is not integrated under installation %s, so its repositories cannot be looked up. "+
@@ -215,12 +212,7 @@ func githubRepositoryNameFilter(repositoryName string) listFilters {
 	return listFilters{"search": repositoryName, "search_fields": "repository_name"}
 }
 
-// github_repository_id/github_installation_id are not safe list filters; match locally. The list API
-// (GithubRepositoryFilter server-side) has no github_repository_id filter at all, so the name search is
-// only a cheap first pass: the repository is identified by github_repository_id, which is stable across
-// renames. A filtered miss therefore means "the name is stale", not "the repository is gone", so it must
-// fall back to the unfiltered scan — reporting absence would make Terraform drop a live integration from
-// state and then try to re-integrate an already-integrated repository.
+// Name search is a hint only; filtered miss falls back to unfiltered scan (id survives renames).
 func (client *APIClient) FindGithubRepository(installationID, repositoryName string, githubRepositoryID int64) (*ScmRepository, error) {
 	match := func(r *githubRepositoryItem) bool {
 		return r.GithubInstallation.ID == installationID && r.GithubRepositoryID == githubRepositoryID

@@ -76,8 +76,6 @@ func TestFindRepository_SendsServerSideFilters(t *testing.T) {
 	}
 }
 
-// scmListClient serves handler as the SCM list endpoint and returns a client
-// pointed at it.
 func scmListClient(t *testing.T, handler http.HandlerFunc) *APIClient {
 	t.Helper()
 
@@ -86,9 +84,7 @@ func scmListClient(t *testing.T, handler http.HandlerFunc) *APIClient {
 	return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 }
 
-// assertScmListQuery checks that the lookup pushed want into the query string,
-// kept every forbidden key out of it, and still carried the paging params the
-// list endpoint needs — narrowing must not come at the cost of paging.
+// Wanted filters present, forbidden absent, paging params kept.
 func assertScmListQuery(t *testing.T, got, want url.Values, forbid []string) {
 	t.Helper()
 
@@ -107,11 +103,7 @@ func assertScmListQuery(t *testing.T, got, want url.Values, forbid []string) {
 	}
 }
 
-// GitHub's name filter narrows but does not identify: the repository is keyed by
-// github_repository_id, which survives a rename. The name search is therefore only a
-// cheap first pass, and a miss must fall back to the unfiltered scan — reporting "not
-// found" for a renamed repository would drop a live integration from state. These cases
-// pin that shape and the exact request count/sequence for each.
+// Name filter is hint-only; stale name must fall back to unfiltered scan (id survives renames).
 func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 	const row = `{"id":"gh-row","github_repository_id":42,
 		"github_installation":{"id":"inst-gh"},
@@ -125,22 +117,21 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 		wantRequests []string // the "search" value of each expected request, in order
 	}{
 		{
-			// The hint resolves the row, so the unfiltered scan is never paid for.
+			// Hint hit: one filtered request, no fallback scan.
 			name:         "matching name resolves in one filtered request",
 			repoName:     "acme/repo",
 			wantFound:    true,
 			wantRequests: []string{"acme/repo"},
 		},
 		{
-			// The repository was renamed, so the stale name narrows to nothing. The
-			// unfiltered scan then finds it by id, keeping it under management.
+			// Stale name misses filter; unfiltered scan finds row by id.
 			name:         "stale name falls back to the unfiltered scan and still resolves",
 			repoName:     "renamed-away/repo",
 			wantFound:    true,
 			wantRequests: []string{"renamed-away/repo", ""},
 		},
 		{
-			// Post-import state carries no name; skip straight to the scan.
+			// Empty name skips hint filter; scan only.
 			name:         "unknown name skips the filtered query",
 			repoName:     "",
 			wantFound:    true,
@@ -169,9 +160,7 @@ func TestFindGithubRepository_NameFilterIsOnlyAHint(t *testing.T) {
 	}
 }
 
-// searchingList stands in for the list endpoint's search backend: the single row
-// it holds matches only its own name, so any other search narrows to nothing. It
-// records the "search" value of every request it serves.
+// Fake list: row matches only its own name; records search query values.
 type searchingList struct {
 	rowName  string
 	row      string
@@ -188,9 +177,7 @@ func (s *searchingList) handle(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`{"total_items":1,"data":[` + s.row + `]}`))
 }
 
-// assertSearchSequence pins the exact search values sent, in order. The number of
-// requests is the assertion that matters: it is what separates "the hint resolved
-// it" from "the hint missed and the unfiltered scan saved us".
+// Pin search values in order (request count separates hint-hit vs fallback).
 func assertSearchSequence(t *testing.T, got, want []string) {
 	t.Helper()
 
@@ -204,10 +191,7 @@ func assertSearchSequence(t *testing.T, got, want []string) {
 	}
 }
 
-// A genuinely de-integrated repository is still reported as not found, so Terraform can
-// plan a replacement. It costs one extra unfiltered scan to distinguish that from a
-// rename, which is the right trade: the scan is paid once, on the refresh after removal,
-// whereas mistaking a rename for a removal corrupts state on every plan.
+// Truly gone repo stays not found after filtered + unfiltered scan (rename vs delete).
 func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 	var requests int
 	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {

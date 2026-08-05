@@ -13,8 +13,6 @@ type ShiftLeftInstallationReposConfig struct {
 	UnavailableActions *ShiftLeftArchiveActions `json:"unavailable_actions,omitempty"`
 }
 
-// scmUnitIntegrateBody holds the fields shared by every provider's unit
-// integrate POST; providers embed it and add their one identifying key.
 type scmUnitIntegrateBody struct {
 	InstallationID        string                  `json:"installation_id"`
 	InstallationMode      string                  `json:"installation_mode,omitempty"`

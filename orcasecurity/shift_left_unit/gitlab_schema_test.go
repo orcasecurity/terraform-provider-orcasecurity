@@ -10,10 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// The GitLab group PUT goes through UpdateConfigurationSettingsRequest, which
-// types skip_check_runs as the three-value PerformActionStatus. This resource
-// previously declared the two-value GitLab *repository* enum, rejecting at plan
-// time a value the API accepts (verified live against the group endpoint).
+// Group PUT accepts three-value skip_check_runs (not the GitLab repository two-value enum).
 func TestResourceSchema_SkipCheckRunsAcceptsOnlyOnInternalIssue(t *testing.T) {
 	cfg, ok := gitlabGroupSchema().Attributes["configuration_settings"].(rschema.SingleNestedAttribute)
 	if !ok {

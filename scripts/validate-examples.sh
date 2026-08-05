@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
-#
-# Validates the shift-left example configurations against the locally built provider.
-#
-# The examples under examples/ are the source that tfplugindocs embeds into docs/, so a
-# stale attribute name there ships straight into the published documentation. Attribute
-# names are not covered by any Go test, and `go generate` copies the files verbatim
-# without checking them, so terraform validate is the only thing that catches a rename.
-#
-# Each example is a fragment (no terraform/provider block), so it is validated in a temp
-# directory alongside a generated provider block. Fragments that reference variables or
-# resources defined outside their own directory cannot be validated in isolation and are
-# listed in SKIP below.
-#
-# Usage: scripts/validate-examples.sh
+# terraform validate shift-left example fragments (tfplugindocs embeds examples/ into docs/).
+# Fragments get a temp provider block; SKIP lists dirs with cross-directory refs.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,8 +40,7 @@ for dir in $(find examples -name '*.tf' -exec dirname {} \; | sort -u); do
   done
   $skip && continue
 
-  # Only shift-left examples are gated for now; the rest of examples/ predates this check
-  # and relies on cross-directory references that cannot be validated in isolation.
+  # Only shift-left examples; others need cross-directory refs.
   case "$dir" in
   *shift_left*) ;;
   *) continue ;;

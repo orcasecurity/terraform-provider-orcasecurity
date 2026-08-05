@@ -1,9 +1,6 @@
 package shift_left_installation_test
 
-// Live reads of the three installation-list data sources. Creating an
-// installation needs an SCM PAT the test environment does not hold, but
-// listing them is GET-only, so these run against any tenant with credentials —
-// zero rows is a pass (the check only requires the collection to exist).
+// GET-only list DS; zero rows is OK.
 
 import (
 	"os"

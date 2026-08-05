@@ -8,17 +8,17 @@ description: |-
 
 Creates or configures an Orca GitLab shift-left integrated group. Create POSTs `/api/shiftleft/gitlab/integrated_repositories/` with `group_id`, `installation_mode` (defaults to `SELECTED_REPOSITORIES`), and configuration (no repositories are attached on that call). If the group is already integrated, Create/Update PUT the unit config instead. Destroy DELETEs the integrated group (tears down the live integration and its repos). Not covered: browse remote groups, check_availability, scan-now (UI operations).
 
--> **API vs UI:** This resource follows the Shift-Left **API** contract. The GitLab UI may offer fewer `skip_check_runs` values than the account-level PUT accepts. `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`.
+-> **API vs UI:** Terraform follows the Shift-Left API; GitLab UI may expose fewer `skip_check_runs` values. `unavailable_conditions`: `AVOID_SCAN`, `DELETE_REPO`.
 
--> **`skip_check_runs` on create:** the integrate API accepts only `ALWAYS` or `NEVER` for `skip_check_runs`; `ONLY_ON_INTERNAL_ISSUE` is accepted once the group is integrated. Integrate with `ALWAYS`/`NEVER` and switch on a later apply, or import an already-integrated group.
+-> **`skip_check_runs` on create:** Integrate accepts only `ALWAYS` or `NEVER`; `ONLY_ON_INTERNAL_ISSUE` works after integration (or import an integrated group).
 
--> **Defaults on create:** the first `apply` sends a value for every configuration attribute you leave unset — `disable_scan_pull_requests` as `false`, `comments_on_pull_requests`, `pr_summary_comment` and `skip_check_runs` as `ALWAYS`, and `config_file_support` as `ENABLED`. Pull request scanning is therefore **enabled** unless you opt out, matching the Orca UI. `terraform import` performs no write, so an imported group keeps whatever settings it already had.
+-> **Defaults on create:** Unset config attrs get integrate defaults: PR scan enabled (`disable_scan_pull_requests = false`), `comments_on_pull_requests`/`pr_summary_comment`/`skip_check_runs` = `ALWAYS`, `config_file_support` = `ENABLED`. Import writes nothing.
 
--> **Destroy:** `terraform destroy` DELETEs the integrated group (UI parity). That also removes its integrated repositories.
+-> **Destroy:** `terraform destroy` DELETEs the group and its integrated repositories.
 
-!> **Adopt semantics:** This resource **adopts** a pre-existing SCM group rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt a group that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing group under management without a takeover write.
+!> **Adopt semantics:** Adopts a pre-existing group; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
 
--> **Coverage:** Browse remote groups, `check_availability`, and scan-now are UI operations and are not managed here.
+-> **Coverage:** Browse groups, `check_availability`, and scan-now are not managed here.
 
 ## Example Usage
 

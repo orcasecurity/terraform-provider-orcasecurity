@@ -30,11 +30,8 @@ type RepoConfigFields struct {
 	ScmPosturePolicyID  types.String `tfsdk:"scm_posture_policy_id"`
 }
 
-// configFields is promoted to every repository model that embeds RepoConfigFields,
-// letting the shared CRUD address the shared fields without per-model accessors.
 func (f *RepoConfigFields) configFields() *RepoConfigFields { return f }
 
-// repoModelPtr is satisfied by *M for every repository model embedding RepoConfigFields.
 type repoModelPtr[M any] interface {
 	*M
 	configFields() *RepoConfigFields
@@ -45,8 +42,6 @@ func branchAttribute(branchRequired bool) rschema.StringAttribute {
 	attr := rschema.StringAttribute{
 		PlanModifiers: []planmodifier.String{branchRequiresReplace()},
 	}
-	// Create-only semantics and the import consequence are identical for all four SCMs; only
-	// whether the API demands a branch on integrate differs.
 	const createOnly = "Create-only: the API never returns or updates it, so Terraform cannot detect drift on " +
 		"this attribute, and changing it re-integrates the repository — a destroy and create that deletes and " +
 		"recreates its repository context. `terraform import` cannot read it back either, so an imported " +
@@ -64,12 +59,7 @@ func branchAttribute(branchRequired bool) rschema.StringAttribute {
 	return attr
 }
 
-// branchRequiresReplace forces re-integration when branch moves between two known values, but
-// not when state holds no branch at all. The API never returns branch, so a freshly imported
-// repository has a null branch while the config supplies one; an unconditional RequiresReplace
-// reads that as a change and destroys and re-integrates every imported repository on its first
-// apply, deleting its repository context. Falling through to Update instead is safe because
-// fromAPI carries branch over from the plan, so state records the same value create would have.
+// RequiresReplace only when state already has a branch; import null→config must not re-integrate.
 func branchRequiresReplace() planmodifier.String {
 	const description = "Changing the branch forces re-integration, except when state holds no branch " +
 		"(a freshly imported repository), because the API never returns it."
@@ -298,9 +288,7 @@ func repoDelete[M any, PM repoModelPtr[M]](ctx context.Context, req resource.Del
 	deleteRepo(ops(&state), PM(&state).configFields(), &resp.Diagnostics)
 }
 
-// createRepo is a two-phase apply forced by the API: integrate + confirm, then a
-// follow-up PATCH for disabled (not honored on the integrate POST). Each phase
-// owns one rollback policy.
+// Integrate then PATCH disabled (ignored on integrate POST).
 func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	row := integrateAndConfirm(ops, diags)
 	if row == nil {
@@ -309,9 +297,6 @@ func createRepo(ops repoOps, plan *RepoConfigFields, diags *diag.Diagnostics) *a
 	return applyDisabledIfNeeded(ops, plan, row, diags)
 }
 
-// integrateAndConfirm integrates the repository and reads it back. On a failed
-// read-back the integration may or may not be live, so rollback goes through
-// rollbackUnconfirmedIntegration.
 func integrateAndConfirm(ops repoOps, diags *diag.Diagnostics) *api_client.ScmRepository {
 	if err := ops.integrate(); err != nil {
 		diags.AddError(fmt.Sprintf("Error integrating %s repository", ops.traits.name), err.Error())
@@ -329,8 +314,6 @@ func integrateAndConfirm(ops repoOps, diags *diag.Diagnostics) *api_client.ScmRe
 	return row
 }
 
-// applyDisabledIfNeeded applies the disabled follow-up PATCH against a confirmed
-// row and re-reads it. A failure here rolls back the known integration.
 func applyDisabledIfNeeded(ops repoOps, plan *RepoConfigFields, row *api_client.ScmRepository, diags *diag.Diagnostics) *api_client.ScmRepository {
 	body, set := disabledUpdateBody(row.ID, plan)
 	if !set {
@@ -414,9 +397,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	return row
 }
 
-// An update takes two independent writes (move the project, then PATCH the config). Terraform throws
-// the plan away when Update reports an error, so a move left standing after a failed PATCH would be a
-// live change with no record in state — put the repository back where state says it is instead.
+// Move then PATCH are independent; on PATCH failure move the repo back so live matches state.
 func rollbackProjectMove(ops repoOps, state *RepoConfigFields, ctxID string, diags *diag.Diagnostics) {
 	priorProjectID := state.ProjectID.ValueString()
 	const detail = "The repository was moved to the configured project but applying its configuration failed"

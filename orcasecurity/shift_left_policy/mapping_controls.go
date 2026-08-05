@@ -153,8 +153,7 @@ func scmControlToMap(c scmControlModel) map[string]interface{} {
 	return m
 }
 
-// mapSlice maps in→f(in), preserving the make([]R,0,len) (non-nil) result the
-// callers relied on so an empty control list still marshals as [] not null.
+// Non-nil empty slice so controls marshal as [] not null.
 func mapSlice[T, R any](in []T, f func(T) R) []R {
 	out := make([]R, 0, len(in))
 	for _, v := range in {

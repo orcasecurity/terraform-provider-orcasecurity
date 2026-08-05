@@ -8,7 +8,7 @@ description: |-
 
 {{ .Description | trimspace }}
 
--> **Singleton semantics:** every Orca org has exactly one built-in SCM posture policy; this resource adopts it rather than creating it. `terraform destroy` only removes it from state — the policy itself always remains. Omitted attributes (`disabled`, `controls`) keep their live values; set `controls = []` to explicitly clear all control overrides. For named, scoped SCM posture policies use the SCM posture policies API instead.
+-> **Singleton semantics:** One built-in SCM posture policy per org; this resource adopts it. `destroy` removes from state only. Omitted `disabled`/`controls` keep live values; `controls = []` clears overrides.
 
 ## Example Usage
 

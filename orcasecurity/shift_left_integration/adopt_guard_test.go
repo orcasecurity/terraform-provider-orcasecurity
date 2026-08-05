@@ -124,9 +124,7 @@ func TestRollbackIntegration(t *testing.T) {
 		assertWarningSummaryContains(t, diags, `GitLab group "acme"`)
 	})
 
-	// The create path that matters: Integrate succeeded, Get returned (nil, nil),
-	// DeleteByLookup re-runs the same empty-id lookup and used to return success
-	// with no warning — the silent orphan.
+	// Integrate succeeded but lookup cannot find an id to delete: must warn, not succeed silently.
 	t.Run("warns when DeleteByLookup finds nothing to tear down", func(t *testing.T) {
 		var diags diag.Diagnostics
 		delCalls := 0

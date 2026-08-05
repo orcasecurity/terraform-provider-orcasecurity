@@ -8,9 +8,9 @@ description: |-
 
 Integrates a single Bitbucket repository into Orca Shift Left under an existing Bitbucket installation. `account_id`, `bitbucket_repository_id`, and `slug` are Bitbucket-side identifiers (obtain them from Bitbucket or `orcasecurity_shift_left_bitbucket_repositories`). Destroying the resource un-integrates the repository (deletes its repository context); it does not touch the repository on Bitbucket. Import with `installation_id:account_id:bitbucket_repository_id`.
 
--> **Per-repository scope:** this resource integrates one repository at a time under an installation that scans selected repositories. Unit-level settings (installation mode, policies, shared configuration) belong to the account/group/installation resources and are never modified by this resource. Config attributes left unset inherit server-side defaults; once set, they cannot be reset to "inherit" through the API (only changed to another value).
+-> **Per-repository scope:** integrates one repo under a selected-repositories installation; unit-level settings live on the account/group/installation resources. Unset config inherits server defaults; once set, values cannot be reset to inherit via the API.
 
-!> **`branch` is create-only.** The API never returns or updates it, so Terraform cannot detect drift on `branch`, and changing it re-integrates the repository — a destroy and create that deletes and recreates its repository context. Bitbucket does not require a branch on integrate, so the safest option is to leave `branch` unset: the repository default branch is scanned, nothing is stored, and the attribute can never force a replacement. If you do set it, note that `terraform import` cannot read it back — an imported repository has no branch in state, and the first apply records the configured value in place without re-integrating, so configure the branch the repository was actually integrated with.
+!> **`branch` is create-only.** The API never returns it; changing it forces re-integrate. Optional on Bitbucket (leave unset to use the default branch). Import cannot read it back — if set, use the branch the repo was integrated with.
 
 ## Example Usage
 

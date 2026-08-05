@@ -156,7 +156,6 @@ resource "orcasecurity_shift_left_policy" "licenses_builtin" {
   warn_mode                  = true
   priority_failure_threshold = "HIGH"
 
-  # Bulk-attach the whole fleet by projecting ids out of a for_each collection.
   projects_ids = [for p in orcasecurity_shift_left_project.fleet : p.id]
 
   licenses {}
@@ -189,7 +188,7 @@ resource "orcasecurity_shift_left_policy" "malicious_packages_builtin" {
 
 - **Update**: change any attribute (for example `name`, `description`, `warn_mode`, `priority_failure_threshold`, `disabled`, `projects_ids`, or the controls) and re-apply.
 - **Delete**: remove the resource from configuration (or run `terraform destroy`) and apply.
-- **Built-in policies**: `name` is immutable (as is `feature_scope` on `container_image` built-ins); everything else -- `description`, `disabled`, `warn_mode`, `priority_failure_threshold`, control overrides, and (except for `scm_posture`) `projects_ids` -- can be changed, mirroring the Orca API contract. Built-in policies can never be deleted via Terraform. `scm_posture` policies have no project-attachment endpoint; scope them with `scm_posture.scope` instead. The org-wide **built-in** `scm_posture` policy is managed exclusively by `orcasecurity_shift_left_scm_posture_default_policy` and cannot be imported here.
+- **Built-in policies**: `name` is immutable (`feature_scope` too on `container_image`); other attributes can change. Never deletable via Terraform. `scm_posture` has no projects endpoint — use `scm_posture.scope`. The org-wide built-in `scm_posture` policy is owned by `orcasecurity_shift_left_scm_posture_default_policy` (see Import note).
 
 ## Import
 

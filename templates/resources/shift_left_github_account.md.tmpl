@@ -8,17 +8,17 @@ description: |-
 
 {{ .Description | trimspace }}
 
--> **API vs UI:** This resource follows the Shift-Left **API** contract. Some SCM UIs hide fields the API still accepts (notably Azure: `skip_check_runs` and archive actions; GitLab: fewer `skip_check_runs` values). `unavailable_conditions` accepts `AVOID_SCAN` and `DELETE_REPO`, matching the API.
+-> **API vs UI:** Terraform follows the Shift-Left API. `unavailable_conditions`: `AVOID_SCAN`, `DELETE_REPO`.
 
--> **Omitted settings inherit live values:** this resource always adopts an existing GitHub App installation (there is no create/Integrate path, so provider create-defaults such as `disable_scan_pull_requests = false` are never applied). The first `apply` re-sends whatever the account already has for any configuration attribute you leave unset. Set each attribute explicitly when you want to change it. `terraform import` performs no write.
+-> **Omitted settings inherit live values:** No integrate path — unset config attrs re-send live values on first apply, not create defaults. Set attrs explicitly to change them; import writes nothing.
 
--> **No connection resource:** unlike GitLab, Bitbucket and Azure DevOps, GitHub has no `*_installation` resource to register a server and token — the Orca GitHub App installation is itself the account-level unit. That is why `account_id` holds this unit's own Orca UUID rather than a parent connection id.
+-> **No installation resource:** The Orca GitHub App installation is the account unit (no `*_installation` resource). `account_id` is this unit's Orca UUID.
 
--> **Destroy:** `terraform destroy` DELETEs the Orca GitHub account integration (UI parity). Re-create requires reinstalling the Orca GitHub App.
+-> **Destroy:** `terraform destroy` DELETEs the integration; reinstall the Orca GitHub App to recover.
 
-!> **Adopt semantics:** This resource **adopts** a pre-existing SCM account rather than creating one — `apply` takes over the live Orca integration, and `destroy` de-integrates it (removing repositories and settings that may have been configured outside Terraform). To avoid an accidental takeover, `apply` refuses to adopt an account that already has integrated repositories unless you set `adopt_existing = true`. Prefer `terraform import` to bring an existing account under management without a takeover write.
+!> **Adopt semantics:** Adopts a pre-existing account; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
 
--> **Coverage:** GitHub App install URL (`/github/config/`), GHES `/github/enterprises/*`, browse repos, `check_availability`, and scan-now are not managed here.
+-> **Coverage:** App install URL, GHES, browse repos, `check_availability`, and scan-now are not managed here.
 
 ## Example Usage
 

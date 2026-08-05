@@ -9,12 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ErrUnitNotFound is returned by unit lookups (and AdoptedUnitOps.Delete
-// implementations) when the unit no longer exists remotely.
 var ErrUnitNotFound = errors.New("scm unit not found")
 
-// Commoner is satisfied by every concrete SCM unit API type via the embedded
-// api_client.ScmUnitCommonFields.
 type Commoner interface {
 	Common() api_client.ScmUnitCommonFields
 }

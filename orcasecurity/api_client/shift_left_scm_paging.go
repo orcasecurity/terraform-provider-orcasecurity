@@ -11,7 +11,7 @@ type scmUnit interface {
 	stampInstallationID(string)
 }
 
-// listScmUnitsByInstallation is required to obtain installation_id for for_each; global lists omit it.
+// Global unit lists omit installation_id; stamp it from the install we listed under.
 func listScmUnitsByInstallation[T any, PT interface {
 	*T
 	scmUnit
@@ -39,10 +39,7 @@ func listScmUnitsByInstallation[T any, PT interface {
 	return all, nil
 }
 
-// scmUnitNameFilter narrows a unit list to rows whose name matches the term. Every SCM's unit list
-// exposes exactly one searchable name field (the GitLab group name, the Bitbucket account slug, the
-// Azure organization name), reached through the shared `name` alias. It is a hint only: the search is
-// a partial match, so the caller still has to match exactly.
+// Hint-only name search (partial match); caller still matches exactly.
 func scmUnitNameFilter(name string) listFilters {
 	if name == "" {
 		return nil
@@ -50,11 +47,7 @@ func scmUnitNameFilter(name string) listFilters {
 	return listFilters{"search": name, "search_fields": "name"}
 }
 
-// findScmUnitBy list-filters; the API has no single-unit GET route for SCM units, and the unit lists
-// accept no filter on the unit id, so a lookup by id has to walk every page. Callers looking a unit
-// up by name pass scmUnitNameFilter to narrow that walk. A filtered miss falls back to the full scan
-// because the filter searches one specific name field: reporting absence on a filter mismatch would
-// make Terraform treat a live unit as deleted.
+// No unit GET/id filter; name-filter miss falls back to full scan so renames are not treated as deleted.
 func findScmUnitBy[T any, PT interface {
 	*T
 	scmUnit
@@ -112,7 +105,7 @@ func updateScmUnit[T any, PT interface {
 	return unit, nil
 }
 
-// Shift-left lists paginate with start_at_index (offset ignored). Pass nil filters for full list.
+// start_at_index paging; nil filters = full list.
 func getAllScmPages[T any](client *APIClient, basePath string, filters listFilters) ([]T, error) {
 	const pageLimit = 200
 	const maxScmPages = 500 // backstop against an inflated/bogus total_items with full pages

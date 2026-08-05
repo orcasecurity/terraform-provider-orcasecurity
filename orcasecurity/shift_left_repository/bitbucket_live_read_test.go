@@ -10,11 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 )
 
-// TestAccBitbucketRepository_liveImportRead drives ImportState + Read directly against the real
-// API, bypassing terraform apply/destroy entirely. It exercises bitbucketSyncSlug — the fix that
-// backfills `slug` on Read because import can't set a Required+RequiresReplace attribute the API
-// never accepts on the import path (see bitbucket.go). Nothing is ever written to Terraform state,
-// so there is nothing for the test harness to tear down afterward.
+// Live ImportState+Read; exercises bitbucketSyncSlug slug backfill.
 func TestAccBitbucketRepository_liveImportRead(t *testing.T) {
 	installationID := os.Getenv("ORCA_TEST_BB_INSTALLATION_ID")
 	accountSlug := os.Getenv("ORCA_TEST_BB_ACCOUNT_SLUG")

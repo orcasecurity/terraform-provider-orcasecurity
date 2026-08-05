@@ -17,7 +17,7 @@ func ConfigureAPIClient(req resource.ConfigureRequest) *api_client.APIClient {
 	return req.ProviderData.(*api_client.APIClient)
 }
 
-// ImportScopedInstallation: <installation_id>/<rest>; UUID rest sets id.
+// Import ID: <installation_id>/<rest>; UUID rest sets id.
 func ImportScopedInstallation(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, expected string) (rest string, resolved bool) {
 	installationID, rest, ok := strings.Cut(req.ID, "/")
 	if !ok || installationID == "" || rest == "" {
@@ -32,7 +32,7 @@ func ImportScopedInstallation(ctx context.Context, req resource.ImportStateReque
 	return rest, false
 }
 
-// ImportScopedUnit: UUID rest → id, else → nameAttr.
+// Non-UUID rest goes to nameAttr.
 func ImportScopedUnit(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, nameAttr, expected string) {
 	rest, resolved := ImportScopedInstallation(ctx, req, resp, expected)
 	if resolved {
@@ -41,7 +41,6 @@ func ImportScopedUnit(ctx context.Context, req resource.ImportStateRequest, resp
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(nameAttr), rest)...)
 }
 
-// Disambiguates Orca unit UUIDs from SCM-side slugs/names on import.
 func LooksLikeUUID(s string) bool {
 	if len(s) != 36 {
 		return false

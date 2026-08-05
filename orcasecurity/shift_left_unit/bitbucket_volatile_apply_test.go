@@ -10,16 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
-// These cases pin the volatile-attribute contract at the Terraform plan/apply level.
-// The unit tests in shift_left_integration cover settleVolatileAttrs in isolation,
-// but the two failure modes below only appear once Terraform drives a real
-// plan → apply → re-plan cycle, so they cannot be reproduced from a unit test:
-//
-//   - carrying a stale value forward across a write that moves it fails the apply
-//     with "inconsistent result after apply";
-//   - treating an unknown writable as "no write" carries the volatile value
-//     forward as known and then replans it unknown on the apply re-plan once the
-//     reference resolves, which Terraform rejects as "inconsistent final plan".
+// Plan/apply cycles that expose volatile-attribute failures unit tests cannot reproduce.
 
 // newVolatileStub is the shared stub with server-side side effects switched on.
 func newVolatileStub() *scmUnitStub {
@@ -31,9 +22,7 @@ func newVolatileStub() *scmUnitStub {
 	return s
 }
 
-// Switching to scan-all enrols repositories, so integrated_repositories_count and
-// scan_all_state both move as a side effect of the write. Carrying the prior values
-// forward (plain UseStateForUnknown) fails the apply.
+// Scan-all write moves integrated_repositories_count and scan_all_state; stale carry-forward fails apply.
 func TestScmUnitApply_VolatileAttributesMoveDuringApply(t *testing.T) {
 	newVolatileStub().start(t)
 	resource.Test(t, resource.TestCase{
@@ -57,8 +46,7 @@ func TestScmUnitApply_VolatileAttributesMoveDuringApply(t *testing.T) {
 	})
 }
 
-// The volatile modifier must still let an unchanged configuration settle: re-applying
-// an identical config has to leave no diff. resource.Test fails the step otherwise.
+// Identical config re-apply must leave no diff.
 func TestScmUnitApply_VolatileAttributesSettleOnNoOpReapply(t *testing.T) {
 	newVolatileStub().start(t)
 	config := stubConfig(`  installation_mode = "SELECTED_REPOSITORIES"`)
@@ -71,10 +59,7 @@ func TestScmUnitApply_VolatileAttributesSettleOnNoOpReapply(t *testing.T) {
 	})
 }
 
-// A writable attribute that is unknown at plan time (bound to another resource) must
-// not be read as "no write". Deciding from Plan.Raw treats the unknown as a match,
-// carries the volatile value forward as known, and then plans it unknown on the apply
-// re-plan once the reference resolves — which Terraform rejects.
+// Unknown writable at plan time must not be treated as no-write or apply re-plan rejects inconsistent final plan.
 func TestScmUnitApply_VolatileAttributesWithUnknownWritable(t *testing.T) {
 	newVolatileStub().start(t)
 	config := func(projectInput string) string {
@@ -93,9 +78,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "test" {
 	}
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
-		// The unknown value is driven through terraform_data, which the builtin
-		// provider only ships from Terraform 1.4. The modifier logic itself is
-		// version-independent and unit-tested in shift_left_integration.
+		// terraform_data drives unknown project_id; requires Terraform 1.4+.
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
 			tfversion.SkipBelow(tfversion.Version1_4_0),
 		},
@@ -106,8 +89,7 @@ resource "orcasecurity_shift_left_bitbucket_account" "test" {
 	})
 }
 
-// Control for the case above: the same project rebind written as a literal, so nothing
-// in the plan is unknown. It isolates the cross-resource reference as the trigger.
+// Control: literal project rebind isolates cross-resource unknown as the trigger.
 func TestScmUnitApply_VolatileAttributesWithLiteralProjectRebind(t *testing.T) {
 	newVolatileStub().start(t)
 	config := func(projectID string) string {

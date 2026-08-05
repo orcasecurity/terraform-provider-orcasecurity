@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// UseStateForUnknown semantics unless config switches from project to policies.
 type projectIDPlanModifier struct{}
 
 func ProjectIDPlanModifier() planmodifier.String { return projectIDPlanModifier{} }
@@ -26,7 +25,6 @@ func (projectIDPlanModifier) PlanModifyString(ctx context.Context, req planmodif
 		return
 	}
 
-	// No prior state to carry forward yet (create): leave the core-proposed value alone.
 	if req.State.Raw.IsNull() {
 		return
 	}

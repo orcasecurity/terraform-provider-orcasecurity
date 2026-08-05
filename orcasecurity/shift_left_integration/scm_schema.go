@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// nonEmptyPoliciesValidator: server treats empty/omitted policies as "attach all built-ins", so [] != none.
+// Empty/omitted policies means "all built-ins" server-side, not none.
 type nonEmptyPoliciesValidator struct{}
 
 func (nonEmptyPoliciesValidator) Description(_ context.Context) string {
@@ -40,10 +40,7 @@ func (nonEmptyPoliciesValidator) ValidateSet(_ context.Context, req validator.Se
 	}
 }
 
-// ComputedAccountName is the server-reported account/group display name. Azure
-// DevOps does not use it: there account_name is the Required identity attribute,
-// defined by the resource itself. Keeping identity attributes out of
-// SharedScmConfigAttributes means no resource ever overwrites a shared key.
+// Shared display-name attr; Azure defines Required account_name itself.
 func ComputedAccountName(description string) rschema.StringAttribute {
 	return rschema.StringAttribute{
 		Computed:      true,
@@ -52,9 +49,6 @@ func ComputedAccountName(description string) rschema.StringAttribute {
 	}
 }
 
-// SharedScmConfigAttributes carries only the attributes every SCM unit resource
-// exposes with identical semantics. Identity attributes (id, installation_id,
-// account_id/account_name/gitlab_group_id) belong to each resource's schema.
 func SharedScmConfigAttributes() map[string]rschema.Attribute {
 	return map[string]rschema.Attribute{
 		"integration_status": ComputedVolatileString(

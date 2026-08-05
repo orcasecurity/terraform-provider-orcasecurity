@@ -14,8 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// MergeMaps combines a shared attribute/type/value map with per-provider extras;
-// extra wins on conflict.
 func MergeMaps[V any](base, extra map[string]V) map[string]V {
 	out := make(map[string]V, len(base)+len(extra))
 	maps.Copy(out, base)
@@ -37,8 +35,6 @@ func ObjectListFromValues(attrTypes map[string]attr.Type, elems []map[string]att
 	return list, diags
 }
 
-// ScmObjectListSpec drives the shared read-only list data source used by every
-// shift-left collection (installations, repositories, units via an adapter).
 type ScmObjectListSpec[A any] struct {
 	TypeNameSuffix string
 	Description    string
