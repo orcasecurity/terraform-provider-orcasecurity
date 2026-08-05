@@ -53,5 +53,7 @@ docs/superpowers/
 # Local import smoke-test harness (lab-specific IDs, not for CI)
 tests/lab/
 
+tests/shift_left_acc_require.md
+
 # Pinned tool binaries installed by `make lint` (version from .golangci-version)
 /bin/
