@@ -35,6 +35,7 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 	}
 	if original == nil {
 		t.Skip("azure devops account not found; cannot run adopt test")
+		return
 	}
 	// Destroy tears down the account's integrated repositories, and the restore
 	// helper re-integrates only the empty unit. Require a disposable empty account

@@ -38,6 +38,7 @@ func fetchGitlabGroupForTest(t *testing.T, client *api_client.APIClient, install
 	}
 	if original == nil {
 		t.Skipf("gitlab group not found under installation %s", installationID)
+		return nil
 	}
 	return original
 }

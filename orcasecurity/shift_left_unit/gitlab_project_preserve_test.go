@@ -29,6 +29,7 @@ func TestAccGitlabGroup_preservesProject(t *testing.T) {
 	}
 	if original == nil {
 		t.Skipf("gitlab group %s/%s not found", installationID, groupID)
+		return
 	}
 	// Always restore the group to exactly how we found it (policies + config,
 	// no project) once the test finishes.

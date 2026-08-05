@@ -28,6 +28,7 @@ func TestAccGithubAccount_import(t *testing.T) {
 	}
 	if original == nil {
 		t.Skipf("github account %s not found; cannot run adopt test", id)
+		return
 	}
 	// Destroy DELETEs the GitHub account unit and every integrated repository
 	// under it. There is no Integrate restore path (reinstall needs the GitHub

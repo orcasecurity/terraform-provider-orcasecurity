@@ -165,6 +165,7 @@ func TestApplyV2AlertScoreChangeToState_SpecifyImportsEmptyReason(t *testing.T) 
 	tmpl := state.AlertScoreSpecifyTemplate
 	if tmpl == nil {
 		t.Fatal("expected AlertScoreSpecifyTemplate to be set")
+		return
 	}
 	if tmpl.Reason.IsNull() || tmpl.Reason.ValueString() != "" {
 		t.Errorf("expected empty reason on import, got %#v", tmpl.Reason)

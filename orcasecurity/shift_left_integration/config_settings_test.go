@@ -167,6 +167,7 @@ func TestExpandConfigSettings_ExplicitEmptyListsClearsReposConfig(t *testing.T) 
 	} {
 		if actions == nil {
 			t.Fatalf("%s must be sent on clear, not omitted", name)
+			return
 		}
 		if len(actions.Conditions) != 0 {
 			t.Fatalf("%s should clear to an empty list, got: %v", name, actions.Conditions)
@@ -188,6 +189,7 @@ func TestExpandConfigSettings_AsymmetricClearStillSendsBothActions(t *testing.T)
 	archive := api.InstallationReposConfig.ArchiveActions
 	if archive == nil {
 		t.Fatal("archive_actions omitted; the empty archive list would not clear server-side")
+		return
 	}
 	if len(archive.Conditions) != 0 {
 		t.Fatalf("expected archive conditions cleared, got: %v", archive.Conditions)
