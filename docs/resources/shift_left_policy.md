@@ -42,6 +42,9 @@ resource "orcasecurity_shift_left_policy" "iac_baseline" {
 resource "orcasecurity_shift_left_policy" "iac_by_id" {
   type                       = "iac"
   name                       = "IaC by id"
+  description                = "Managed by Terraform"
+  disabled                   = false
+  warn_mode                  = false
   priority_failure_threshold = "HIGH"
 
   iac {
@@ -62,6 +65,9 @@ Set `all_controls = true` on a section to automatically include every catalog co
 resource "orcasecurity_shift_left_policy" "container_all" {
   type                       = "container_image"
   name                       = "Container all controls"
+  description                = "Managed by Terraform"
+  disabled                   = false
+  warn_mode                  = false
   priority_failure_threshold = "HIGH"
 
   container_image {
@@ -88,6 +94,9 @@ Omit `id` and use a `title` that does not match any catalog control to define a 
 resource "orcasecurity_shift_left_policy" "container_custom" {
   type                       = "container_image"
   name                       = "Container custom vuln"
+  description                = "Managed by Terraform"
+  disabled                   = false
+  warn_mode                  = false
   priority_failure_threshold = "HIGH"
 
   container_image {
@@ -115,9 +124,19 @@ resource "orcasecurity_shift_left_policy" "container_custom" {
 ### Attach a policy to projects
 
 ```terraform
+resource "orcasecurity_shift_left_project" "example" {
+  name             = "example"
+  description      = "Managed by Terraform"
+  key              = "example"
+  default_policies = false
+}
+
 resource "orcasecurity_shift_left_policy" "attached" {
   type                       = "iac"
   name                       = "Attached policy"
+  description                = "Managed by Terraform"
+  disabled                   = false
+  warn_mode                  = false
   priority_failure_threshold = "HIGH"
 
   projects_ids = [orcasecurity_shift_left_project.example.id]
@@ -144,6 +163,7 @@ terraform import orcasecurity_shift_left_policy.licenses_builtin licenses/<polic
 resource "orcasecurity_shift_left_project" "fleet" {
   for_each         = toset(["team-a", "team-b", "team-c"])
   name             = each.value
+  description      = "Fleet project for ${each.value}"
   key              = each.value
   default_policies = false
 }
@@ -172,6 +192,13 @@ terraform import orcasecurity_shift_left_policy.malicious_packages_builtin malic
 ```
 
 ```terraform
+resource "orcasecurity_shift_left_project" "example" {
+  name             = "example"
+  description      = "Managed by Terraform"
+  key              = "example"
+  default_policies = false
+}
+
 resource "orcasecurity_shift_left_policy" "malicious_packages_builtin" {
   type                       = "malicious_packages"
   name                       = "Malicious Packages"

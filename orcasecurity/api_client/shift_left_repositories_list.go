@@ -1,5 +1,10 @@
 package api_client
 
+import (
+	"fmt"
+	"net/url"
+)
+
 type GithubRepositoryListItem struct {
 	ScmRepository
 	AccountID          string // Orca GitHub account UUID (= github_installation.id)
@@ -25,6 +30,8 @@ type AzureRepositoryListItem struct {
 	InstallationID    string // stamped from owning AzureDevopsAccount
 	AccountName       string
 	AzureRepositoryID string
+	// Absent from integrated_repositories; joined from the per-account browse endpoint.
+	AzureProjectID string
 }
 
 func (client *APIClient) ListGithubRepositories() ([]GithubRepositoryListItem, error) {
@@ -60,10 +67,16 @@ func (client *APIClient) ListGitlabRepositories() ([]GitlabRepositoryListItem, e
 	}
 	out := make([]GitlabRepositoryListItem, len(rows))
 	for i := range rows {
+		groupID, ok := groupIDByOrcaID[rows[i].GitlabGroup.ID]
+		if !ok {
+			return nil, fmt.Errorf(
+				"gitlab repository %s references group %s which is not in the integrated groups list; "+
+					"the group may have been de-integrated out-of-band", rows[i].ID, rows[i].GitlabGroup.ID)
+		}
 		out[i] = GitlabRepositoryListItem{
 			ScmRepository:   rows[i].common(),
 			InstallationID:  rows[i].GitlabInstallation.ID,
-			GitlabGroupID:   groupIDByOrcaID[rows[i].GitlabGroup.ID],
+			GitlabGroupID:   groupID,
 			GitlabProjectID: rows[i].GitlabProjectID,
 		}
 	}
@@ -85,13 +98,45 @@ func (client *APIClient) ListBitbucketRepositories() ([]BitbucketRepositoryListI
 	}
 	out := make([]BitbucketRepositoryListItem, len(rows))
 	for i := range rows {
+		installationID, ok := installByAccount[rows[i].AccountInstallation.ID]
+		if !ok {
+			return nil, fmt.Errorf(
+				"bitbucket repository %s references account %s which is not in the integrated accounts list; "+
+					"the account may have been de-integrated out-of-band", rows[i].ID, rows[i].AccountInstallation.ID)
+		}
 		c := rows[i].common()
 		out[i] = BitbucketRepositoryListItem{
 			ScmRepository:         c,
-			InstallationID:        installByAccount[rows[i].AccountInstallation.ID],
+			InstallationID:        installationID,
 			AccountID:             rows[i].AccountInstallation.AccountID,
 			BitbucketRepositoryID: rows[i].BitbucketRepositoryID,
 		}
+	}
+	return out, nil
+}
+
+// integrated_repositories omits azure_project_id; the per-account browse route
+// (installations/{id}/accounts/{name}/repositories/) has it.
+func (client *APIClient) getAzureAccountRepositoryProjectIDs(installationID, accountName string) (map[string]string, error) {
+	resp, err := client.Get(fmt.Sprintf(
+		"/api/shiftleft/azure_devops/installations/%s/accounts/%s/repositories/",
+		installationID, url.PathEscape(accountName),
+	))
+	if err != nil {
+		return nil, err
+	}
+	var body struct {
+		Data []struct {
+			RepositoryID   string `json:"repository_id"`
+			AzureProjectID string `json:"azure_project_id"`
+		} `json:"data"`
+	}
+	if err := resp.ReadJSON(&body); err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(body.Data))
+	for _, r := range body.Data {
+		out[r.RepositoryID] = r.AzureProjectID
 	}
 	return out, nil
 }
@@ -111,12 +156,34 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 	}
 	out := make([]AzureRepositoryListItem, len(rows))
 	for i := range rows {
+		installationID, ok := installByAccount[rows[i].AzureAccountInstallation.ID]
+		if !ok {
+			return nil, fmt.Errorf(
+				"azure devops repository %s references account %s which is not in the integrated accounts list; "+
+					"the account may have been de-integrated out-of-band", rows[i].ID, rows[i].AzureAccountInstallation.ID)
+		}
 		out[i] = AzureRepositoryListItem{
 			ScmRepository:     rows[i].common(),
-			InstallationID:    installByAccount[rows[i].AzureAccountInstallation.ID],
+			InstallationID:    installationID,
 			AccountName:       rows[i].AzureAccountInstallation.AccountName,
 			AzureRepositoryID: rows[i].AzureRepositoryID,
 		}
+	}
+
+	projectIDsByAccount := make(map[string]map[string]string)
+	for i := range out {
+		accountKey := out[i].InstallationID + "/" + out[i].AccountName
+		projectIDs, cached := projectIDsByAccount[accountKey]
+		if !cached {
+			projectIDs, err = client.getAzureAccountRepositoryProjectIDs(out[i].InstallationID, out[i].AccountName)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"azure devops repository %s: fetching azure_project_id from account %s failed: %w",
+					out[i].AzureRepositoryID, out[i].AccountName, err)
+			}
+			projectIDsByAccount[accountKey] = projectIDs
+		}
+		out[i].AzureProjectID = projectIDs[out[i].AzureRepositoryID]
 	}
 	return out, nil
 }

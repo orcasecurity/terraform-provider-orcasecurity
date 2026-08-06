@@ -458,6 +458,18 @@ func TestDeleteRepositoryContext_Path(t *testing.T) {
 	}
 }
 
+func TestDeleteRepositoryContext_404Ignored(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	if err := client.DeleteRepositoryContext("gone"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMoveRepositoryContexts_BodyShape(t *testing.T) {
 	client, last := captureServer(t, nil)
 	if err := client.MoveRepositoryContexts("proj-1", []string{"ctx-1"}); err != nil {

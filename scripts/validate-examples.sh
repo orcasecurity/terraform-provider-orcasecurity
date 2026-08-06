@@ -72,6 +72,58 @@ EOF
   fi
 done
 
+validate_snippet() {
+  local case_dir="$1" name="$2"
+  cat >"$case_dir/zz_provider_for_validate.tf" <<'EOF'
+terraform {
+  required_providers {
+    orcasecurity = { source = "orcasecurity/orcasecurity" }
+  }
+}
+provider "orcasecurity" {
+  api_endpoint = "https://api.orcasecurity.io"
+  api_token    = "placeholder-for-validate-only"
+}
+EOF
+  checked=$((checked + 1))
+  if output=$(cd "$case_dir" && terraform validate -no-color 2>&1); then
+    echo "ok       $name"
+  else
+    echo "INVALID  $name"
+    echo "$output" | sed 's/^/         /'
+    failed+=("$name")
+  fi
+}
+
+# shift_left docs also hand-write ```terraform snippets straight in templates/*.tmpl,
+# which never pass through examples/, so validate those here too.
+for tmpl in $(find templates -iname '*shift_left*.md.tmpl' | sort); do
+  block_num=0
+  in_block=0
+  block_file=""
+  while IFS='' read -r line; do
+    if [[ "$in_block" -eq 0 && "$line" == '```terraform' ]]; then
+      in_block=1
+      block_file="$work/snippet.tf"
+      : >"$block_file"
+      continue
+    fi
+    if [[ "$in_block" -eq 1 && "$line" == '```' ]]; then
+      in_block=0
+      case_dir="$work/case"
+      rm -rf "$case_dir"
+      mkdir -p "$case_dir"
+      cp "$block_file" "$case_dir/snippet.tf"
+      validate_snippet "$case_dir" "$tmpl block $block_num"
+      block_num=$((block_num + 1))
+      continue
+    fi
+    if [[ "$in_block" -eq 1 ]]; then
+      echo "$line" >>"$block_file"
+    fi
+  done <"$tmpl"
+done
+
 echo
 if ((${#failed[@]} > 0)); then
   echo "$checked example(s) checked, ${#failed[@]} invalid:"

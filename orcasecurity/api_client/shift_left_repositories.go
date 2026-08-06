@@ -100,8 +100,7 @@ func (client *APIClient) DeleteRepositoryContext(repositoryContextID string) err
 	if repositoryContextID == "" {
 		return fmt.Errorf("DeleteRepositoryContext: empty repository context id")
 	}
-	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/repository_contexts/%s/", repositoryContextID))
-	return err
+	return deleteScmPathIgnoring404(client, fmt.Sprintf("/api/shiftleft/repository_contexts/%s/", repositoryContextID))
 }
 
 func (client *APIClient) MoveRepositoryContexts(targetProjectID string, repositoryContextIDs []string) error {
