@@ -1,6 +1,8 @@
 package shift_left_policy
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -198,22 +200,6 @@ func TestAPIToState_ContainerImagePrefersPlanControlID(t *testing.T) {
 	}
 }
 
-func TestAPIToState_ProjectsIdsNullWhenUnset(t *testing.T) {
-	apiPolicy := &api_client.ShiftLeftPolicy{
-		ID:       "policy-1",
-		Type:     "iac",
-		Controls: []byte(`[{"id":"ctrl-1","priority":"HIGH","disabled":false}]`),
-	}
-	plan := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-	}
-
-	state := apiToState(apiPolicy, plan)
-	if state.ProjectsIds != nil {
-		t.Errorf("expected nil projects_ids, got %#v", state.ProjectsIds)
-	}
-}
-
 func TestParseImportID(t *testing.T) {
 	policyType, policyID, err := parseImportID("iac/abc-123")
 	if err != nil {
@@ -322,7 +308,10 @@ func TestPlanToAPI_Licenses(t *testing.T) {
 	}
 }
 
-func TestPlanToAPI_FileSystem(t *testing.T) {
+// Legacy aggregate file_system uses flat policy_data.controls (unlike the scoped
+// file_system_* sub-types), and round-trips back into the file_system block.
+
+func TestPlanToAPI_FileSystem_FlatShapeRoundTrip(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{
 		Type:                     types.StringValue("file_system"),
 		Name:                     types.StringValue("fs policy"),
@@ -331,8 +320,74 @@ func TestPlanToAPI_FileSystem(t *testing.T) {
 		PriorityFailureThreshold: types.StringValue("HIGH"),
 		FileSystem: &controlsBlockModel{
 			Controls: []baseControlModel{
+				{ID: types.StringValue("fs-1"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	if _, ok := pd["controls"].([]interface{}); !ok {
+		t.Fatalf("expected flat policy_data.controls, got %v", pd)
+	}
+	if _, scoped := pd["feature_scope"]; scoped {
+		t.Error("legacy file_system must not send feature_scope")
+	}
+
+	state := apiToState(&policy, nil)
+	if state.FileSystem == nil || len(state.FileSystem.Controls) != 1 {
+		t.Fatalf("file_system block did not round-trip, got %+v", state.FileSystem)
+	}
+}
+
+// Legacy sca round-trips through the licenses block shape.
+
+func TestPlanToAPI_Sca_RoundTrip(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("sca"),
+		Name:                     types.StringValue("sca policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		Sca: &licensesBlockModel{
+			Controls: []licenseControlModel{
+				{baseControlModel: baseControlModel{ID: types.StringValue("sca-1"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)}},
+			},
+		},
+	}
+
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if len(policy.Controls) == 0 {
+		t.Error("expected controls to be set for sca")
+	}
+	state := apiToState(&policy, nil)
+	if state.Sca == nil || len(state.Sca.Controls) != 1 {
+		t.Fatalf("sca block did not round-trip, got %+v", state.Sca)
+	}
+}
+
+// file_system_* requires scoped policy_data; flat controls rejected (400).
+
+func TestPlanToAPI_FileSystemVulnerabilities_ScopedShape(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("file_system_vulnerabilities"),
+		Name:                     types.StringValue("fsv policy"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		FileSystemVulnerabilities: &controlsBlockModel{
+			Controls: []baseControlModel{
 				{
-					ID:       types.StringValue("fs-1"),
+					ID:       types.StringValue("fsv-1"),
 					Priority: types.StringValue("HIGH"),
 					Disabled: types.BoolValue(false),
 				},
@@ -344,28 +399,52 @@ func TestPlanToAPI_FileSystem(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	if len(policy.Controls) == 0 {
-		t.Error("expected controls to be set for file_system")
+
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	scopes, ok := pd["feature_scope"].([]interface{})
+	if !ok || len(scopes) != 1 || scopes[0] != "vulnerabilities" {
+		t.Fatalf("expected feature_scope [vulnerabilities], got %v", pd["feature_scope"])
+	}
+	scoped, ok := pd["vulnerabilities"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected scoped vulnerabilities section, got %v", pd)
+	}
+	controls, ok := scoped["controls"].([]interface{})
+	if !ok || len(controls) != 1 {
+		t.Fatalf("expected one scoped control, got %v", scoped)
+	}
+	if _, flat := pd["controls"]; flat {
+		t.Error("flat policy_data.controls must not be sent (API rejects it)")
 	}
 }
 
-func TestPlanToAPI_ScmMissingScope(t *testing.T) {
+func TestPlanToAPI_FileSystemSecretDetection_ScopedShape(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{
-		Type:                     types.StringValue("scm_posture"),
-		Name:                     types.StringValue("scm"),
+		Type:                     types.StringValue("file_system_secret_detection"),
+		Name:                     types.StringValue("fssd policy"),
 		Disabled:                 types.BoolValue(false),
 		WarnMode:                 types.BoolValue(false),
 		PriorityFailureThreshold: types.StringValue("HIGH"),
-		ScmPosture: &scmPostureBlockModel{
-			Controls: []scmControlModel{
-				{ID: types.StringValue("scm-ctrl"), Priority: types.StringValue("HIGH"), Disabled: types.BoolValue(false)},
+		FileSystemSecretDetection: &controlsBlockModel{
+			Controls: []baseControlModel{
+				{ID: types.StringValue("sd-1"), Priority: types.StringValue("LOW"), Disabled: types.BoolValue(true)},
 			},
 		},
 	}
 
-	_, diags := planToAPI(model)
-	if !diags.HasError() {
-		t.Fatal("expected error when scm_posture scope is missing")
+	policy, diags := planToAPI(model)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	var pd map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &pd); err != nil {
+		t.Fatalf("policy_data not valid JSON: %v", err)
+	}
+	if _, ok := pd["secret_detection"].(map[string]interface{}); !ok {
+		t.Fatalf("expected scoped secret_detection section, got %v", pd)
 	}
 }
 
@@ -427,155 +506,72 @@ func TestAPIToState_Licenses(t *testing.T) {
 	}
 }
 
-func TestAPIToState_FileSystem(t *testing.T) {
+func TestAPIToState_FileSystemVulnerabilities_ScopedRead(t *testing.T) {
 	apiPolicy := &api_client.ShiftLeftPolicy{
-		ID:       "policy-1",
-		Type:     "file_system",
-		Controls: []byte(`[{"id":"fs-1","priority":"HIGH","disabled":false}]`),
+		ID:         "policy-1",
+		Type:       "file_system_vulnerabilities",
+		PolicyData: []byte(`{"feature_scope":["vulnerabilities"],"vulnerabilities":{"controls":[{"id":"fsv-1","priority":"HIGH","disabled":false}]}}`),
 	}
 
 	state := apiToState(apiPolicy, nil)
-	if state.FileSystem == nil || len(state.FileSystem.Controls) != 1 {
-		t.Fatalf("expected one file_system control, got %+v", state.FileSystem)
+	if state.FileSystemVulnerabilities == nil || len(state.FileSystemVulnerabilities.Controls) != 1 {
+		t.Fatalf("expected one file_system_vulnerabilities control, got %+v", state.FileSystemVulnerabilities)
 	}
-	if state.FileSystem.Controls[0].ID.ValueString() != "fs-1" {
-		t.Errorf("expected fs-1, got %s", state.FileSystem.Controls[0].ID.ValueString())
+	if state.FileSystemVulnerabilities.Controls[0].ID.ValueString() != "fsv-1" {
+		t.Errorf("expected fsv-1, got %s", state.FileSystemVulnerabilities.Controls[0].ID.ValueString())
 	}
 }
 
 func TestValidateTypeBlock(t *testing.T) {
-	// Matching block present: no error.
 	model := &shiftLeftPolicyResourceModel{Sast: &sastBlockModel{}}
 	if diags := validateTypeBlock("sast", model); diags.HasError() {
 		t.Errorf("expected no error when sast block is present, got %v", diags)
 	}
 
-	// Missing block: error.
 	if diags := validateTypeBlock("sast", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error when sast block is missing")
 	}
 
-	// Unknown type: error.
 	if diags := validateTypeBlock("nope", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error for unknown policy type")
 	}
 }
 
-func TestAllControlsScopeKeys(t *testing.T) {
-	topLevel := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-		Iac:  &iacBlockModel{AllControls: types.BoolValue(true)},
-	}
-	keys := allControlsScopeKeys(topLevel)
-	if len(keys) != 1 || keys[0] != "" {
-		t.Errorf("expected top-level all_controls to map to [\"\"], got %+v", keys)
-	}
+// A block belonging to another type is never read, so accepting it would silently drop
+// whatever the user configured there. Fail the plan instead.
 
-	notRequested := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-		Iac:  &iacBlockModel{AllControls: types.BoolValue(false)},
-	}
-	if keys := allControlsScopeKeys(notRequested); keys != nil {
-		t.Errorf("expected nil when all_controls is false, got %+v", keys)
-	}
-
-	container := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("container_image"),
-		ContainerImage: &containerImageBlockModel{
-			Vulnerabilities: &containerScopeBlockModel{AllControls: types.BoolValue(true)},
-			SecretDetection: &containerScopeBlockModel{AllControls: types.BoolValue(false)},
-		},
-	}
-	keys = allControlsScopeKeys(container)
-	if len(keys) != 1 || keys[0] != "vulnerabilities" {
-		t.Errorf("expected [vulnerabilities], got %+v", keys)
-	}
-}
-
-func TestMergeStateFromPlan_AllControlsClearsControls(t *testing.T) {
-	state := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-		Iac: &iacBlockModel{
-			Controls: []iacControlModel{
-				{baseControlModel: baseControlModel{ID: types.StringValue("from-api")}},
-			},
-		},
-	}
-	plan := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-		Iac:  &iacBlockModel{AllControls: types.BoolValue(true)},
-	}
-
-	mergeStateFromPlan(state, plan)
-	if !state.Iac.AllControls.ValueBool() {
-		t.Error("expected all_controls to be carried from plan")
-	}
-	if len(state.Iac.Controls) != 0 {
-		t.Errorf("expected controls cleared when all_controls is set, got %+v", state.Iac.Controls)
-	}
-}
-
-func TestMergeStateFromPlan_TitleReferenceKeepsIDNull(t *testing.T) {
-	state := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-		Iac: &iacBlockModel{
-			Controls: []iacControlModel{
-				{baseControlModel: baseControlModel{
-					ID:       types.StringValue("api-resolved-id"),
-					Priority: types.StringValue("HIGH"),
-					Disabled: types.BoolValue(true),
-				}},
-			},
-		},
-	}
-	plan := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("iac"),
-		Iac: &iacBlockModel{
-			Controls: []iacControlModel{
-				{baseControlModel: baseControlModel{
-					Title:    types.StringValue("Some control title"),
-					Priority: types.StringValue("HIGH"),
-					Disabled: types.BoolValue(true),
-				}},
-			},
-		},
-	}
-
-	mergeStateFromPlan(state, plan)
-	if !state.Iac.Controls[0].ID.IsNull() {
-		t.Errorf("expected id to stay null when plan referenced control by title, got %s", state.Iac.Controls[0].ID.ValueString())
-	}
-}
-
-func TestPlanToAPI_ScmPosture(t *testing.T) {
+func TestValidateTypeBlock_RejectsForeignBlocks(t *testing.T) {
 	model := &shiftLeftPolicyResourceModel{
-		Type:                     types.StringValue("scm_posture"),
-		Name:                     types.StringValue("scm"),
-		Disabled:                 types.BoolValue(false),
-		WarnMode:                 types.BoolValue(false),
-		PriorityFailureThreshold: types.StringValue("HIGH"),
-		ScmPosture: &scmPostureBlockModel{
-			Scope: []scmScopeEntryModel{
-				{
-					Key: types.StringValue("github_installations"),
-					Ids: []types.String{types.StringValue("org-1")},
-				},
-			},
-			Controls: []scmControlModel{
-				{
-					ID:       types.StringValue("scm-ctrl"),
-					Priority: types.StringValue("HIGH"),
-					Disabled: types.BoolValue(false),
-				},
-			},
-		},
+		Sast: &sastBlockModel{},
+		Iac:  &iacBlockModel{},
 	}
-
-	policy, diags := planToAPI(model)
-	if diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
+	diags := validateTypeBlock("sast", model)
+	if !diags.HasError() {
+		t.Fatal("expected an error when an iac block is set on a sast policy")
 	}
-	if len(policy.Scope) == 0 {
-		t.Error("expected scm scope to be encoded")
+	if detail := diags.Errors()[0].Detail(); !strings.Contains(detail, `"iac"`) {
+		t.Errorf("error should name the offending block, got: %s", detail)
 	}
 }
+
+// The message lists every offending block, in a stable order despite map iteration.
+
+func TestValidateTypeBlock_ForeignBlockListIsSorted(t *testing.T) {
+	model := &shiftLeftPolicyResourceModel{
+		Sast:       &sastBlockModel{},
+		Iac:        &iacBlockModel{},
+		FileSystem: &controlsBlockModel{},
+	}
+	for range 5 {
+		diags := validateTypeBlock("sast", model)
+		if !diags.HasError() {
+			t.Fatal("expected an error for the foreign blocks")
+		}
+		if detail := diags.Errors()[0].Detail(); !strings.Contains(detail, `"file_system", "iac"`) {
+			t.Fatalf("expected sorted block names, got: %s", detail)
+		}
+	}
+}
+
+// projects_ids = [] means "detach every project"; refresh must keep the empty set rather
+// than collapsing it to null, which would diverge from the configuration forever.

@@ -5,8 +5,32 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+func TestKnown(t *testing.T) {
+	cases := []struct {
+		name string
+		val  attr.Value
+		want bool
+	}{
+		{"null string", types.StringNull(), false},
+		{"unknown string", types.StringUnknown(), false},
+		{"known string", types.StringValue("x"), true},
+		{"known empty string", types.StringValue(""), true},
+		{"null bool", types.BoolNull(), false},
+		{"unknown bool", types.BoolUnknown(), false},
+		{"known bool", types.BoolValue(false), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Known(tc.val); got != tc.want {
+				t.Errorf("Known(%s) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
 
 func stringList(t *testing.T, values []string) types.List {
 	t.Helper()
@@ -26,8 +50,7 @@ func stringSet(t *testing.T, values []string) types.Set {
 	return set
 }
 
-func TestStringListToAPI(t *testing.T) {
-	ctx := context.Background()
+func TestListToStringSlice(t *testing.T) {
 	tests := []struct {
 		name string
 		list types.List
@@ -40,15 +63,14 @@ func TestStringListToAPI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := StringListToAPI(ctx, tt.list); !reflect.DeepEqual(got, tt.want) {
+			if got := ListToStringSlice(tt.list); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("got %#v, want %#v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestStringListToAPINonNull(t *testing.T) {
-	ctx := context.Background()
+func TestListToStringSliceNonNull(t *testing.T) {
 	tests := []struct {
 		name string
 		list types.List
@@ -60,7 +82,7 @@ func TestStringListToAPINonNull(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := StringListToAPINonNull(ctx, tt.list)
+			got := ListToStringSliceNonNull(tt.list)
 			if got == nil {
 				t.Fatal("must never return nil")
 			}
@@ -71,8 +93,7 @@ func TestStringListToAPINonNull(t *testing.T) {
 	}
 }
 
-func TestStringListFromAPIPreserveNull(t *testing.T) {
-	ctx := context.Background()
+func TestStringSliceToListPreserveNull(t *testing.T) {
 	tests := []struct {
 		name   string
 		prior  types.List
@@ -86,10 +107,7 @@ func TestStringListFromAPIPreserveNull(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := StringListFromAPIPreserveNull(ctx, tt.prior, tt.values)
-			if diags.HasError() {
-				t.Fatalf("unexpected diagnostics: %v", diags)
-			}
+			got := StringSliceToListPreserveNull(tt.prior, tt.values)
 			if !got.Equal(tt.want) {
 				t.Errorf("got %v, want %v", got, tt.want)
 			}
@@ -97,8 +115,7 @@ func TestStringListFromAPIPreserveNull(t *testing.T) {
 	}
 }
 
-func TestStringSetToAPI(t *testing.T) {
-	ctx := context.Background()
+func TestSetToStringSlice(t *testing.T) {
 	tests := []struct {
 		name string
 		set  types.Set
@@ -111,15 +128,14 @@ func TestStringSetToAPI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := StringSetToAPI(ctx, tt.set); !reflect.DeepEqual(got, tt.want) {
+			if got := SetToStringSlice(tt.set); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("got %#v, want %#v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestStringSetToAPINonNull(t *testing.T) {
-	ctx := context.Background()
+func TestSetToStringSliceNonNull(t *testing.T) {
 	tests := []struct {
 		name string
 		set  types.Set
@@ -131,7 +147,7 @@ func TestStringSetToAPINonNull(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := StringSetToAPINonNull(ctx, tt.set)
+			got := SetToStringSliceNonNull(tt.set)
 			if got == nil {
 				t.Fatal("must never return nil")
 			}
@@ -142,8 +158,16 @@ func TestStringSetToAPINonNull(t *testing.T) {
 	}
 }
 
-func TestStringSetFromAPIPreserveNull(t *testing.T) {
-	ctx := context.Background()
+func TestStringSliceToSet(t *testing.T) {
+	if got := StringSliceToSet(nil); !got.IsNull() {
+		t.Errorf("empty slice must map to null set, got %v", got)
+	}
+	if got := StringSliceToSet([]string{"a"}); !got.Equal(stringSet(t, []string{"a"})) {
+		t.Errorf("expected {a}, got %v", got)
+	}
+}
+
+func TestStringSliceToSetPreserveNull(t *testing.T) {
 	tests := []struct {
 		name   string
 		prior  types.Set
@@ -157,10 +181,7 @@ func TestStringSetFromAPIPreserveNull(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := StringSetFromAPIPreserveNull(ctx, tt.prior, tt.values)
-			if diags.HasError() {
-				t.Fatalf("unexpected diagnostics: %v", diags)
-			}
+			got := StringSliceToSetPreserveNull(tt.prior, tt.values)
 			if !got.Equal(tt.want) {
 				t.Errorf("got %v, want %v", got, tt.want)
 			}

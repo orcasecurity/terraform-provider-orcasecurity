@@ -1,0 +1,33 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **API vs UI:** Terraform follows the Shift-Left API; GitLab UI may expose fewer `skip_check_runs` values. `unavailable_conditions`: `AVOID_SCAN`, `DELETE_REPO`.
+
+-> **`skip_check_runs` on create:** Integrate accepts only `ALWAYS` or `NEVER`; `ONLY_ON_INTERNAL_ISSUE` works after integration (or import an integrated group).
+
+-> **Defaults on create:** Unset config attrs get integrate defaults: PR scan enabled (`disable_scan_pull_requests = false`), `comments_on_pull_requests`/`pr_summary_comment`/`skip_check_runs` = `ALWAYS`, `config_file_support` = `ENABLED`. Import writes nothing.
+
+-> **Destroy:** `terraform destroy` DELETEs the group and its integrated repositories.
+
+!> **Adopt semantics:** Adopts a pre-existing group; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
+
+-> **Coverage:** Browse groups, `check_availability`, and scan-now are not managed here.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

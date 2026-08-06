@@ -1,0 +1,33 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **API vs UI:** Terraform follows the Shift-Left API. `unavailable_conditions`: `AVOID_SCAN`, `DELETE_REPO`.
+
+-> **Omitted settings inherit live values:** No integrate path — unset config attrs re-send live values on first apply, not create defaults. Set attrs explicitly to change them; import writes nothing.
+
+-> **No installation resource:** The Orca GitHub App installation is the account unit (no `*_installation` resource). `account_id` is this unit's Orca UUID.
+
+-> **Destroy:** `terraform destroy` DELETEs the integration; reinstall the Orca GitHub App to recover.
+
+!> **Adopt semantics:** Adopts a pre-existing account; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
+
+-> **Coverage:** App install URL, GHES, browse repos, `check_availability`, and scan-now are not managed here.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}
