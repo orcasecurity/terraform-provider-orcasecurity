@@ -248,6 +248,86 @@ func TestListAzureRepositoriesStampsInstallationID(t *testing.T) {
 	}
 }
 
+func TestListAzureRepositoriesPrefersDirectProjectID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/shiftleft/azure_devops/installations/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        []map[string]any{{"id": "inst-1", "name": "ADO"}},
+			})
+		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}},
+			})
+		case "/api/shiftleft/azure_devops/integrated_repositories/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data": []map[string]any{{
+					"id": "repo-1", "azure_repository_id": "az-1", "azure_project_id": "direct-proj-uuid",
+					"repository":                 map[string]any{"name": "proj/repo", "url": "https://dev.azure.com/org/proj/_git/repo"},
+					"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"},
+					"repository_context_id":      "ctx-1",
+				}},
+			})
+		case "/api/shiftleft/azure_devops/installations/inst-1/accounts/org-name/repositories/":
+			t.Fatal("browse endpoint should not be called when azure_project_id is already present")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	rows, err := client.ListAzureRepositories()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].AzureProjectID != "direct-proj-uuid" {
+		t.Fatalf("expected direct azure_project_id, got %+v", rows)
+	}
+}
+
+func TestListAzureRepositoriesMissingFromBrowseErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/shiftleft/azure_devops/installations/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        []map[string]any{{"id": "inst-1", "name": "ADO"}},
+			})
+		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}},
+			})
+		case "/api/shiftleft/azure_devops/integrated_repositories/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data": []map[string]any{{
+					"id": "repo-1", "azure_repository_id": "az-1",
+					"repository":                 map[string]any{"name": "proj/repo", "url": "https://dev.azure.com/org/proj/_git/repo"},
+					"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"},
+					"repository_context_id":      "ctx-1",
+				}},
+			})
+		case "/api/shiftleft/azure_devops/installations/inst-1/accounts/org-name/repositories/":
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]any{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	if _, err := client.ListAzureRepositories(); err == nil {
+		t.Fatal("expected error when repository is absent from the account browse listing, got nil")
+	}
+}
+
 func TestListAzureRepositoriesMissingAccountErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

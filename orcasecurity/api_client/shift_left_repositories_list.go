@@ -167,11 +167,16 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 			InstallationID:    installationID,
 			AccountName:       rows[i].AzureAccountInstallation.AccountName,
 			AzureRepositoryID: rows[i].AzureRepositoryID,
+			AzureProjectID:    rows[i].AzureProjectID,
 		}
 	}
 
+	// Fall back to the browse endpoint, once per account, only for rows the backend didn't already stamp.
 	projectIDsByAccount := make(map[string]map[string]string)
 	for i := range out {
+		if out[i].AzureProjectID != "" {
+			continue
+		}
 		accountKey := out[i].InstallationID + "/" + out[i].AccountName
 		projectIDs, cached := projectIDsByAccount[accountKey]
 		if !cached {
@@ -183,7 +188,13 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 			}
 			projectIDsByAccount[accountKey] = projectIDs
 		}
-		out[i].AzureProjectID = projectIDs[out[i].AzureRepositoryID]
+		projectID, ok := projectIDs[out[i].AzureRepositoryID]
+		if !ok {
+			return nil, fmt.Errorf(
+				"azure devops repository %s (account %s) has no azure_project_id in the account browse listing; "+
+					"the repository may have been removed on the Azure DevOps side", out[i].AzureRepositoryID, out[i].AccountName)
+		}
+		out[i].AzureProjectID = projectID
 	}
 	return out, nil
 }

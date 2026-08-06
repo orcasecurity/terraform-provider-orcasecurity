@@ -370,7 +370,9 @@ func (client *APIClient) UpdateBitbucketRepositories(body ScmRepositoryConfigUpd
 
 type azureRepositoryItem struct {
 	scmRepoCommonFields
-	AzureRepositoryID        string `json:"azure_repository_id"`
+	AzureRepositoryID string `json:"azure_repository_id"`
+	// Empty on backends predating the serializer rollout; ListAzureRepositories falls back to the browse endpoint.
+	AzureProjectID           string `json:"azure_project_id"`
 	AzureAccountInstallation struct {
 		ID          string `json:"id"`
 		AccountName string `json:"account_name"`
