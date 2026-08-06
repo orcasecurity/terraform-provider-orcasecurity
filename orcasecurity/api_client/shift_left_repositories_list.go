@@ -154,6 +154,17 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 	if err != nil {
 		return nil, err
 	}
+	out, err := buildAzureRepositoryListItems(rows, installByAccount)
+	if err != nil {
+		return nil, err
+	}
+	if err := client.joinAzureProjectIDs(out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func buildAzureRepositoryListItems(rows []azureRepositoryItem, installByAccount map[string]string) ([]AzureRepositoryListItem, error) {
 	out := make([]AzureRepositoryListItem, len(rows))
 	for i := range rows {
 		installationID, ok := installByAccount[rows[i].AzureAccountInstallation.ID]
@@ -170,8 +181,11 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 			AzureProjectID:    rows[i].AzureProjectID,
 		}
 	}
+	return out, nil
+}
 
-	// Fall back to the browse endpoint, once per account, only for rows the backend didn't already stamp.
+// Fall back to the browse endpoint, once per account, only for rows the backend didn't already stamp.
+func (client *APIClient) joinAzureProjectIDs(out []AzureRepositoryListItem) error {
 	projectIDsByAccount := make(map[string]map[string]string)
 	for i := range out {
 		if out[i].AzureProjectID != "" {
@@ -180,9 +194,10 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 		accountKey := out[i].InstallationID + "/" + out[i].AccountName
 		projectIDs, cached := projectIDsByAccount[accountKey]
 		if !cached {
+			var err error
 			projectIDs, err = client.getAzureAccountRepositoryProjectIDs(out[i].InstallationID, out[i].AccountName)
 			if err != nil {
-				return nil, fmt.Errorf(
+				return fmt.Errorf(
 					"azure devops repository %s: fetching azure_project_id from account %s failed: %w",
 					out[i].AzureRepositoryID, out[i].AccountName, err)
 			}
@@ -190,11 +205,11 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 		}
 		projectID, ok := projectIDs[out[i].AzureRepositoryID]
 		if !ok {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"azure devops repository %s (account %s) has no azure_project_id in the account browse listing; "+
 					"the repository may have been removed on the Azure DevOps side", out[i].AzureRepositoryID, out[i].AccountName)
 		}
 		out[i].AzureProjectID = projectID
 	}
-	return out, nil
+	return nil
 }
