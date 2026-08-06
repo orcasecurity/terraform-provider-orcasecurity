@@ -1,12 +1,12 @@
 ---
 page_title: "orcasecurity_shift_left_azure_devops_repositories Data Source - orcasecurity"
 description: |-
-  Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. installation_id is joined from the owning integrated account. The list API does not return azure_project_id, so rows alone cannot round-trip into orcasecurity_shift_left_azure_devops_repository — supply that Azure DevOps project UUID separately.
+  Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. installation_id is joined from the owning integrated account, and azure_project_id is joined from the per-account Azure DevOps repository browse endpoint (the integrated repositories list omits it), so each row round-trips directly into orcasecurity_shift_left_azure_devops_repository.
 ---
 
 # orcasecurity_shift_left_azure_devops_repositories (Data Source)
 
-Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. `installation_id` is joined from the owning integrated account. The list API does not return `azure_project_id`, so rows alone cannot round-trip into `orcasecurity_shift_left_azure_devops_repository` — supply that Azure DevOps project UUID separately.
+Lists all Orca Azure DevOps shift-left integrated repositories for fleet-wide for_each. `installation_id` is joined from the owning integrated account, and `azure_project_id` is joined from the per-account Azure DevOps repository browse endpoint (the integrated repositories list omits it), so each row round-trips directly into `orcasecurity_shift_left_azure_devops_repository`.
 
 ## Example Usage
 
@@ -31,6 +31,7 @@ output "azure_devops_repository_names" {
 Read-Only:
 
 - `account_name` (String) Azure DevOps organization name.
+- `azure_project_id` (String) Azure DevOps project UUID containing the repository (from Azure DevOps).
 - `azure_repository_id` (String) Azure DevOps repository UUID (from Azure DevOps).
 - `disabled` (Boolean) Whether scanning is paused for this repository.
 - `id` (String) Orca integrated-repository UUID.
