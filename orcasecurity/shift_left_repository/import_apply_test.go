@@ -112,10 +112,11 @@ func (s *repoStub) start(t *testing.T) {
 			s.applyPatch(body)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 		case r.Method == http.MethodGet && isRepoPath:
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_items": 1,
-				"data":        []map[string]any{s.snapshot()},
-			})
+			data := []map[string]any{s.snapshot()}
+			if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+				data = []map[string]any{} // trailing page past the single repo must be empty to terminate
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": data})
 		case r.Method == http.MethodDelete:
 			s.mu.Lock()
 			s.deletes++

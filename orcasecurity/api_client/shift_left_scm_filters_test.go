@@ -58,10 +58,11 @@ func TestFindRepository_SendsServerSideFilters(t *testing.T) {
 			var got url.Values
 			client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 				got = r.URL.Query()
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"total_items": 1,
-					"data":        []map[string]any{tc.row},
-				})
+				data := []map[string]any{tc.row}
+				if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+					data = []map[string]any{} // trailing page past the single row must be empty to terminate
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": data})
 			})
 
 			repo, err := tc.find(client)
@@ -169,7 +170,15 @@ type searchingList struct {
 
 func (s *searchingList) handle(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
-	s.searches = append(s.searches, search)
+	start := r.URL.Query().Get("start_at_index")
+	// Record only the first page of each scan attempt: the trailing empty-page
+	// request that confirms termination is pagination plumbing, not a new attempt.
+	if start == "" || start == "0" {
+		s.searches = append(s.searches, search)
+	} else {
+		_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
+		return
+	}
 	if search != "" && search != s.rowName {
 		_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
 		return
@@ -216,23 +225,24 @@ func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 func TestFindRepository_LocalMatchGuardsIgnoredFilters(t *testing.T) {
 	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 		// Simulate an API that ignores every filter and returns two installations' rows.
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 2,
-			"data": []map[string]any{
-				{
-					"id": "wrong", "gitlab_project_id": 7,
-					"gitlab_installation":   map[string]string{"id": "other-installation"},
-					"repository":            map[string]string{"name": "other/p"},
-					"repository_context_id": "ctx-other",
-				},
-				{
-					"id": "right", "gitlab_project_id": 7,
-					"gitlab_installation":   map[string]string{"id": "inst-gl"},
-					"repository":            map[string]string{"name": "mine/p"},
-					"repository_context_id": "ctx-mine",
-				},
+		data := []map[string]any{
+			{
+				"id": "wrong", "gitlab_project_id": 7,
+				"gitlab_installation":   map[string]string{"id": "other-installation"},
+				"repository":            map[string]string{"name": "other/p"},
+				"repository_context_id": "ctx-other",
 			},
-		})
+			{
+				"id": "right", "gitlab_project_id": 7,
+				"gitlab_installation":   map[string]string{"id": "inst-gl"},
+				"repository":            map[string]string{"name": "mine/p"},
+				"repository_context_id": "ctx-mine",
+			},
+		}
+		if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+			data = []map[string]any{} // trailing page past the two rows must be empty to terminate
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 2, "data": data})
 	})
 
 	repo, err := client.FindGitlabRepository("inst-gl", 7)

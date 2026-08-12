@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -612,9 +613,14 @@ func TestAutomationsV2_ListAutomationsV2Paginates(t *testing.T) {
 		}
 		offset := req.URL.Query().Get("start_at_index")
 		requestedOffsets = append(requestedOffsets, offset)
-		body := page("a1", "a2", "a3")
-		if offset != "0" {
+		var body string
+		switch offset {
+		case "0":
+			body = page("a1", "a2", "a3")
+		case "3":
 			body = page("a4")
+		default:
+			body = page() // trailing empty page terminates the loop
 		}
 		return &http.Response{
 			StatusCode: 200,
@@ -635,9 +641,11 @@ func TestAutomationsV2_ListAutomationsV2Paginates(t *testing.T) {
 		t.Errorf("expected last automation a4, got %s", automations[3].ID)
 	}
 	// The next offset is the number of items received so far, not a page
-	// multiple, so short pages never skip items.
-	if len(requestedOffsets) != 2 || requestedOffsets[0] != "0" || requestedOffsets[1] != "3" {
-		t.Errorf("expected offsets [0 3], got %v", requestedOffsets)
+	// multiple, so short pages never skip items. A trailing empty-page fetch
+	// at offset 4 confirms termination no longer trusts total_items.
+	want := []string{"0", "3", "4"}
+	if !slices.Equal(requestedOffsets, want) {
+		t.Errorf("expected offsets %v, got %v", want, requestedOffsets)
 	}
 }
 

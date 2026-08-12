@@ -33,13 +33,16 @@ func TestPaginateOffset_NilFiltersSendOnlyPagingParams(t *testing.T) {
 			t.Errorf("unexpected path %q", r.URL.Path)
 		}
 		rawQueries = append(rawQueries, r.URL.RawQuery)
-		// Three rows over two short pages, so the second request's
-		// start_at_index is pinned as well as the first's.
-		if len(rawQueries) == 1 {
+		// Three rows over two short pages, plus a trailing empty page, so both
+		// the second request's start_at_index and the third's are pinned.
+		switch len(rawQueries) {
+		case 1:
 			_ = json.NewEncoder(w).Encode(automationPage(3, "a1", "a2"))
-			return
+		case 2:
+			_ = json.NewEncoder(w).Encode(automationPage(3, "a3"))
+		default:
+			_ = json.NewEncoder(w).Encode(automationPage(3))
 		}
-		_ = json.NewEncoder(w).Encode(automationPage(3, "a3"))
 	}))
 	defer srv.Close()
 
@@ -52,7 +55,7 @@ func TestPaginateOffset_NilFiltersSendOnlyPagingParams(t *testing.T) {
 		t.Fatalf("expected 3 automations, got %d", len(automations))
 	}
 
-	want := []string{"limit=300&start_at_index=0", "limit=300&start_at_index=2"}
+	want := []string{"limit=300&start_at_index=0", "limit=300&start_at_index=2", "limit=300&start_at_index=3"}
 	if len(rawQueries) != len(want) {
 		t.Fatalf("expected %d requests, got %v", len(want), rawQueries)
 	}
@@ -95,7 +98,9 @@ func TestPaginateOffset_ShortPagesFromClampedLimitDoNotTruncate(t *testing.T) {
 			t.Fatalf("row %d = %q, want %q (duplicated or skipped rows)", i, row.ID, want)
 		}
 	}
-	if want := []string{"0", "3", "6"}; !slices.Equal(offsets, want) {
+	// One trailing empty-page request past total_items=7, since termination no
+	// longer trusts the reported total.
+	if want := []string{"0", "3", "6", "7"}; !slices.Equal(offsets, want) {
 		t.Errorf("start_at_index sequence = %v, want %v", offsets, want)
 	}
 }
@@ -106,10 +111,11 @@ func TestPaginateOffset_FiltersKeepPagingParams(t *testing.T) {
 	var rawQueries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rawQueries = append(rawQueries, r.URL.RawQuery)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 1,
-			"data":        []map[string]string{{"id": "row-1"}},
-		})
+		data := []map[string]string{{"id": "row-1"}}
+		if r.URL.Query().Get("start_at_index") != "0" {
+			data = []map[string]string{}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": data})
 	}))
 	defer srv.Close()
 
@@ -119,9 +125,13 @@ func TestPaginateOffset_FiltersKeepPagingParams(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Encode sorts by key: gitlab_project_id, limit, start_at_index.
-	const want = "gitlab_project_id=7&limit=200&start_at_index=0"
-	if len(rawQueries) != 1 || rawQueries[0] != want {
-		t.Errorf("queries = %v, want [%q]", rawQueries, want)
+	// Encode sorts by key: gitlab_project_id, limit, start_at_index. The second,
+	// empty-page request confirms the filter rides along on the trailing fetch too.
+	want := []string{
+		"gitlab_project_id=7&limit=200&start_at_index=0",
+		"gitlab_project_id=7&limit=200&start_at_index=1",
+	}
+	if !slices.Equal(rawQueries, want) {
+		t.Errorf("queries = %v, want %v", rawQueries, want)
 	}
 }

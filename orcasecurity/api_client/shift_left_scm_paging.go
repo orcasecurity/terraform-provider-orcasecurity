@@ -108,6 +108,6 @@ func updateScmUnit[T any, PT interface {
 // start_at_index paging; nil filters = full list.
 func getAllScmPages[T any](client *APIClient, basePath string, filters listFilters) ([]T, error) {
 	const pageLimit = 200
-	const maxScmPages = 500 // backstop against an inflated/bogus total_items with full pages
+	const maxScmPages = 500 // backstop against a server that never returns an empty page
 	return paginateOffset[T](client, basePath, filters, pageLimit, maxScmPages)
 }

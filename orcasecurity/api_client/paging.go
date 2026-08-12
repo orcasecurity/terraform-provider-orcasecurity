@@ -6,10 +6,10 @@ import (
 	"strconv"
 )
 
-// total_items is *int — absent must not read as 0. data is *[]T — missing key is an error.
+// data is *[]T — missing key is an error. total_items is intentionally not modeled:
+// pagination terminates on an empty page (see paginateOffset), not on a reported total.
 type offsetEnvelope[T any] struct {
-	TotalItems *int `json:"total_items"`
-	Data       *[]T `json:"data"`
+	Data *[]T `json:"data"`
 }
 
 // Unknown filter keys are silently ignored — always verify matches locally.
@@ -23,7 +23,7 @@ func (f listFilters) query() url.Values {
 	return q
 }
 
-// Page until empty or total_items; maxPages guards bogus totals.
+// Page until an empty page; maxPages guards a server that never returns one.
 func paginateOffset[T any](client *APIClient, path string, filters listFilters, limit, maxPages int) ([]T, error) {
 	var all []T
 	for page := 0; ; page++ {
@@ -48,8 +48,10 @@ func paginateOffset[T any](client *APIClient, path string, filters listFilters, 
 		}
 		data := *env.Data
 		all = append(all, data...)
-		// Short page ≠ done (limit may be clamped); stop on empty or total reached.
-		if len(data) == 0 || (env.TotalItems != nil && len(all) >= *env.TotalItems) {
+		// Short page ≠ done (limit may be clamped) — only an empty page means done.
+		// total_items is not trusted for this: some paginators cap/cache the count
+		// (e.g. scan_log), so a reported total isn't guaranteed to match live data.
+		if len(data) == 0 {
 			return all, nil
 		}
 	}

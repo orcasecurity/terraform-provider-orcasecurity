@@ -12,10 +12,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 )
 
-// stubDataSource returns a data source whose API always answers with body.
+// stubDataSource returns a data source whose API answers with body on the
+// first page; getAllScmPages-style pagination always follows up past a
+// non-empty page, so every later page must come back empty to terminate.
 func stubDataSource(body string) *automationPrioritiesDataSource {
 	return &automationPrioritiesDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+		resp := body
+		if start := req.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+			resp = `{"data":[]}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(resp)), Request: req}
 	})}
 }
 

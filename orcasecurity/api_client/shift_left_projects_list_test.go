@@ -3,20 +3,24 @@ package api_client
 import (
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 )
 
 func TestShiftLeftProjectSummary_UnmarshalLiveShape(t *testing.T) {
 	// Fixture captured from GET /api/shiftleft/projects/?limit=1&start_at_index=0
-	// (redacted), with total_items trimmed to 1 so the single page is complete
-	// and this test exercises unmarshal shape only, not pagination.
+	// (redacted); this test exercises unmarshal shape only, not pagination.
 	fixture := `{"total_items":1,"data":[{"id":"3e8339f8-7a8e-4cc2-a713-940bc2662935","name":"allscan","key":"allscan","policies":[{"id":"019ad8c7-4db3-7a53-a509-485efb9283da","name":"RK-OSS-Licensing","disabled":false,"type":"licenses","builtin":false}],"builtin":false}]}`
 
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		body := fixture
+		if req.URL.Query().Get("start_at_index") != "0" {
+			body = `{"total_items":1,"data":[]}`
+		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(fixture)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}
 	})}
@@ -64,9 +68,14 @@ func TestListShiftLeftProjects_PagesUsingStartAtIndex(t *testing.T) {
 		}
 		start := req.URL.Query().Get("start_at_index")
 		requestedStartAtIndex = append(requestedStartAtIndex, start)
-		body := page("p1", "p2")
-		if start != "0" {
+		var body string
+		switch start {
+		case "0":
+			body = page("p1", "p2")
+		case "2":
 			body = page("p3")
+		default:
+			body = page() // trailing empty page terminates the loop
 		}
 		return &http.Response{
 			StatusCode: 200,
@@ -86,8 +95,11 @@ func TestListShiftLeftProjects_PagesUsingStartAtIndex(t *testing.T) {
 	if projects[0].ID != "p1" || projects[2].ID != "p3" {
 		t.Errorf("unexpected project order: %+v", projects)
 	}
-	if len(requestedStartAtIndex) != 2 || requestedStartAtIndex[0] != "0" || requestedStartAtIndex[1] != "2" {
-		t.Errorf("expected start_at_index [0 2], got %v", requestedStartAtIndex)
+	// A trailing empty-page fetch at start_at_index 3 confirms termination no
+	// longer trusts total_items.
+	want := []string{"0", "2", "3"}
+	if !slices.Equal(requestedStartAtIndex, want) {
+		t.Errorf("expected start_at_index %v, got %v", want, requestedStartAtIndex)
 	}
 }
 

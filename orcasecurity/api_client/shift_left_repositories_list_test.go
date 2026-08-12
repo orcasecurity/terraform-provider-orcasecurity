@@ -7,6 +7,16 @@ import (
 	"testing"
 )
 
+// firstPage returns rows only for the initial request; every subsequent
+// request on the same path must see an empty page so getAllScmPages
+// terminates instead of re-fetching the same rows forever.
+func firstPage(r *http.Request, rows []map[string]any) []map[string]any {
+	if r.URL.Query().Get("start_at_index") != "0" {
+		return []map[string]any{}
+	}
+	return rows
+}
+
 func TestListGithubRepositories(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/shiftleft/github/integrated_repositories/" {
@@ -15,12 +25,12 @@ func TestListGithubRepositories(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"total_items": 1,
-			"data": []map[string]any{{
+			"data": firstPage(r, []map[string]any{{
 				"id": "repo-1", "github_repository_id": 42,
 				"repository":            map[string]any{"name": "org/repo", "url": "https://github.com/org/repo"},
 				"github_installation":   map[string]any{"id": "acct-1"},
 				"repository_context_id": "ctx-1",
-			}},
+			}}),
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -42,25 +52,25 @@ func TestListGitlabRepositoriesStampsGitlabGroupID(t *testing.T) {
 		case "/api/shiftleft/gitlab/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "GL"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "GL"}}),
 			})
 		case "/api/shiftleft/gitlab/installations/inst-1/integrated_groups/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "group-orca-1", "gitlab_group_id": 133143428, "gitlab_group_name": "acme",
-				}},
+				}}),
 			})
 		case "/api/shiftleft/gitlab/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "gitlab_project_id": 99,
 					"repository":            map[string]any{"name": "acme/proj", "url": "https://gitlab.com/acme/proj"},
 					"gitlab_installation":   map[string]any{"id": "inst-1"},
 					"gitlab_group":          map[string]any{"id": "group-orca-1", "gitlab_group_name": "acme"},
 					"repository_context_id": "ctx-1",
-				}},
+				}}),
 			})
 		default:
 			http.NotFound(w, r)
@@ -88,20 +98,20 @@ func TestListGitlabRepositoriesMissingGroupErrors(t *testing.T) {
 		case "/api/shiftleft/gitlab/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "GL"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "GL"}}),
 			})
 		case "/api/shiftleft/gitlab/installations/inst-1/integrated_groups/":
 			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]any{}})
 		case "/api/shiftleft/gitlab/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "gitlab_project_id": 99,
 					"repository":            map[string]any{"name": "acme/proj", "url": "https://gitlab.com/acme/proj"},
 					"gitlab_installation":   map[string]any{"id": "inst-1"},
 					"gitlab_group":          map[string]any{"id": "group-orca-gone", "gitlab_group_name": "acme"},
 					"repository_context_id": "ctx-1",
-				}},
+				}}),
 			})
 		default:
 			http.NotFound(w, r)
@@ -122,25 +132,25 @@ func TestListBitbucketRepositoriesStampsInstallationID(t *testing.T) {
 		case "/api/shiftleft/bitbucket/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "BB"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "BB"}}),
 			})
 		case "/api/shiftleft/bitbucket/installations/inst-1/integrated_accounts/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "acct-orca-1", "account_id": "ws", "account_name": "ws",
-				}},
+				}}),
 			})
 		case "/api/shiftleft/bitbucket/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "bitbucket_repository_id": "bb-1",
 					"bitbucket_repository_slug": "repo",
 					"repository":                map[string]any{"name": "ws/repo", "url": "https://bitbucket.org/ws/repo"},
 					"account_installation":      map[string]any{"id": "acct-orca-1", "account_id": "ws"},
 					"configuration_settings":    map[string]any{},
-				}},
+				}}),
 			})
 		default:
 			http.NotFound(w, r)
@@ -168,20 +178,20 @@ func TestListBitbucketRepositoriesMissingAccountErrors(t *testing.T) {
 		case "/api/shiftleft/bitbucket/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "BB"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "BB"}}),
 			})
 		case "/api/shiftleft/bitbucket/installations/inst-1/integrated_accounts/":
 			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]any{}})
 		case "/api/shiftleft/bitbucket/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "bitbucket_repository_id": "bb-1",
 					"bitbucket_repository_slug": "repo",
 					"repository":                map[string]any{"name": "ws/repo", "url": "https://bitbucket.org/ws/repo"},
 					"account_installation":      map[string]any{"id": "acct-orca-gone", "account_id": "ws"},
 					"configuration_settings":    map[string]any{},
-				}},
+				}}),
 			})
 		default:
 			http.NotFound(w, r)
@@ -202,22 +212,22 @@ func TestListAzureRepositoriesStampsInstallationID(t *testing.T) {
 		case "/api/shiftleft/azure_devops/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "ADO"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "ADO"}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}},
+				"data":        firstPage(r, []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}}),
 			})
 		case "/api/shiftleft/azure_devops/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "azure_repository_id": "az-1",
 					"repository":                 map[string]any{"name": "proj/repo", "url": "https://dev.azure.com/org/proj/_git/repo"},
 					"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"},
 					"repository_context_id":      "ctx-1",
-				}},
+				}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/accounts/org-name/repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -255,22 +265,22 @@ func TestListAzureRepositoriesPrefersDirectProjectID(t *testing.T) {
 		case "/api/shiftleft/azure_devops/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "ADO"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "ADO"}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}},
+				"data":        firstPage(r, []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}}),
 			})
 		case "/api/shiftleft/azure_devops/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "azure_repository_id": "az-1", "azure_project_id": "direct-proj-uuid",
 					"repository":                 map[string]any{"name": "proj/repo", "url": "https://dev.azure.com/org/proj/_git/repo"},
 					"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"},
 					"repository_context_id":      "ctx-1",
-				}},
+				}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/accounts/org-name/repositories/":
 			t.Fatal("browse endpoint should not be called when azure_project_id is already present")
@@ -297,22 +307,22 @@ func TestListAzureRepositoriesMissingFromBrowseErrors(t *testing.T) {
 		case "/api/shiftleft/azure_devops/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "ADO"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "ADO"}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}},
+				"data":        firstPage(r, []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}}),
 			})
 		case "/api/shiftleft/azure_devops/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "azure_repository_id": "az-1",
 					"repository":                 map[string]any{"name": "proj/repo", "url": "https://dev.azure.com/org/proj/_git/repo"},
 					"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"},
 					"repository_context_id":      "ctx-1",
-				}},
+				}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/accounts/org-name/repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]any{}})
@@ -335,19 +345,19 @@ func TestListAzureRepositoriesMissingAccountErrors(t *testing.T) {
 		case "/api/shiftleft/azure_devops/installations/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data":        []map[string]any{{"id": "inst-1", "name": "ADO"}},
+				"data":        firstPage(r, []map[string]any{{"id": "inst-1", "name": "ADO"}}),
 			})
 		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
 			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]any{}})
 		case "/api/shiftleft/azure_devops/integrated_repositories/":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
-				"data": []map[string]any{{
+				"data": firstPage(r, []map[string]any{{
 					"id": "repo-1", "azure_repository_id": "az-1",
 					"repository":                 map[string]any{"name": "proj/repo", "url": "https://dev.azure.com/org/proj/_git/repo"},
 					"azure_account_installation": map[string]any{"id": "acct-orca-gone", "account_name": "org-name"},
 					"repository_context_id":      "ctx-1",
-				}},
+				}}),
 			})
 		default:
 			http.NotFound(w, r)

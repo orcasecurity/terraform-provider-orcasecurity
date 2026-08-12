@@ -16,6 +16,10 @@ import (
 func TestScmUnitLookups_StampInstallationID(t *testing.T) {
 	const instID = "inst-1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": []map[string]string{}})
+			return
+		}
 		if strings.Contains(r.URL.Path, "integrated_accounts") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_items": 1,
@@ -66,6 +70,13 @@ func newBitbucketAccountsSearchServer(t *testing.T, accountsPath string, searchH
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != accountsPath {
 			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 0, "data": []map[string]string{}})
+			return
+		}
+		// Record only the first page of each scan attempt: the trailing empty-page
+		// request that confirms termination is pagination plumbing, not a new attempt.
+		start := r.URL.Query().Get("start_at_index")
+		if start != "" && start != "0" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": []map[string]string{}})
 			return
 		}
 		search := r.URL.Query().Get("search")
@@ -149,8 +160,9 @@ func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
 	if all[0].ID != "0" || all[total-1].ID != strconv.Itoa(total-1) {
 		t.Fatalf("pages stitched out of order: first=%s last=%s", all[0].ID, all[total-1].ID)
 	}
-	if hits.Load() != 3 {
-		t.Fatalf("expected 3 page fetches (200+200+50), got %d", hits.Load())
+	// 200+200+50, plus one trailing empty page since termination no longer trusts total_items.
+	if hits.Load() != 4 {
+		t.Fatalf("expected 4 page fetches (200+200+50+empty), got %d", hits.Load())
 	}
 }
 
