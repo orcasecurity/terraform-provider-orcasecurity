@@ -70,7 +70,7 @@ func TestAPIToState_ProjectsIdsEmptyStaysNull(t *testing.T) {
 	}
 }
 
-func TestAPIToState_ProjectsIdsEmptySetSurvivesRefresh(t *testing.T) {
+func TestAPIToState_ProjectsIdsEmptyListSurvivesRefresh(t *testing.T) {
 	existing := &shiftLeftPolicyResourceModel{
 		Type:        types.StringValue("licenses"),
 		ProjectsIds: types.ListValueMust(types.StringType, nil),

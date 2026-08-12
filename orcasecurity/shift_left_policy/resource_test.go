@@ -337,6 +337,14 @@ removed {
 					resource.TestCheckTypeSetElemAttr("orcasecurity_shift_left_policy.builtin", "projects_ids.*", projectID),
 				),
 			},
+			// Locks in the order-drift fix: a refresh-only re-plan of the same config must show
+			// no diff even though the API is free to return projects_ids in a different order
+			// than the config lists them.
+			{
+				Config:             orcasecurity.TestProviderConfig + attachConfig,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
 			{
 				Config: orcasecurity.TestProviderConfig + forgetConfig,
 			},
@@ -390,6 +398,14 @@ removed {
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.malicious_packages", "projects_ids.#", fmt.Sprintf("%d", len(originalProjectIDs)+1)),
 					resource.TestCheckTypeSetElemAttr("orcasecurity_shift_left_policy.malicious_packages", "projects_ids.*", projectID),
 				),
+			},
+			// Locks in the order-drift fix: a refresh-only re-plan of the same config must show
+			// no diff even though the API is free to return projects_ids in a different order
+			// than the config lists them.
+			{
+				Config:             orcasecurity.TestProviderConfig + attachConfig,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
 			},
 			{
 				Config: orcasecurity.TestProviderConfig + forgetConfig,

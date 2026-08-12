@@ -263,7 +263,7 @@ func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 }
 
-// projectsIdsChanged is true when plan has a known projects set that differs from state.
+// projectsIdsChanged is true when plan has a known projects list that differs from state.
 func projectsIdsChanged(plan, state *shiftLeftPolicyResourceModel) bool {
 	if !tfconv.Known(plan.ProjectsIds) {
 		return false

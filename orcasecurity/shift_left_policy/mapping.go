@@ -72,9 +72,11 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 // stable order for projects_ids, so without this a List attribute would show a spurious diff
 // on every refresh even when the attached project set hasn't changed.
 func reorderToMatchPrior(prior, fresh []string) []string {
-	inFresh := make(map[string]bool, len(fresh))
+	// Counts, not a plain membership set: a duplicated id in prior must not emit more
+	// copies than fresh actually has.
+	remaining := make(map[string]int, len(fresh))
 	for _, id := range fresh {
-		inFresh[id] = true
+		remaining[id]++
 	}
 	inPrior := make(map[string]bool, len(prior))
 	for _, id := range prior {
@@ -82,8 +84,9 @@ func reorderToMatchPrior(prior, fresh []string) []string {
 	}
 	ordered := make([]string, 0, len(fresh))
 	for _, id := range prior {
-		if inFresh[id] {
+		if remaining[id] > 0 {
 			ordered = append(ordered, id)
+			remaining[id]--
 		}
 	}
 	for _, id := range fresh {
