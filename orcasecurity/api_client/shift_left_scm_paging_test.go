@@ -16,21 +16,11 @@ import (
 func TestScmUnitLookups_StampInstallationID(t *testing.T) {
 	const instID = "inst-1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": []map[string]string{}})
-			return
-		}
+		body := `{"total_items":1,"data":[{"id":"` + instID + `"}]}`
 		if strings.Contains(r.URL.Path, "integrated_accounts") {
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_items": 1,
-				"data":        []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "n"}},
-			})
-			return
+			body = `{"total_items":1,"data":[{"id":"acc-1","account_id":"target-slug","account_name":"n"}]}`
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_items": 1,
-			"data":        []map[string]string{{"id": instID}},
-		})
+		_, _ = w.Write([]byte(firstPageOnly(r, body)))
 	}))
 	defer srv.Close()
 
@@ -74,19 +64,17 @@ func newBitbucketAccountsSearchServer(t *testing.T, accountsPath string, searchH
 		}
 		// Record only the first page of each scan attempt: the trailing empty-page
 		// request that confirms termination is pagination plumbing, not a new attempt.
-		start := r.URL.Query().Get("start_at_index")
-		if start != "" && start != "0" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": []map[string]string{}})
-			return
+		if start := r.URL.Query().Get("start_at_index"); start == "" || start == "0" {
+			search := r.URL.Query().Get("search")
+			searches = append(searches, search+"|"+r.URL.Query().Get("search_fields"))
 		}
 		search := r.URL.Query().Get("search")
-		searches = append(searches, search+"|"+r.URL.Query().Get("search_fields"))
-		rows := []map[string]string{{"id": "acc-1", "account_id": "target-slug", "account_name": "Target"}}
+		rows := []map[string]any{{"id": "acc-1", "account_id": "target-slug", "account_name": "Target"}}
 		if search != "" && !searchHonored {
 			// Stands in for a search that cannot see the field the caller matches on.
-			rows = []map[string]string{}
+			rows = []map[string]any{}
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": len(rows), "data": rows})
+		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": len(rows), "data": firstPageRows(r, rows)})
 	}))
 	t.Cleanup(srv.Close)
 	return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}, &searches
@@ -134,7 +122,7 @@ func TestFindScmUnitByName_FiltersServerSideThenFallsBack(t *testing.T) {
 	})
 }
 
-func TestGetAllScmPages_FollowsPagesUntilTotal(t *testing.T) {
+func TestGetAllScmPages_FollowsPagesUntilEmpty(t *testing.T) {
 	const total = 450 // > 2 pages at limit=200
 	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

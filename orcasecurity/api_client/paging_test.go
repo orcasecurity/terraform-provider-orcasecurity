@@ -9,6 +9,30 @@ import (
 	"testing"
 )
 
+// firstPageOnly returns body for the first page of a getAllScmPages-style
+// paginated request and an empty data envelope for every page after it.
+// That pagination always follows up past a non-empty page to confirm it's
+// over, so any stub serving a fixed paginated envelope needs this or it
+// spins to the max-page guard on the confirmation request. Shared by every
+// api_client-package test in this file's build unit (see also
+// testutils.FirstPageOnly for the external _test packages that can import
+// it — this package can't, api_client is what testutils imports).
+func firstPageOnly(r *http.Request, body string) string {
+	if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+		return `{"data":[]}`
+	}
+	return body
+}
+
+// firstPageRows is firstPageOnly for handlers that build the row slice
+// directly instead of a full JSON string.
+func firstPageRows(r *http.Request, rows []map[string]any) []map[string]any {
+	if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+		return []map[string]any{}
+	}
+	return rows
+}
+
 func automationPage(total int, ids ...string) map[string]any {
 	data := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
@@ -111,11 +135,7 @@ func TestPaginateOffset_FiltersKeepPagingParams(t *testing.T) {
 	var rawQueries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rawQueries = append(rawQueries, r.URL.RawQuery)
-		data := []map[string]string{{"id": "row-1"}}
-		if r.URL.Query().Get("start_at_index") != "0" {
-			data = []map[string]string{}
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": data})
+		_, _ = w.Write([]byte(firstPageOnly(r, `{"total_items":1,"data":[{"id":"row-1"}]}`)))
 	}))
 	defer srv.Close()
 

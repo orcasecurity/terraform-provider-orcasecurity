@@ -14,13 +14,9 @@ func TestShiftLeftProjectSummary_UnmarshalLiveShape(t *testing.T) {
 	fixture := `{"total_items":1,"data":[{"id":"3e8339f8-7a8e-4cc2-a713-940bc2662935","name":"allscan","key":"allscan","policies":[{"id":"019ad8c7-4db3-7a53-a509-485efb9283da","name":"RK-OSS-Licensing","disabled":false,"type":"licenses","builtin":false}],"builtin":false}]}`
 
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		body := fixture
-		if req.URL.Query().Get("start_at_index") != "0" {
-			body = `{"total_items":1,"data":[]}`
-		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(firstPageOnly(req, fixture))),
 			Request:    req,
 		}
 	})}

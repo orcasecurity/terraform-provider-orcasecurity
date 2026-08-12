@@ -24,18 +24,11 @@ func captureServer(t *testing.T, responses map[string]string) (*APIClient, *stru
 		if r.Body != nil {
 			_ = json.NewDecoder(r.Body).Decode(&last.Body)
 		}
-		// A registered list envelope is only served for the first page. A paginated
-		// caller (getAllScmPages) always follows up past a non-empty page to confirm
-		// it's over, so every fixture here must have an empty page past offset 0.
-		if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-			_, _ = w.Write([]byte(`{"data":[]}`))
-			return
+		resp, ok := responses[r.Method+" "+r.URL.Path]
+		if !ok {
+			resp = `{}`
 		}
-		if resp, ok := responses[r.Method+" "+r.URL.Path]; ok {
-			_, _ = w.Write([]byte(resp))
-			return
-		}
-		_, _ = w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(firstPageOnly(r, resp)))
 	}))
 	t.Cleanup(srv.Close)
 	return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}, last

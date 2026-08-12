@@ -49,8 +49,9 @@ func paginateOffset[T any](client *APIClient, path string, filters listFilters, 
 		data := *env.Data
 		all = append(all, data...)
 		// Short page ≠ done (limit may be clamped) — only an empty page means done.
-		// total_items is not trusted for this: some paginators cap/cache the count
-		// (e.g. scan_log), so a reported total isn't guaranteed to match live data.
+		// DRF's LimitOffsetPagination always yields an empty page past the real
+		// set regardless of what count reports, so total_items isn't needed for
+		// loop control and isn't trusted for it either.
 		if len(data) == 0 {
 			return all, nil
 		}

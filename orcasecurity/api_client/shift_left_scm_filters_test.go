@@ -58,11 +58,10 @@ func TestFindRepository_SendsServerSideFilters(t *testing.T) {
 			var got url.Values
 			client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 				got = r.URL.Query()
-				data := []map[string]any{tc.row}
-				if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-					data = []map[string]any{} // trailing page past the single row must be empty to terminate
-				}
-				_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": data})
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"total_items": 1,
+					"data":        firstPageRows(r, []map[string]any{tc.row}),
+				})
 			})
 
 			repo, err := tc.find(client)
@@ -170,20 +169,16 @@ type searchingList struct {
 
 func (s *searchingList) handle(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
-	start := r.URL.Query().Get("start_at_index")
 	// Record only the first page of each scan attempt: the trailing empty-page
 	// request that confirms termination is pagination plumbing, not a new attempt.
-	if start == "" || start == "0" {
+	if start := r.URL.Query().Get("start_at_index"); start == "" || start == "0" {
 		s.searches = append(s.searches, search)
-	} else {
-		_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
-		return
 	}
-	if search != "" && search != s.rowName {
-		_, _ = w.Write([]byte(`{"total_items":0,"data":[]}`))
-		return
+	body := `{"total_items":0,"data":[]}`
+	if search == "" || search == s.rowName {
+		body = `{"total_items":1,"data":[` + s.row + `]}`
 	}
-	_, _ = w.Write([]byte(`{"total_items":1,"data":[` + s.row + `]}`))
+	_, _ = w.Write([]byte(firstPageOnly(r, body)))
 }
 
 // Pin search values in order (request count separates hint-hit vs fallback).
@@ -225,7 +220,7 @@ func TestFindGithubRepository_DeletedRepositoryStaysNotFound(t *testing.T) {
 func TestFindRepository_LocalMatchGuardsIgnoredFilters(t *testing.T) {
 	client := scmListClient(t, func(w http.ResponseWriter, r *http.Request) {
 		// Simulate an API that ignores every filter and returns two installations' rows.
-		data := []map[string]any{
+		rows := []map[string]any{
 			{
 				"id": "wrong", "gitlab_project_id": 7,
 				"gitlab_installation":   map[string]string{"id": "other-installation"},
@@ -239,10 +234,7 @@ func TestFindRepository_LocalMatchGuardsIgnoredFilters(t *testing.T) {
 				"repository_context_id": "ctx-mine",
 			},
 		}
-		if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-			data = []map[string]any{} // trailing page past the two rows must be empty to terminate
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 2, "data": data})
+		_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 2, "data": firstPageRows(r, rows)})
 	})
 
 	repo, err := client.FindGitlabRepository("inst-gl", 7)

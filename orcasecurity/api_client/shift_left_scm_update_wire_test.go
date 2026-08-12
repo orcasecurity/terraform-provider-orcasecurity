@@ -22,18 +22,11 @@ func captureAllRequests(t *testing.T, responses map[string]string) (*APIClient, 
 			_ = json.NewDecoder(r.Body).Decode(&body)
 		}
 		*reqs = append(*reqs, capturedRequest{Method: r.Method, Path: r.URL.Path, Body: body})
-		// A registered list envelope is only served for the first page. The
-		// read-back after a PUT (updateScmUnit) pages via getAllScmPages, which
-		// always follows up past a non-empty page to confirm it's over.
-		if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-			_, _ = w.Write([]byte(`{"data":[]}`))
-			return
+		resp, ok := responses[r.Method+" "+r.URL.Path]
+		if !ok {
+			resp = `{}`
 		}
-		if resp, ok := responses[r.Method+" "+r.URL.Path]; ok {
-			_, _ = w.Write([]byte(resp))
-			return
-		}
-		_, _ = w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(firstPageOnly(r, resp)))
 	}))
 	t.Cleanup(srv.Close)
 	return &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}, reqs

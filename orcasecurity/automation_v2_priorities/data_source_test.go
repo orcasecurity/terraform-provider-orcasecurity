@@ -13,14 +13,10 @@ import (
 )
 
 // stubDataSource returns a data source whose API answers with body on the
-// first page; getAllScmPages-style pagination always follows up past a
-// non-empty page, so every later page must come back empty to terminate.
+// first page only (see testutils.FirstPageOnly).
 func stubDataSource(body string) *automationPrioritiesDataSource {
 	return &automationPrioritiesDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		resp := body
-		if start := req.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-			resp = `{"data":[]}`
-		}
+		resp := testutils.FirstPageOnly(req, body)
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(resp)), Request: req}
 	})}
 }

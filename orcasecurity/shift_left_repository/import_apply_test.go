@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -112,11 +113,8 @@ func (s *repoStub) start(t *testing.T) {
 			s.applyPatch(body)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 		case r.Method == http.MethodGet && isRepoPath:
-			data := []map[string]any{s.snapshot()}
-			if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
-				data = []map[string]any{} // trailing page past the single repo must be empty to terminate
-			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"total_items": 1, "data": data})
+			body, _ := json.Marshal(map[string]any{"total_items": 1, "data": []map[string]any{s.snapshot()}})
+			_, _ = w.Write([]byte(testutils.FirstPageOnly(r, string(body))))
 		case r.Method == http.MethodDelete:
 			s.mu.Lock()
 			s.deletes++
