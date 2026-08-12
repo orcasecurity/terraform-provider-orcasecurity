@@ -91,13 +91,18 @@ func (o AdoptedUnitOps[A, M]) integrateBody(ctx context.Context, plan, config *M
 // adopt_existing=true — destroy would de-integrate it, dropping repos and any policy/project
 // binding along with it. A unit with none of these is indistinguishable from one nobody has
 // touched yet (e.g. a fresh SCM App install), so adopting it silently is safe.
+//
+// DefaultPolicies is deliberately not part of this check: per the API, it is derived as true
+// whenever the unit has neither attached policies nor a project (see the default_policies
+// attribute doc in scm_schema.go) — it is not an independent stored value, so it never adds a
+// risk signal beyond what Policies/Project already cover, and checking it would make this guard
+// fire on every existing unit, blank or not.
 func guardAdopt(existing api_client.ScmUnitCommonFields, adoptExisting types.Bool) bool {
 	return hasAdoptableState(existing) && !adoptExisting.ValueBool()
 }
 
 func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
 	return existing.IntegratedRepositoriesCount > 0 ||
-		existing.DefaultPolicies ||
 		len(existing.Policies) > 0 ||
 		existing.Project != nil
 }
@@ -116,9 +121,6 @@ func adoptableStateSummary(existing api_client.ScmUnitCommonFields) string {
 	var parts []string
 	if n := existing.IntegratedRepositoriesCount; n > 0 {
 		parts = append(parts, fmt.Sprintf("%d integrated repositor%s", n, repositoryPlural(n)))
-	}
-	if existing.DefaultPolicies {
-		parts = append(parts, "default policies enabled")
 	}
 	if n := len(existing.Policies); n > 0 {
 		parts = append(parts, fmt.Sprintf("%d attached polic%s", n, policyPlural(n)))

@@ -26,10 +26,15 @@ func TestGuardAdopt(t *testing.T) {
 		{"has repos, flag false: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(false), true},
 		{"has repos, flag true: allow", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(true), false},
 		{"one repo, flag unset: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 1}, types.BoolNull(), true},
-		{"no repos but default_policies, flag unset: block", api_client.ScmUnitCommonFields{DefaultPolicies: true}, types.BoolNull(), true},
 		{"no repos but attached policies, flag unset: block", api_client.ScmUnitCommonFields{Policies: []api_client.ScmPolicyRef{{ID: "p1"}}}, types.BoolNull(), true},
 		{"no repos but bound project, flag unset: block", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolNull(), true},
 		{"no repos but bound project, flag true: allow", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolValue(true), false},
+
+		// default_policies alone is never a signal: the API derives it as true whenever there are
+		// no policies and no project (scm_schema.go's default_policies doc), for every SCM — so a
+		// unit with nothing else attached must stay adoptable, or every existing unit would need
+		// adopt_existing regardless of whether it's actually blank.
+		{"no repos, default_policies=true, nothing else attached: allow", api_client.ScmUnitCommonFields{DefaultPolicies: true}, types.BoolNull(), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,9 +54,6 @@ func TestAdoptGuardDetail(t *testing.T) {
 	}
 	if one := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 1}); !strings.Contains(one, "1 integrated repository") {
 		t.Errorf("singular repository not rendered: %s", one)
-	}
-	if withPolicy := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{DefaultPolicies: true}); !strings.Contains(withPolicy, "default policies enabled") {
-		t.Errorf("default_policies reason not rendered: %s", withPolicy)
 	}
 	if withProject := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}); !strings.Contains(withProject, "a bound project") {
 		t.Errorf("project reason not rendered: %s", withProject)
