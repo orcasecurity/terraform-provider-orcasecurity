@@ -6,6 +6,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -35,7 +36,7 @@ func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 	}
 
 	state := apiToState(apiPolicy, nil)
-	got := tfconv.SetToStringSlice(state.ProjectsIds)
+	got := tfconv.ListToStringSlice(state.ProjectsIds)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 projects_ids, got %#v", got)
 	}
@@ -48,13 +49,13 @@ func TestAPIToState_ProjectsIdsPopulatedFromInstance(t *testing.T) {
 
 func TestAPIToState_ProjectsIdsAuthoritativeOnRead(t *testing.T) {
 	existing := &shiftLeftPolicyResourceModel{
-		Type: types.StringValue("licenses"), ProjectsIds: types.SetNull(types.StringType),
+		Type: types.StringValue("licenses"), ProjectsIds: types.ListNull(types.StringType),
 	}
 	api := &api_client.ShiftLeftPolicy{
 		ID: "p1", Type: "licenses", ProjectsIds: []string{"proj-a", "proj-b"},
 	}
 	state := apiToState(api, existing)
-	got := tfconv.SetToStringSlice(state.ProjectsIds)
+	got := tfconv.ListToStringSlice(state.ProjectsIds)
 	if len(got) != 2 {
 		t.Fatalf("expected refresh to reflect API projects [proj-a proj-b], got %v", got)
 	}
@@ -72,15 +73,54 @@ func TestAPIToState_ProjectsIdsEmptyStaysNull(t *testing.T) {
 func TestAPIToState_ProjectsIdsEmptySetSurvivesRefresh(t *testing.T) {
 	existing := &shiftLeftPolicyResourceModel{
 		Type:        types.StringValue("licenses"),
-		ProjectsIds: types.SetValueMust(types.StringType, nil),
+		ProjectsIds: types.ListValueMust(types.StringType, nil),
 	}
 	api := &api_client.ShiftLeftPolicy{ID: "p1", Type: "licenses"}
 	state := apiToState(api, existing)
 	if state.ProjectsIds.IsNull() {
 		t.Fatal("an explicitly empty projects_ids must stay [] after refresh, not become null")
 	}
-	if got := tfconv.SetToStringSlice(state.ProjectsIds); len(got) != 0 {
-		t.Fatalf("expected an empty set, got %v", got)
+	if got := tfconv.ListToStringSlice(state.ProjectsIds); len(got) != 0 {
+		t.Fatalf("expected an empty list, got %v", got)
+	}
+}
+
+// The API doesn't guarantee a stable order for projects_ids. Read must reorder its response to
+// match the prior state's order so an unchanged attached set doesn't drift on every refresh.
+func TestAPIToState_ProjectsIdsReorderedToMatchPriorOnUnstableAPIOrder(t *testing.T) {
+	existing := &shiftLeftPolicyResourceModel{
+		Type:        types.StringValue("licenses"),
+		ProjectsIds: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("proj-a"), types.StringValue("proj-b")}),
+	}
+	api := &api_client.ShiftLeftPolicy{
+		ID: "p1", Type: "licenses", ProjectsIds: []string{"proj-b", "proj-a"},
+	}
+	state := apiToState(api, existing)
+	if !state.ProjectsIds.Equal(existing.ProjectsIds) {
+		t.Fatalf("expected reorder to match prior state order [proj-a proj-b], got %v", state.ProjectsIds)
+	}
+}
+
+// A genuine membership change (project added) must still surface as a real diff, with the new
+// entry appended after the elements that stayed in their prior order.
+func TestAPIToState_ProjectsIdsNewMembersAppendedAfterReorder(t *testing.T) {
+	existing := &shiftLeftPolicyResourceModel{
+		Type:        types.StringValue("licenses"),
+		ProjectsIds: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("proj-a"), types.StringValue("proj-b")}),
+	}
+	api := &api_client.ShiftLeftPolicy{
+		ID: "p1", Type: "licenses", ProjectsIds: []string{"proj-c", "proj-b", "proj-a"},
+	}
+	state := apiToState(api, existing)
+	got := tfconv.ListToStringSlice(state.ProjectsIds)
+	want := []string{"proj-a", "proj-b", "proj-c"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
 	}
 }
 

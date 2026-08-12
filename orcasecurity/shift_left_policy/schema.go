@@ -4,8 +4,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -269,14 +269,15 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 				stringvalidator.OneOf("LOW", "MEDIUM", "HIGH", "CRITICAL"),
 			},
 		},
-		"projects_ids": schema.SetAttribute{
+		"projects_ids": schema.ListAttribute{
 			ElementType: types.StringType,
 			Optional:    true,
 			Computed:    true,
-			Description: "Project IDs to attach this policy to. Reflects the API on read; omit to leave the current attachment unchanged, or set to `[]` to detach from all projects. " +
+			Description: "Project IDs to attach this policy to. Reflects the API on read (reordered to match prior state so an unstable API order doesn't drift); " +
+				"omit to leave the current attachment unchanged, or set to `[]` to detach from all projects. " +
 				"Not supported for `scm_posture` (scope those policies with `scm_posture.scope` instead).",
-			PlanModifiers: []planmodifier.Set{
-				setplanmodifier.UseStateForUnknown(),
+			PlanModifiers: []planmodifier.List{
+				listplanmodifier.UseStateForUnknown(),
 			},
 		},
 		"builtin": schema.BoolAttribute{

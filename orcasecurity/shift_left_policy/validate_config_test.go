@@ -19,7 +19,7 @@ func TestValidateConfig_ScmPostureRejectsProjectsIds(t *testing.T) {
 		Disabled:                 types.BoolValue(false),
 		WarnMode:                 types.BoolValue(false),
 		PriorityFailureThreshold: types.StringValue("HIGH"),
-		ProjectsIds: types.SetValueMust(types.StringType, []attr.Value{
+		ProjectsIds: types.ListValueMust(types.StringType, []attr.Value{
 			types.StringValue("proj-1"),
 		}),
 	})
@@ -39,7 +39,7 @@ func TestValidateConfig_ScmPostureAllowsOmittedProjectsIds(t *testing.T) {
 		Disabled:                 types.BoolValue(false),
 		WarnMode:                 types.BoolValue(false),
 		PriorityFailureThreshold: types.StringValue("HIGH"),
-		ProjectsIds:              types.SetNull(types.StringType),
+		ProjectsIds:              types.ListNull(types.StringType),
 	})
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected error when projects_ids omitted: %v", resp.Diagnostics)
@@ -53,7 +53,7 @@ func TestValidateConfig_LicensesAllowsProjectsIds(t *testing.T) {
 		Disabled:                 types.BoolValue(false),
 		WarnMode:                 types.BoolValue(false),
 		PriorityFailureThreshold: types.StringValue("HIGH"),
-		ProjectsIds: types.SetValueMust(types.StringType, []attr.Value{
+		ProjectsIds: types.ListValueMust(types.StringType, []attr.Value{
 			types.StringValue("proj-1"),
 		}),
 	})

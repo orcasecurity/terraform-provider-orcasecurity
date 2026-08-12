@@ -44,7 +44,7 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 		WarnMode:                 model.WarnMode.ValueBool(),
 		PriorityFailureThreshold: model.PriorityFailureThreshold.ValueString(),
 		Type:                     policyType,
-		ProjectsIds:              tfconv.SetToStringSlice(model.ProjectsIds),
+		ProjectsIds:              tfconv.ListToStringSlice(model.ProjectsIds),
 	}
 
 	controls, policyData, d := buildControlsAndData(model, &policy)
@@ -67,13 +67,41 @@ func planToAPI(model *shiftLeftPolicyResourceModel) (api_client.ShiftLeftPolicy,
 	return policy, diags
 }
 
+// reorderToMatchPrior reorders fresh to match prior's element order where both agree on
+// membership, then appends anything fresh has that prior didn't. The API doesn't guarantee a
+// stable order for projects_ids, so without this a List attribute would show a spurious diff
+// on every refresh even when the attached project set hasn't changed.
+func reorderToMatchPrior(prior, fresh []string) []string {
+	inFresh := make(map[string]bool, len(fresh))
+	for _, id := range fresh {
+		inFresh[id] = true
+	}
+	inPrior := make(map[string]bool, len(prior))
+	for _, id := range prior {
+		inPrior[id] = true
+	}
+	ordered := make([]string, 0, len(fresh))
+	for _, id := range prior {
+		if inFresh[id] {
+			ordered = append(ordered, id)
+		}
+	}
+	for _, id := range fresh {
+		if !inPrior[id] {
+			ordered = append(ordered, id)
+		}
+	}
+	return ordered
+}
+
 func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicyResourceModel) *shiftLeftPolicyResourceModel {
 	// Detaching every project is configured as projects_ids = [], so an empty API
 	// answer must stay [] when the prior state was configured, and null otherwise.
-	priorProjects := types.SetNull(types.StringType)
+	priorProjects := types.ListNull(types.StringType)
 	if existing != nil {
 		priorProjects = existing.ProjectsIds
 	}
+	orderedProjects := reorderToMatchPrior(tfconv.ListToStringSlice(priorProjects), apiPolicy.ProjectsIds)
 	model := &shiftLeftPolicyResourceModel{
 		ID:                       types.StringValue(apiPolicy.ID),
 		Type:                     types.StringValue(apiPolicy.Type),
@@ -82,7 +110,7 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		Disabled:                 types.BoolValue(apiPolicy.Disabled),
 		WarnMode:                 types.BoolValue(apiPolicy.WarnMode),
 		PriorityFailureThreshold: types.StringValue(apiPolicy.PriorityFailureThreshold),
-		ProjectsIds:              tfconv.StringSliceToSetPreserveNull(priorProjects, apiPolicy.ProjectsIds),
+		ProjectsIds:              tfconv.StringSliceToListPreserveNull(priorProjects, orderedProjects),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
@@ -121,7 +149,7 @@ func stateFromPlanAfterWrite(plan *shiftLeftPolicyResourceModel, apiPolicy *api_
 	// projects_ids is Optional+Computed: when the user omitted it the plan value
 	// is unknown, so anchor it on the projects the API reports as attached.
 	if plan.ProjectsIds.IsUnknown() {
-		state.ProjectsIds = tfconv.StringSliceToSet(apiPolicy.ProjectsIds)
+		state.ProjectsIds = tfconv.StringSliceToListPreserveNull(types.ListNull(types.StringType), apiPolicy.ProjectsIds)
 	}
 	return &state
 }

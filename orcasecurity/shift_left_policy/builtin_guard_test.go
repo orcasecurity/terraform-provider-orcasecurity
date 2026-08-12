@@ -22,7 +22,7 @@ func baseBuiltin() *shiftLeftPolicyResourceModel {
 func TestBuiltinGuard_ProjectsOnlyChangeAllowed(t *testing.T) {
 	state := baseBuiltin()
 	plan := baseBuiltin()
-	plan.ProjectsIds = types.SetValueMust(types.StringType, []attr.Value{types.StringValue("proj-1"), types.StringValue("proj-2")})
+	plan.ProjectsIds = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("proj-1"), types.StringValue("proj-2")})
 
 	if field, changed := builtinLockedFieldChanged(plan, state); changed {
 		t.Fatalf("expected projects-only change to be allowed, but field %q flagged", field)

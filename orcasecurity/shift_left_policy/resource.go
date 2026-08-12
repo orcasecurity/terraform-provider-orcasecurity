@@ -144,7 +144,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	// state when Create reports an error, so anything that fails from here on has to take the new
 	// policy with it — otherwise it survives untracked and the next apply creates a duplicate.
 	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(plan.ProjectsIds)); err != nil {
 			r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
 			resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
 			return
@@ -228,7 +228,7 @@ func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior 
 		return
 	}
 	if restoreProjects && tfconv.Known(prior.ProjectsIds) {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(prior.ProjectsIds)); err != nil {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(prior.ProjectsIds)); err != nil {
 			diags.AddWarning(
 				"Failed to restore AppSec policy projects after a partial update",
 				fmt.Sprintf("Restoring projects on %s/%s failed: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
@@ -319,7 +319,7 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	// unchanged set is a needless detach/reattach on every apply.
 	projectsChanged := projectsIdsChanged(&plan, &state)
 	if projectsChanged {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.SetToStringSlice(plan.ProjectsIds)); err != nil {
+		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(plan.ProjectsIds)); err != nil {
 			// Body PUT already landed; restore the prior body so live matches the still-current state.
 			r.restorePriorPolicy(ctx, &state, false, &resp.Diagnostics)
 			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
