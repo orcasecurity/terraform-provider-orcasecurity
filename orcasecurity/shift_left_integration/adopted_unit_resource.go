@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
@@ -86,21 +87,56 @@ func (o AdoptedUnitOps[A, M]) integrateBody(ctx context.Context, plan, config *M
 		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
 }
 
-// Block create when unit already has repos unless adopt_existing=true — destroy would de-integrate out-of-band repos.
-func guardAdopt(repoCount int64, adoptExisting types.Bool) bool {
-	return repoCount > 0 && !adoptExisting.ValueBool()
+// Block create when the existing unit has state a silent adopt would put at risk unless
+// adopt_existing=true — destroy would de-integrate it, dropping repos and any policy/project
+// binding along with it. A unit with none of these is indistinguishable from one nobody has
+// touched yet (e.g. a fresh SCM App install), so adopting it silently is safe.
+func guardAdopt(existing api_client.ScmUnitCommonFields, adoptExisting types.Bool) bool {
+	return hasAdoptableState(existing) && !adoptExisting.ValueBool()
 }
 
-func adoptGuardDetail(describe string, repoCount int64) string {
+func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
+	return existing.IntegratedRepositoriesCount > 0 ||
+		existing.DefaultPolicies ||
+		len(existing.Policies) > 0 ||
+		existing.Project != nil
+}
+
+func adoptGuardDetail(describe string, existing api_client.ScmUnitCommonFields) string {
 	return fmt.Sprintf(
-		"%s is already integrated in Orca with %d integrated repositor%s that may have been configured outside this Terraform resource. "+
-			"Applying would take over that integration, and a later `terraform destroy` would DE-INTEGRATE it — removing those repositories and their settings. "+
+		"%s is already integrated in Orca (%s) that may have been configured outside this Terraform resource. "+
+			"Applying would take over that integration, and a later `terraform destroy` would DE-INTEGRATE it — removing that state. "+
 			"To bring this unit under management without a takeover write, import it instead of applying (terraform import). "+
 			"If you intend to manage (and eventually tear down) an integration you did not create here, set `adopt_existing = true`.",
-		describe, repoCount, repositoryPlural(repoCount))
+		describe, adoptableStateSummary(existing))
+}
+
+// adoptableStateSummary describes what hasAdoptableState found, for the error message.
+func adoptableStateSummary(existing api_client.ScmUnitCommonFields) string {
+	var parts []string
+	if n := existing.IntegratedRepositoriesCount; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d integrated repositor%s", n, repositoryPlural(n)))
+	}
+	if existing.DefaultPolicies {
+		parts = append(parts, "default policies enabled")
+	}
+	if n := len(existing.Policies); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d attached polic%s", n, policyPlural(n)))
+	}
+	if existing.Project != nil {
+		parts = append(parts, "a bound project")
+	}
+	return strings.Join(parts, ", ")
 }
 
 func repositoryPlural(n int64) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
+}
+
+func policyPlural(n int) string {
 	if n == 1 {
 		return "y"
 	}
@@ -121,9 +157,9 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 		return
 	}
 	if existing != nil {
-		repoCount := (*existing).Common().IntegratedRepositoriesCount
-		if guardAdopt(repoCount, o.Config(&plan).AdoptExisting) {
-			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), repoCount))
+		common := (*existing).Common()
+		if guardAdopt(common, o.Config(&plan).AdoptExisting) {
+			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), common))
 			return
 		}
 		o.writeAdopted(ctx, &plan, &config, &resp.Diagnostics, &resp.State, writeAdoptedRequest[A]{

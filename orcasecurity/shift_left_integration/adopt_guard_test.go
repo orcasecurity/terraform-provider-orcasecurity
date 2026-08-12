@@ -15,36 +15,46 @@ import (
 func TestGuardAdopt(t *testing.T) {
 	tests := []struct {
 		name          string
-		repoCount     int64
+		existing      api_client.ScmUnitCommonFields
 		adoptExisting types.Bool
 		wantBlock     bool
 	}{
-		{"empty unit, flag unset: allow", 0, types.BoolNull(), false},
-		{"empty unit, flag false: allow", 0, types.BoolValue(false), false},
-		{"has repos, flag unset: block", 3, types.BoolNull(), true},
-		{"has repos, flag false: block", 3, types.BoolValue(false), true},
-		{"has repos, flag true: allow", 3, types.BoolValue(true), false},
-		{"one repo, flag unset: block", 1, types.BoolNull(), true},
-		{"empty unit, flag true: allow", 0, types.BoolValue(true), false},
+		{"empty unit, flag unset: allow", api_client.ScmUnitCommonFields{}, types.BoolNull(), false},
+		{"empty unit, flag false: allow", api_client.ScmUnitCommonFields{}, types.BoolValue(false), false},
+		{"empty unit, flag true: allow", api_client.ScmUnitCommonFields{}, types.BoolValue(true), false},
+		{"has repos, flag unset: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolNull(), true},
+		{"has repos, flag false: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(false), true},
+		{"has repos, flag true: allow", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(true), false},
+		{"one repo, flag unset: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 1}, types.BoolNull(), true},
+		{"no repos but default_policies, flag unset: block", api_client.ScmUnitCommonFields{DefaultPolicies: true}, types.BoolNull(), true},
+		{"no repos but attached policies, flag unset: block", api_client.ScmUnitCommonFields{Policies: []api_client.ScmPolicyRef{{ID: "p1"}}}, types.BoolNull(), true},
+		{"no repos but bound project, flag unset: block", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolNull(), true},
+		{"no repos but bound project, flag true: allow", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolValue(true), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := guardAdopt(tt.repoCount, tt.adoptExisting); got != tt.wantBlock {
-				t.Errorf("guardAdopt(%d, %v) = %v, want %v", tt.repoCount, tt.adoptExisting, got, tt.wantBlock)
+			if got := guardAdopt(tt.existing, tt.adoptExisting); got != tt.wantBlock {
+				t.Errorf("guardAdopt(%+v, %v) = %v, want %v", tt.existing, tt.adoptExisting, got, tt.wantBlock)
 			}
 		})
 	}
 }
 
 func TestAdoptGuardDetail(t *testing.T) {
-	msg := adoptGuardDetail(`Account "acme" on installation "inst-1"`, 4)
+	msg := adoptGuardDetail(`Account "acme" on installation "inst-1"`, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 4})
 	for _, want := range []string{"acme", "4 integrated repositories", "terraform import", "adopt_existing = true", "DE-INTEGRATE"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message missing %q:\n%s", want, msg)
 		}
 	}
-	if one := adoptGuardDetail("unit", 1); !strings.Contains(one, "1 integrated repository ") {
+	if one := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 1}); !strings.Contains(one, "1 integrated repository") {
 		t.Errorf("singular repository not rendered: %s", one)
+	}
+	if withPolicy := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{DefaultPolicies: true}); !strings.Contains(withPolicy, "default policies enabled") {
+		t.Errorf("default_policies reason not rendered: %s", withPolicy)
+	}
+	if withProject := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}); !strings.Contains(withProject, "a bound project") {
+		t.Errorf("project reason not rendered: %s", withProject)
 	}
 }
 
