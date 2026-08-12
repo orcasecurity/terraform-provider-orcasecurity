@@ -16,7 +16,7 @@ description: |-
 
 -> **Destroy:** `terraform destroy` DELETEs the account and its integrated repositories.
 
-!> **Adopt semantics:** Adopts a pre-existing account; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
+!> **Adopt semantics:** Adopting an account that already exists in Orca — as opposed to a fresh `integrate` of a not-yet-integrated account — refuses unless `adopt_existing = true`; `destroy` de-integrates and drops whatever it holds (repos, policies, settings). Prefer `terraform import` to avoid a takeover write.
 
 -> **Coverage:** Browse accounts, `check_availability`, and scan-now are not managed here.
 

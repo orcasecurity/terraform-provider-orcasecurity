@@ -29,7 +29,8 @@ func TestScmUnitApply_VolatileAttributesMoveDuringApply(t *testing.T) {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: stubConfig(`  installation_mode = "SELECTED_REPOSITORIES"`),
+				Config: stubConfig(`  adopt_existing     = true
+  installation_mode = "SELECTED_REPOSITORIES"`),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(stubResourceName, "integrated_repositories_count", "0"),
 					resource.TestCheckResourceAttr(stubResourceName, "scan_all_state", "IDLE"),
@@ -49,7 +50,8 @@ func TestScmUnitApply_VolatileAttributesMoveDuringApply(t *testing.T) {
 // Identical config re-apply must leave no diff.
 func TestScmUnitApply_VolatileAttributesSettleOnNoOpReapply(t *testing.T) {
 	newVolatileStub().start(t)
-	config := stubConfig(`  installation_mode = "SELECTED_REPOSITORIES"`)
+	config := stubConfig(`  adopt_existing     = true
+  installation_mode = "SELECTED_REPOSITORIES"`)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -71,6 +73,7 @@ resource "terraform_data" "project" {
 resource "orcasecurity_shift_left_bitbucket_account" "test" {
   installation_id  = %q
   account_id       = %q
+  adopt_existing   = true
   default_policies = false
   project_id       = terraform_data.project.output
 }
@@ -93,7 +96,8 @@ resource "orcasecurity_shift_left_bitbucket_account" "test" {
 func TestScmUnitApply_VolatileAttributesWithLiteralProjectRebind(t *testing.T) {
 	newVolatileStub().start(t)
 	config := func(projectID string) string {
-		return stubConfig(fmt.Sprintf(`  default_policies = false
+		return stubConfig(fmt.Sprintf(`  adopt_existing   = true
+  default_policies = false
   project_id       = %q`, projectID))
 	}
 	resource.Test(t, resource.TestCase{

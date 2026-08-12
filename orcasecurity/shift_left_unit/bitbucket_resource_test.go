@@ -62,6 +62,7 @@ func TestAccBitbucketAccount_import(t *testing.T) {
 resource "orcasecurity_shift_left_bitbucket_account" "t" {
   installation_id = %q
   account_id      = %q
+  adopt_existing  = true
   configuration_settings = {
     pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }

@@ -62,6 +62,7 @@ func TestAccAzureDevopsAccount_import(t *testing.T) {
 resource "orcasecurity_shift_left_azure_devops_account" "t" {
   installation_id = %q
   account_name    = %q
+  adopt_existing  = true
   configuration_settings = {
     pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }

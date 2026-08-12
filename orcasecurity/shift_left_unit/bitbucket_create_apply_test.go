@@ -30,12 +30,20 @@ type scmUnitStub struct {
 	unit map[string]any
 	puts []map[string]any
 
+	// integrated: false simulates a unit that doesn't exist yet — GET misses until a POST
+	// integrate call (adopt_existing must be irrelevant on that path, since Create takes the
+	// fresh-integrate branch, not adopt). Defaults to true: the account already exists in Orca,
+	// so Create must adopt it (adopt_existing = true required).
+	integrated bool
+	integrates []map[string]any
+
 	// volatileSideEffects: opt-in server-side moves of Computed fields (scan-all, project rebind).
 	volatileSideEffects bool
 }
 
 func newSCMUnitStub() *scmUnitStub {
 	return &scmUnitStub{
+		integrated: true,
 		unit: map[string]any{
 			"id":                stubOrcaAccountID,
 			"installation_id":   stubInstallationID,
@@ -52,6 +60,41 @@ func newSCMUnitStub() *scmUnitStub {
 				"pr_summary_appendix":        "",
 			},
 		},
+	}
+}
+
+// newNotYetIntegratedSCMUnitStub starts with the account undiscovered: GET misses until the
+// resource POSTs a fresh integrate, which is the only Create path that can leave adopt_existing
+// unset (adopting an existing account always requires it).
+func newNotYetIntegratedSCMUnitStub() *scmUnitStub {
+	stub := newSCMUnitStub()
+	stub.integrated = false
+	return stub
+}
+
+func (s *scmUnitStub) isIntegrated() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.integrated
+}
+
+func (s *scmUnitStub) applyIntegrate(body map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.integrates = append(s.integrates, body)
+	s.integrated = true
+
+	if mode, ok := body["installation_mode"].(string); ok && mode != "" {
+		s.unit["installation_mode"] = mode
+	}
+	if defaultPolicies, ok := body["default_policies"].(bool); ok {
+		s.unit["default_policies"] = defaultPolicies
+	}
+	if cfg, ok := body["configuration_settings"].(map[string]any); ok {
+		s.unit["configuration_settings"] = cfg
+	}
+	if projectID, ok := body["project_id"].(string); ok && projectID != "" {
+		s.unit["project"] = map[string]any{"id": projectID}
 	}
 }
 
@@ -119,6 +162,7 @@ func (s *scmUnitStub) start(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		isUnitPath := strings.Contains(r.URL.Path, "/integrated_accounts/")
+		isIntegratePath := strings.Contains(r.URL.Path, "/integrated_repositories/")
 		switch {
 		case r.Method == http.MethodPut && isUnitPath:
 			var body map[string]any
@@ -128,7 +172,20 @@ func (s *scmUnitStub) start(t *testing.T) {
 			}
 			s.applyPut(body)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+		case r.Method == http.MethodPost && isIntegratePath:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			s.applyIntegrate(body)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 		case r.Method == http.MethodGet && isUnitPath:
+			if !s.isIntegrated() {
+				body, _ := json.Marshal(map[string]any{"total_items": 0, "data": []map[string]any{}})
+				_, _ = w.Write([]byte(testutils.FirstPageOnly(r, string(body))))
+				return
+			}
 			body, _ := json.Marshal(map[string]any{"total_items": 1, "data": []map[string]any{s.snapshot()}})
 			_, _ = w.Write([]byte(testutils.FirstPageOnly(r, string(body))))
 		case r.Method == http.MethodDelete:
@@ -158,7 +215,11 @@ resource "orcasecurity_shift_left_bitbucket_account" "test" {
 
 func runStubApply(t *testing.T, body string, checks ...resource.TestCheckFunc) *scmUnitStub {
 	t.Helper()
-	stub := newSCMUnitStub()
+	return runStubApplyOn(t, newSCMUnitStub(), body, checks...)
+}
+
+func runStubApplyOn(t *testing.T, stub *scmUnitStub, body string, checks ...resource.TestCheckFunc) *scmUnitStub {
+	t.Helper()
 	stub.start(t)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -170,18 +231,24 @@ func runStubApply(t *testing.T, body string, checks ...resource.TestCheckFunc) *
 	return stub
 }
 
-// configuration_settings must travel as types.Object (can hold unknown).
+// configuration_settings must travel as types.Object (can hold unknown). The account already
+// exists on the stub, so adopting it requires adopt_existing = true.
 func TestScmUnitApply_MinimalConfig(t *testing.T) {
-	runStubApply(t, ``,
+	runStubApply(t, `
+  adopt_existing = true`,
 		resource.TestCheckResourceAttr(stubResourceName, "account_id", stubAccountSlug),
 		resource.TestCheckResourceAttr(stubResourceName, "installation_id", stubInstallationID),
 		resource.TestCheckResourceAttr(stubResourceName, "configuration_settings.pr_summary_comment", "ALWAYS"),
 	)
 }
 
-// adopt_existing is input-only, so it must land in state as null rather than unknown.
+// adopt_existing is input-only, so it must land in state as null rather than unknown. Only a
+// genuine fresh integrate can omit it and still succeed (adopting an existing account always
+// requires it), so this runs against a not-yet-integrated stub — installation_mode must be
+// SCAN_ALL_INCLUDE_FUTURE, since the integrate guard rejects SELECTED_REPOSITORIES on that path.
 func TestScmUnitApply_AdoptExistingOmitted(t *testing.T) {
-	runStubApply(t, `
+	runStubApplyOn(t, newNotYetIntegratedSCMUnitStub(), `
+  installation_mode = "SCAN_ALL_INCLUDE_FUTURE"
   configuration_settings = {
     pr_summary_comment = "ALWAYS"
   }`,
@@ -198,6 +265,7 @@ func TestScmUnitApply_AdoptExistingSet(t *testing.T) {
 
 func TestScmUnitApply_EmptyArchiveConditionsStayEmpty(t *testing.T) {
 	stub := runStubApply(t, `
+  adopt_existing = true
   configuration_settings = {
     archive_conditions = []
   }`,
@@ -221,6 +289,7 @@ func TestScmUnitApply_EmptyArchiveConditionsStayEmpty(t *testing.T) {
 // Asymmetric clear must still send the empty archive side.
 func TestScmUnitApply_AsymmetricConditionClear(t *testing.T) {
 	stub := runStubApply(t, `
+  adopt_existing = true
   configuration_settings = {
     archive_conditions     = []
     unavailable_conditions = ["DELETE_REPO"]
@@ -238,13 +307,15 @@ func TestScmUnitApply_AsymmetricConditionClear(t *testing.T) {
 
 func TestScmUnitApply_EmptyProjectIDStaysEmpty(t *testing.T) {
 	runStubApply(t, `
-  project_id = ""`,
+  adopt_existing = true
+  project_id     = ""`,
 		resource.TestCheckResourceAttr(stubResourceName, "project_id", ""),
 	)
 }
 
 func TestScmUnitApply_EmptyPrSummaryAppendixStaysEmpty(t *testing.T) {
 	runStubApply(t, `
+  adopt_existing = true
   configuration_settings = {
     pr_summary_appendix = ""
   }`,
@@ -287,6 +358,7 @@ func TestScmUnitApply_UpdateSettlesWithoutDrift(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: stubConfig(`
+  adopt_existing = true
   configuration_settings = {
     pr_summary_comment = "ALWAYS"
     archive_conditions = ["AVOID_SCAN"]

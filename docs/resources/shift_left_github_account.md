@@ -16,7 +16,7 @@ Configures an existing Orca GitHub shift-left account/organization (default poli
 
 -> **Destroy:** `terraform destroy` DELETEs the integration; reinstall the Orca GitHub App to recover.
 
-!> **Adopt semantics:** Adopts a pre-existing account; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
+!> **Adopt semantics:** Always adopts a pre-existing account — GitHub has no fresh-integrate path, so the account already exists (from the App install callback) before Terraform ever touches it. Since that's true of every apply, existence alone can't gate the guard here: refuses only when the account already has integrated repositories, attached policies, or a bound project, unless `adopt_existing = true`. `destroy` de-integrates regardless of what it currently holds. Prefer `terraform import` to avoid a takeover write.
 
 -> **Coverage:** App install URL, GHES, browse repos, `check_availability`, and scan-now are not managed here.
 
@@ -55,7 +55,7 @@ resource "orcasecurity_shift_left_github_account" "project_bound" {
 
 ### Optional
 
-- `adopt_existing` (Boolean) Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.
+- `adopt_existing` (Boolean) Acknowledge takeover of a unit that already holds state a destroy would drop. GitHub has no fresh-integrate path — the account always already exists (from the App install callback) before Terraform ever touches it — so unlike the other SCM resources, Create cannot gate this guard on mere existence; it would then require this on every apply. It instead refuses only when the account already has integrated repositories, attached policies, or a bound project. A later destroy DE-INTEGRATES it regardless of what it currently holds. Prefer `terraform import` to bring an existing account under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.
 - `configuration_settings` (Attributes) PR/MR advanced settings. Follows the API surface (full skip_check_runs and archive/unavailable enums for every provider), which is a superset of what some SCM UIs expose. (see [below for nested schema](#nestedatt--configuration_settings))
 - `default_policies` (Boolean) On write, `true` attaches every Orca built-in policy (and clears any explicit `policies_ids`). On read the API derives this flag as true only when the unit has neither attached policies nor a project — it is not a stored boolean. Mutually exclusive with `policies_ids`; may accompany `project_id`. `false` alone (no `policies_ids`, no `project_id`) can never round-trip.
 - `installation_mode` (String) Scan mode: SCAN_ALL_INCLUDE_FUTURE or SELECTED_REPOSITORIES. Defaults to SELECTED_REPOSITORIES when omitted (matches the API/UI); SCAN_ALL_INCLUDE_FUTURE enrolls every current and future repository for scanning.

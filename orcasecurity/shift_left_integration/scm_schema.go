@@ -95,8 +95,14 @@ func SharedScmConfigAttributes() map[string]rschema.Attribute {
 		// Input-only: never returned by the API, so it must not be Computed. Marking it
 		// Computed makes it plan as unknown on create, and the unknown then reaches state.
 		"adopt_existing": rschema.BoolAttribute{
-			Optional:    true,
-			Description: "Acknowledge takeover of a unit that is already integrated in Orca. These resources ADOPT a pre-existing SCM unit rather than create one: applying takes over the live integration, and a later destroy DE-INTEGRATES it (removing repositories and settings that may have been configured outside Terraform). As a guard, Create refuses to silently take over a unit that already has integrated repositories unless this is set to true. Prefer `terraform import` to bring an existing unit under management without a takeover write; set this to true only when you intend to manage (and eventually tear down) an integration you did not create here.",
+			Optional: true,
+			Description: "Acknowledge takeover of a unit that already exists in Orca, as opposed to a fresh integrate of a " +
+				"not-yet-integrated unit. Applying takes over the live integration, and a later destroy DE-INTEGRATES it " +
+				"(removing repositories, policies, and settings that may have been configured outside Terraform). As a " +
+				"guard, Create refuses to silently adopt any unit that already exists in Orca unless this is set to true " +
+				"(GitHub is the exception — see its resource docs, since it has no fresh-integrate path to gate on). " +
+				"Prefer `terraform import` to bring an existing unit under management without a takeover write; set this " +
+				"to true only when you intend to manage (and eventually tear down) an integration you did not create here.",
 		},
 		"configuration_settings": rschema.SingleNestedAttribute{
 			Optional:      true,

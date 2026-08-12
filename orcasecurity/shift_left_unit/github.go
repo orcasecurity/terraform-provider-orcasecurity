@@ -93,6 +93,17 @@ func githubAccountSchema() rschema.Schema {
 		"GitHub-side numeric installation ID of the Orca GitHub App.")
 	attrs["github_app_settings_url"] = shift_left_common.ComputedString(
 		"URL of the Orca GitHub App settings page on GitHub (null when the API omits it).")
+	attrs["adopt_existing"] = rschema.BoolAttribute{
+		Optional: true,
+		Description: "Acknowledge takeover of a unit that already holds state a destroy would drop. GitHub has no " +
+			"fresh-integrate path — the account always already exists (from the App install callback) before " +
+			"Terraform ever touches it — so unlike the other SCM resources, Create cannot gate this guard on mere " +
+			"existence; it would then require this on every apply. It instead refuses only when the account already " +
+			"has integrated repositories, attached policies, or a bound project. A later destroy DE-INTEGRATES it " +
+			"regardless of what it currently holds. Prefer `terraform import` to bring an existing account under " +
+			"management without a takeover write; set this to true only when you intend to manage (and eventually " +
+			"tear down) an integration you did not create here.",
+	}
 	return rschema.Schema{
 		Description: "Configures an existing Orca GitHub shift-left account/organization (default policies, scan mode, PR settings). " +
 			"This is the GitHub peer of `orcasecurity_shift_left_gitlab_group` and `orcasecurity_shift_left_azure_devops_account`. " +

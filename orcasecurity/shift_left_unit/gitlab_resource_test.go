@@ -39,6 +39,7 @@ func TestAccGitlabGroup_import(t *testing.T) {
 resource "orcasecurity_shift_left_gitlab_group" "t" {
   installation_id  = %q
   gitlab_group_id  = %d
+  adopt_existing   = true
   configuration_settings = {
     pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }

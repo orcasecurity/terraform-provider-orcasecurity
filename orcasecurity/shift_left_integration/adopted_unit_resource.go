@@ -87,20 +87,34 @@ func (o AdoptedUnitOps[A, M]) integrateBody(ctx context.Context, plan, config *M
 		ProjectIntentFrom(configFields.ProjectID, configFields.PoliciesIds))
 }
 
-// Block create when the existing unit has state a silent adopt would put at risk unless
-// adopt_existing=true — destroy would de-integrate it, dropping repos and any policy/project
-// binding along with it. A unit with none of these is indistinguishable from one nobody has
-// touched yet (e.g. a fresh SCM App install), so adopting it silently is safe.
+// Block create when adopting the existing unit would be a silent takeover, unless
+// adopt_existing=true — destroy would de-integrate it regardless of what it currently holds.
 //
+// hasIntegratePath distinguishes the two shapes this provider's SCMs come in:
+//   - GitLab/Azure DevOps/Bitbucket have a real Integrate (POST) path: the normal flow is
+//     discover a not-yet-integrated unit, then integrate it fresh via this resource. Get()
+//     returning non-nil here means some other actor (UI, API, an earlier run) already
+//     integrated it — that fact alone is the risk, independent of whether it currently holds
+//     repos/policies/project, so gate on existence.
+//   - GitHub has no Integrate path (Integrate == nil): the App install callback is itself the
+//     unit, so Get() finds it on every valid usage of this resource, always. Existence carries
+//     no signal there — gating on it would force adopt_existing=true onto every plain apply.
+//     Fall back to whether the unit actually holds state a destroy would drop.
+func guardAdopt(hasIntegratePath bool, existing api_client.ScmUnitCommonFields, adoptExisting types.Bool) bool {
+	if adoptExisting.ValueBool() {
+		return false
+	}
+	if hasIntegratePath {
+		return true
+	}
+	return hasAdoptableState(existing)
+}
+
 // DefaultPolicies is deliberately not part of this check: per the API, it is derived as true
 // whenever the unit has neither attached policies nor a project (see the default_policies
 // attribute doc in scm_schema.go) — it is not an independent stored value, so it never adds a
 // risk signal beyond what Policies/Project already cover, and checking it would make this guard
 // fire on every existing unit, blank or not.
-func guardAdopt(existing api_client.ScmUnitCommonFields, adoptExisting types.Bool) bool {
-	return hasAdoptableState(existing) && !adoptExisting.ValueBool()
-}
-
 func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
 	return existing.IntegratedRepositoriesCount > 0 ||
 		len(existing.Policies) > 0 ||
@@ -108,12 +122,16 @@ func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
 }
 
 func adoptGuardDetail(describe string, existing api_client.ScmUnitCommonFields) string {
+	detail := "already integrated in Orca"
+	if state := adoptableStateSummary(existing); state != "" {
+		detail += " with " + state
+	}
 	return fmt.Sprintf(
-		"%s is already integrated in Orca (%s) that may have been configured outside this Terraform resource. "+
-			"Applying would take over that integration, and a later `terraform destroy` would DE-INTEGRATE it — removing that state. "+
+		"%s is %s that may have been configured outside this Terraform resource. "+
+			"Applying would take over that integration, and a later `terraform destroy` would DE-INTEGRATE it. "+
 			"To bring this unit under management without a takeover write, import it instead of applying (terraform import). "+
 			"If you intend to manage (and eventually tear down) an integration you did not create here, set `adopt_existing = true`.",
-		describe, adoptableStateSummary(existing))
+		describe, detail)
 }
 
 // adoptableStateSummary describes what hasAdoptableState found, for the error message.
@@ -160,7 +178,7 @@ func (o AdoptedUnitOps[A, M]) DoCreate(ctx context.Context, req resource.CreateR
 	}
 	if existing != nil {
 		common := (*existing).Common()
-		if guardAdopt(common, o.Config(&plan).AdoptExisting) {
+		if guardAdopt(o.Integrate != nil, common, o.Config(&plan).AdoptExisting) {
 			resp.Diagnostics.AddError("Refusing to adopt an already-integrated unit", adoptGuardDetail(o.Describe(&plan), common))
 			return
 		}

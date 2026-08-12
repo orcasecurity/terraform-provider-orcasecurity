@@ -16,7 +16,7 @@ description: |-
 
 -> **Destroy:** `terraform destroy` DELETEs the integration; reinstall the Orca GitHub App to recover.
 
-!> **Adopt semantics:** Adopts a pre-existing account; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
+!> **Adopt semantics:** Always adopts a pre-existing account — GitHub has no fresh-integrate path, so the account already exists (from the App install callback) before Terraform ever touches it. Since that's true of every apply, existence alone can't gate the guard here: refuses only when the account already has integrated repositories, attached policies, or a bound project, unless `adopt_existing = true`. `destroy` de-integrates regardless of what it currently holds. Prefer `terraform import` to avoid a takeover write.
 
 -> **Coverage:** App install URL, GHES, browse repos, `check_availability`, and scan-now are not managed here.
 

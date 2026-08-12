@@ -14,32 +14,42 @@ import (
 
 func TestGuardAdopt(t *testing.T) {
 	tests := []struct {
-		name          string
-		existing      api_client.ScmUnitCommonFields
-		adoptExisting types.Bool
-		wantBlock     bool
+		name             string
+		hasIntegratePath bool
+		existing         api_client.ScmUnitCommonFields
+		adoptExisting    types.Bool
+		wantBlock        bool
 	}{
-		{"empty unit, flag unset: allow", api_client.ScmUnitCommonFields{}, types.BoolNull(), false},
-		{"empty unit, flag false: allow", api_client.ScmUnitCommonFields{}, types.BoolValue(false), false},
-		{"empty unit, flag true: allow", api_client.ScmUnitCommonFields{}, types.BoolValue(true), false},
-		{"has repos, flag unset: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolNull(), true},
-		{"has repos, flag false: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(false), true},
-		{"has repos, flag true: allow", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(true), false},
-		{"one repo, flag unset: block", api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 1}, types.BoolNull(), true},
-		{"no repos but attached policies, flag unset: block", api_client.ScmUnitCommonFields{Policies: []api_client.ScmPolicyRef{{ID: "p1"}}}, types.BoolNull(), true},
-		{"no repos but bound project, flag unset: block", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolNull(), true},
-		{"no repos but bound project, flag true: allow", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolValue(true), false},
+		// hasIntegratePath=true (GitLab/Azure DevOps/Bitbucket): existence alone blocks, since the
+		// normal flow is a fresh Integrate — Get() finding anything means it predates this apply.
+		{"has integrate path, empty unit, flag unset: block", true, api_client.ScmUnitCommonFields{}, types.BoolNull(), true},
+		{"has integrate path, empty unit, flag true: allow", true, api_client.ScmUnitCommonFields{}, types.BoolValue(true), false},
+		{"has integrate path, unit with repos, flag unset: block", true, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolNull(), true},
+		{"has integrate path, unit with repos, flag true: allow", true, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(true), false},
+
+		// hasIntegratePath=false (GitHub): no fresh-create path exists, so Get() finds the unit on
+		// every valid usage — existence carries no signal. Fall back to actual state at risk.
+		{"no integrate path, empty unit, flag unset: allow", false, api_client.ScmUnitCommonFields{}, types.BoolNull(), false},
+		{"no integrate path, empty unit, flag false: allow", false, api_client.ScmUnitCommonFields{}, types.BoolValue(false), false},
+		{"no integrate path, empty unit, flag true: allow", false, api_client.ScmUnitCommonFields{}, types.BoolValue(true), false},
+		{"no integrate path, has repos, flag unset: block", false, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolNull(), true},
+		{"no integrate path, has repos, flag false: block", false, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(false), true},
+		{"no integrate path, has repos, flag true: allow", false, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 3}, types.BoolValue(true), false},
+		{"no integrate path, one repo, flag unset: block", false, api_client.ScmUnitCommonFields{IntegratedRepositoriesCount: 1}, types.BoolNull(), true},
+		{"no integrate path, attached policies, flag unset: block", false, api_client.ScmUnitCommonFields{Policies: []api_client.ScmPolicyRef{{ID: "p1"}}}, types.BoolNull(), true},
+		{"no integrate path, bound project, flag unset: block", false, api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolNull(), true},
+		{"no integrate path, bound project, flag true: allow", false, api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolValue(true), false},
 
 		// default_policies alone is never a signal: the API derives it as true whenever there are
 		// no policies and no project (scm_schema.go's default_policies doc), for every SCM — so a
-		// unit with nothing else attached must stay adoptable, or every existing unit would need
-		// adopt_existing regardless of whether it's actually blank.
-		{"no repos, default_policies=true, nothing else attached: allow", api_client.ScmUnitCommonFields{DefaultPolicies: true}, types.BoolNull(), false},
+		// unit with nothing else attached must stay adoptable under the no-integrate-path fallback,
+		// or every existing GitHub unit would need adopt_existing regardless of whether it's blank.
+		{"no integrate path, default_policies=true, nothing else attached: allow", false, api_client.ScmUnitCommonFields{DefaultPolicies: true}, types.BoolNull(), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := guardAdopt(tt.existing, tt.adoptExisting); got != tt.wantBlock {
-				t.Errorf("guardAdopt(%+v, %v) = %v, want %v", tt.existing, tt.adoptExisting, got, tt.wantBlock)
+			if got := guardAdopt(tt.hasIntegratePath, tt.existing, tt.adoptExisting); got != tt.wantBlock {
+				t.Errorf("guardAdopt(%v, %+v, %v) = %v, want %v", tt.hasIntegratePath, tt.existing, tt.adoptExisting, got, tt.wantBlock)
 			}
 		})
 	}

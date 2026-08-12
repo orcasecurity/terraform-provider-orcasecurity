@@ -56,6 +56,7 @@ func TestScmUnitPlan_AdoptAllowsSelectedRepositories(t *testing.T) {
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{{
 			Config: stubConfig(`
+  adopt_existing    = true
   installation_mode = "SELECTED_REPOSITORIES"`),
 			Check: resource.TestCheckResourceAttr(stubResourceName, "installation_mode", "SELECTED_REPOSITORIES"),
 		}},

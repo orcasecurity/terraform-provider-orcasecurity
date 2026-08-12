@@ -16,7 +16,7 @@ description: |-
 
 -> **Destroy:** `terraform destroy` DELETEs the group and its integrated repositories.
 
-!> **Adopt semantics:** Adopts a pre-existing group; `destroy` de-integrates and drops repos. Refuses adopt when repos exist unless `adopt_existing = true`; prefer `terraform import` to avoid a takeover write.
+!> **Adopt semantics:** Adopting a group that already exists in Orca — as opposed to a fresh `integrate` of a not-yet-integrated group — refuses unless `adopt_existing = true`; `destroy` de-integrates and drops whatever it holds (repos, policies, settings). Prefer `terraform import` to avoid a takeover write.
 
 -> **Coverage:** Browse groups, `check_availability`, and scan-now are not managed here.
 
