@@ -256,7 +256,7 @@ func (r *shiftLeftPolicyResource) rollbackCreatedPolicy(ctx context.Context, pol
 		return
 	}
 	tflog.Info(ctx, fmt.Sprintf("Rolling back AppSec policy %s/%s after a failed create", policyType, policyID))
-	if err := r.apiClient.DeleteShiftLeftPolicy(policyType, policyID); err != nil {
+	if err := r.deletePolicy(ctx, policyType, policyID); err != nil {
 		diags.AddWarning(
 			"Orphaned AppSec policy",
 			fmt.Sprintf("Policy %s/%s was created but the apply failed afterwards, and deleting it during "+
@@ -476,14 +476,7 @@ func (r *shiftLeftPolicyResource) Delete(ctx context.Context, req resource.Delet
 	policyType := state.Type.ValueString()
 	policyID := state.ID.ValueString()
 
-	err := r.apiClient.DeleteShiftLeftPolicy(policyType, policyID)
-	if err != nil && isLastActivePolicyError(err) {
-		err = r.deleteAfterDetach(ctx, policyType, policyID, err)
-	}
-	if err != nil {
-		if strings.Contains(err.Error(), "404") {
-			return
-		}
+	if err := r.deletePolicy(ctx, policyType, policyID); err != nil {
 		if isLastActivePolicyError(err) {
 			resp.Diagnostics.AddError(
 				"Cannot delete the last active policy of a project",
@@ -496,6 +489,21 @@ func (r *shiftLeftPolicyResource) Delete(ctx context.Context, req resource.Delet
 		}
 		resp.Diagnostics.AddError("Error deleting AppSec policy", "Could not delete policy: "+err.Error())
 	}
+}
+
+// deletePolicy is the single way this resource removes a policy. Both the user's destroy and
+// Create's rollback go through it, because the API's refusals are properties of deleting a policy,
+// not of the destroy the user asked for: the last-active guard runs on every delete, and a policy
+// already gone counts as deleted whoever is removing it.
+func (r *shiftLeftPolicyResource) deletePolicy(ctx context.Context, policyType, policyID string) error {
+	err := r.apiClient.DeleteShiftLeftPolicy(policyType, policyID)
+	if err != nil && isLastActivePolicyError(err) {
+		err = r.deleteAfterDetach(ctx, policyType, policyID, err)
+	}
+	if err == nil || strings.Contains(err.Error(), "404") {
+		return nil
+	}
+	return err
 }
 
 func isLastActivePolicyError(err error) bool {
