@@ -64,6 +64,17 @@ func (client *APIClient) SetShiftLeftPolicyProjects(policyType, id string, proje
 	return err
 }
 
+// AttachAllShiftLeftPolicyProjects attaches every project in the org. The API resolves the set
+// server-side, so no enumeration is needed and no project can be missed between read and write.
+// projects_ids must be absent from the body — sending both is a 400.
+func (client *APIClient) AttachAllShiftLeftPolicyProjects(policyType, id string) error {
+	body := struct {
+		AttachAll bool `json:"attach_all"`
+	}{AttachAll: true}
+	_, err := client.Put(shiftLeftPolicyProjectsPath(policyType, id), body)
+	return err
+}
+
 func (p *ShiftLeftPolicy) populateProjectsIds() {
 	if len(p.ProjectsIds) > 0 || len(p.Projects) == 0 {
 		return

@@ -132,6 +132,7 @@ type shiftLeftPolicyResourceModel struct {
 	WarnMode                 types.Bool   `tfsdk:"warn_mode"`
 	PriorityFailureThreshold types.String `tfsdk:"priority_failure_threshold"`
 	ProjectsIds              types.List   `tfsdk:"projects_ids"`
+	AttachAllProjects        types.Bool   `tfsdk:"attach_all_projects"`
 	Builtin                  types.Bool   `tfsdk:"builtin"`
 
 	Iac                       *iacBlockModel            `tfsdk:"iac"`

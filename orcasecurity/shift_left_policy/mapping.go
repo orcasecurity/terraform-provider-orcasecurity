@@ -116,6 +116,11 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		ProjectsIds:              tfconv.StringSliceToListPreserveNull(priorProjects, orderedProjects),
 		Builtin:                  types.BoolValue(apiPolicy.Builtin),
 	}
+	// attach_all_projects is a write-time instruction the API never echoes back, so its only
+	// source of truth is the prior state.
+	if existing != nil {
+		model.AttachAllProjects = existing.AttachAllProjects
+	}
 	if apiPolicy.PriorityFailureThreshold == "" && existing != nil &&
 		tfconv.Known(existing.PriorityFailureThreshold) {
 		model.PriorityFailureThreshold = existing.PriorityFailureThreshold

@@ -147,6 +147,31 @@ resource "orcasecurity_shift_left_policy" "attached" {
 }
 ```
 
+### Attach a policy to every project in the organization
+
+Set `attach_all_projects = true` instead of enumerating IDs from the
+`orcasecurity_shift_left_projects` data source. The API resolves the set
+server-side, so no project can be missed between plan and apply, and there is no
+first-page limit. Projects added in Orca later are attached by the next apply,
+which plans a change while the recorded `projects_ids` is out of date.
+
+`attach_all_projects` is mutually exclusive with `projects_ids`, is not supported
+for `scm_posture`, and requires an unscoped API token -- the API returns 403 for
+project-scoped callers.
+
+```terraform
+resource "orcasecurity_shift_left_policy" "malicious_packages_all" {
+  type                       = "malicious_packages"
+  name                       = "Malicious packages - all projects"
+  description                = "Managed by Terraform"
+  disabled                   = false
+  warn_mode                  = false
+  priority_failure_threshold = "HIGH"
+
+  attach_all_projects = true
+}
+```
+
 ### Attach a fleet of projects to a built-in policy
 
 Built-in Orca policies (for example the built-in "OSS Licenses Policy") cannot be
@@ -215,6 +240,7 @@ resource "orcasecurity_shift_left_policy" "malicious_packages_builtin" {
 
 - **Update**: change any attribute (for example `name`, `description`, `warn_mode`, `priority_failure_threshold`, `disabled`, `projects_ids`, or the controls) and re-apply.
 - **Delete**: remove the resource from configuration (or run `terraform destroy`) and apply.
+- **Last active policy of a project**: Orca refuses to delete, disable, or detach a policy when doing so would leave a project with no active policy of that type. Destroy retries once after detaching the policy, which clears the cases the API itself permits (notably an already-disabled policy). When the detach is refused too, no route is available and the error names the blocking projects: attach another active policy of the same type to them (or delete those projects), then re-run. Most likely to come up with `attach_all_projects`.
 - **Built-in policies**: `name` is immutable (`feature_scope` too on `container_image`); other attributes can change. Never deletable via Terraform. `scm_posture` has no projects endpoint — use `scm_posture.scope`. The org-wide built-in `scm_posture` policy is owned by `orcasecurity_shift_left_scm_posture_default_policy` (see Import note).
 
 ## Import
@@ -248,6 +274,7 @@ After importing, run `terraform plan` and copy the populated control blocks into
 
 ### Optional
 
+- `attach_all_projects` (Boolean) Attach this policy to every project in the organization, resolved by the API on each apply. Use this instead of enumerating IDs from the `orcasecurity_shift_left_projects` data source: the set is computed server-side, so a project created between plan and apply cannot be missed. Mutually exclusive with `projects_ids`. Projects added in Orca later are attached by the next apply, which plans a change while `projects_ids` is out of date. Requires an unscoped API token — the API returns 403 for project-scoped callers. Not supported for `scm_posture`.
 - `container_image` (Block, Optional) (see [below for nested schema](#nestedblock--container_image))
 - `description` (String) Policy description.
 - `file_system` (Block, Optional) (see [below for nested schema](#nestedblock--file_system))

@@ -201,3 +201,58 @@ func TestGetShiftLeftPolicyCatalogControls(t *testing.T) {
 		t.Error("expected catalog body in response")
 	}
 }
+
+func TestAttachAllShiftLeftPolicyProjects_SendsAttachAllWithoutProjectsIds(t *testing.T) {
+	var body map[string]any
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		if req.Method != "PUT" {
+			t.Errorf("expected PUT, got %s", req.Method)
+		}
+		if req.URL.Path != "/api/shiftleft/iac/policies/policy-123/projects/" {
+			t.Errorf("unexpected path: %s", req.URL.Path)
+		}
+		raw, _ := io.ReadAll(req.Body)
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("unmarshal request body: %v", err)
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"id":"policy-123","projects":[{"id":"proj-1"}]}`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	if err := client.AttachAllShiftLeftPolicyProjects("iac", "policy-123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if body["attach_all"] != true {
+		t.Errorf("expected attach_all=true, got %#v", body["attach_all"])
+	}
+	// The API rejects a body carrying both keys with a 400.
+	if _, present := body["projects_ids"]; present {
+		t.Errorf("projects_ids must be absent when attach_all is sent, got %#v", body)
+	}
+}
+
+func TestSetShiftLeftPolicyProjects_DoesNotSendAttachAll(t *testing.T) {
+	var body map[string]any
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		raw, _ := io.ReadAll(req.Body)
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("unmarshal request body: %v", err)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"id":"policy-123"}`))}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	if err := client.SetShiftLeftPolicyProjects("iac", "policy-123", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, present := body["attach_all"]; present {
+		t.Errorf("attach_all must be absent on the projects_ids path, got %#v", body)
+	}
+	ids, ok := body["projects_ids"].([]any)
+	if !ok || len(ids) != 0 {
+		t.Errorf("expected an empty projects_ids list (detach-all), got %#v", body["projects_ids"])
+	}
+}

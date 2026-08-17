@@ -89,3 +89,76 @@ func configWith(t *testing.T, sch fwschema.Schema, model shiftLeftPolicyResource
 	}
 	return tfsdk.Config{Schema: sch, Raw: st.Raw}
 }
+
+func TestValidateConfig_AttachAllProjectsConflictsWithProjectsIds(t *testing.T) {
+	resp := validateConfig(t, shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("iac"),
+		Name:                     types.StringValue("iac"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		AttachAllProjects:        types.BoolValue(true),
+		ProjectsIds: types.ListValueMust(types.StringType, []attr.Value{
+			types.StringValue("proj-1"),
+		}),
+	})
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected error for attach_all_projects + projects_ids")
+	}
+	detail := resp.Diagnostics.Errors()[0].Detail()
+	if !strings.Contains(detail, "attach_all_projects") || !strings.Contains(detail, "projects_ids") {
+		t.Fatalf("unexpected detail: %s", detail)
+	}
+}
+
+func TestValidateConfig_AttachAllProjectsAloneIsAllowed(t *testing.T) {
+	resp := validateConfig(t, shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("malicious_packages"),
+		Name:                     types.StringValue("mp"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		AttachAllProjects:        types.BoolValue(true),
+		ProjectsIds:              types.ListNull(types.StringType),
+	})
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error for attach_all_projects alone: %v", resp.Diagnostics)
+	}
+}
+
+// attach_all_projects = false is inert, so it must not collide with an explicit list.
+func TestValidateConfig_AttachAllProjectsFalseAllowsProjectsIds(t *testing.T) {
+	resp := validateConfig(t, shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("iac"),
+		Name:                     types.StringValue("iac"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		AttachAllProjects:        types.BoolValue(false),
+		ProjectsIds: types.ListValueMust(types.StringType, []attr.Value{
+			types.StringValue("proj-1"),
+		}),
+	})
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error for attach_all_projects=false + projects_ids: %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_ScmPostureRejectsAttachAllProjects(t *testing.T) {
+	resp := validateConfig(t, shiftLeftPolicyResourceModel{
+		Type:                     types.StringValue("scm_posture"),
+		Name:                     types.StringValue("scm"),
+		Disabled:                 types.BoolValue(false),
+		WarnMode:                 types.BoolValue(false),
+		PriorityFailureThreshold: types.StringValue("HIGH"),
+		AttachAllProjects:        types.BoolValue(true),
+		ProjectsIds:              types.ListNull(types.StringType),
+	})
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected error for scm_posture + attach_all_projects")
+	}
+	detail := resp.Diagnostics.Errors()[0].Detail()
+	if !strings.Contains(detail, "attach_all_projects") || !strings.Contains(detail, "scm_posture") {
+		t.Fatalf("unexpected detail: %s", detail)
+	}
+}

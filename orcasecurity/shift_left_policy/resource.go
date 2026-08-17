@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -19,6 +20,7 @@ var (
 	_ resource.ResourceWithConfigure      = &shiftLeftPolicyResource{}
 	_ resource.ResourceWithImportState    = &shiftLeftPolicyResource{}
 	_ resource.ResourceWithValidateConfig = &shiftLeftPolicyResource{}
+	_ resource.ResourceWithModifyPlan     = &shiftLeftPolicyResource{}
 )
 
 type shiftLeftPolicyResource struct {
@@ -58,7 +60,27 @@ func (r *shiftLeftPolicyResource) ValidateConfig(ctx context.Context, req resour
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if config.Type.IsUnknown() || config.ProjectsIds.IsUnknown() {
+	attachAll := tfconv.BoolIsTrue(config.AttachAllProjects)
+	if attachAll && !config.ProjectsIds.IsNull() && !config.ProjectsIds.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("attach_all_projects"),
+			"Conflicting project attachment",
+			"attach_all_projects and projects_ids cannot both be set — the API rejects a request carrying both. "+
+				"Use attach_all_projects to attach every project in the organization, or projects_ids to attach a specific set.",
+		)
+	}
+	if config.Type.IsUnknown() {
+		return
+	}
+	if config.Type.ValueString() == "scm_posture" && attachAll {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("attach_all_projects"),
+			"Unsupported attribute for scm_posture",
+			"scm_posture policies cannot use attach_all_projects — the API has no project-attachment endpoint for this type. "+
+				"Scope them with scm_posture.scope (installation/unit IDs) instead.",
+		)
+	}
+	if config.ProjectsIds.IsUnknown() {
 		return
 	}
 	if config.Type.ValueString() == "scm_posture" && !config.ProjectsIds.IsNull() {
@@ -69,6 +91,64 @@ func (r *shiftLeftPolicyResource) ValidateConfig(ctx context.Context, req resour
 				"Scope them with scm_posture.scope (installation/unit IDs) instead.",
 		)
 	}
+}
+
+// ModifyPlan keeps attach_all_projects honest across applies. The API resolves the project set at
+// request time, so a project created in Orca after the last apply is not attached yet even though
+// nothing in the configuration changed. Comparing the attached set in state against the live project
+// list turns that into a planned change; leaving projects_ids unknown (rather than planning the
+// enumerated list) means a project created between plan and apply widens the set without tripping
+// Terraform's "provider produced inconsistent result" check.
+func (r *shiftLeftPolicyResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return // destroy, or create (projects_ids is already unknown)
+	}
+
+	var plan shiftLeftPolicyResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() || !tfconv.BoolIsTrue(plan.AttachAllProjects) {
+		return
+	}
+
+	var state shiftLeftPolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projects, err := r.apiClient.ListShiftLeftProjects()
+	if err != nil {
+		// A plan must not fail because the project list is momentarily unavailable. Re-attaching is
+		// idempotent, so the safe fallback is to plan the attach and let apply resolve the real set.
+		resp.Diagnostics.AddWarning(
+			"Could not check for newly added projects",
+			fmt.Sprintf("Listing organization projects to plan attach_all_projects failed: %s. "+
+				"Planning the attachment anyway; it is a no-op when every project is already attached.", err.Error()),
+		)
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("projects_ids"), types.ListUnknown(types.StringType))...)
+		return
+	}
+
+	if attachedEveryProject(tfconv.ListToStringSlice(state.ProjectsIds), projects) {
+		return
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("projects_ids"), types.ListUnknown(types.StringType))...)
+}
+
+// attachedEveryProject reports whether attached already covers every project the org has. It ignores
+// extras on either side of the comparison's direction that don't matter: a project deleted in Orca
+// still lingering in state is not a reason to re-attach.
+func attachedEveryProject(attached []string, projects []api_client.ShiftLeftProjectSummary) bool {
+	have := make(map[string]bool, len(attached))
+	for _, id := range attached {
+		have[id] = true
+	}
+	for _, project := range projects {
+		if !have[project.ID] {
+			return false
+		}
+	}
+	return true
 }
 
 func parseImportID(id string) (policyType, policyID string, err error) {
@@ -143,12 +223,10 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	// Attaching projects is a second call against the policy created above. Terraform records no
 	// state when Create reports an error, so anything that fails from here on has to take the new
 	// policy with it — otherwise it survives untracked and the next apply creates a duplicate.
-	if !plan.ProjectsIds.IsNull() && !plan.ProjectsIds.IsUnknown() {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(plan.ProjectsIds)); err != nil {
-			r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
-			resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
-			return
-		}
+	if err := r.syncProjects(&plan, policyType, policyID); err != nil {
+		r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
+		resp.Diagnostics.AddError("Error setting AppSec policy projects", err.Error())
+		return
 	}
 
 	// Always re-read: create responses can echo an empty scm_posture scope even when the request
@@ -263,8 +341,25 @@ func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 }
 
-// projectsIdsChanged is true when plan has a known projects list that differs from state.
+// syncProjects applies the plan's project attachment. attach_all_projects delegates the set to the
+// API; otherwise a known list is sent verbatim and null/unknown leaves the attachment untouched.
+func (r *shiftLeftPolicyResource) syncProjects(plan *shiftLeftPolicyResourceModel, policyType, policyID string) error {
+	if tfconv.BoolIsTrue(plan.AttachAllProjects) {
+		return r.apiClient.AttachAllShiftLeftPolicyProjects(policyType, policyID)
+	}
+	if !tfconv.Known(plan.ProjectsIds) {
+		return nil
+	}
+	return r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(plan.ProjectsIds))
+}
+
+// projectsIdsChanged is true when the attachment needs a write: attach_all_projects re-resolves the
+// set server-side on every apply that reaches Update (ModifyPlan only plans one when it is stale),
+// otherwise a known projects list that differs from state.
 func projectsIdsChanged(plan, state *shiftLeftPolicyResourceModel) bool {
+	if tfconv.BoolIsTrue(plan.AttachAllProjects) {
+		return true
+	}
 	if !tfconv.Known(plan.ProjectsIds) {
 		return false
 	}
@@ -319,7 +414,7 @@ func (r *shiftLeftPolicyResource) Update(ctx context.Context, req resource.Updat
 	// unchanged set is a needless detach/reattach on every apply.
 	projectsChanged := projectsIdsChanged(&plan, &state)
 	if projectsChanged {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(plan.ProjectsIds)); err != nil {
+		if err := r.syncProjects(&plan, policyType, policyID); err != nil {
 			// Body PUT already landed; restore the prior body so live matches the still-current state.
 			r.restorePriorPolicy(ctx, &state, false, &resp.Diagnostics)
 			resp.Diagnostics.AddError("Error updating AppSec policy projects", err.Error())
@@ -378,11 +473,44 @@ func (r *shiftLeftPolicyResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
-	err := r.apiClient.DeleteShiftLeftPolicy(state.Type.ValueString(), state.ID.ValueString())
+	policyType := state.Type.ValueString()
+	policyID := state.ID.ValueString()
+
+	err := r.apiClient.DeleteShiftLeftPolicy(policyType, policyID)
+	if err != nil && isLastActivePolicyError(err) {
+		err = r.deleteAfterDetach(ctx, policyType, policyID, err)
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "404") {
 			return
 		}
+		if isLastActivePolicyError(err) {
+			resp.Diagnostics.AddError(
+				"Cannot delete the last active policy of a project",
+				"Orca refuses to leave a project without an active policy, and it rejects detaching the policy for "+
+					"the same reason, so Terraform cannot resolve this on its own. Attach another active policy of "+
+					"type "+policyType+" to the projects named below (or delete those projects) and re-run. "+
+					"API response: "+err.Error(),
+			)
+			return
+		}
 		resp.Diagnostics.AddError("Error deleting AppSec policy", "Could not delete policy: "+err.Error())
 	}
+}
+
+func isLastActivePolicyError(err error) bool {
+	return strings.Contains(err.Error(), "last active policy")
+}
+
+// deleteAfterDetach retries a delete the API refused as a project's last active policy, detaching
+// the policy first. This bypasses nothing: the API applies the same guard to the detach, and rejects
+// it whenever removing the policy would really leave a project unprotected. It succeeds only in the
+// cases the API itself allows — most usefully a policy that is already disabled, which the delete
+// guard flags even though a disabled policy is not what keeps a project active.
+func (r *shiftLeftPolicyResource) deleteAfterDetach(ctx context.Context, policyType, policyID string, deleteErr error) error {
+	tflog.Info(ctx, fmt.Sprintf("Delete of AppSec policy %s/%s was refused as a project's last active policy; retrying after a detach", policyType, policyID))
+	if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, nil); err != nil {
+		return deleteErr // report the original refusal; the detach hit the same guard
+	}
+	return r.apiClient.DeleteShiftLeftPolicy(policyType, policyID)
 }

@@ -280,6 +280,15 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 				listplanmodifier.UseStateForUnknown(),
 			},
 		},
+		"attach_all_projects": schema.BoolAttribute{
+			Optional: true,
+			Description: "Attach this policy to every project in the organization, resolved by the API on each apply. " +
+				"Use this instead of enumerating IDs from the `orcasecurity_shift_left_projects` data source: the set is " +
+				"computed server-side, so a project created between plan and apply cannot be missed. Mutually exclusive with " +
+				"`projects_ids`. Projects added in Orca later are attached by the next apply, which plans a change while " +
+				"`projects_ids` is out of date. Requires an unscoped API token — the API returns 403 for project-scoped callers. " +
+				"Not supported for `scm_posture`.",
+		},
 		"builtin": schema.BoolAttribute{
 			Computed: true,
 			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable. " +
