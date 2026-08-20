@@ -228,8 +228,8 @@ func TestAttachAllShiftLeftPolicyProjects_SendsAttachAllProjectsWithoutProjectsI
 	if body["attach_all_projects"] != true {
 		t.Errorf("expected attach_all_projects=true, got %#v", body["attach_all_projects"])
 	}
-	// The pre-rename key is read via initial_data.get, so the API ignores it silently
-	// instead of 400-ing — sending it would attach nothing with no error to surface.
+	// The pre-rename key is not a declared field, so the endpoint drops it and then rejects the
+	// body for a missing projects_ids — every attach would 400 until this key is corrected.
 	if _, present := body["attach_all"]; present {
 		t.Errorf("the pre-rename attach_all key must not be sent, got %#v", body)
 	}

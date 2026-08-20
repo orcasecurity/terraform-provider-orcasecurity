@@ -2,7 +2,7 @@ package shift_left_policy_test
 
 // attach_all_projects delegates the project set to the API instead of enumerating IDs. Driven
 // against a stateful stub so the whole plan/apply loop is exercised: the request must carry
-// attach_all and no projects_ids, a settled set must plan clean, and a project appearing in the
+// attach_all_projects and no projects_ids, a settled set must plan clean, and a project appearing in the
 // org afterwards must plan and apply a re-attach. Stub uses malicious_packages (no catalog).
 
 import (
@@ -23,7 +23,7 @@ import (
 
 type attachAllStub struct {
 	mu sync.Mutex
-	// orgProjects is what GET /api/shiftleft/projects/ reports; attach_all resolves against it.
+	// orgProjects is what GET /api/shiftleft/projects/ reports; attach_all_projects resolves against it.
 	orgProjects []string
 	attached    []string
 	attachAlls  int
@@ -69,19 +69,25 @@ func (s *attachAllStub) handleProjectsPut(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// Mirror the API's 400 on a body carrying both keys, so a regression here fails loudly.
+	// Mirror PolicyProjectsSerializer.validate: both keys together is a 400, and so is neither,
+	// because projects_ids is only optional while attach_all_projects is true. A regression to the
+	// pre-rename attach_all key lands in the second branch — an unknown key is dropped, leaving a
+	// body the endpoint reads as empty — so a stale key fails loudly instead of detaching all.
 	_, hasIDs := body["projects_ids"]
-	if body["attach_all_projects"] == true && hasIDs {
-		http.Error(w, `{"detail":"projects_ids must not be provided when attach_all_projects is True."}`, http.StatusBadRequest)
+	attachAll := body["attach_all_projects"] == true
+	if attachAll && hasIDs {
+		http.Error(w, `{"errors":{"projects_ids":["projects_ids must not be provided when attach_all_projects is True."]}}`, http.StatusBadRequest)
 		return
 	}
-	// The pre-rename attach_all key is not a declared field: the API ignores it silently and
-	// attaches nothing. Reproduce that, so a stale key surfaces as an empty set, not a 400.
+	if !attachAll && !hasIDs {
+		http.Error(w, `{"errors":{"projects_ids":["This field is required."]}}`, http.StatusBadRequest)
+		return
+	}
 
 	s.mu.Lock()
 	s.lastBody = body
 	switch {
-	case body["attach_all_projects"] == true:
+	case attachAll:
 		s.attachAlls++
 		s.attached = append([]string(nil), s.orgProjects...)
 	case hasIDs:
