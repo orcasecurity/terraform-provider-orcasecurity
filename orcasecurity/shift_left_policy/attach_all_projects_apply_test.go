@@ -71,15 +71,17 @@ func (s *attachAllStub) handleProjectsPut(w http.ResponseWriter, r *http.Request
 	}
 	// Mirror the API's 400 on a body carrying both keys, so a regression here fails loudly.
 	_, hasIDs := body["projects_ids"]
-	if body["attach_all"] == true && hasIDs {
-		http.Error(w, `{"detail":"projects_ids must not be provided when attach_all is True."}`, http.StatusBadRequest)
+	if body["attach_all_projects"] == true && hasIDs {
+		http.Error(w, `{"detail":"projects_ids must not be provided when attach_all_projects is True."}`, http.StatusBadRequest)
 		return
 	}
+	// The pre-rename attach_all key is not a declared field: the API ignores it silently and
+	// attaches nothing. Reproduce that, so a stale key surfaces as an empty set, not a 400.
 
 	s.mu.Lock()
 	s.lastBody = body
 	switch {
-	case body["attach_all"] == true:
+	case body["attach_all_projects"] == true:
 		s.attachAlls++
 		s.attached = append([]string(nil), s.orgProjects...)
 	case hasIDs:

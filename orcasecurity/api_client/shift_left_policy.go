@@ -69,8 +69,8 @@ func (client *APIClient) SetShiftLeftPolicyProjects(policyType, id string, proje
 // projects_ids must be absent from the body — sending both is a 400.
 func (client *APIClient) AttachAllShiftLeftPolicyProjects(policyType, id string) error {
 	body := struct {
-		AttachAll bool `json:"attach_all"`
-	}{AttachAll: true}
+		AttachAllProjects bool `json:"attach_all_projects"`
+	}{AttachAllProjects: true}
 	_, err := client.Put(shiftLeftPolicyProjectsPath(policyType, id), body)
 	return err
 }

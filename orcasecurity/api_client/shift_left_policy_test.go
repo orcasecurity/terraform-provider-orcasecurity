@@ -202,7 +202,7 @@ func TestGetShiftLeftPolicyCatalogControls(t *testing.T) {
 	}
 }
 
-func TestAttachAllShiftLeftPolicyProjects_SendsAttachAllWithoutProjectsIds(t *testing.T) {
+func TestAttachAllShiftLeftPolicyProjects_SendsAttachAllProjectsWithoutProjectsIds(t *testing.T) {
 	var body map[string]any
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "PUT" {
@@ -225,16 +225,21 @@ func TestAttachAllShiftLeftPolicyProjects_SendsAttachAllWithoutProjectsIds(t *te
 	if err := client.AttachAllShiftLeftPolicyProjects("iac", "policy-123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if body["attach_all"] != true {
-		t.Errorf("expected attach_all=true, got %#v", body["attach_all"])
+	if body["attach_all_projects"] != true {
+		t.Errorf("expected attach_all_projects=true, got %#v", body["attach_all_projects"])
+	}
+	// The pre-rename key is read via initial_data.get, so the API ignores it silently
+	// instead of 400-ing — sending it would attach nothing with no error to surface.
+	if _, present := body["attach_all"]; present {
+		t.Errorf("the pre-rename attach_all key must not be sent, got %#v", body)
 	}
 	// The API rejects a body carrying both keys with a 400.
 	if _, present := body["projects_ids"]; present {
-		t.Errorf("projects_ids must be absent when attach_all is sent, got %#v", body)
+		t.Errorf("projects_ids must be absent when attach_all_projects is sent, got %#v", body)
 	}
 }
 
-func TestSetShiftLeftPolicyProjects_DoesNotSendAttachAll(t *testing.T) {
+func TestSetShiftLeftPolicyProjects_DoesNotSendAttachAllProjects(t *testing.T) {
 	var body map[string]any
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		raw, _ := io.ReadAll(req.Body)
@@ -248,8 +253,8 @@ func TestSetShiftLeftPolicyProjects_DoesNotSendAttachAll(t *testing.T) {
 	if err := client.SetShiftLeftPolicyProjects("iac", "policy-123", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, present := body["attach_all"]; present {
-		t.Errorf("attach_all must be absent on the projects_ids path, got %#v", body)
+	if _, present := body["attach_all_projects"]; present {
+		t.Errorf("attach_all_projects must be absent on the projects_ids path, got %#v", body)
 	}
 	ids, ok := body["projects_ids"].([]any)
 	if !ok || len(ids) != 0 {
