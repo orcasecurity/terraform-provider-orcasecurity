@@ -8,11 +8,6 @@ import (
 
 const crownJewelsAPIPath = "/api/attack_paths/crown_jewels"
 
-// crownJewelsUserMarkedPath requests only user-marked rows. The list default is
-// source=all; once the source-aware backend ships, that would include
-// Orca-detected rows with a null description and break Required reads.
-const crownJewelsUserMarkedPath = crownJewelsAPIPath + "?source=user-marked"
-
 // DefaultCrownJewelTimeout is the create/update/delete HTTP timeout when the
 // resource timeouts block is omitted. POST/DELETE return only after attack-path
 // score and inventory sync, which often exceeds defaultHTTPTimeout. Combined
@@ -44,11 +39,9 @@ func (client *APIClient) crownJewelWriteClient(timeout time.Duration) *APIClient
 }
 
 // GetCrownJewel looks up one user-defined crown jewel by group_unique_id.
-//
-// The list is a single unpaginated GET. source=user-marked keeps Orca-detected
-// rows (null description) out of the match once that list mode is enabled.
+// The list is a single unpaginated GET (same path and no query as the UI).
 func (client *APIClient) GetCrownJewel(groupUniqueID string) (*CrownJewel, error) {
-	resp, err := client.Get(crownJewelsUserMarkedPath)
+	resp, err := client.Get(crownJewelsAPIPath)
 	if err != nil {
 		return nil, err
 	}

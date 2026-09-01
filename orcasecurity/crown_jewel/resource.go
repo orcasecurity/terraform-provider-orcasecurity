@@ -72,6 +72,7 @@ func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaReques
 		Description: "Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). " +
 			"The asset is identified by `group_unique_id` and must exist in inventory. Create fails if the asset " +
 			"is already user-marked — import first to adopt it. Orca-detected assets can still be marked. " +
+			"Create also needs permission to query inventory (`POST /api/serving-layer/query`). " +
 			"Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -94,9 +95,8 @@ func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaReques
 			},
 			"description": schema.StringAttribute{
 				Description: "Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI " +
-					"(\"Mark as Crown Jewel\"). UI presets are `Data: Personal identifiable information`, " +
-					"`Access: Broad permission access`, `Access: Secrets exposure`, `Data: Intellectual property`, " +
-					"`Data: Financial information`, or Other (free text, max 50 characters).",
+					"(\"Mark as Crown Jewel\"). UI presets are `Critical business function`, `Customer data`, " +
+					"`High blast radius`, or Other (free text, max 50 characters).",
 				Required: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),

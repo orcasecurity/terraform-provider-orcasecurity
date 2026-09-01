@@ -2,15 +2,12 @@ package api_client
 
 const servingLayerQueryPath = "/api/serving-layer/query"
 
-// InventoryGroup is a serving-layer inventory row keyed by group_unique_id.
-type InventoryGroup struct {
-	GroupUniqueID string
-}
+// InventoryGroup is a sentinel that the id exists in inventory.
+type InventoryGroup struct{}
 
 type servingLayerQueryRequest struct {
-	Query  servingLayerObjectSet `json:"query"`
-	Limit  int                   `json:"limit"`
-	Select []string              `json:"select"`
+	Query servingLayerObjectSet `json:"query"`
+	Limit int                   `json:"limit"`
 }
 
 type servingLayerObjectSet struct {
@@ -27,15 +24,12 @@ type servingLayerFilter struct {
 }
 
 type servingLayerQueryResponse struct {
-	Data []servingLayerRow `json:"data"`
-}
-
-type servingLayerRow struct {
-	GroupUniqueID string `json:"group_unique_id"`
+	Data []struct{} `json:"data"`
 }
 
 // GetInventoryGroup looks up one inventory group via serving-layer query.
-// Returns nil, nil when the id is not in inventory.
+// Returns nil, nil when the id is not in inventory. Row payload shape is ignored;
+// existence is len(data) > 0.
 func (client *APIClient) GetInventoryGroup(groupUniqueID string) (*InventoryGroup, error) {
 	resp, err := client.Post(servingLayerQueryPath, servingLayerQueryRequest{
 		Query: servingLayerObjectSet{
@@ -48,8 +42,7 @@ func (client *APIClient) GetInventoryGroup(groupUniqueID string) (*InventoryGrou
 				Values:   []string{groupUniqueID},
 			},
 		},
-		Limit:  1,
-		Select: []string{"GroupUniqueId"},
+		Limit: 1,
 	})
 	if err != nil {
 		return nil, err
@@ -61,9 +54,5 @@ func (client *APIClient) GetInventoryGroup(groupUniqueID string) (*InventoryGrou
 	if len(payload.Data) == 0 {
 		return nil, nil
 	}
-	g := &InventoryGroup{GroupUniqueID: payload.Data[0].GroupUniqueID}
-	if g.GroupUniqueID == "" {
-		g.GroupUniqueID = groupUniqueID
-	}
-	return g, nil
+	return &InventoryGroup{}, nil
 }

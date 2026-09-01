@@ -73,6 +73,9 @@ func TestSchemaContracts(t *testing.T) {
 	if !strings.Contains(sch.Description, "user-marked") {
 		t.Errorf("schema Description must mention already user-marked create, got %q", sch.Description)
 	}
+	if !strings.Contains(sch.Description, "/api/serving-layer/query") {
+		t.Errorf("schema Description must mention serving-layer query permission, got %q", sch.Description)
+	}
 
 	attrs := sch.Attributes
 
@@ -84,6 +87,14 @@ func TestSchemaContracts(t *testing.T) {
 	desc, ok := attrs["description"].(schema.StringAttribute)
 	if !ok || !desc.Required || desc.Optional || len(desc.Validators) < 2 {
 		t.Errorf("description must be Required with length+non-whitespace validators, got %#v", attrs["description"])
+	}
+	if !strings.Contains(desc.Description, "Critical business function") ||
+		!strings.Contains(desc.Description, "Customer data") ||
+		!strings.Contains(desc.Description, "High blast radius") {
+		t.Errorf("description schema must list Mark-as-Crown-Jewel presets, got %q", desc.Description)
+	}
+	if strings.Contains(desc.Description, "Personal identifiable information") {
+		t.Errorf("description schema must not list Orca-detected reason labels, got %q", desc.Description)
 	}
 
 	id, ok := attrs["id"].(schema.StringAttribute)
@@ -296,7 +307,7 @@ func TestCreate_OrcaDetectedSucceeds(t *testing.T) {
 		switch {
 		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
 			if posted {
-				return jsonOK(req, `[{"group_unique_id":"vm_orca","description":"Data: Financial information"}]`)
+				return jsonOK(req, `[{"group_unique_id":"vm_orca","description":"Customer data"}]`)
 			}
 			return jsonOK(req, `[]`)
 		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
@@ -319,7 +330,7 @@ func TestCreate_OrcaDetectedSucceeds(t *testing.T) {
 	plan := resourceModel{
 		ID:            types.StringUnknown(),
 		GroupUniqueID: types.StringValue("vm_orca"),
-		Description:   types.StringValue("Data: Financial information"),
+		Description:   types.StringValue("Customer data"),
 	}
 	req := resource.CreateRequest{Plan: planWith(t, sch, plan)}
 	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}

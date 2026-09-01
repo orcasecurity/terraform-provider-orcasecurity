@@ -27,12 +27,12 @@ func TestAccCrownJewelResource_Basic(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "Data: Financial information"
+  description     = "Customer data"
 }
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "group_unique_id", groupID),
-					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Data: Financial information"),
+					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Customer data"),
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},
@@ -45,11 +45,11 @@ resource "orcasecurity_crown_jewel" "test" {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "Access: Broad permission access"
+  description     = "High blast radius"
 }
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Access: Broad permission access"),
+					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "High blast radius"),
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},
@@ -71,7 +71,7 @@ func TestAccCrownJewelDataSource_Basic(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "Data: Financial information"
+  description     = "Customer data"
 }
 
 data "orcasecurity_crown_jewel" "test" {
@@ -80,7 +80,7 @@ data "orcasecurity_crown_jewel" "test" {
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "group_unique_id", groupID),
-					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "description", "Data: Financial information"),
+					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "description", "Customer data"),
 					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},

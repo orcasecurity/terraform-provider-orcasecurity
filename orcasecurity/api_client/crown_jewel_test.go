@@ -14,8 +14,8 @@ const testCrownJewelGroupID = "tf-wasp-1553-probe-do-not-keep"
 func TestGetCrownJewel(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		assertMethodPath(t, req, "GET", "/api/attack_paths/crown_jewels")
-		if req.URL.Query().Get("source") != "user-marked" {
-			t.Errorf("GET must request source=user-marked, got %q", req.URL.RawQuery)
+		if req.URL.RawQuery != "" {
+			t.Errorf("GET must not send query params (UI GET sends none), got %q", req.URL.RawQuery)
 		}
 		return &http.Response{
 			StatusCode: 200,
