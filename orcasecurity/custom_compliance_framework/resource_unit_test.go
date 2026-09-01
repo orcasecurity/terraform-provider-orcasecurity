@@ -692,6 +692,92 @@ func TestModifyPlan_EarlierSiblingIDUnpinsLaterOmitted(t *testing.T) {
 	}
 }
 
+func nestedChild(t *testing.T, name, id string, tests ...types.Object) types.Object {
+	t.Helper()
+	childType := sectionObjectType(maxSectionDepth - 1)
+	attrs := map[string]attr.Value{
+		"name":     types.StringValue(name),
+		"tests":    mustList(t, testObjectType(), testsAsValues(tests)...),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+	}
+	if id != "" {
+		attrs["section_id_in_framework"] = types.StringValue(id)
+	}
+	return mustObject(t, childType, attrs)
+}
+
+func nestedParent(t *testing.T, name, id string, children ...types.Object) types.Object {
+	t.Helper()
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
+	vals := make([]attr.Value, len(children))
+	for i, c := range children {
+		vals[i] = c
+	}
+	attrs := map[string]attr.Value{
+		"name":     types.StringValue(name),
+		"tests":    types.ListNull(testObjectType()),
+		"sections": mustList(t, childType, vals...),
+	}
+	if id != "" {
+		attrs["section_id_in_framework"] = types.StringValue(id)
+	}
+	return mustObject(t, rootType, attrs)
+}
+
+func TestModifyPlan_ParentIDChangeUnpinsOmittedChildren(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, nestedParent(t, "Parent", "7",
+			nestedChild(t, "C1", "7.1", testComputed(t, "r1", "7.1.1", "Medium", "9")),
+			nestedChild(t, "C2", "7.2", testComputed(t, "r2", "7.2.1", "Medium", "9")),
+		)),
+	}
+	plan := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, nestedParent(t, "Parent", "9",
+			nestedChild(t, "C1", "7.1", testComputed(t, "r1", "7.1.1", "Medium", "9")),
+			nestedChild(t, "C2", "7.2", testComputed(t, "r2", "7.2.1", "Medium", "9")),
+		)),
+	}
+	config := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, nestedParent(t, "Parent", "9",
+			nestedChild(t, "C1", "", testComputed(t, "r1", "", "", "")),
+			nestedChild(t, "C2", "", testComputed(t, "r2", "", "", "")),
+		)),
+	}
+	r, req := planStateConfig(t, state, plan, &config)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var out customComplianceFrameworkResourceModel
+	if diags := resp.Plan.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	parent := out.Sections.Elements()[0].(types.Object)
+	children := parent.Attributes()["sections"].(types.List)
+	for i, e := range children.Elements() {
+		ch := e.(types.Object).Attributes()
+		if !ch["section_id_in_framework"].IsUnknown() {
+			t.Errorf("child[%d] section id must unpin when parent id changes, got %#v", i, ch["section_id_in_framework"])
+		}
+		rid := ch["tests"].(types.List).Elements()[0].(types.Object).Attributes()["rule_id_in_framework"]
+		if !rid.IsUnknown() {
+			t.Errorf("child[%d] control id must re-derive when parent id changes, got %#v", i, rid)
+		}
+	}
+}
+
 func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	typ := testObjectType()
 	rootType := sectionObjectType(maxSectionDepth)

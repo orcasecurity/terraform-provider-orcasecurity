@@ -113,8 +113,8 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 				"omitted control ids. Must be an unsigned integer, unique and strictly ascending " +
 				"among siblings, and a nested section must extend its parent (`7.2`) — the API " +
 				"returns sections sorted by id. Omitted values take the next integer above the " +
-				"previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog " +
-				"section `id`.",
+				"previous sibling (`7.2` then omitted → `7.3`); an id already assigned is kept " +
+				"until you change it. On read this is the catalog section `id`.",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 			},
@@ -260,7 +260,7 @@ func (r *customComplianceFrameworkResource) ModifyPlan(ctx context.Context, req 
 		}
 	}
 	if !config.Sections.IsNull() && !config.Sections.IsUnknown() && !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
-		sections, d := rewriteSectionsPlan(config.Sections, plan.Sections, state.Sections, schemaSectionDepth-1)
+		sections, d := rewriteSectionsPlan(config.Sections, plan.Sections, state.Sections, schemaSectionDepth-1, false)
 		resp.Diagnostics.Append(d...)
 		if resp.Diagnostics.HasError() {
 			return
