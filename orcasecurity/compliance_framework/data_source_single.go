@@ -43,14 +43,15 @@ func (d *complianceFrameworkDataSource) Schema(_ context.Context, _ datasource.S
 	attrs := frameworkAttributes(true)
 	attrs["sections"] = schema.ListNestedAttribute{
 		Computed:    true,
-		Description: "Section/test tree from GET /api/compliance/catalog/{id}. Nested at most three levels (a section has tests, or sub-sections, never both). Server-assigned section ids are omitted.",
+		Description: "Section/test tree from GET /api/compliance/catalog/{id}. Nested at most three levels (a section has tests, or sub-sections, never both).",
 		NestedObject: schema.NestedAttributeObject{
 			Attributes: catalogSectionAttributes(maxCatalogDepth - 1),
 		},
 	}
 	resp.Schema = schema.Schema{
 		Description: "Looks up one compliance framework by id, including its catalog section tree. " +
-			"Use this to inspect controls without owning the framework.",
+			"Use this to inspect controls without owning the framework. " +
+			"The select-map key `relevant_assets_sonar_query` is not exposed.",
 		Attributes: attrs,
 	}
 }
@@ -68,12 +69,17 @@ func catalogTestAttributes() map[string]schema.Attribute {
 		},
 		"control_unique_id": schema.StringAttribute{Computed: true, Description: "Catalog control unique id. Null when omitted."},
 		"priority":          schema.StringAttribute{Computed: true, Description: "Control priority. Null when omitted."},
-		"cis_level":         schema.StringAttribute{Computed: true, Description: "CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted."},
+		"cis_level": schema.ListAttribute{
+			Computed:    true,
+			ElementType: types.StringType,
+			Description: "CIS levels this control belongs to (e.g. `[\"Level 1\"]`). Null when the control is not CIS-scoped.",
+		},
 	}
 }
 
 func catalogSectionAttributes(remaining int) map[string]schema.Attribute {
 	attrs := map[string]schema.Attribute{
+		"id":   schema.StringAttribute{Computed: true, Description: "Catalog section id used to derive `rule_id_in_framework` as `<id>.<1-based index>`."},
 		"name": schema.StringAttribute{Computed: true, Description: "Section name."},
 		"tests": schema.ListNestedAttribute{
 			Computed:    true,

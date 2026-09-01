@@ -1,10 +1,8 @@
 package api_client
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 )
 
 const (
@@ -38,32 +36,6 @@ type ComplianceFramework struct {
 	IsForcedCloudVendors       *bool    `json:"is_forced_cloud_vendors"`
 }
 
-// jsonStringOrNumber unmarshals a JSON string or number into a Go string.
-// Catalog cis_level has been observed as both.
-type jsonStringOrNumber string
-
-func (s *jsonStringOrNumber) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 || string(b) == "null" {
-		*s = ""
-		return nil
-	}
-	if b[0] == '"' {
-		var v string
-		if err := json.Unmarshal(b, &v); err != nil {
-			return err
-		}
-		*s = jsonStringOrNumber(v)
-		return nil
-	}
-	var n json.Number
-	if err := json.Unmarshal(b, &n); err == nil {
-		*s = jsonStringOrNumber(n.String())
-		return nil
-	}
-	*s = jsonStringOrNumber(strings.TrimSpace(string(b)))
-	return nil
-}
-
 type complianceFrameworkReadAPIResponse struct {
 	Data ComplianceFramework `json:"data"`
 }
@@ -75,14 +47,14 @@ type complianceFrameworkSelectRequest struct {
 
 // ComplianceCatalogTest is one control inside GET /api/compliance/catalog/{id}.
 type ComplianceCatalogTest struct {
-	Name              string             `json:"name"`
-	RuleID            string             `json:"rule_id"`
-	ReferenceID       string             `json:"reference_id"`
-	OriginFrameworkID string             `json:"origin_framework_id"`
-	CloudVendors      []string           `json:"cloud_vendors"`
-	ControlUniqueID   string             `json:"control_unique_id"`
-	Priority          string             `json:"priority"`
-	CISLevel          jsonStringOrNumber `json:"cis_level"`
+	Name              string   `json:"name"`
+	RuleID            string   `json:"rule_id"`
+	ReferenceID       string   `json:"reference_id"`
+	OriginFrameworkID string   `json:"origin_framework_id"`
+	CloudVendors      []string `json:"cloud_vendors"`
+	ControlUniqueID   string   `json:"control_unique_id"`
+	Priority          string   `json:"priority"`
+	CISLevel          []string `json:"cis_level"`
 }
 
 // ComplianceCatalogSection is one node of the catalog section tree. The

@@ -1,7 +1,6 @@
 package custom_compliance_framework
 
 import (
-	"context"
 	"fmt"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -21,6 +20,8 @@ import (
 const maxSectionDepth = 3
 
 const mixedSectionMessage = "a section cannot have both tests and sub-sections; the API would silently flatten it and the sub-section would inherit the parent name"
+
+const emptyListMessage = "the API drops a section with no controls, so Terraform would see it disappear. Omit the empty list rather than setting it to []"
 
 const invalidSectionSummary = "Invalid section"
 
@@ -143,7 +144,7 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 	return out
 }
 
-func testsFromCatalog(ctx context.Context, tests []api_client.ComplianceCatalogTest) (types.List, diag.Diagnostics) {
+func testsFromCatalog(tests []api_client.ComplianceCatalogTest) (types.List, diag.Diagnostics) {
 	elem := testObjectType()
 	if len(tests) == 0 {
 		return types.ListNull(elem), nil
@@ -166,7 +167,7 @@ func testsFromCatalog(ctx context.Context, tests []api_client.ComplianceCatalogT
 	return list, diags
 }
 
-func sectionsFromCatalog(ctx context.Context, sections []api_client.ComplianceCatalogSection, remainingDepth int) (types.List, diag.Diagnostics) {
+func sectionsFromCatalog(sections []api_client.ComplianceCatalogSection, remainingDepth int) (types.List, diag.Diagnostics) {
 	elem := sectionObjectType(remainingDepth)
 	if len(sections) == 0 {
 		return types.ListNull(elem), nil
@@ -174,14 +175,14 @@ func sectionsFromCatalog(ctx context.Context, sections []api_client.ComplianceCa
 	vals := make([]attr.Value, len(sections))
 	var diags diag.Diagnostics
 	for i, s := range sections {
-		tests, d := testsFromCatalog(ctx, s.Tests)
+		tests, d := testsFromCatalog(s.Tests)
 		diags.Append(d...)
 		attrs := map[string]attr.Value{
 			"name":  types.StringValue(s.Name),
 			"tests": tests,
 		}
 		if remainingDepth > 0 {
-			nested, d := sectionsFromCatalog(ctx, s.Sections, remainingDepth-1)
+			nested, d := sectionsFromCatalog(s.Sections, remainingDepth-1)
 			diags.Append(d...)
 			attrs["sections"] = nested
 		}
@@ -194,8 +195,20 @@ func sectionsFromCatalog(ctx context.Context, sections []api_client.ComplianceCa
 	return list, diags
 }
 
+func listKnownEmpty(v attr.Value) bool {
+	l, ok := v.(types.List)
+	if !ok || l.IsNull() || l.IsUnknown() {
+		return false
+	}
+	return len(l.Elements()) == 0
+}
+
 func validateSections(resp *resource.ValidateConfigResponse, list types.List, parent path.Path) {
 	if list.IsNull() || list.IsUnknown() {
+		return
+	}
+	if len(list.Elements()) == 0 {
+		resp.Diagnostics.AddAttributeError(parent, invalidSectionSummary, emptyListMessage)
 		return
 	}
 	for i, e := range list.Elements() {
@@ -205,11 +218,17 @@ func validateSections(resp *resource.ValidateConfigResponse, list types.List, pa
 		}
 		p := parent.AtListIndex(i)
 		attrs := obj.Attributes()
+		if listKnownEmpty(attrs["tests"]) {
+			resp.Diagnostics.AddAttributeError(p.AtName("tests"), invalidSectionSummary, emptyListMessage)
+		}
+		if listKnownEmpty(attrs["sections"]) {
+			resp.Diagnostics.AddAttributeError(p.AtName("sections"), invalidSectionSummary, emptyListMessage)
+		}
 		if listLen(attrs["tests"]) > 0 && listLen(attrs["sections"]) > 0 {
 			resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, mixedSectionMessage)
 		}
 		if nested, ok := attrs["sections"]; ok {
-			if l, ok := asList(nested); ok {
+			if l, ok := asList(nested); ok && !listKnownEmpty(nested) {
 				validateSections(resp, l, p.AtName("sections"))
 			}
 		}

@@ -49,7 +49,8 @@ func (d *complianceFrameworksDataSource) Schema(_ context.Context, _ datasource.
 		Description: "Lists compliance frameworks from GET /api/compliance/frameworks/select. " +
 			"Filters are optional and AND-ed client-side (the endpoint takes no query params). " +
 			"The `user` selection scope is token-scoped: a plan is stable for a given API token, " +
-			"but a different token sees different `user` scopes.",
+			"but a different token sees different `user` scopes. " +
+			"The select-map key `relevant_assets_sonar_query` is not exposed.",
 		Attributes: map[string]schema.Attribute{
 			"custom": schema.BoolAttribute{
 				Optional:    true,
@@ -124,7 +125,7 @@ func frameworkAttributes(idRequired bool) map[string]schema.Attribute {
 		"visibility": schema.StringAttribute{Computed: true, Description: "Custom-framework visibility. Null for built-ins."},
 		"origin_type": schema.StringAttribute{
 			Computed:    true,
-			Description: "Framework origin type. Null when omitted.",
+			Description: "Framework origin type (`alert_based`, `template_based`). Null when omitted.",
 		},
 		"created_at": schema.StringAttribute{Computed: true, Description: "Creation timestamp. Null when omitted."},
 		"updated_at": schema.StringAttribute{Computed: true, Description: "Last update timestamp. Null when omitted."},

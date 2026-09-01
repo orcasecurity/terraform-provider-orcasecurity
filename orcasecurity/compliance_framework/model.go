@@ -165,6 +165,8 @@ func catalogTestsToModel(ctx context.Context, tests []api_client.ComplianceCatal
 	for i, t := range tests {
 		vendors, d := tfconv.StringListFromAPI(ctx, t.CloudVendors)
 		diags.Append(d...)
+		levels, d := tfconv.StringListFromAPI(ctx, t.CISLevel)
+		diags.Append(d...)
 		obj, d := types.ObjectValue(elem.AttrTypes, map[string]attr.Value{
 			"name":                tfconv.StringOrNull(t.Name),
 			"rule_id":             types.StringValue(t.RuleID),
@@ -173,7 +175,7 @@ func catalogTestsToModel(ctx context.Context, tests []api_client.ComplianceCatal
 			"cloud_vendors":       vendors,
 			"control_unique_id":   tfconv.StringOrNull(t.ControlUniqueID),
 			"priority":            tfconv.StringOrNull(t.Priority),
-			"cis_level":           tfconv.StringOrNull(string(t.CISLevel)),
+			"cis_level":           levels,
 		})
 		diags.Append(d...)
 		vals[i] = obj
@@ -194,6 +196,7 @@ func catalogSectionsToModel(ctx context.Context, sections []api_client.Complianc
 		tests, d := catalogTestsToModel(ctx, s.Tests)
 		diags.Append(d...)
 		attrs := map[string]attr.Value{
+			"id":    tfconv.StringOrNull(s.ID),
 			"name":  types.StringValue(s.Name),
 			"tests": tests,
 		}

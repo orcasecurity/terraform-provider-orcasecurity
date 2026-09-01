@@ -215,15 +215,17 @@ func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req r
 		return
 	}
 
-	entry, err := r.lookup(plan.FrameworkID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(errUpdatingSelection, "Could not read current selection: "+err.Error())
-		return
-	}
-	if entry != nil {
-		if pd := personalOrganizationDiag(entry.Visibility, to); pd != nil {
-			resp.Diagnostics.Append(pd...)
+	if containsScope(to, scopeOrganization) {
+		entry, err := r.lookup(plan.FrameworkID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(errUpdatingSelection, "Could not read current selection: "+err.Error())
 			return
+		}
+		if entry != nil {
+			if pd := personalOrganizationDiag(entry.Visibility, to); pd != nil {
+				resp.Diagnostics.Append(pd...)
+				return
+			}
 		}
 	}
 
@@ -245,24 +247,22 @@ func (r *complianceFrameworkSelectionResource) Delete(_ context.Context, _ resou
 	// Disabling is `scopes = []`.
 }
 
-const (
-	visibilityPersonal    = "Personal"
-	errPersonalOrgSummary = "Personal framework cannot use organization scope"
-	errPersonalOrgDetail  = "Personal frameworks can only be selected in user scope, not organization scope."
-)
-
 func personalOrganizationDiag(visibility *string, scopes []string) diag.Diagnostics {
-	if visibility == nil || *visibility != visibilityPersonal {
+	if !api_client.PersonalRejectsOrganization(visibility, scopes) {
 		return nil
 	}
+	var d diag.Diagnostics
+	d.AddError(api_client.ErrPersonalOrgSummary, api_client.ErrPersonalOrgDetail)
+	return d
+}
+
+func containsScope(scopes []string, want string) bool {
 	for _, s := range scopes {
-		if s == scopeOrganization {
-			var d diag.Diagnostics
-			d.AddError(errPersonalOrgSummary, errPersonalOrgDetail)
-			return d
+		if s == want {
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 func (r *complianceFrameworkSelectionResource) lookup(id string) (*api_client.ComplianceFramework, error) {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -251,12 +252,36 @@ func TestCreate_PersonalRejectsOrganization(t *testing.T) {
 	}
 	found := false
 	for _, d := range resp.Diagnostics {
-		if strings.Contains(d.Summary(), errPersonalOrgSummary) {
+		if strings.Contains(d.Summary(), api_client.ErrPersonalOrgSummary) {
 			found = true
 		}
 	}
 	if !found {
 		t.Errorf("expected personal/org diagnostic, got %v", resp.Diagnostics)
+	}
+	if len(calls) != 0 {
+		t.Errorf("must not call select, got %#v", calls)
+	}
+}
+
+func TestUpdate_PersonalRejectsOrganization(t *testing.T) {
+	var calls []httpCall
+	entries := map[string]map[string]interface{}{
+		"fw": {
+			"id": "fw", "active": true, "selection_scopes": []string{"user"},
+			"display_name": "FW", "custom": true, "is_ready": true,
+			"visibility": "Personal",
+		},
+	}
+	r := stubResource(selectStub(t, entries, &calls, nil))
+	sch := resourceSchema(t)
+	from := model(t, "fw", []string{"user"})
+	to := model(t, "fw", []string{"organization"})
+	req := resource.UpdateRequest{State: stateWith(t, sch, from), Plan: planWith(t, sch, to)}
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, from)}
+	r.Update(context.Background(), req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("personal + organization must be a diagnostic")
 	}
 	if len(calls) != 0 {
 		t.Errorf("must not call select, got %#v", calls)

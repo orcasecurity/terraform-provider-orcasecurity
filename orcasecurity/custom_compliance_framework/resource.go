@@ -7,6 +7,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -26,6 +27,7 @@ var (
 	_ resource.ResourceWithConfigure      = &customComplianceFrameworkResource{}
 	_ resource.ResourceWithImportState    = &customComplianceFrameworkResource{}
 	_ resource.ResourceWithValidateConfig = &customComplianceFrameworkResource{}
+	_ resource.ResourceWithModifyPlan     = &customComplianceFrameworkResource{}
 )
 
 type customComplianceFrameworkResource struct {
@@ -79,8 +81,9 @@ func testAttributes() map[string]schema.Attribute {
 		},
 		"rule_id_in_framework": computedOptional(
 			"The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). " +
-				"Omitted values are derived as `<section-id>.<1-based index>`, matching the Orca UI. " +
-				"On read this is the catalog `reference_id`.",
+				"Omitted values are derived as `<positional-section-id>.<1-based index>` " +
+				"(e.g. `1.1`), matching the Orca UI. On read this is the catalog `reference_id`. " +
+				"Catalog section ids are `data.orcasecurity_compliance_framework.sections[].id`.",
 		),
 		"priority":            computedOptional("Control priority as accepted by the API (e.g. `Medium`)."),
 		"control_unique_id":   computedOptional("Catalog control unique id. Echoed when the API returns it."),
@@ -96,7 +99,7 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 		},
 		"tests": schema.ListNestedAttribute{
 			Optional:    true,
-			Description: "Tests (controls) within this section. A section may have tests or sub-sections, never both.",
+			Description: "Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — the API drops an empty list.",
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: testAttributes(),
 			},
@@ -149,9 +152,10 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				Optional: true,
 				Computed: true,
 				Description: "Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. " +
+					"`Personal` can be promoted to `Organizational`; the reverse is rejected by the API. " +
 					"`Personal` cannot be combined with `scope = \"organization\"` (the API returns 400).",
 				Validators: []validator.String{
-					stringvalidator.OneOf("Organizational", "Personal"),
+					stringvalidator.OneOf(api_client.VisibilityOrganizational, api_client.VisibilityPersonal),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -179,8 +183,12 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 					"Omitting the attribute on update also clears enforcement.",
 			},
 			"sections": schema.ListNestedAttribute{
-				Required:    true,
-				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit).",
+				Required: true,
+				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). " +
+					"Must contain at least one section; `sections = []` is rejected because the API would drop it.",
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: sectionAttributes(maxSectionDepth - 1),
 				},
@@ -199,18 +207,31 @@ func (r *customComplianceFrameworkResource) ValidateConfig(ctx context.Context, 
 	validatePersonalOrganization(resp, config)
 }
 
-const (
-	visibilityPersonal    = "Personal"
-	errPersonalOrgSummary = "Personal framework cannot use organization scope"
-	errPersonalOrgDetail  = "Personal frameworks can only be selected in user scope, not organization scope."
-)
-
 func validatePersonalOrganization(resp *resource.ValidateConfigResponse, config customComplianceFrameworkResourceModel) {
 	if config.Visibility.IsNull() || config.Visibility.IsUnknown() || config.Scope.IsNull() || config.Scope.IsUnknown() {
 		return
 	}
-	if config.Visibility.ValueString() == visibilityPersonal && config.Scope.ValueString() == "organization" {
-		resp.Diagnostics.AddAttributeError(path.Root("scope"), errPersonalOrgSummary, errPersonalOrgDetail)
+	vis := config.Visibility.ValueString()
+	if api_client.PersonalRejectsOrganization(&vis, []string{config.Scope.ValueString()}) {
+		resp.Diagnostics.AddAttributeError(path.Root("scope"), api_client.ErrPersonalOrgSummary, api_client.ErrPersonalOrgDetail)
+	}
+}
+
+func (r *customComplianceFrameworkResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan customComplianceFrameworkResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if state.Visibility.IsNull() || state.Visibility.IsUnknown() || plan.Visibility.IsNull() || plan.Visibility.IsUnknown() {
+		return
+	}
+	if api_client.VisibilityDowngrade(state.Visibility.ValueString(), plan.Visibility.ValueString()) {
+		resp.Diagnostics.AddAttributeError(path.Root("visibility"), api_client.ErrVisibilityDowngradeSummary, api_client.ErrVisibilityDowngradeDetail)
 	}
 }
 
@@ -221,7 +242,7 @@ func (r *customComplianceFrameworkResource) Create(ctx context.Context, req reso
 		return
 	}
 
-	createReq, diags := createRequestFromPlan(ctx, plan)
+	createReq, diags := requestFromPlan(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -271,7 +292,7 @@ func (r *customComplianceFrameworkResource) Update(ctx context.Context, req reso
 		return
 	}
 
-	updateReq, diags := updateRequestFromPlan(ctx, plan)
+	updateReq, diags := requestFromPlan(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -357,7 +378,7 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 	if catalog == nil {
 		return false, catalogMissingDiag(id)
 	}
-	sections, d := sectionsFromCatalog(ctx, catalog.Sections, maxSectionDepth-1)
+	sections, d := sectionsFromCatalog(catalog.Sections, maxSectionDepth-1)
 	if d.HasError() {
 		return false, d
 	}
@@ -365,33 +386,19 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 	return true, nil
 }
 
-func createRequestFromPlan(ctx context.Context, plan customComplianceFrameworkResourceModel) (api_client.CustomComplianceFrameworkCreateRequest, diag.Diagnostics) {
-	req, d := updateRequestFromPlan(ctx, plan)
-	if d.HasError() {
-		return api_client.CustomComplianceFrameworkCreateRequest{}, d
-	}
-	return api_client.CustomComplianceFrameworkCreateRequest{
-		Name:               req.Name,
-		Description:        req.Description,
-		Visibility:         req.Visibility,
-		Scope:              plan.Scope.ValueString(),
-		ForcedCloudVendors: req.ForcedCloudVendors,
-		Sections:           req.Sections,
-	}, d
-}
-
-func updateRequestFromPlan(ctx context.Context, plan customComplianceFrameworkResourceModel) (api_client.CustomComplianceFrameworkUpdateRequest, diag.Diagnostics) {
+func requestFromPlan(ctx context.Context, plan customComplianceFrameworkResourceModel) (api_client.CustomComplianceFrameworkRequest, diag.Diagnostics) {
 	vendors, d := integrations_common.StringSliceFromSet(ctx, plan.ForcedCloudVendors)
 	if d.HasError() {
-		return api_client.CustomComplianceFrameworkUpdateRequest{}, d
+		return api_client.CustomComplianceFrameworkRequest{}, d
 	}
 	if len(vendors) == 0 {
 		vendors = nil
 	}
-	return api_client.CustomComplianceFrameworkUpdateRequest{
+	return api_client.CustomComplianceFrameworkRequest{
 		Name:               plan.Name.ValueString(),
 		Description:        plan.Description.ValueString(),
 		Visibility:         plan.Visibility.ValueString(),
+		Scope:              plan.Scope.ValueString(),
 		ForcedCloudVendors: vendors,
 		Sections:           sectionsToAPI(plan.Sections),
 	}, d

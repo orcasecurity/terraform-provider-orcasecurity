@@ -1,7 +1,6 @@
 package custom_compliance_framework
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -55,7 +54,6 @@ func objectList(obj types.Object, name string) types.List {
 }
 
 func TestSectionsRoundTripThreeLevels(t *testing.T) {
-	ctx := context.Background()
 	catalog := []api_client.ComplianceCatalogSection{
 		{
 			Name: "Parent",
@@ -69,7 +67,7 @@ func TestSectionsRoundTripThreeLevels(t *testing.T) {
 			Tests: []api_client.ComplianceCatalogTest{{RuleID: "r3", ReferenceID: "2.1"}},
 		},
 	}
-	got, d := sectionsFromCatalog(ctx, catalog, maxSectionDepth-1)
+	got, d := sectionsFromCatalog(catalog, maxSectionDepth-1)
 	if d.HasError() {
 		t.Fatal(d)
 	}
@@ -114,7 +112,7 @@ func TestSectionsRoundTripThreeLevels(t *testing.T) {
 }
 
 func TestTestsFromCatalog_UIShapedIdentifier(t *testing.T) {
-	got, d := testsFromCatalog(context.Background(), []api_client.ComplianceCatalogTest{{
+	got, d := testsFromCatalog([]api_client.ComplianceCatalogTest{{
 		RuleID: "r1", ReferenceID: "CC6.1",
 	}})
 	if d.HasError() {
@@ -163,5 +161,18 @@ func TestSectionsToAPIDerivesRuleIDInFramework(t *testing.T) {
 	got := sectionsToAPI(plan)
 	if got[0].Tests[0].RuleIDInFramework != "1.1" || got[0].Tests[1].RuleIDInFramework != "1.2" {
 		t.Errorf("derived ids: %+v", got[0].Tests)
+	}
+}
+
+func TestSectionsFromCatalog_EmptyListsAreNull(t *testing.T) {
+	got, d := sectionsFromCatalog([]api_client.ComplianceCatalogSection{{
+		Name: "Empty", Tests: []api_client.ComplianceCatalogTest{},
+	}}, maxSectionDepth-1)
+	if d.HasError() {
+		t.Fatal(d)
+	}
+	parent := got.Elements()[0].(types.Object)
+	if !objectList(parent, "tests").IsNull() {
+		t.Errorf("empty catalog tests must be null (the B1 mismatch), got %#v", objectList(parent, "tests"))
 	}
 }

@@ -3,12 +3,12 @@
 page_title: "orcasecurity_compliance_framework Data Source - orcasecurity"
 subcategory: ""
 description: |-
-  Looks up one compliance framework by id, including its catalog section tree. Use this to inspect controls without owning the framework.
+  Looks up one compliance framework by id, including its catalog section tree. Use this to inspect controls without owning the framework. The select-map key relevant_assets_sonar_query is not exposed.
 ---
 
 # orcasecurity_compliance_framework (Data Source)
 
-Looks up one compliance framework by id, including its catalog section tree. Use this to inspect controls without owning the framework.
+Looks up one compliance framework by id, including its catalog section tree. Use this to inspect controls without owning the framework. The select-map key `relevant_assets_sonar_query` is not exposed.
 
 ## Example Usage
 
@@ -42,8 +42,8 @@ output "controls" {
 - `is_forced_cloud_vendors` (Boolean) Whether `framework_cloud_vendors` is enforced. The read counterpart of the custom-framework `forced_cloud_vendors` attribute. Null when omitted.
 - `is_ready` (Boolean) Whether the framework is ready. Null when omitted.
 - `orca_end_of_support_date` (String) End of support date. Null when omitted or unset.
-- `origin_type` (String) Framework origin type. Null when omitted.
-- `sections` (Attributes List) Section/test tree from GET /api/compliance/catalog/{id}. Nested at most three levels (a section has tests, or sub-sections, never both). Server-assigned section ids are omitted. (see [below for nested schema](#nestedatt--sections))
+- `origin_type` (String) Framework origin type (`alert_based`, `template_based`). Null when omitted.
+- `sections` (Attributes List) Section/test tree from GET /api/compliance/catalog/{id}. Nested at most three levels (a section has tests, or sub-sections, never both). (see [below for nested schema](#nestedatt--sections))
 - `selection_scopes` (List of String) Held scopes (`user`, `organization`), sorted. Empty when the framework is disabled.
 - `type` (String) Framework type. Null for custom frameworks.
 - `updated_at` (String) Last update timestamp. Null when omitted.
@@ -57,6 +57,7 @@ output "controls" {
 
 Read-Only:
 
+- `id` (String) Catalog section id used to derive `rule_id_in_framework` as `<id>.<1-based index>`.
 - `name` (String) Section name.
 - `sections` (Attributes List) Nested sub-sections. Null on a leaf. Depth is capped at three levels. (see [below for nested schema](#nestedatt--sections--sections))
 - `tests` (Attributes List) Controls in this section. Null when the section only has sub-sections. (see [below for nested schema](#nestedatt--sections--tests))
@@ -66,6 +67,7 @@ Read-Only:
 
 Read-Only:
 
+- `id` (String) Catalog section id used to derive `rule_id_in_framework` as `<id>.<1-based index>`.
 - `name` (String) Section name.
 - `sections` (Attributes List) Nested sub-sections. Null on a leaf. Depth is capped at three levels. (see [below for nested schema](#nestedatt--sections--sections--sections))
 - `tests` (Attributes List) Controls in this section. Null when the section only has sub-sections. (see [below for nested schema](#nestedatt--sections--sections--tests))
@@ -75,6 +77,7 @@ Read-Only:
 
 Read-Only:
 
+- `id` (String) Catalog section id used to derive `rule_id_in_framework` as `<id>.<1-based index>`.
 - `name` (String) Section name.
 - `tests` (Attributes List) Controls in this section. Null when the section only has sub-sections. (see [below for nested schema](#nestedatt--sections--sections--sections--tests))
 
@@ -83,7 +86,7 @@ Read-Only:
 
 Read-Only:
 
-- `cis_level` (String) CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted.
+- `cis_level` (List of String) CIS levels this control belongs to (e.g. `["Level 1"]`). Null when the control is not CIS-scoped.
 - `cloud_vendors` (List of String) Cloud vendors this control applies to. Null when omitted.
 - `control_unique_id` (String) Catalog control unique id. Null when omitted.
 - `name` (String) Control name. Null when omitted.
@@ -99,7 +102,7 @@ Read-Only:
 
 Read-Only:
 
-- `cis_level` (String) CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted.
+- `cis_level` (List of String) CIS levels this control belongs to (e.g. `["Level 1"]`). Null when the control is not CIS-scoped.
 - `cloud_vendors` (List of String) Cloud vendors this control applies to. Null when omitted.
 - `control_unique_id` (String) Catalog control unique id. Null when omitted.
 - `name` (String) Control name. Null when omitted.
@@ -115,7 +118,7 @@ Read-Only:
 
 Read-Only:
 
-- `cis_level` (String) CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted.
+- `cis_level` (List of String) CIS levels this control belongs to (e.g. `["Level 1"]`). Null when the control is not CIS-scoped.
 - `cloud_vendors` (List of String) Cloud vendors this control applies to. Null when omitted.
 - `control_unique_id` (String) Catalog control unique id. Null when omitted.
 - `name` (String) Control name. Null when omitted.

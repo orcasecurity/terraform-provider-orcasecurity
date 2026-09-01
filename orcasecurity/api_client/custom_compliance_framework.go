@@ -22,19 +22,11 @@ type CustomComplianceFrameworkSection struct {
 	Sections []CustomComplianceFrameworkSection `json:"sections"`
 }
 
-type CustomComplianceFrameworkCreateRequest struct {
+type CustomComplianceFrameworkRequest struct {
 	Name               string                             `json:"name"`
 	Description        string                             `json:"description,omitempty"`
 	Visibility         string                             `json:"visibility,omitempty"`
 	Scope              string                             `json:"scope,omitempty"`
-	ForcedCloudVendors []string                           `json:"forced_cloud_vendors,omitempty"`
-	Sections           []CustomComplianceFrameworkSection `json:"sections"`
-}
-
-type CustomComplianceFrameworkUpdateRequest struct {
-	Name               string                             `json:"name"`
-	Description        string                             `json:"description,omitempty"`
-	Visibility         string                             `json:"visibility,omitempty"`
 	ForcedCloudVendors []string                           `json:"forced_cloud_vendors,omitempty"`
 	Sections           []CustomComplianceFrameworkSection `json:"sections"`
 }
@@ -59,7 +51,7 @@ func (client *APIClient) GetCustomComplianceFramework(id string) (*ComplianceFra
 	return client.GetComplianceFramework(id)
 }
 
-func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFrameworkCreateRequest) (*CustomComplianceFrameworkWriteResponse, error) {
+func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
 	resp, err := client.Post(customComplianceFrameworkBasePath, data)
 	if err != nil {
 		return nil, err
@@ -73,7 +65,7 @@ func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFr
 	return &response.Data, nil
 }
 
-func (client *APIClient) UpdateCustomComplianceFramework(id string, data CustomComplianceFrameworkUpdateRequest) (*CustomComplianceFrameworkWriteResponse, error) {
+func (client *APIClient) UpdateCustomComplianceFramework(id string, data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
 	resp, err := client.Put(fmt.Sprintf(customComplianceFrameworkBasePath+"/%s", id), data)
 	if err != nil {
 		return nil, err

@@ -80,17 +80,21 @@ func TestCatalogSectionsLeafAbsent(t *testing.T) {
 	if !test0.Attributes()["cis_level"].IsNull() {
 		t.Errorf("omitted cis_level must be null, got %v", test0.Attributes()["cis_level"])
 	}
+	if !sec.Attributes()["id"].IsNull() {
+		t.Errorf("omitted section id must be null, got %v", sec.Attributes()["id"])
+	}
 }
 
 func TestCatalogTestsToModel_CISLevel(t *testing.T) {
 	got, d := catalogTestsToModel(context.Background(), []api_client.ComplianceCatalogTest{{
-		RuleID: "r1", CISLevel: "1",
+		RuleID: "r1", CISLevel: []string{"Level 1"},
 	}})
 	if d.HasError() {
 		t.Fatal(d)
 	}
 	obj := got.Elements()[0].(types.Object)
-	if obj.Attributes()["cis_level"].(types.String).ValueString() != "1" {
-		t.Errorf("cis_level: %s", obj.Attributes()["cis_level"])
+	levels := obj.Attributes()["cis_level"].(types.List)
+	if levels.IsNull() || len(levels.Elements()) != 1 || levels.Elements()[0].(types.String).ValueString() != "Level 1" {
+		t.Errorf("cis_level: %#v", obj.Attributes()["cis_level"])
 	}
 }

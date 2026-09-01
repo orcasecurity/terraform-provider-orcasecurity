@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -221,7 +223,7 @@ func TestValidateConfig_RejectsPersonalWithOrganizationScope(t *testing.T) {
 	}
 	found := false
 	for _, d := range resp.Diagnostics {
-		if strings.Contains(d.Detail(), errPersonalOrgDetail) {
+		if strings.Contains(d.Detail(), api_client.ErrPersonalOrgDetail) {
 			found = true
 		}
 	}
@@ -235,7 +237,7 @@ func TestUpdateRequestOmitsEmptyForcedCloudVendors(t *testing.T) {
 	if d.HasError() {
 		t.Fatal(d)
 	}
-	req, diags := updateRequestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("n"),
 		ForcedCloudVendors: empty,
 		Sections:           oneSection(t),
@@ -249,5 +251,157 @@ func TestUpdateRequestOmitsEmptyForcedCloudVendors(t *testing.T) {
 	}
 	if strings.Contains(string(raw), "forced_cloud_vendors") {
 		t.Errorf("empty set must omit forced_cloud_vendors, got %s", raw)
+	}
+}
+
+func TestValidateConfig_RejectsEmptyRootSections(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth - 1)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("empty"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           mustList(t, rootType),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("sections = [] must be a config error")
+	}
+}
+
+func TestValidateConfig_RejectsEmptyTests(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth - 1)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("empty-tests"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("S"),
+			"tests":    mustList(t, testObjectType()),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, emptyListMessage) {
+		t.Errorf("expected empty-list diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_RejectsEmptyTestsWithNestedSections(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth - 1)
+	childType := sectionObjectType(maxSectionDepth - 2)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("empty-tests-nested"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":  types.StringValue("P"),
+			"tests": mustList(t, testObjectType()),
+			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
+				"name":     types.StringValue("C"),
+				"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+				"sections": types.ListNull(sectionObjectType(0)),
+			})),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, emptyListMessage) {
+		t.Errorf("expected empty-list diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func hasDetail(resp *resource.ValidateConfigResponse, want string) bool {
+	for _, d := range resp.Diagnostics {
+		if strings.Contains(d.Detail(), want) {
+			return true
+		}
+	}
+	return false
+}
+
+func planAndState(t *testing.T, state, plan customComplianceFrameworkResourceModel) (*customComplianceFrameworkResource, resource.ModifyPlanRequest) {
+	t.Helper()
+	r := &customComplianceFrameworkResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	st := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := st.Set(context.Background(), &state); diags.HasError() {
+		t.Fatalf("state: %v", diags)
+	}
+	pl := tfsdk.Plan{Schema: schemaResp.Schema}
+	if diags := pl.Set(context.Background(), &plan); diags.HasError() {
+		t.Fatalf("plan: %v", diags)
+	}
+	return r, resource.ModifyPlanRequest{State: st, Plan: pl}
+}
+
+func TestModifyPlan_RejectsOrganizationalToPersonal(t *testing.T) {
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		Visibility:         types.StringValue(api_client.VisibilityOrganizational),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	}
+	plan := state
+	plan.Visibility = types.StringValue(api_client.VisibilityPersonal)
+	r, req := planAndState(t, state, plan)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("Organizational → Personal must be a plan error")
+	}
+	found := false
+	for _, d := range resp.Diagnostics {
+		if strings.Contains(d.Detail(), api_client.ErrVisibilityDowngradeDetail) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected downgrade diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestModifyPlan_AllowsPersonalToOrganizational(t *testing.T) {
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		Visibility:         types.StringValue(api_client.VisibilityPersonal),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	}
+	plan := state
+	plan.Visibility = types.StringValue(api_client.VisibilityOrganizational)
+	r, req := planAndState(t, state, plan)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Personal → Organizational is a promotion, got %v", resp.Diagnostics)
+	}
+}
+
+func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
+	typ := testObjectType()
+	rootType := sectionObjectType(maxSectionDepth - 1)
+	sections := mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+		"name": types.StringValue("Flat"),
+		"tests": mustList(t, typ, mustObject(t, typ, map[string]attr.Value{
+			"rule_id":              types.StringValue("r1"),
+			"rule_id_in_framework": types.StringNull(),
+			"priority":             types.StringNull(),
+			"control_unique_id":    types.StringNull(),
+			"origin_framework_id":  types.StringNull(),
+		})),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+	}))
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("derived"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           sections,
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if req.Sections[0].Tests[0].RuleIDInFramework != "1.1" {
+		t.Errorf("omitted rule_id_in_framework must derive, got %+v", req.Sections[0].Tests)
 	}
 }

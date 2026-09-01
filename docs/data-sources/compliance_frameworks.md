@@ -3,12 +3,12 @@
 page_title: "orcasecurity_compliance_frameworks Data Source - orcasecurity"
 subcategory: ""
 description: |-
-  Lists compliance frameworks from GET /api/compliance/frameworks/select. Filters are optional and AND-ed client-side (the endpoint takes no query params). The user selection scope is token-scoped: a plan is stable for a given API token, but a different token sees different user scopes.
+  Lists compliance frameworks from GET /api/compliance/frameworks/select. Filters are optional and AND-ed client-side (the endpoint takes no query params). The user selection scope is token-scoped: a plan is stable for a given API token, but a different token sees different user scopes. The select-map key relevant_assets_sonar_query is not exposed.
 ---
 
 # orcasecurity_compliance_frameworks (Data Source)
 
-Lists compliance frameworks from GET /api/compliance/frameworks/select. Filters are optional and AND-ed client-side (the endpoint takes no query params). The `user` selection scope is token-scoped: a plan is stable for a given API token, but a different token sees different `user` scopes.
+Lists compliance frameworks from GET /api/compliance/frameworks/select. Filters are optional and AND-ed client-side (the endpoint takes no query params). The `user` selection scope is token-scoped: a plan is stable for a given API token, but a different token sees different `user` scopes. The select-map key `relevant_assets_sonar_query` is not exposed.
 
 ## Example Usage
 
@@ -60,7 +60,7 @@ Read-Only:
 - `is_forced_cloud_vendors` (Boolean) Whether `framework_cloud_vendors` is enforced. The read counterpart of the custom-framework `forced_cloud_vendors` attribute. Null when omitted.
 - `is_ready` (Boolean) Whether the framework is ready. Null when omitted.
 - `orca_end_of_support_date` (String) End of support date. Null when omitted or unset.
-- `origin_type` (String) Framework origin type. Null when omitted.
+- `origin_type` (String) Framework origin type (`alert_based`, `template_based`). Null when omitted.
 - `selection_scopes` (List of String) Held scopes (`user`, `organization`), sorted. Empty when the framework is disabled.
 - `type` (String) Framework type. Null for custom frameworks.
 - `updated_at` (String) Last update timestamp. Null when omitted.
