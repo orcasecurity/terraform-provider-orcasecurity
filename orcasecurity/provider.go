@@ -16,6 +16,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/azure_sentinel"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
 	"terraform-provider-orcasecurity/orcasecurity/cloudflare"
+	"terraform-provider-orcasecurity/orcasecurity/crown_jewel"
 	"terraform-provider-orcasecurity/orcasecurity/custom_compliance_framework"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
@@ -256,6 +257,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		admission_controller.NewAdmissionControllerPolicyResource,
 		admission_controller.NewAdmissionControllerPolicyAssignmentResource,
 		automation_v2.NewAutomationV2Resource,
+		crown_jewel.NewCrownJewelResource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
 		custom_discovery_alert.NewCustomDiscoveryAlertResource,
 		custom_sonar_alert.NewCustomSonarAlertResource,
