@@ -10,9 +10,10 @@ import (
 )
 
 // ORCA_TEST_CROWN_JEWEL_GROUP_UNIQUE_ID must be a real inventory group_unique_id
-// in the lab tenant. A fabricated id still creates a CrownJewel row (the API does
-// not validate inventory existence); use a disposable asset that is safe to mark
-// and unmark. Destroy leaves an is_crown_jewel=false override, not a hard delete.
+// in the lab tenant that is not already user-marked or Orca-detected. Create
+// refuses unknown ids, already-marked assets (import those instead), and
+// engine-managed detections. Destroy leaves an is_crown_jewel=false override,
+// not a hard delete.
 func TestAccCrownJewelResource_Basic(t *testing.T) {
 	groupID := os.Getenv("ORCA_TEST_CROWN_JEWEL_GROUP_UNIQUE_ID")
 	if groupID == "" {

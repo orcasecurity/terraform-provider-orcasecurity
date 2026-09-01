@@ -3,12 +3,12 @@
 page_title: "orcasecurity_crown_jewel Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Marks an asset as a user-defined crown jewel. The asset is identified by group_unique_id. Create and update both upsert: applying this resource on an asset that is already user-marked overwrites the existing reason instead of failing. Prefer terraform import to adopt an existing mark without changing it on first apply. Destroy matches the Orca UI disable action (DELETE): it upserts is_crown_jewel=false (an active "not a crown jewel" override), not a hard delete — see resource Notes. Orca-detected scoring on attack paths does not automatically return after destroy; Inventory.IsCrownJewel can fall back to the analyzer threshold.
+  Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). The asset is identified by group_unique_id and must exist in inventory. Create fails when the UI would not offer Mark — already user-marked or Orca-detected. Import first to adopt an existing user mark. Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.
 ---
 
 # orcasecurity_crown_jewel (Resource)
 
-Marks an asset as a user-defined crown jewel. The asset is identified by `group_unique_id`. Create and update both upsert: applying this resource on an asset that is already user-marked overwrites the existing reason instead of failing. Prefer `terraform import` to adopt an existing mark without changing it on first apply. Destroy matches the Orca UI disable action (DELETE): it upserts `is_crown_jewel=false` (an active "not a crown jewel" override), not a hard delete — see resource Notes. Orca-detected scoring on attack paths does not automatically return after destroy; Inventory.IsCrownJewel can fall back to the analyzer threshold.
+Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). The asset is identified by `group_unique_id` and must exist in inventory. Create fails when the UI would not offer Mark — already user-marked or Orca-detected. Import first to adopt an existing user mark. Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.
 
 ## Example Usage
 
@@ -17,11 +17,17 @@ Marks an asset as a user-defined crown jewel. The asset is identified by `group_
 # Typical UI values: "Critical business function", "Customer data", "High blast radius",
 # or free text when choosing Other.
 #
-# Apply is an upsert: if this asset is already user-marked, the existing Reason is
-# overwritten. To adopt an existing mark without changing it, import first.
+# Create fails if this asset is already user-marked or Orca-detected (same as the UI).
+# Import first to adopt an existing user mark. group_unique_id must exist in inventory.
 resource "orcasecurity_crown_jewel" "example" {
   group_unique_id = "vm_123456789012_i-0123456789abcdef0"
   description     = "Customer data"
+
+  timeouts = {
+    create = "90s"
+    update = "90s"
+    delete = "90s"
+  }
 }
 ```
 
@@ -31,39 +37,40 @@ resource "orcasecurity_crown_jewel" "example" {
 ### Required
 
 - `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). Common UI values are `Critical business function`, `Customer data`, `High blast radius`, or free text when choosing Other. Required: the API accepts omit, but creating without a reason stores a null description and breaks list/read of crown jewels.
-- `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one. The API does not verify the id exists in inventory — a typo still creates a CrownJewel row.
+- `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. Create requires the id to exist in inventory and not already be user-marked or Orca-detected.
+
+### Optional
+
+- `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
 
 ### Read-Only
 
 - `id` (String) Same as `group_unique_id`.
 
+<a id="nestedatt--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+- `delete` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+- `update` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+
 ## Notes
 
-- **Upsert, not create-only.** The API marks (or re-marks) by `group_unique_id`. If the asset is
-  already a **user-marked** crown jewel, `terraform apply` succeeds and **overwrites** the
-  existing Reason (`description`) with the value in your configuration. It does not error and
-  does not create a second mark. The API does **not** check that the id exists in inventory — a
-  typo still creates a CrownJewel row.
-- **Adopt existing marks with import.** To manage a crown jewel that was set in the UI (or
-  elsewhere) without changing its reason on first apply, import first, then align `description`
-  in config with the live value (or intentionally change it):
+- **Create matches the Orca UI.** Apply fails when the UI would not offer Mark — the asset is
+  already a user-marked or Orca-detected crown jewel. Import first to adopt an existing user
+  mark, then change `description` later if you want a new Reason:
 
   ```shell
   terraform import orcasecurity_crown_jewel.example GROUP_UNIQUE_ID
   ```
 
-- **Destroy matches the Orca UI “disable” action (`DELETE`).** This is **not** a hard delete and
-  does **not** clear the user override. The API upserts a row with `is_crown_jewel=false` —
-  an active user decision that the asset is **not** a crown jewel. Attack-path RiskScore /
-  ImpactScore stay pinned by that override (Orca-detected scoring does **not** come back on
-  those paths). `Inventory.IsCrownJewel` does fall back to `DetectedCrownJewelScore >= threshold`.
-  Because GET only returns `is_crown_jewel=true` rows, Terraform cannot see the override left
-  behind after destroy.
-- **Orca-detected assets.** Applying this resource on an Orca-detected asset adds a user-marked
-  overlay (hybrid). Destroy disables that overlay as above; it does not “reset to Orca
-  definitions” (that would be the API’s PUT reset verb, which the UI does not use for disable).
+- **The asset must exist.** Create refuses unknown `group_unique_id` values.
+- **Destroy matches the UI disable action.**
 - **Look up before import.** Use the [`orcasecurity_crown_jewel` data source](../data-sources/crown_jewel.md)
   to read the current Reason for an already-marked asset.
+- **Timeouts.** Defaults are 60s; raise them with the `timeouts` block if a tenant is slower.
 
 ## Import
 

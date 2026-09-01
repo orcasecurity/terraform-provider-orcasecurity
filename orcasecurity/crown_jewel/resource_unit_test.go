@@ -9,6 +9,8 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -17,6 +19,23 @@ import (
 
 func stubResource(fn testutils.RoundTripFunc) *crownJewelResource {
 	return &crownJewelResource{apiClient: testutils.NewStubAPIClient(fn)}
+}
+
+func nullTimeouts() timeouts.Value {
+	return timeouts.Value{
+		Object: types.ObjectValueMust(
+			map[string]attr.Type{
+				"create": types.StringType,
+				"update": types.StringType,
+				"delete": types.StringType,
+			},
+			map[string]attr.Value{
+				"create": types.StringNull(),
+				"update": types.StringNull(),
+				"delete": types.StringNull(),
+			},
+		),
+	}
 }
 
 func resourceSchema(t *testing.T) schema.Schema {
@@ -29,8 +48,9 @@ func resourceSchema(t *testing.T) schema.Schema {
 	return resp.Schema
 }
 
-func stateWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.State {
+func stateWith(t *testing.T, sch schema.Schema, model resourceModel) tfsdk.State {
 	t.Helper()
+	model.Timeouts = nullTimeouts()
 	st := tfsdk.State{Schema: sch}
 	if diags := st.Set(context.Background(), &model); diags.HasError() {
 		t.Fatalf("failed to seed state: %v", diags)
@@ -38,8 +58,9 @@ func stateWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.State {
 	return st
 }
 
-func planWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.Plan {
+func planWith(t *testing.T, sch schema.Schema, model resourceModel) tfsdk.Plan {
 	t.Helper()
+	model.Timeouts = nullTimeouts()
 	p := tfsdk.Plan{Schema: sch}
 	if diags := p.Set(context.Background(), &model); diags.HasError() {
 		t.Fatalf("failed to seed plan: %v", diags)
@@ -69,6 +90,10 @@ func TestSchemaContracts(t *testing.T) {
 	if !ok || !id.Computed {
 		t.Errorf("id must be Computed, got %#v", attrs["id"])
 	}
+
+	if _, ok := attrs["timeouts"]; !ok {
+		t.Error("timeouts block must be present so create/update/delete HTTP timeouts are configurable")
+	}
 }
 
 func TestMetadataTypeName(t *testing.T) {
@@ -90,7 +115,7 @@ func TestRead_NotFoundRemovesResource(t *testing.T) {
 		}
 	})
 	sch := resourceSchema(t)
-	model := stateModel{
+	model := resourceModel{
 		ID:            types.StringValue("gone"),
 		GroupUniqueID: types.StringValue("gone"),
 		Description:   types.StringValue("Customer data"),
@@ -109,26 +134,20 @@ func TestRead_NotFoundRemovesResource(t *testing.T) {
 // Create must fail cleanly when POST succeeds but the follow-up GET misses the jewel.
 func TestCreate_RefetchMissSurfacesDiag(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
-		switch req.Method {
-		case "POST":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`{"status":"success"}`)),
-				Request:    req,
-			}
-		case "GET":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`[]`)),
-				Request:    req,
-			}
+		switch {
+		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
+			return jsonOK(req, `{"status":"success","data":[{"group_unique_id":"tf-miss","data":{"DetectedCrownJewelScore":{"value":0},"IsCrownJewel":{"value":false}}}]}`)
+		case req.Method == "POST":
+			return jsonOK(req, `{"status":"success"}`)
+		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
+			return jsonOK(req, `[]`)
 		default:
 			t.Fatalf("unexpected method %s", req.Method)
 			return nil
 		}
 	})
 	sch := resourceSchema(t)
-	plan := stateModel{
+	plan := resourceModel{
 		ID:            types.StringUnknown(),
 		GroupUniqueID: types.StringValue("tf-miss"),
 		Description:   types.StringValue("Customer data"),
@@ -148,28 +167,26 @@ func TestCreate_RefetchMissSurfacesDiag(t *testing.T) {
 // even when the API refetch returns a different string (normalization must not
 // rewrite Required fields and cause "inconsistent result after apply").
 func TestCreate_SuccessKeepsPlanRequiredAttrs(t *testing.T) {
+	var jewelsGets int
 	r := stubResource(func(req *http.Request) *http.Response {
-		switch req.Method {
-		case "POST":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`{"status":"success"}`)),
-				Request:    req,
+		switch {
+		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
+			return jsonOK(req, `{"status":"success","data":[{"group_unique_id":"tf-keep","data":{"DetectedCrownJewelScore":{"value":0},"IsCrownJewel":{"value":false}}}]}`)
+		case req.Method == "POST":
+			return jsonOK(req, `{"status":"success"}`)
+		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
+			jewelsGets++
+			if jewelsGets == 1 {
+				return jsonOK(req, `[]`)
 			}
-		case "GET":
-			return &http.Response{
-				StatusCode: 200,
-				Body: io.NopCloser(strings.NewReader(
-					`[{"group_unique_id":"tf-keep","description":"API NORMALIZED DIFFERENT"}]`)),
-				Request: req,
-			}
+			return jsonOK(req, `[{"group_unique_id":"tf-keep","description":"API NORMALIZED DIFFERENT"}]`)
 		default:
 			t.Fatalf("unexpected method %s", req.Method)
 			return nil
 		}
 	})
 	sch := resourceSchema(t)
-	plan := stateModel{
+	plan := resourceModel{
 		ID:            types.StringUnknown(),
 		GroupUniqueID: types.StringValue("tf-keep"),
 		Description:   types.StringValue("Customer data"),
@@ -181,7 +198,7 @@ func TestCreate_SuccessKeepsPlanRequiredAttrs(t *testing.T) {
 		t.Fatalf("unexpected diags: %v", resp.Diagnostics)
 	}
 
-	var out stateModel
+	var out resourceModel
 	if diags := resp.State.Get(context.Background(), &out); diags.HasError() {
 		t.Fatalf("failed to read state: %v", diags)
 	}
@@ -193,5 +210,127 @@ func TestCreate_SuccessKeepsPlanRequiredAttrs(t *testing.T) {
 	}
 	if out.Description.ValueString() != "Customer data" {
 		t.Errorf("description must stay as planned (not API), got %q", out.Description.ValueString())
+	}
+}
+
+func jsonOK(req *http.Request, body string) *http.Response {
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}
+}
+
+// Create matches the UI: Mark is not offered when the asset is already user-marked.
+func TestCreate_AlreadyMarkedFails(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "POST" {
+			t.Fatal("must not POST when the asset is already user-marked")
+		}
+		if req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels") {
+			return jsonOK(req, `[{"group_unique_id":"vm_marked","description":"Customer data"}]`)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+	sch := resourceSchema(t)
+	plan := resourceModel{
+		ID:            types.StringUnknown(),
+		GroupUniqueID: types.StringValue("vm_marked"),
+		Description:   types.StringValue("Customer data"),
+	}
+	req := resource.CreateRequest{Plan: planWith(t, sch, plan)}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected create to fail when the asset is already user-marked")
+	}
+	detail := resp.Diagnostics.Errors()[0].Detail()
+	if !strings.Contains(detail, "vm_marked") {
+		t.Errorf("diagnostic must name the group_unique_id, got: %v", resp.Diagnostics)
+	}
+	if !strings.Contains(strings.ToLower(detail), "import") {
+		t.Errorf("diagnostic must tell the user to import, got: %v", resp.Diagnostics)
+	}
+}
+
+// Create must not POST a phantom CrownJewel row for an id that is not in inventory.
+func TestCreate_UnknownAssetFails(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "POST" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels") {
+			t.Fatal("must not POST when the asset is not in inventory")
+		}
+		switch {
+		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
+			return jsonOK(req, `[]`)
+		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
+			return jsonOK(req, `{"status":"success","data":[]}`)
+		default:
+			t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+			return nil
+		}
+	})
+	sch := resourceSchema(t)
+	plan := resourceModel{
+		ID:            types.StringUnknown(),
+		GroupUniqueID: types.StringValue("tf-phantom"),
+		Description:   types.StringValue("Customer data"),
+	}
+	req := resource.CreateRequest{Plan: planWith(t, sch, plan)}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected create to fail when group_unique_id is not in inventory")
+	}
+	detail := resp.Diagnostics.Errors()[0].Detail()
+	if !strings.Contains(detail, "tf-phantom") {
+		t.Errorf("diagnostic must name the group_unique_id, got: %v", resp.Diagnostics)
+	}
+}
+
+// Create matches the UI: Mark is not offered on an Orca-detected crown jewel.
+func TestCreate_OrcaDetectedFails(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "POST" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels") {
+			t.Fatal("must not POST when the asset is Orca-detected")
+		}
+		switch {
+		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
+			return jsonOK(req, `[]`)
+		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
+			return jsonOK(req, `{
+				"status":"success",
+				"data":[{
+					"group_unique_id":"vm_orca",
+					"data":{
+						"GroupUniqueId":{"value":"vm_orca"},
+						"DetectedCrownJewelScore":{"value":75},
+						"IsCrownJewel":{"value":true}
+					}
+				}]
+			}`)
+		default:
+			t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+			return nil
+		}
+	})
+	sch := resourceSchema(t)
+	plan := resourceModel{
+		ID:            types.StringUnknown(),
+		GroupUniqueID: types.StringValue("vm_orca"),
+		Description:   types.StringValue("Customer data"),
+	}
+	req := resource.CreateRequest{Plan: planWith(t, sch, plan)}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected create to fail when the asset is Orca-detected")
+	}
+	detail := strings.ToLower(resp.Diagnostics.Errors()[0].Detail())
+	if !strings.Contains(detail, "vm_orca") {
+		t.Errorf("diagnostic must name the group_unique_id, got: %v", resp.Diagnostics)
+	}
+	if !strings.Contains(detail, "orca") {
+		t.Errorf("diagnostic must say the asset is Orca-detected, got: %v", resp.Diagnostics)
 	}
 }

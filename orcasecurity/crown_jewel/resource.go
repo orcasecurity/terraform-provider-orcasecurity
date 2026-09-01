@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -30,10 +32,18 @@ type crownJewelResource struct {
 	apiClient *api_client.APIClient
 }
 
+// stateModel is shared with the data source (id / group_unique_id / description).
 type stateModel struct {
 	ID            types.String `tfsdk:"id"`
 	GroupUniqueID types.String `tfsdk:"group_unique_id"`
 	Description   types.String `tfsdk:"description"`
+}
+
+type resourceModel struct {
+	ID            types.String   `tfsdk:"id"`
+	GroupUniqueID types.String   `tfsdk:"group_unique_id"`
+	Description   types.String   `tfsdk:"description"`
+	Timeouts      timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewCrownJewelResource() resource.Resource {
@@ -55,15 +65,13 @@ func (r *crownJewelResource) ImportState(ctx context.Context, req resource.Impor
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Marks an asset as a user-defined crown jewel. The asset is identified by `group_unique_id`. " +
-			"Create and update both upsert: applying this resource on an asset that is already user-marked " +
-			"overwrites the existing reason instead of failing. Prefer `terraform import` to adopt an " +
-			"existing mark without changing it on first apply. Destroy matches the Orca UI disable action " +
-			"(DELETE): it upserts `is_crown_jewel=false` (an active \"not a crown jewel\" override), not a " +
-			"hard delete — see resource Notes. Orca-detected scoring on attack paths does not automatically " +
-			"return after destroy; Inventory.IsCrownJewel can fall back to the analyzer threshold.",
+		Description: "Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). " +
+			"The asset is identified by `group_unique_id` and must exist in inventory. Create fails when the UI " +
+			"would not offer Mark — already user-marked or Orca-detected. Import first to adopt an existing user " +
+			"mark. Update changes the Reason on a mark this resource already manages. Destroy matches the UI " +
+			"disable action.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -74,8 +82,7 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"group_unique_id": schema.StringAttribute{
 				Description: "Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. " +
-					"If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one. " +
-					"The API does not verify the id exists in inventory — a typo still creates a CrownJewel row.",
+					"Create requires the id to exist in inventory and not already be user-marked or Orca-detected.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -95,14 +102,18 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringvalidator.RegexMatches(nonWhitespaceRegex, "must contain at least one non-whitespace character"),
 				},
 			},
+			"timeouts": timeouts.Attributes(ctx, timeouts.Opts{
+				Create: true,
+				Update: true,
+				Delete: true,
+			}),
 		},
 	}
 }
 
 // applyPlan POSTs the planned crown jewel and writes computed fields back onto plan.
-// Create and Update share this path because the API is a single upsert.
-func (r *crownJewelResource) applyPlan(plan *stateModel) error {
-	if _, err := r.apiClient.SetCrownJewel(plan.GroupUniqueID.ValueString(), plan.Description.ValueString()); err != nil {
+func (r *crownJewelResource) applyPlan(plan *resourceModel, timeout time.Duration) error {
+	if _, err := r.apiClient.SetCrownJewel(plan.GroupUniqueID.ValueString(), plan.Description.ValueString(), timeout); err != nil {
 		return err
 	}
 	// Keep Required attributes from the plan; only refresh Computed ones from the API.
@@ -111,14 +122,59 @@ func (r *crownJewelResource) applyPlan(plan *stateModel) error {
 }
 
 func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan stateModel
+	var plan resourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := r.applyPlan(&plan); err != nil {
+	timeout, diags := plan.Timeouts.Create(ctx, api_client.DefaultCrownJewelTimeout)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	gid := plan.GroupUniqueID.ValueString()
+	existing, err := r.apiClient.GetCrownJewel(gid)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating crown jewel",
+			fmt.Sprintf("Could not look up existing crown jewel %s: %s", gid, err.Error()),
+		)
+		return
+	}
+	if existing != nil {
+		resp.Diagnostics.AddError(
+			"Crown jewel already exists",
+			fmt.Sprintf("Asset %q is already a user-marked crown jewel. The Orca UI does not offer Mark on an already-marked asset. Import it instead: terraform import orcasecurity_crown_jewel.<name> %s", gid, gid),
+		)
+		return
+	}
+	inv, err := r.apiClient.GetInventoryGroup(gid)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating crown jewel",
+			fmt.Sprintf("Could not verify inventory asset %s: %s", gid, err.Error()),
+		)
+		return
+	}
+	if inv == nil {
+		resp.Diagnostics.AddError(
+			"Asset not found",
+			fmt.Sprintf("No inventory asset found for group_unique_id %q. Crown jewels can only be set on existing assets.", gid),
+		)
+		return
+	}
+	if inv.IsOrcaDetected() {
+		resp.Diagnostics.AddError(
+			"Asset is an Orca-detected crown jewel",
+			fmt.Sprintf("Asset %q is already an Orca-detected crown jewel (DetectedCrownJewelScore=%d). The Orca UI does not offer Mark on engine-managed detections.", gid, inv.DetectedCrownJewelScore),
+		)
+		return
+	}
+
+	if err := r.applyPlan(&plan, timeout); err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating crown jewel",
 			"Could not create crown jewel, unexpected error: "+err.Error(),
@@ -131,7 +187,7 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *crownJewelResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state stateModel
+	var state resourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -163,14 +219,20 @@ func (r *crownJewelResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 func (r *crownJewelResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan stateModel
+	var plan resourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := r.applyPlan(&plan); err != nil {
+	timeout, diags := plan.Timeouts.Update(ctx, api_client.DefaultCrownJewelTimeout)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if err := r.applyPlan(&plan, timeout); err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating crown jewel",
 			"Could not update crown jewel, unexpected error: "+err.Error(),
@@ -183,14 +245,20 @@ func (r *crownJewelResource) Update(ctx context.Context, req resource.UpdateRequ
 }
 
 func (r *crownJewelResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state stateModel
+	var state resourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	err := r.apiClient.DeleteCrownJewel(state.ID.ValueString())
+	timeout, diags := state.Timeouts.Delete(ctx, api_client.DefaultCrownJewelTimeout)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := r.apiClient.DeleteCrownJewel(state.ID.ValueString(), timeout)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting crown jewel",
