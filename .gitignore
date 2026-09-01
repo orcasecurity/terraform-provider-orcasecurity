@@ -46,3 +46,6 @@ demo
 
 # Local superpowers plan/spec docs — never commit
 docs/superpowers/
+
+# Local lab harness (tokens, tenant fixtures) — never commit
+tests/
