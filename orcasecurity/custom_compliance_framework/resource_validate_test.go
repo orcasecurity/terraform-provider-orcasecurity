@@ -60,7 +60,7 @@ func TestValidateConfig_AcceptsThreeLevels(t *testing.T) {
 				"tests": types.ListNull(testObjectType()),
 				"sections": mustList(t, l3Type, mustObject(t, l3Type, map[string]attr.Value{
 					"name":     types.StringValue("L3"),
-					"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1.1")),
+					"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1.1.1")),
 					"sections": types.ListNull(sectionObjectType(0)),
 				})),
 			})),
@@ -204,7 +204,7 @@ func TestValidateConfig_RejectsEmptyTestsWithNestedSections(t *testing.T) {
 			"tests": mustList(t, testObjectType()),
 			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
 				"name":     types.StringValue("C"),
-				"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+				"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1.1")),
 				"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
 			})),
 		})),
@@ -279,24 +279,29 @@ func TestSectionIDMatchesDepth(t *testing.T) {
 
 func TestRuleIDInFrameworkValid(t *testing.T) {
 	tests := []struct {
-		id string
-		ok bool
+		id    string
+		depth int
+		ok    bool
 	}{
-		{"1.1", true},
-		{"1.1.1", true},
-		{"8.8", true},
-		{"", true},
-		{"5", false},
-		{"V-225223", false},
-		{"V1.1", false},
-		{"1.", false},
-		{".1", false},
-		{"+1.1", false},
-		{"-1.1", false},
+		{"1.1", 1, true},
+		{"1.1.1", 1, false},
+		{"1.1", 2, false},
+		{"1.1.1", 2, true},
+		{"1.1.1.1", 3, true},
+		{"1.1.1.1", 1, false},
+		{"8.8", 1, true},
+		{"", 1, true},
+		{"5", 1, false},
+		{"V-225223", 1, false},
+		{"V1.1", 1, false},
+		{"1.", 1, false},
+		{".1", 1, false},
+		{"+1.1", 1, false},
+		{"-1.1", 1, false},
 	}
 	for _, tt := range tests {
-		if got := ruleIDInFrameworkValid(tt.id); got != tt.ok {
-			t.Errorf("ruleIDInFrameworkValid(%q) = %v, want %v", tt.id, got, tt.ok)
+		if got := ruleIDInFrameworkValid(tt.id, tt.depth); got != tt.ok {
+			t.Errorf("ruleIDInFrameworkValid(%q, %d) = %v, want %v", tt.id, tt.depth, got, tt.ok)
 		}
 	}
 }
@@ -316,6 +321,29 @@ func TestValidateConfig_RejectsDotlessRuleIDInFramework(t *testing.T) {
 	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
 	if !hasDetail(resp, invalidRuleIDInFrameworkMessage) {
 		t.Errorf("expected illegal rule_id_in_framework diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_RejectsShallowRuleIDInFramework(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("shallow"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":  types.StringValue("Parent"),
+			"tests": types.ListNull(testObjectType()),
+			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
+				"name":     types.StringValue("Child"),
+				"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+				"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+			})),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, invalidRuleIDInFrameworkMessage) {
+		t.Errorf("expected shallow rule_id_in_framework diagnostic, got %v", resp.Diagnostics)
 	}
 }
 
@@ -471,7 +499,7 @@ func TestValidateConfig_RejectsNestedSectionIDNotExtendingParent(t *testing.T) {
 			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
 				"name":                    types.StringValue("Child"),
 				"section_id_in_framework": types.StringValue("9"),
-				"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "9.1")),
+				"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "9.1.1")),
 				"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 2)),
 			})),
 		})),

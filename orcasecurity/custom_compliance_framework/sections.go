@@ -38,7 +38,7 @@ const fourthLevelMessage = "the API stores three levels; move these controls up 
 
 const invalidSectionIDMessage = "section_id_in_framework must be an integer, and a nested section must extend its parent (e.g. 7.2); the API derives section ids from control ids and rejects a non-numeric part"
 
-const invalidRuleIDInFrameworkMessage = "rule_id_in_framework must be dot-separated unsigned integers with at least two parts (e.g. 1.1 or 1.1.1); a single number or a source reference_id such as V-225223 would drop the control or return 400"
+const invalidRuleIDInFrameworkMessage = "rule_id_in_framework must be dot-separated unsigned integers with exactly one more part than the section's nesting depth (e.g. 1.1 at the top level, 1.1.1 one level down); a single number, a source reference_id such as V-225223, or the wrong number of parts would drop the control, return 400, or collapse the tree"
 
 const duplicateSectionIDMessage = "section_id_in_framework must be unique and strictly ascending among siblings; the API returns sections sorted by id, so a descending or duplicate list would permute after apply"
 
@@ -112,14 +112,14 @@ func isPlainUint(s string) bool {
 }
 
 // ruleIDInFrameworkValid is the server's parser: split on ".", drop the last
-// segment for the section path. A value with fewer than two unsigned-integer
-// parts yields an empty path and the control is dropped. Empty is omitted.
-func ruleIDInFrameworkValid(id string) bool {
+// segment for the section path. The remaining parts must equal the section
+// depth; too few collapses the tree, too many 400s. Empty is omitted.
+func ruleIDInFrameworkValid(id string, depth int) bool {
 	if id == "" {
 		return true
 	}
 	parts := strings.Split(id, ".")
-	if len(parts) < 2 {
+	if len(parts) != depth+1 {
 		return false
 	}
 	for _, p := range parts {
@@ -648,10 +648,10 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, leafNeedsTestMessage)
 		return
 	}
-	validateTestRuleIDs(resp, attrs["tests"], p.AtName("tests"))
+	validateTestRuleIDs(resp, attrs["tests"], p.AtName("tests"), depth)
 }
 
-func validateTestRuleIDs(resp *resource.ValidateConfigResponse, tests attr.Value, p path.Path) {
+func validateTestRuleIDs(resp *resource.ValidateConfigResponse, tests attr.Value, p path.Path, depth int) {
 	list, ok := asList(tests)
 	if !ok {
 		return
@@ -662,7 +662,7 @@ func validateTestRuleIDs(resp *resource.ValidateConfigResponse, tests attr.Value
 			continue
 		}
 		rid := attrString(obj.Attributes(), "rule_id_in_framework")
-		if rid == "" || ruleIDInFrameworkValid(rid) {
+		if rid == "" || ruleIDInFrameworkValid(rid, depth) {
 			continue
 		}
 		resp.Diagnostics.AddAttributeError(p.AtListIndex(i).AtName("rule_id_in_framework"), invalidSectionSummary, invalidRuleIDInFrameworkMessage)

@@ -79,12 +79,13 @@ func testAttributes() map[string]schema.Attribute {
 			Description: "The rule ID for the test/control.",
 		},
 		"rule_id_in_framework": computedOptional(
-			"Must be dot-separated unsigned integers with at least two parts (`1.1`, `1.1.1`). " +
-				"A source framework's catalog `reference_id` is not always legal — STIG ids like " +
-				"`V-225223` and a single number (`5`) are rejected because the API would drop " +
-				"the control or return 400. The prefix does not have to match this section's " +
-				"`section_id_in_framework`; the API files the control under the prefix of this " +
-				"value. Omitted values are derived as `<section_id_in_framework>.<1-based index>` " +
+			"Must be exactly `depth + 1` dot-separated unsigned integers (`1.1` at the top " +
+				"level, `1.1.1` one level down, `1.1.1.1` at the third). Too few parts collapse " +
+				"the tree; too many return 400. A source framework's catalog `reference_id` is " +
+				"not always legal — STIG ids like `V-225223` and a single number (`5`) are " +
+				"rejected. The prefix does not have to match this section's " +
+				"`section_id_in_framework`, but the part count must match the nesting depth. " +
+				"Omitted values are derived as `<section_id_in_framework>.<1-based index>` " +
 				"within this resource's own section tree (e.g. `1.1`), matching the Orca UI. " +
 				"Changing the section id re-derives an omitted value. On read this is the catalog " +
 				"`reference_id`.",
