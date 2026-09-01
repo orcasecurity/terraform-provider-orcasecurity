@@ -29,6 +29,9 @@ description: |-
   is stable for a given token; a different token sees different `user` scopes.
 - **One owner per framework.** Two `orcasecurity_compliance_framework_selection`
   resources pointing at the same `framework_id` will fight.
+- **Personal frameworks cannot use `organization`.** The API returns 400
+  (`Personal frameworks can only be selected in user scope`). Create and Update
+  fail early with that message instead of relaying the raw status.
 - **This resource never deletes the framework.** For a custom framework you
   created, use `orcasecurity_custom_compliance_framework`.
 

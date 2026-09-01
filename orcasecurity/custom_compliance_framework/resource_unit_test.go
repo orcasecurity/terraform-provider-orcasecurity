@@ -2,12 +2,14 @@ package custom_compliance_framework
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -176,5 +178,76 @@ func TestSchema_LoosenedAndAdditive(t *testing.T) {
 	}
 	if _, ok := sections.NestedObject.Attributes["sections"]; !ok {
 		t.Error("missing nested sections")
+	}
+
+	scope, ok := attrs["scope"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("scope")
+	}
+	want := stringplanmodifier.RequiresReplace().Description(context.Background())
+	foundReplace := false
+	for _, m := range scope.PlanModifiers {
+		if m.Description(context.Background()) == want {
+			foundReplace = true
+		}
+	}
+	if !foundReplace {
+		t.Error("scope must RequiresReplace")
+	}
+}
+
+func oneSection(t *testing.T) types.List {
+	t.Helper()
+	rootType := sectionObjectType(maxSectionDepth - 1)
+	return mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+		"name":     types.StringValue("Flat"),
+		"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+	}))
+}
+
+func TestValidateConfig_RejectsPersonalWithOrganizationScope(t *testing.T) {
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("personal"),
+		Visibility:         types.StringValue("Personal"),
+		Scope:              types.StringValue("organization"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("Personal + organization must be a config error")
+	}
+	found := false
+	for _, d := range resp.Diagnostics {
+		if strings.Contains(d.Detail(), errPersonalOrgDetail) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected personal/org diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestUpdateRequestOmitsEmptyForcedCloudVendors(t *testing.T) {
+	empty, d := types.SetValue(types.StringType, []attr.Value{})
+	if d.HasError() {
+		t.Fatal(d)
+	}
+	req, diags := updateRequestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: empty,
+		Sections:           oneSection(t),
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "forced_cloud_vendors") {
+		t.Errorf("empty set must omit forced_cloud_vendors, got %s", raw)
 	}
 }

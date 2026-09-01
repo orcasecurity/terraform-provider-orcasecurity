@@ -65,15 +65,12 @@ func attrString(attrs map[string]attr.Value, name string) string {
 	return s.ValueString()
 }
 
-func asList(v attr.Value) types.List {
-	if v == nil {
-		return types.ListNull(types.StringType)
+func asList(v attr.Value) (types.List, bool) {
+	if v == nil || v.IsNull() || v.IsUnknown() {
+		return types.List{}, false
 	}
 	l, ok := v.(types.List)
-	if !ok {
-		return types.ListNull(types.StringType)
-	}
-	return l
+	return l, ok
 }
 
 func listLen(v attr.Value) int {
@@ -129,10 +126,18 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 		}
 		id := positionalSectionID(parentID, i)
 		attrs := obj.Attributes()
+		tests := []api_client.CustomComplianceFrameworkTest{}
+		if l, ok := asList(attrs["tests"]); ok {
+			tests = testsToAPI(id, l)
+		}
+		nested := []api_client.CustomComplianceFrameworkSection{}
+		if l, ok := asList(attrs["sections"]); ok {
+			nested = sectionsToAPIAt(l, id)
+		}
 		out = append(out, api_client.CustomComplianceFrameworkSection{
 			Name:     attrString(attrs, "name"),
-			Tests:    testsToAPI(id, asList(attrs["tests"])),
-			Sections: sectionsToAPIAt(asList(attrs["sections"]), id),
+			Tests:    tests,
+			Sections: nested,
 		})
 	}
 	return out
@@ -204,7 +209,9 @@ func validateSections(resp *resource.ValidateConfigResponse, list types.List, pa
 			resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, mixedSectionMessage)
 		}
 		if nested, ok := attrs["sections"]; ok {
-			validateSections(resp, asList(nested), p.AtName("sections"))
+			if l, ok := asList(nested); ok {
+				validateSections(resp, l, p.AtName("sections"))
+			}
 		}
 	}
 }

@@ -15,8 +15,9 @@ Manages which scopes (`user`, `organization`) a compliance framework is selected
 ```terraform
 # Enable a built-in framework for the whole organization.
 # Destroy is state-only: it will NOT deselect this framework.
-resource "orcasecurity_compliance_framework_selection" "cis_aws" {
-  framework_id = "cis_aws_foundations_1_4_0"
+# Personal frameworks cannot hold the organization scope.
+resource "orcasecurity_compliance_framework_selection" "gcp_cis" {
+  framework_id = "gcp_cis_3.0.0"
   scopes       = ["organization"]
 }
 
@@ -33,7 +34,7 @@ resource "orcasecurity_compliance_framework_selection" "cost_optimization" {
 ### Required
 
 - `framework_id` (String) System or custom framework id. Changing this value replaces the resource. Also the import id.
-- `scopes` (Set of String) Selection scopes to hold. Valid values: `user`, `organization`. An empty set disables the framework (DELETE of every held scope). A set, not a list — the API returns them unordered.
+- `scopes` (Set of String) Selection scopes to hold. Valid values: `user`, `organization`. An empty set disables the framework (DELETE of every held scope). A set, not a list — the API returns them unordered. Personal frameworks cannot hold `organization` (the API returns 400).
 
 ### Read-Only
 
@@ -55,6 +56,9 @@ resource "orcasecurity_compliance_framework_selection" "cost_optimization" {
   is stable for a given token; a different token sees different `user` scopes.
 - **One owner per framework.** Two `orcasecurity_compliance_framework_selection`
   resources pointing at the same `framework_id` will fight.
+- **Personal frameworks cannot use `organization`.** The API returns 400
+  (`Personal frameworks can only be selected in user scope`). Create and Update
+  fail early with that message instead of relaying the raw status.
 - **This resource never deletes the framework.** For a custom framework you
   created, use `orcasecurity_custom_compliance_framework`.
 

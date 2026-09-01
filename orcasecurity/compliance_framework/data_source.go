@@ -122,6 +122,18 @@ func frameworkAttributes(idRequired bool) map[string]schema.Attribute {
 			Description: "End of support date. Null when omitted or unset.",
 		},
 		"visibility": schema.StringAttribute{Computed: true, Description: "Custom-framework visibility. Null for built-ins."},
+		"origin_type": schema.StringAttribute{
+			Computed:    true,
+			Description: "Framework origin type. Null when omitted.",
+		},
+		"created_at": schema.StringAttribute{Computed: true, Description: "Creation timestamp. Null when omitted."},
+		"updated_at": schema.StringAttribute{Computed: true, Description: "Last update timestamp. Null when omitted."},
+		"created_by": schema.StringAttribute{Computed: true, Description: "Creator. Null when omitted."},
+		"updated_by": schema.StringAttribute{Computed: true, Description: "Last updater. Null when omitted."},
+		"is_forced_cloud_vendors": schema.BoolAttribute{
+			Computed:    true,
+			Description: "Whether `framework_cloud_vendors` is enforced. The read counterpart of the custom-framework `forced_cloud_vendors` attribute. Null when omitted.",
+		},
 	}
 }
 

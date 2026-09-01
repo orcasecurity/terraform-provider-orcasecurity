@@ -13,12 +13,12 @@ Looks up one compliance framework by id, including its catalog section tree. Use
 ## Example Usage
 
 ```terraform
-data "orcasecurity_compliance_framework" "cis_aws" {
-  id = "cis_aws_foundations_1_4_0"
+data "orcasecurity_compliance_framework" "gcp_cis" {
+  id = "gcp_cis_3.0.0"
 }
 
 output "controls" {
-  value = data.orcasecurity_compliance_framework.cis_aws.sections
+  value = data.orcasecurity_compliance_framework.gcp_cis.sections
 }
 ```
 
@@ -32,16 +32,22 @@ output "controls" {
 ### Read-Only
 
 - `active` (Boolean) True iff `selection_scopes` is non-empty.
+- `created_at` (String) Creation timestamp. Null when omitted.
+- `created_by` (String) Creator. Null when omitted.
 - `custom` (Boolean) Whether this is a custom framework.
 - `description` (String) Framework description. Null when omitted.
 - `display_name` (String) Framework display name.
 - `framework_cloud_vendors` (List of String) Cloud vendors this framework applies to. Null when omitted.
 - `icon_family` (String) Icon family. Null when omitted.
+- `is_forced_cloud_vendors` (Boolean) Whether `framework_cloud_vendors` is enforced. The read counterpart of the custom-framework `forced_cloud_vendors` attribute. Null when omitted.
 - `is_ready` (Boolean) Whether the framework is ready. Null when omitted.
 - `orca_end_of_support_date` (String) End of support date. Null when omitted or unset.
+- `origin_type` (String) Framework origin type. Null when omitted.
 - `sections` (Attributes List) Section/test tree from GET /api/compliance/catalog/{id}. Nested at most three levels (a section has tests, or sub-sections, never both). Server-assigned section ids are omitted. (see [below for nested schema](#nestedatt--sections))
 - `selection_scopes` (List of String) Held scopes (`user`, `organization`), sorted. Empty when the framework is disabled.
 - `type` (String) Framework type. Null for custom frameworks.
+- `updated_at` (String) Last update timestamp. Null when omitted.
+- `updated_by` (String) Last updater. Null when omitted.
 - `version` (String) Framework version. Null when omitted.
 - `version_agnostic_display_name` (String) Display name without version. Null when omitted.
 - `visibility` (String) Custom-framework visibility. Null for built-ins.
@@ -77,6 +83,7 @@ Read-Only:
 
 Read-Only:
 
+- `cis_level` (String) CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted.
 - `cloud_vendors` (List of String) Cloud vendors this control applies to. Null when omitted.
 - `control_unique_id` (String) Catalog control unique id. Null when omitted.
 - `name` (String) Control name. Null when omitted.
@@ -92,6 +99,7 @@ Read-Only:
 
 Read-Only:
 
+- `cis_level` (String) CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted.
 - `cloud_vendors` (List of String) Cloud vendors this control applies to. Null when omitted.
 - `control_unique_id` (String) Catalog control unique id. Null when omitted.
 - `name` (String) Control name. Null when omitted.
@@ -107,6 +115,7 @@ Read-Only:
 
 Read-Only:
 
+- `cis_level` (String) CIS Level 1 / Level 2 when the control is CIS-scoped. Null when omitted.
 - `cloud_vendors` (List of String) Cloud vendors this control applies to. Null when omitted.
 - `control_unique_id` (String) Catalog control unique id. Null when omitted.
 - `name` (String) Control name. Null when omitted.

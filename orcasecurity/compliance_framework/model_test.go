@@ -53,6 +53,9 @@ func TestFrameworkToModel_NullOptionalFields(t *testing.T) {
 	if !m.Type.IsNull() || !m.Version.IsNull() || !m.IsReady.IsNull() || !m.Visibility.IsNull() {
 		t.Errorf("optional fields must be null, got %+v", m)
 	}
+	if !m.OriginType.IsNull() || !m.CreatedAt.IsNull() || !m.IsForcedCloudVendors.IsNull() {
+		t.Errorf("audit/enforcement fields must be null, got %+v", m)
+	}
 	if m.Description.ValueString() != "" && !m.Description.IsNull() {
 		t.Errorf("missing description must be null, got %v", m.Description)
 	}
@@ -73,5 +76,21 @@ func TestCatalogSectionsLeafAbsent(t *testing.T) {
 	test0 := sec.Attributes()["tests"].(types.List).Elements()[0].(types.Object)
 	if test0.Attributes()["reference_id"].(types.String).ValueString() != "1.1" {
 		t.Errorf("reference_id: %s", test0.Attributes()["reference_id"])
+	}
+	if !test0.Attributes()["cis_level"].IsNull() {
+		t.Errorf("omitted cis_level must be null, got %v", test0.Attributes()["cis_level"])
+	}
+}
+
+func TestCatalogTestsToModel_CISLevel(t *testing.T) {
+	got, d := catalogTestsToModel(context.Background(), []api_client.ComplianceCatalogTest{{
+		RuleID: "r1", CISLevel: "1",
+	}})
+	if d.HasError() {
+		t.Fatal(d)
+	}
+	obj := got.Elements()[0].(types.Object)
+	if obj.Attributes()["cis_level"].(types.String).ValueString() != "1" {
+		t.Errorf("cis_level: %s", obj.Attributes()["cis_level"])
 	}
 }

@@ -1,7 +1,7 @@
-data "orcasecurity_compliance_framework" "cis_aws" {
-  id = "cis_aws_foundations_1_4_0"
+data "orcasecurity_compliance_framework" "gcp_cis" {
+  id = "gcp_cis_3.0.0"
 }
 
 output "controls" {
-  value = data.orcasecurity_compliance_framework.cis_aws.sections
+  value = data.orcasecurity_compliance_framework.gcp_cis.sections
 }

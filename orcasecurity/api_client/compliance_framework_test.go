@@ -164,7 +164,7 @@ func TestGetComplianceCatalogFramework(t *testing.T) {
 						{"id": "1", "name": "Parent", "total_tests": 0, "tests": [],
 						 "sections": [
 							{"id": "1.1", "name": "Child One", "total_tests": 1,
-							 "tests": [{"rule_id": "r1", "reference_id": "1.1.1", "priority": "Medium"}]}
+							 "tests": [{"rule_id": "r1", "reference_id": "1.1.1", "priority": "Medium", "cis_level": 1}]}
 						 ]}
 					]
 				}]
@@ -180,6 +180,21 @@ func TestGetComplianceCatalogFramework(t *testing.T) {
 	}
 	if fw.Sections[0].Sections == nil || fw.Sections[0].Sections[0].Tests[0].ReferenceID != "1.1.1" {
 		t.Errorf("nested tree: %+v", fw.Sections)
+	}
+	if fw.Sections[0].Sections[0].Tests[0].CISLevel != "1" {
+		t.Errorf("cis_level number must decode to string, got %q", fw.Sections[0].Sections[0].Tests[0].CISLevel)
+	}
+}
+
+func TestJSONStringOrNumber(t *testing.T) {
+	var got struct {
+		V jsonStringOrNumber `json:"v"`
+	}
+	if err := json.Unmarshal([]byte(`{"v":1}`), &got); err != nil || got.V != "1" {
+		t.Fatalf("number: %+v %v", got, err)
+	}
+	if err := json.Unmarshal([]byte(`{"v":"L2"}`), &got); err != nil || got.V != "L2" {
+		t.Fatalf("string: %+v %v", got, err)
 	}
 }
 

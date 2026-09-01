@@ -13,45 +13,48 @@ Provides a custom compliance framework resource. Sections are read back from GET
 ## Example Usage
 
 ```terraform
-resource "orcasecurity_custom_compliance_framework" "example" {
-  name        = "My Custom Framework"
-  description = "Custom compliance framework managed by Terraform"
-  visibility  = "Organizational"
+# Build a custom framework from controls on a built-in one. The single-framework
+# data source returns sections[].tests[].rule_id; omit rule_id_in_framework and
+# the provider derives it as <section-id>.<1-based index>, matching the Orca UI.
+data "orcasecurity_compliance_framework" "source" {
+  id = "gcp_cis_3.0.0"
+}
+
+locals {
+  source_tests = flatten([
+    for s in data.orcasecurity_compliance_framework.source.sections : concat(
+      s.tests != null ? s.tests : [],
+      flatten([
+        for c in(s.sections != null ? s.sections : []) : concat(
+          c.tests != null ? c.tests : [],
+          flatten([
+            for g in(c.sections != null ? c.sections : []) :
+            g.tests != null ? g.tests : []
+          ])
+        )
+      ])
+    )
+  ])
+  high_tests = [for t in local.source_tests : t if t.priority == "High"]
+}
+
+resource "orcasecurity_custom_compliance_framework" "subset" {
+  name       = "GCP CIS — critical subset"
+  visibility = "Organizational"
 
   sections = [
     {
-      name = "Parent"
-      sections = [
-        {
-          name = "Access Control"
-          tests = [
-            {
-              rule_id              = "your_rule_id"
-              rule_id_in_framework = "1.1.1"
-            }
-          ]
-        },
-        {
-          name = "Data Protection"
-          tests = [
-            {
-              rule_id              = "your_rule_id"
-              rule_id_in_framework = "1.2.1"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      name = "Flat"
+      name = "Selected controls"
       tests = [
-        {
-          rule_id              = "your_rule_id"
-          rule_id_in_framework = "2.1"
-        }
+        for t in local.high_tests : { rule_id = t.rule_id }
       ]
     }
   ]
+}
+
+resource "orcasecurity_compliance_framework_selection" "subset" {
+  framework_id = orcasecurity_custom_compliance_framework.subset.id
+  scopes       = ["organization"]
 }
 ```
 
@@ -66,9 +69,9 @@ resource "orcasecurity_custom_compliance_framework" "example" {
 ### Optional
 
 - `description` (String) Framework description.
-- `forced_cloud_vendors` (Set of String) Force the framework onto these cloud vendors. Sent only when non-empty; omitting the attribute on update clears enforcement (API behavior). An explicit empty list is rejected by the API.
-- `scope` (String) Create-only activation: `user` or `organization`. PUT ignores this field. Omitting it leaves the new framework inactive (`selection_scopes: []`). Ongoing enable/disable belongs to `orcasecurity_compliance_framework_selection`.
-- `visibility` (String) Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted.
+- `forced_cloud_vendors` (Set of String) Force the framework onto these cloud vendors. Sent only when non-empty. `forced_cloud_vendors = []` is treated as omit: the provider does not send the key, so enforcement is cleared on update (the API 400s on an explicit empty list). Omitting the attribute on update also clears enforcement.
+- `scope` (String) Create-only activation: `user` or `organization`. PUT ignores this field. Omitting it leaves the new framework inactive (`selection_scopes: []`). `visibility = "Personal"` cannot use `organization`. Ongoing enable/disable belongs to `orcasecurity_compliance_framework_selection`.
+- `visibility` (String) Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. `Personal` cannot be combined with `scope = "organization"` (the API returns 400).
 
 ### Read-Only
 
@@ -172,8 +175,12 @@ Optional:
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).
-- **`forced_cloud_vendors`.** Sent only when non-empty. Omitting it on update
-  clears enforcement (API behavior). An explicit empty list is a 400.
+  `visibility = "Personal"` cannot be combined with `scope = "organization"`
+  (the API returns 400); the provider rejects that combination in config.
+- **`forced_cloud_vendors`.** Sent only when non-empty. `forced_cloud_vendors = []`
+  is omitted from the payload (clears enforcement). The API itself 400s on an
+  explicit empty list; the provider never sends that form. Omitting the
+  attribute on update also clears enforcement.
 
 ## Import
 

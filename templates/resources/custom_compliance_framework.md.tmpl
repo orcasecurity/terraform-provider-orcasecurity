@@ -33,8 +33,12 @@ description: |-
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).
-- **`forced_cloud_vendors`.** Sent only when non-empty. Omitting it on update
-  clears enforcement (API behavior). An explicit empty list is a 400.
+  `visibility = "Personal"` cannot be combined with `scope = "organization"`
+  (the API returns 400); the provider rejects that combination in config.
+- **`forced_cloud_vendors`.** Sent only when non-empty. `forced_cloud_vendors = []`
+  is omitted from the payload (clears enforcement). The API itself 400s on an
+  explicit empty list; the provider never sends that form. Omitting the
+  attribute on update also clears enforcement.
 
 ## Import
 

@@ -1,7 +1,8 @@
 # Enable a built-in framework for the whole organization.
 # Destroy is state-only: it will NOT deselect this framework.
-resource "orcasecurity_compliance_framework_selection" "cis_aws" {
-  framework_id = "cis_aws_foundations_1_4_0"
+# Personal frameworks cannot hold the organization scope.
+resource "orcasecurity_compliance_framework_selection" "gcp_cis" {
+  framework_id = "gcp_cis_3.0.0"
   scopes       = ["organization"]
 }
 

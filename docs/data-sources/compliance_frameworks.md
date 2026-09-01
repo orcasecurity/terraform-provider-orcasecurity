@@ -49,16 +49,22 @@ output "active_custom_ids" {
 Read-Only:
 
 - `active` (Boolean) True iff `selection_scopes` is non-empty.
+- `created_at` (String) Creation timestamp. Null when omitted.
+- `created_by` (String) Creator. Null when omitted.
 - `custom` (Boolean) Whether this is a custom framework.
 - `description` (String) Framework description. Null when omitted.
 - `display_name` (String) Framework display name.
 - `framework_cloud_vendors` (List of String) Cloud vendors this framework applies to. Null when omitted.
 - `icon_family` (String) Icon family. Null when omitted.
 - `id` (String) Framework id.
+- `is_forced_cloud_vendors` (Boolean) Whether `framework_cloud_vendors` is enforced. The read counterpart of the custom-framework `forced_cloud_vendors` attribute. Null when omitted.
 - `is_ready` (Boolean) Whether the framework is ready. Null when omitted.
 - `orca_end_of_support_date` (String) End of support date. Null when omitted or unset.
+- `origin_type` (String) Framework origin type. Null when omitted.
 - `selection_scopes` (List of String) Held scopes (`user`, `organization`), sorted. Empty when the framework is disabled.
 - `type` (String) Framework type. Null for custom frameworks.
+- `updated_at` (String) Last update timestamp. Null when omitted.
+- `updated_by` (String) Last updater. Null when omitted.
 - `version` (String) Framework version. Null when omitted.
 - `version_agnostic_display_name` (String) Display name without version. Null when omitted.
 - `visibility` (String) Custom-framework visibility. Null for built-ins.

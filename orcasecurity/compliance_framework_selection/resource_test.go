@@ -231,6 +231,38 @@ func TestDelete_DefaultIssuesNoHTTP(t *testing.T) {
 	}
 }
 
+func TestCreate_PersonalRejectsOrganization(t *testing.T) {
+	var calls []httpCall
+	entries := map[string]map[string]interface{}{
+		"fw": {
+			"id": "fw", "active": false, "selection_scopes": []string{},
+			"display_name": "FW", "custom": true, "is_ready": true,
+			"visibility": "Personal",
+		},
+	}
+	r := stubResource(selectStub(t, entries, &calls, nil))
+	sch := resourceSchema(t)
+	m := model(t, "fw", []string{"organization"})
+	req := resource.CreateRequest{Plan: planWith(t, sch, m)}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("personal + organization must be a diagnostic")
+	}
+	found := false
+	for _, d := range resp.Diagnostics {
+		if strings.Contains(d.Summary(), errPersonalOrgSummary) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected personal/org diagnostic, got %v", resp.Diagnostics)
+	}
+	if len(calls) != 0 {
+		t.Errorf("must not call select, got %#v", calls)
+	}
+}
+
 func TestSchema_EmptyScopesAllowed(t *testing.T) {
 	sch := resourceSchema(t)
 	scopes, ok := sch.Attributes["scopes"].(schema.SetAttribute)

@@ -100,7 +100,8 @@ func (r *complianceFrameworkSelectionResource) Schema(_ context.Context, _ resou
 				ElementType: types.StringType,
 				Description: "Selection scopes to hold. Valid values: `user`, `organization`. " +
 					"An empty set disables the framework (DELETE of every held scope). " +
-					"A set, not a list — the API returns them unordered.",
+					"A set, not a list — the API returns them unordered. " +
+					"Personal frameworks cannot hold `organization` (the API returns 400).",
 				Validators: []validator.Set{
 					setvalidator.ValueStringsAre(stringvalidator.OneOf(scopeUser, scopeOrganization)),
 				},
@@ -147,6 +148,10 @@ func (r *complianceFrameworkSelectionResource) Create(ctx context.Context, req r
 	desired, diags := integrations_common.StringSliceFromSet(ctx, plan.Scopes)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if d := personalOrganizationDiag(entry.Visibility, desired); d != nil {
+		resp.Diagnostics.Append(d...)
 		return
 	}
 
@@ -210,6 +215,18 @@ func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req r
 		return
 	}
 
+	entry, err := r.lookup(plan.FrameworkID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(errUpdatingSelection, "Could not read current selection: "+err.Error())
+		return
+	}
+	if entry != nil {
+		if pd := personalOrganizationDiag(entry.Visibility, to); pd != nil {
+			resp.Diagnostics.Append(pd...)
+			return
+		}
+	}
+
 	if err := r.applyScopeDiff(plan.FrameworkID.ValueString(), from, to); err != nil {
 		resp.Diagnostics.AddError(errUpdatingSelection, "Could not update scopes, unexpected error: "+err.Error())
 		return
@@ -225,6 +242,26 @@ func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req r
 // Destroy is state-only: this resource never created the framework, and the
 // organization scope is shared tenant state. Disabling is `scopes = []`.
 func (r *complianceFrameworkSelectionResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+}
+
+const (
+	visibilityPersonal    = "Personal"
+	errPersonalOrgSummary = "Personal framework cannot use organization scope"
+	errPersonalOrgDetail  = "Personal frameworks can only be selected in user scope, not organization scope."
+)
+
+func personalOrganizationDiag(visibility *string, scopes []string) diag.Diagnostics {
+	if visibility == nil || *visibility != visibilityPersonal {
+		return nil
+	}
+	for _, s := range scopes {
+		if s == scopeOrganization {
+			var d diag.Diagnostics
+			d.AddError(errPersonalOrgSummary, errPersonalOrgDetail)
+			return d
+		}
+	}
+	return nil
 }
 
 func (r *complianceFrameworkSelectionResource) lookup(id string) (*api_client.ComplianceFramework, error) {

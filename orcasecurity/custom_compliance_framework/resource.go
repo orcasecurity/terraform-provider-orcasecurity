@@ -146,9 +146,10 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				Description: "Framework description.",
 			},
 			"visibility": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted.",
+				Optional: true,
+				Computed: true,
+				Description: "Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. " +
+					"`Personal` cannot be combined with `scope = \"organization\"` (the API returns 400).",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Organizational", "Personal"),
 				},
@@ -160,6 +161,7 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				Optional: true,
 				Description: "Create-only activation: `user` or `organization`. PUT ignores this field. " +
 					"Omitting it leaves the new framework inactive (`selection_scopes: []`). " +
+					"`visibility = \"Personal\"` cannot use `organization`. " +
 					"Ongoing enable/disable belongs to `orcasecurity_compliance_framework_selection`.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("user", "organization"),
@@ -171,9 +173,10 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 			"forced_cloud_vendors": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Force the framework onto these cloud vendors. Sent only when non-empty; " +
-					"omitting the attribute on update clears enforcement (API behavior). " +
-					"An explicit empty list is rejected by the API.",
+				Description: "Force the framework onto these cloud vendors. Sent only when non-empty. " +
+					"`forced_cloud_vendors = []` is treated as omit: the provider does not send the key, " +
+					"so enforcement is cleared on update (the API 400s on an explicit empty list). " +
+					"Omitting the attribute on update also clears enforcement.",
 			},
 			"sections": schema.ListNestedAttribute{
 				Required:    true,
@@ -193,6 +196,22 @@ func (r *customComplianceFrameworkResource) ValidateConfig(ctx context.Context, 
 		return
 	}
 	validateSections(resp, config.Sections, path.Root("sections"))
+	validatePersonalOrganization(resp, config)
+}
+
+const (
+	visibilityPersonal    = "Personal"
+	errPersonalOrgSummary = "Personal framework cannot use organization scope"
+	errPersonalOrgDetail  = "Personal frameworks can only be selected in user scope, not organization scope."
+)
+
+func validatePersonalOrganization(resp *resource.ValidateConfigResponse, config customComplianceFrameworkResourceModel) {
+	if config.Visibility.IsNull() || config.Visibility.IsUnknown() || config.Scope.IsNull() || config.Scope.IsUnknown() {
+		return
+	}
+	if config.Visibility.ValueString() == visibilityPersonal && config.Scope.ValueString() == "organization" {
+		resp.Diagnostics.AddAttributeError(path.Root("scope"), errPersonalOrgSummary, errPersonalOrgDetail)
+	}
 }
 
 func (r *customComplianceFrameworkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

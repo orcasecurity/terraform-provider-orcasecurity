@@ -31,6 +31,12 @@ type frameworkModel struct {
 	IconFamily                 types.String `tfsdk:"icon_family"`
 	OrcaEndOfSupportDate       types.String `tfsdk:"orca_end_of_support_date"`
 	Visibility                 types.String `tfsdk:"visibility"`
+	OriginType                 types.String `tfsdk:"origin_type"`
+	CreatedAt                  types.String `tfsdk:"created_at"`
+	UpdatedAt                  types.String `tfsdk:"updated_at"`
+	CreatedBy                  types.String `tfsdk:"created_by"`
+	UpdatedBy                  types.String `tfsdk:"updated_by"`
+	IsForcedCloudVendors       types.Bool   `tfsdk:"is_forced_cloud_vendors"`
 }
 
 type frameworkFilters struct {
@@ -54,7 +60,7 @@ func catalogSectionObjectType(remainingDepth int) types.ObjectType {
 }
 
 func catalogTestObjectType() types.ObjectType {
-	return catalogSectionObjectType(0).AttrTypes["tests"].(types.ListType).ElemType.(types.ObjectType)
+	return catalogObjectTypeFromAttributes(catalogTestAttributes())
 }
 
 func frameworkToModel(ctx context.Context, fw api_client.ComplianceFramework) (frameworkModel, diag.Diagnostics) {
@@ -80,6 +86,12 @@ func frameworkToModel(ctx context.Context, fw api_client.ComplianceFramework) (f
 		IconFamily:                 tfconv.StringPtrOrNull(fw.IconFamily),
 		OrcaEndOfSupportDate:       tfconv.StringPtrOrNull(fw.OrcaEndOfSupportDate),
 		Visibility:                 tfconv.StringPtrOrNull(fw.Visibility),
+		OriginType:                 tfconv.StringPtrOrNull(fw.OriginType),
+		CreatedAt:                  tfconv.StringPtrOrNull(fw.CreatedAt),
+		UpdatedAt:                  tfconv.StringPtrOrNull(fw.UpdatedAt),
+		CreatedBy:                  tfconv.StringPtrOrNull(fw.CreatedBy),
+		UpdatedBy:                  tfconv.StringPtrOrNull(fw.UpdatedBy),
+		IsForcedCloudVendors:       tfconv.BoolPtrOrNull(fw.IsForcedCloudVendors),
 	}, diags
 }
 
@@ -161,6 +173,7 @@ func catalogTestsToModel(ctx context.Context, tests []api_client.ComplianceCatal
 			"cloud_vendors":       vendors,
 			"control_unique_id":   tfconv.StringOrNull(t.ControlUniqueID),
 			"priority":            tfconv.StringOrNull(t.Priority),
+			"cis_level":           tfconv.StringOrNull(string(t.CISLevel)),
 		})
 		diags.Append(d...)
 		vals[i] = obj
