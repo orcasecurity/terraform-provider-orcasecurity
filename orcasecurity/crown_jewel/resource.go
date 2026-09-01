@@ -94,8 +94,7 @@ func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaReques
 			"description": schema.StringAttribute{
 				Description: "Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI " +
 					"(\"Mark as Crown Jewel\"). Common UI values are `Critical business function`, `Customer data`, " +
-					"`High blast radius`, or free text when choosing Other. Required: the API accepts omit, but " +
-					"creating without a reason stores a null description and breaks list/read of crown jewels.",
+					"`High blast radius`, or free text when choosing Other.",
 				Required: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),

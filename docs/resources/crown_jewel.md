@@ -36,7 +36,7 @@ resource "orcasecurity_crown_jewel" "example" {
 
 ### Required
 
-- `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). Common UI values are `Critical business function`, `Customer data`, `High blast radius`, or free text when choosing Other. Required: the API accepts omit, but creating without a reason stores a null description and breaks list/read of crown jewels.
+- `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). Common UI values are `Critical business function`, `Customer data`, `High blast radius`, or free text when choosing Other.
 - `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. Create requires the id to exist in inventory and not already be user-marked or Orca-detected.
 
 ### Optional
