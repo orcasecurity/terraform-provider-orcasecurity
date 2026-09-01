@@ -38,6 +38,8 @@ const fourthLevelMessage = "the API stores three levels; move these controls up 
 
 const invalidSectionIDMessage = "section_id_in_framework must be an integer, and a nested section must extend its parent (e.g. 7.2); the API derives section ids from control ids and rejects a non-numeric part"
 
+const invalidRuleIDInFrameworkMessage = "rule_id_in_framework must be dot-separated unsigned integers with at least two parts (e.g. 1.1 or 1.1.1); a single number or a source reference_id such as V-225223 would drop the control or return 400"
+
 const duplicateSectionIDMessage = "section_id_in_framework must be unique and strictly ascending among siblings; the API returns sections sorted by id, so a descending or duplicate list would permute after apply"
 
 const nestedSectionsDescription = "Nested sub-sections. A section may have tests or sub-sections, never both."
@@ -107,6 +109,25 @@ func nextAfter(parentID, prevID string) string {
 func isPlainUint(s string) bool {
 	_, err := strconv.ParseUint(s, 10, 64)
 	return err == nil
+}
+
+// ruleIDInFrameworkValid is the server's parser: split on ".", drop the last
+// segment for the section path. A value with fewer than two unsigned-integer
+// parts yields an empty path and the control is dropped. Empty is omitted.
+func ruleIDInFrameworkValid(id string) bool {
+	if id == "" {
+		return true
+	}
+	parts := strings.Split(id, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	for _, p := range parts {
+		if !isPlainUint(p) {
+			return false
+		}
+	}
+	return true
 }
 
 // sectionIDMatchesDepth is the server's rule: one unsigned integer per level,
@@ -625,6 +646,26 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 	}
 	if nTests == 0 {
 		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, leafNeedsTestMessage)
+		return
+	}
+	validateTestRuleIDs(resp, attrs["tests"], p.AtName("tests"))
+}
+
+func validateTestRuleIDs(resp *resource.ValidateConfigResponse, tests attr.Value, p path.Path) {
+	list, ok := asList(tests)
+	if !ok {
+		return
+	}
+	for i, e := range list.Elements() {
+		obj, ok := e.(types.Object)
+		if !ok || obj.IsNull() || obj.IsUnknown() {
+			continue
+		}
+		rid := attrString(obj.Attributes(), "rule_id_in_framework")
+		if rid == "" || ruleIDInFrameworkValid(rid) {
+			continue
+		}
+		resp.Diagnostics.AddAttributeError(p.AtListIndex(i).AtName("rule_id_in_framework"), invalidSectionSummary, invalidRuleIDInFrameworkMessage)
 	}
 }
 

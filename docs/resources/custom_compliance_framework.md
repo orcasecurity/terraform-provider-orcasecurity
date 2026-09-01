@@ -147,7 +147,7 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
+- `rule_id_in_framework` (String) Must be dot-separated unsigned integers with at least two parts (`1.1`, `1.1.1`). A source framework's catalog `reference_id` is not always legal — STIG ids like `V-225223` and a single number (`5`) are rejected because the API would drop the control or return 400. The prefix does not have to match this section's `section_id_in_framework`; the API files the control under the prefix of this value. Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
 
 
 
@@ -163,7 +163,7 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
+- `rule_id_in_framework` (String) Must be dot-separated unsigned integers with at least two parts (`1.1`, `1.1.1`). A source framework's catalog `reference_id` is not always legal — STIG ids like `V-225223` and a single number (`5`) are rejected because the API would drop the control or return 400. The prefix does not have to match this section's `section_id_in_framework`; the API files the control under the prefix of this value. Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
 
 
 
@@ -179,7 +179,7 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
+- `rule_id_in_framework` (String) Must be dot-separated unsigned integers with at least two parts (`1.1`, `1.1.1`). A source framework's catalog `reference_id` is not always legal — STIG ids like `V-225223` and a single number (`5`) are rejected because the API would drop the control or return 400. The prefix does not have to match this section's `section_id_in_framework`; the API files the control under the prefix of this value. Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
 
 ## Notes
 
@@ -215,6 +215,12 @@ Optional:
   sorted by id and derives those ids from control ids; the provider does not
   send `section_id_in_framework` on the wire. On read this is the catalog
   section `id`.
+- **`rule_id_in_framework`.** Must be dot-separated unsigned integers with at
+  least two parts (`1.1`, `1.1.1`). A source framework's catalog
+  `reference_id` is not always legal — STIG ids like `V-225223` and a single
+  number (`5`) are rejected (the API would drop the control or return 400).
+  The prefix does not have to match this section's id; `8.8` under an omitted
+  section id is accepted and the section reads back as `8`.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

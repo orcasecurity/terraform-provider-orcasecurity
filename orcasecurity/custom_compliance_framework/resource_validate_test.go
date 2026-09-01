@@ -277,6 +277,66 @@ func TestSectionIDMatchesDepth(t *testing.T) {
 	}
 }
 
+func TestRuleIDInFrameworkValid(t *testing.T) {
+	tests := []struct {
+		id string
+		ok bool
+	}{
+		{"1.1", true},
+		{"1.1.1", true},
+		{"8.8", true},
+		{"", true},
+		{"5", false},
+		{"V-225223", false},
+		{"V1.1", false},
+		{"1.", false},
+		{".1", false},
+		{"+1.1", false},
+		{"-1.1", false},
+	}
+	for _, tt := range tests {
+		if got := ruleIDInFrameworkValid(tt.id); got != tt.ok {
+			t.Errorf("ruleIDInFrameworkValid(%q) = %v, want %v", tt.id, got, tt.ok)
+		}
+	}
+}
+
+func TestValidateConfig_RejectsDotlessRuleIDInFramework(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("dotless"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("Alpha"),
+			"tests":    mustList(t, testObjectType(), testObj(t, "r1", "5")),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, invalidRuleIDInFrameworkMessage) {
+		t.Errorf("expected illegal rule_id_in_framework diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_AcceptsExplicitRuleIDNotMatchingSection(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("prefix"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("Alpha"),
+			"tests":    mustList(t, testObjectType(), testObj(t, "r1", "8.8")),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("8.8 under an omitted section id must be accepted, got %v", resp.Diagnostics)
+	}
+}
+
 func TestResolveSiblingIDs(t *testing.T) {
 	typ := sectionObjectType(maxSectionDepth)
 	tests := []siblingIDCase{
