@@ -28,6 +28,8 @@ var (
 	_ resource.ResourceWithImportState = &crownJewelResource{}
 )
 
+const errCreatingCrownJewel = "Error creating crown jewel"
+
 type crownJewelResource struct {
 	apiClient *api_client.APIClient
 }
@@ -138,7 +140,7 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 	existing, err := r.apiClient.GetCrownJewel(gid)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating crown jewel",
+			errCreatingCrownJewel,
 			fmt.Sprintf("Could not look up existing crown jewel %s: %s", gid, err.Error()),
 		)
 		return
@@ -153,7 +155,7 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 	inv, err := r.apiClient.GetInventoryGroup(gid)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating crown jewel",
+			errCreatingCrownJewel,
 			fmt.Sprintf("Could not verify inventory asset %s: %s", gid, err.Error()),
 		)
 		return
@@ -168,7 +170,7 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 
 	if err := r.applyPlan(&plan, timeout); err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating crown jewel",
+			errCreatingCrownJewel,
 			"Could not create crown jewel, unexpected error: "+err.Error(),
 		)
 		return
