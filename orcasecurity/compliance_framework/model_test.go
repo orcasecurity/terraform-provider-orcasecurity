@@ -17,14 +17,15 @@ func TestFilterAndSort(t *testing.T) {
 		"b": {ID: "b", DisplayName: "Beta", Custom: true, Active: true, Description: ptr("beta desc"), SelectionScopes: []string{"user"}},
 		"a": {ID: "a", DisplayName: "Alpha", Custom: false, Active: false, Type: ptr("Orca Frameworks"), SelectionScopes: []string{}},
 		"c": {ID: "c", DisplayName: "Gamma", Custom: true, Active: false, Description: ptr("other"), SelectionScopes: []string{}},
+		"d": {ID: "d", DisplayName: "PCI DSS 4.0.0", VersionAgnosticDisplayName: ptr("PCI DSS"), Custom: false, Active: false, SelectionScopes: []string{}},
 	}
 
 	got, d := filterAndSort(ctx, all, frameworkFilters{})
 	if d.HasError() {
 		t.Fatal(d)
 	}
-	if len(got) != 3 || got[0].ID.ValueString() != "a" || got[2].ID.ValueString() != "c" {
-		t.Fatalf("sorted ids: %v %v %v", got[0].ID, got[1].ID, got[2].ID)
+	if len(got) != 4 || got[0].ID.ValueString() != "a" || got[3].ID.ValueString() != "d" {
+		t.Fatalf("sorted ids: %v %v %v %v", got[0].ID, got[1].ID, got[2].ID, got[3].ID)
 	}
 
 	custom, d := filterAndSort(ctx, all, frameworkFilters{custom: types.BoolValue(true), active: types.BoolValue(true)})
@@ -40,6 +41,11 @@ func TestFilterAndSort(t *testing.T) {
 	search, d := filterAndSort(ctx, all, frameworkFilters{search: types.StringValue("BETA")})
 	if d.HasError() || len(search) != 1 || search[0].ID.ValueString() != "b" {
 		t.Fatalf("search: %+v %v", search, d)
+	}
+
+	family, d := filterAndSort(ctx, all, frameworkFilters{versionAgnosticDisplayName: types.StringValue("PCI DSS")})
+	if d.HasError() || len(family) != 1 || family[0].ID.ValueString() != "d" {
+		t.Fatalf("version_agnostic_display_name: %+v %v", family, d)
 	}
 }
 

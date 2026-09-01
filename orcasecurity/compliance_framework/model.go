@@ -40,11 +40,12 @@ type frameworkModel struct {
 }
 
 type frameworkFilters struct {
-	custom      types.Bool
-	active      types.Bool
-	typ         types.String
-	displayName types.String
-	search      types.String
+	custom                     types.Bool
+	active                     types.Bool
+	typ                        types.String
+	displayName                types.String
+	versionAgnosticDisplayName types.String
+	search                     types.String
 }
 
 func catalogObjectTypeFromAttributes(attrs map[string]schema.Attribute) types.ObjectType {
@@ -129,6 +130,9 @@ func matchFramework(fw api_client.ComplianceFramework, f frameworkFilters) bool 
 		return false
 	}
 	if want, ok := stringFilterValue(f.displayName); ok && fw.DisplayName != want {
+		return false
+	}
+	if want, ok := stringFilterValue(f.versionAgnosticDisplayName); ok && (fw.VersionAgnosticDisplayName == nil || *fw.VersionAgnosticDisplayName != want) {
 		return false
 	}
 	if q, ok := stringFilterValue(f.search); ok && !searchMatches(fw, q) {

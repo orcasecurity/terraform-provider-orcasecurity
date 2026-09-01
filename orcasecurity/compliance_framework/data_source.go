@@ -21,12 +21,13 @@ type complianceFrameworksDataSource struct {
 }
 
 type frameworksDataSourceModel struct {
-	Custom      types.Bool       `tfsdk:"custom"`
-	Active      types.Bool       `tfsdk:"active"`
-	Type        types.String     `tfsdk:"type"`
-	DisplayName types.String     `tfsdk:"display_name"`
-	Search      types.String     `tfsdk:"search"`
-	Frameworks  []frameworkModel `tfsdk:"frameworks"`
+	Custom                     types.Bool       `tfsdk:"custom"`
+	Active                     types.Bool       `tfsdk:"active"`
+	Type                       types.String     `tfsdk:"type"`
+	DisplayName                types.String     `tfsdk:"display_name"`
+	VersionAgnosticDisplayName types.String     `tfsdk:"version_agnostic_display_name"`
+	Search                     types.String     `tfsdk:"search"`
+	Frameworks                 []frameworkModel `tfsdk:"frameworks"`
 }
 
 func NewComplianceFrameworksDataSource() datasource.DataSource {
@@ -65,8 +66,15 @@ func (d *complianceFrameworksDataSource) Schema(_ context.Context, _ datasource.
 				Description: "Exact match on framework type (e.g. `Orca Frameworks`). Custom frameworks have a null type and never match.",
 			},
 			"display_name": schema.StringAttribute{
-				Optional:    true,
-				Description: "Exact match on display name.",
+				Optional: true,
+				Description: "Exact match on the full display name including the version " +
+					"(`PCI DSS 4.0.0`); use `search` for a substring or " +
+					"`version_agnostic_display_name` for the family.",
+			},
+			"version_agnostic_display_name": schema.StringAttribute{
+				Optional: true,
+				Description: "Exact match on `version_agnostic_display_name` (the family name without " +
+					"version, e.g. `PCI DSS`). Use this to pin a framework family across upgrades.",
 			},
 			"search": schema.StringAttribute{
 				Optional:    true,
@@ -152,11 +160,12 @@ func (d *complianceFrameworksDataSource) Read(ctx context.Context, req datasourc
 	}
 
 	frameworks, diags := filterAndSort(ctx, all, frameworkFilters{
-		custom:      config.Custom,
-		active:      config.Active,
-		typ:         config.Type,
-		displayName: config.DisplayName,
-		search:      config.Search,
+		custom:                     config.Custom,
+		active:                     config.Active,
+		typ:                        config.Type,
+		displayName:                config.DisplayName,
+		versionAgnosticDisplayName: config.VersionAgnosticDisplayName,
+		search:                     config.Search,
 	})
 	resp.Diagnostics.Append(diags...)
 	config.Frameworks = frameworks

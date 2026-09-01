@@ -23,6 +23,10 @@ data "orcasecurity_compliance_frameworks" "orca" {
   search = "best practices"
 }
 
+data "orcasecurity_compliance_frameworks" "pci" {
+  version_agnostic_display_name = "PCI DSS"
+}
+
 output "active_custom_ids" {
   value = [for f in data.orcasecurity_compliance_frameworks.active_custom.frameworks : f.id]
 }
@@ -35,9 +39,10 @@ output "active_custom_ids" {
 
 - `active` (Boolean) If set, keep only frameworks whose `selection_scopes` is non-empty (`true`) or empty (`false`).
 - `custom` (Boolean) If set, keep only custom (`true`) or built-in (`false`) frameworks.
-- `display_name` (String) Exact match on display name.
+- `display_name` (String) Exact match on the full display name including the version (`PCI DSS 4.0.0`); use `search` for a substring or `version_agnostic_display_name` for the family.
 - `search` (String) Case-insensitive substring over `display_name` and `description`.
 - `type` (String) Exact match on framework type (e.g. `Orca Frameworks`). Custom frameworks have a null type and never match.
+- `version_agnostic_display_name` (String) Exact match on `version_agnostic_display_name` (the family name without version, e.g. `PCI DSS`). Use this to pin a framework family across upgrades.
 
 ### Read-Only
 
