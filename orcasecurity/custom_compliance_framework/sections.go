@@ -204,15 +204,50 @@ func listObjectAt(list types.List, i int) (types.Object, bool) {
 	return obj, true
 }
 
-func objectAttr(obj types.Object, name string) attr.Value {
+func objectAttr(obj types.Object, name string) (attr.Value, bool) {
 	if obj.IsNull() || obj.IsUnknown() {
-		return types.StringNull()
+		return nil, false
 	}
 	v, ok := obj.Attributes()[name]
-	if !ok {
-		return types.StringNull()
+	if !ok || v == nil {
+		return nil, false
 	}
-	return v
+	return v, true
+}
+
+func attrList(obj types.Object, name string) types.List {
+	v, ok := objectAttr(obj, name)
+	if !ok {
+		return types.List{}
+	}
+	l, ok := asList(v)
+	if !ok {
+		return types.List{}
+	}
+	return l
+}
+
+func siblingIDChanged(config, state types.List) bool {
+	n := 0
+	if !config.IsNull() && !config.IsUnknown() {
+		n = len(config.Elements())
+	}
+	if !state.IsNull() && !state.IsUnknown() && len(state.Elements()) > n {
+		n = len(state.Elements())
+	}
+	for i := 0; i < n; i++ {
+		cobj, okc := listObjectAt(config, i)
+		sobj, oks := listObjectAt(state, i)
+		if !okc || !oks {
+			continue
+		}
+		cfgID := attrString(cobj.Attributes(), "section_id_in_framework")
+		stID := attrString(sobj.Attributes(), "section_id_in_framework")
+		if cfgID != "" && stID != "" && cfgID != stID {
+			return true
+		}
+	}
+	return false
 }
 
 func plannedComputedString(configV, planV, stateV attr.Value, forceUnknown bool) attr.Value {
@@ -226,14 +261,15 @@ func plannedComputedString(configV, planV, stateV attr.Value, forceUnknown bool)
 }
 
 // rewriteSectionsPlan marks Optional+Computed section/test attributes unknown
-// when config omits them and there is no prior state at that index (or the
-// section id changed, so omitted control ids must re-derive). That is the
-// list-element case UseStateForUnknown cannot cover.
+// when config omits them and there is no prior state at that index (or any
+// sibling id in the list changed, so omitted ids re-derive ascending). That
+// is the list-element case UseStateForUnknown cannot cover.
 func rewriteSectionsPlan(config, plan, state types.List, remainingDepth int) (types.List, diag.Diagnostics) {
 	if plan.IsNull() || plan.IsUnknown() {
 		return plan, nil
 	}
 	typ := sectionObjectType(remainingDepth)
+	listChanged := siblingIDChanged(config, state)
 	out := make([]attr.Value, len(plan.Elements()))
 	var diags diag.Diagnostics
 	for i, e := range plan.Elements() {
@@ -244,7 +280,7 @@ func rewriteSectionsPlan(config, plan, state types.List, remainingDepth int) (ty
 		}
 		cobj, _ := listObjectAt(config, i)
 		sobj, hasState := listObjectAt(state, i)
-		rewritten, d := rewriteSectionPlan(cobj, pobj, sobj, hasState, remainingDepth)
+		rewritten, d := rewriteSectionPlan(cobj, pobj, sobj, hasState, remainingDepth, listChanged)
 		diags.Append(d...)
 		out[i] = rewritten
 	}
@@ -253,7 +289,7 @@ func rewriteSectionsPlan(config, plan, state types.List, remainingDepth int) (ty
 	return list, diags
 }
 
-func rewriteSectionPlan(cfg, plan, state types.Object, hasState bool, remainingDepth int) (types.Object, diag.Diagnostics) {
+func rewriteSectionPlan(cfg, plan, state types.Object, hasState bool, remainingDepth int, listIDChanged bool) (types.Object, diag.Diagnostics) {
 	if remainingDepth == 0 {
 		return plan, nil
 	}
@@ -270,29 +306,29 @@ func rewriteSectionPlan(cfg, plan, state types.Object, hasState bool, remainingD
 	if hasState {
 		stID = attrString(state.Attributes(), "section_id_in_framework")
 	}
-	sectionChanged := cfgID != "" && stID != "" && cfgID != stID
+	thisChanged := cfgID != "" && stID != "" && cfgID != stID
+	omitted := cfgID == ""
+	// When any sibling id changed, unpin omitted ids so the whole list
+	// re-derives in ascending order instead of mixing new ids with state.
+	forceSectionID := !hasState || (listIDChanged && omitted)
+	cfgSec, _ := objectAttr(cfg, "section_id_in_framework")
+	stSec, _ := objectAttr(state, "section_id_in_framework")
 	attrs["section_id_in_framework"] = plannedComputedString(
-		objectAttr(cfg, "section_id_in_framework"),
+		cfgSec,
 		pattrs["section_id_in_framework"],
-		objectAttr(state, "section_id_in_framework"),
-		!hasState,
+		stSec,
+		forceSectionID,
 	)
 	var diags diag.Diagnostics
 	if tests, ok := asList(pattrs["tests"]); ok {
-		ct, _ := asList(objectAttr(cfg, "tests"))
-		st, _ := asList(objectAttr(state, "tests"))
-		rewritten, d := rewriteTestsPlan(ct, tests, st, sectionChanged)
+		rewritten, d := rewriteTestsPlan(attrList(cfg, "tests"), tests, attrList(state, "tests"), thisChanged || (listIDChanged && omitted))
 		diags.Append(d...)
 		attrs["tests"] = rewritten
 	}
-	if remainingDepth > 0 {
-		if nested, ok := asList(pattrs["sections"]); ok {
-			cn, _ := asList(objectAttr(cfg, "sections"))
-			sn, _ := asList(objectAttr(state, "sections"))
-			rewritten, d := rewriteSectionsPlan(cn, nested, sn, remainingDepth-1)
-			diags.Append(d...)
-			attrs["sections"] = rewritten
-		}
+	if nested, ok := asList(pattrs["sections"]); ok {
+		rewritten, d := rewriteSectionsPlan(attrList(cfg, "sections"), nested, attrList(state, "sections"), remainingDepth-1)
+		diags.Append(d...)
+		attrs["sections"] = rewritten
 	}
 	obj, d := types.ObjectValue(sectionObjectType(remainingDepth).AttrTypes, attrs)
 	diags.Append(d...)
@@ -321,7 +357,9 @@ func rewriteTestsPlan(config, plan, state types.List, sectionChanged bool) (type
 		}
 		for _, name := range computedTestAttrs {
 			force := !hasState || (sectionChanged && name == "rule_id_in_framework")
-			attrs[name] = plannedComputedString(objectAttr(cobj, name), pattrs[name], objectAttr(sobj, name), force)
+			cv, _ := objectAttr(cobj, name)
+			sv, _ := objectAttr(sobj, name)
+			attrs[name] = plannedComputedString(cv, pattrs[name], sv, force)
 		}
 		obj, d := types.ObjectValue(elem.AttrTypes, attrs)
 		diags.Append(d...)

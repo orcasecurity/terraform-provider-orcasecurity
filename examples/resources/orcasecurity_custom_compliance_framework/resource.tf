@@ -27,7 +27,7 @@ locals {
 }
 
 resource "orcasecurity_custom_compliance_framework" "subset" {
-  name       = "GCP CIS — Level 1 subset"
+  name       = "GCP CIS subset"
   visibility = "Organizational"
 
   sections = [

@@ -244,6 +244,8 @@ func (r *customComplianceFrameworkResource) ModifyPlan(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Live non-destroy plans always have Config. Unit tests that only
+	// exercise the visibility check omit it; skip the rewrite in that case.
 	if req.Config.Schema != nil && !req.Config.Raw.IsNull() {
 		resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 		if resp.Diagnostics.HasError() {

@@ -643,6 +643,55 @@ func TestModifyPlan_SectionRenumberMarksRuleIDUnknown(t *testing.T) {
 	}
 }
 
+func TestModifyPlan_EarlierSiblingIDUnpinsLaterOmitted(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType,
+			flatSection(t, "Alpha", "1", testComputed(t, "r1", "1.1", "Medium", "9")),
+			flatSection(t, "Beta", "2", testComputed(t, "r2", "2.1", "Medium", "9")),
+		),
+	}
+	plan := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType,
+			flatSection(t, "Alpha", "5", testComputed(t, "r1", "1.1", "Medium", "9")),
+			flatSection(t, "Beta", "2", testComputed(t, "r2", "2.1", "Medium", "9")),
+		),
+	}
+	config := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType,
+			flatSection(t, "Alpha", "5", testComputed(t, "r1", "", "", "")),
+			flatSection(t, "Beta", "", testComputed(t, "r2", "", "", "")),
+		),
+	}
+	r, req := planStateConfig(t, state, plan, &config)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var out customComplianceFrameworkResourceModel
+	if diags := resp.Plan.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	beta := out.Sections.Elements()[1].(types.Object).Attributes()
+	if !beta["section_id_in_framework"].IsUnknown() {
+		t.Errorf("omitted later sibling id must unpin when an earlier id changes, got %#v", beta["section_id_in_framework"])
+	}
+	test0 := beta["tests"].(types.List).Elements()[0].(types.Object).Attributes()
+	if !test0["rule_id_in_framework"].IsUnknown() {
+		t.Errorf("omitted later sibling control id must re-derive, got %#v", test0["rule_id_in_framework"])
+	}
+}
+
 func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	typ := testObjectType()
 	rootType := sectionObjectType(maxSectionDepth)
