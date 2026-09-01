@@ -5,16 +5,16 @@ import "testing"
 func TestPersonalRejectsOrganization(t *testing.T) {
 	personal := VisibilityPersonal
 	org := VisibilityOrganizational
-	if PersonalRejectsOrganization(nil, []string{"organization"}) {
+	if PersonalRejectsOrganization(nil, []string{ScopeOrganization}) {
 		t.Fatal("nil visibility must not reject")
 	}
-	if PersonalRejectsOrganization(&org, []string{"organization"}) {
+	if PersonalRejectsOrganization(&org, []string{ScopeOrganization}) {
 		t.Fatal("Organizational + organization is legal")
 	}
-	if PersonalRejectsOrganization(&personal, []string{"user"}) {
+	if PersonalRejectsOrganization(&personal, []string{ScopeUser}) {
 		t.Fatal("Personal + user is legal")
 	}
-	if !PersonalRejectsOrganization(&personal, []string{"organization"}) {
+	if !PersonalRejectsOrganization(&personal, []string{ScopeOrganization}) {
 		t.Fatal("Personal + organization must reject")
 	}
 }

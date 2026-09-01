@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 func schemaAndConfig(t *testing.T, model customComplianceFrameworkResourceModel) (*customComplianceFrameworkResource, tfsdk.Config) {
@@ -62,8 +63,8 @@ func testObj(t *testing.T, ruleID, rid string) types.Object {
 }
 
 func TestValidateConfig_RejectsMixedTestsAndSections(t *testing.T) {
-	rootType := sectionObjectType(maxSectionDepth - 1)
-	childType := sectionObjectType(maxSectionDepth - 2)
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("mixed"),
 		ForcedCloudVendors: types.SetNull(types.StringType),
@@ -73,7 +74,7 @@ func TestValidateConfig_RejectsMixedTestsAndSections(t *testing.T) {
 			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
 				"name":     types.StringValue("Sub A1"),
 				"tests":    mustList(t, testObjectType(), testObj(t, "r2", "2.1")),
-				"sections": types.ListNull(sectionObjectType(0)),
+				"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
 			})),
 		})),
 	})
@@ -94,13 +95,16 @@ func TestValidateConfig_RejectsMixedTestsAndSections(t *testing.T) {
 	}
 }
 
-func TestSchema_StopsAtThreeLevels(t *testing.T) {
+func TestSchema_FourthLevelExistsForRejection(t *testing.T) {
 	r := &customComplianceFrameworkResource{}
 	schemaResp := &resource.SchemaResponse{}
 	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
 	l1, ok := schemaResp.Schema.Attributes["sections"].(schema.ListNestedAttribute)
 	if !ok {
 		t.Fatal("sections")
+	}
+	if len(l1.Validators) != 0 {
+		t.Errorf("root sections must not duplicate ValidateConfig with SizeAtLeast, got %d validators", len(l1.Validators))
 	}
 	l2, ok := l1.NestedObject.Attributes["sections"].(schema.ListNestedAttribute)
 	if !ok {
@@ -110,8 +114,12 @@ func TestSchema_StopsAtThreeLevels(t *testing.T) {
 	if !ok {
 		t.Fatal("sections.sections.sections")
 	}
-	if _, ok := l3.NestedObject.Attributes["sections"]; ok {
-		t.Fatal("fourth nested sections must not be in the schema")
+	l4, ok := l3.NestedObject.Attributes["sections"].(schema.ListNestedAttribute)
+	if !ok {
+		t.Fatal("fourth nested sections must be in the schema so Terraform does not discard it")
+	}
+	if _, ok := l4.NestedObject.Attributes["sections"]; ok {
+		t.Fatal("fifth nested sections must not be in the schema")
 	}
 	tests, ok := l1.NestedObject.Attributes["tests"].(schema.ListNestedAttribute)
 	if !ok {
@@ -123,9 +131,9 @@ func TestSchema_StopsAtThreeLevels(t *testing.T) {
 }
 
 func TestValidateConfig_AcceptsThreeLevels(t *testing.T) {
-	l3Type := sectionObjectType(0)
-	l2Type := sectionObjectType(1)
-	l1Type := sectionObjectType(2)
+	l3Type := sectionObjectType(1)
+	l2Type := sectionObjectType(2)
+	l1Type := sectionObjectType(3)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("three"),
 		ForcedCloudVendors: types.SetNull(types.StringType),
@@ -136,8 +144,9 @@ func TestValidateConfig_AcceptsThreeLevels(t *testing.T) {
 				"name":  types.StringValue("L2"),
 				"tests": types.ListNull(testObjectType()),
 				"sections": mustList(t, l3Type, mustObject(t, l3Type, map[string]attr.Value{
-					"name":  types.StringValue("L3"),
-					"tests": mustList(t, testObjectType(), testObj(t, "r1", "1.1.1")),
+					"name":     types.StringValue("L3"),
+					"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1.1")),
+					"sections": types.ListNull(sectionObjectType(0)),
 				})),
 			})),
 		})),
@@ -200,11 +209,11 @@ func TestSchema_LoosenedAndAdditive(t *testing.T) {
 
 func oneSection(t *testing.T) types.List {
 	t.Helper()
-	rootType := sectionObjectType(maxSectionDepth - 1)
+	rootType := sectionObjectType(maxSectionDepth)
 	return mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
 		"name":     types.StringValue("Flat"),
 		"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
-		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
 	}))
 }
 
@@ -212,7 +221,7 @@ func TestValidateConfig_RejectsPersonalWithOrganizationScope(t *testing.T) {
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("personal"),
 		Visibility:         types.StringValue("Personal"),
-		Scope:              types.StringValue("organization"),
+		Scope:              types.StringValue(api_client.ScopeOrganization),
 		ForcedCloudVendors: types.SetNull(types.StringType),
 		Sections:           oneSection(t),
 	})
@@ -255,7 +264,7 @@ func TestUpdateRequestOmitsEmptyForcedCloudVendors(t *testing.T) {
 }
 
 func TestValidateConfig_RejectsEmptyRootSections(t *testing.T) {
-	rootType := sectionObjectType(maxSectionDepth - 1)
+	rootType := sectionObjectType(maxSectionDepth)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("empty"),
 		ForcedCloudVendors: types.SetNull(types.StringType),
@@ -263,32 +272,86 @@ func TestValidateConfig_RejectsEmptyRootSections(t *testing.T) {
 	})
 	resp := &resource.ValidateConfigResponse{}
 	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
-	if !resp.Diagnostics.HasError() {
-		t.Fatal("sections = [] must be a config error")
+	if !hasDetail(resp, emptyRootSectionsMessage) {
+		t.Errorf("expected empty-root diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_RejectsEmptyNestedSections(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("empty-nested"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("S"),
+			"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+			"sections": mustList(t, sectionObjectType(maxSectionDepth-1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, emptyNestedSectionsMessage) {
+		t.Errorf("expected empty-nested-sections diagnostic, got %v", resp.Diagnostics)
 	}
 }
 
 func TestValidateConfig_RejectsEmptyTests(t *testing.T) {
-	rootType := sectionObjectType(maxSectionDepth - 1)
+	rootType := sectionObjectType(maxSectionDepth)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("empty-tests"),
 		ForcedCloudVendors: types.SetNull(types.StringType),
 		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
 			"name":     types.StringValue("S"),
 			"tests":    mustList(t, testObjectType()),
-			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
 		})),
 	})
 	resp := &resource.ValidateConfigResponse{}
 	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
-	if !hasDetail(resp, emptyListMessage) {
-		t.Errorf("expected empty-list diagnostic, got %v", resp.Diagnostics)
+	if !hasDetail(resp, emptyTestsListMessage) {
+		t.Errorf("expected empty-tests diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_AllowsUnknownTests(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("from-data"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("Selected controls"),
+			"tests":    types.ListUnknown(testObjectType()),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unknown tests (data-source for-expression) must wait for plan, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_RejectsNamelessLeaf(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("hole"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("A"),
+			"tests":    types.ListNull(testObjectType()),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, leafNeedsTestMessage) {
+		t.Errorf("expected leaf-needs-test diagnostic, got %v", resp.Diagnostics)
 	}
 }
 
 func TestValidateConfig_RejectsEmptyTestsWithNestedSections(t *testing.T) {
-	rootType := sectionObjectType(maxSectionDepth - 1)
-	childType := sectionObjectType(maxSectionDepth - 2)
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("empty-tests-nested"),
 		ForcedCloudVendors: types.SetNull(types.StringType),
@@ -298,14 +361,46 @@ func TestValidateConfig_RejectsEmptyTestsWithNestedSections(t *testing.T) {
 			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
 				"name":     types.StringValue("C"),
 				"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
-				"sections": types.ListNull(sectionObjectType(0)),
+				"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
 			})),
 		})),
 	})
 	resp := &resource.ValidateConfigResponse{}
 	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
-	if !hasDetail(resp, emptyListMessage) {
-		t.Errorf("expected empty-list diagnostic, got %v", resp.Diagnostics)
+	if !hasDetail(resp, emptyTestsListMessage) {
+		t.Errorf("expected empty-tests diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_RejectsFourthLevel(t *testing.T) {
+	l4 := sectionObjectType(0)
+	l3 := sectionObjectType(1)
+	l2 := sectionObjectType(2)
+	l1 := sectionObjectType(3)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("four"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, l1, mustObject(t, l1, map[string]attr.Value{
+			"name":  types.StringValue("A"),
+			"tests": types.ListNull(testObjectType()),
+			"sections": mustList(t, l2, mustObject(t, l2, map[string]attr.Value{
+				"name":  types.StringValue("B"),
+				"tests": types.ListNull(testObjectType()),
+				"sections": mustList(t, l3, mustObject(t, l3, map[string]attr.Value{
+					"name":  types.StringValue("C"),
+					"tests": types.ListNull(testObjectType()),
+					"sections": mustList(t, l4, mustObject(t, l4, map[string]attr.Value{
+						"name":  types.StringValue("D"),
+						"tests": mustList(t, testObjectType(), testObj(t, "r1", "1.1.1.1")),
+					})),
+				})),
+			})),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, fourthLevelMessage) {
+		t.Errorf("expected fourth-level diagnostic, got %v", resp.Diagnostics)
 	}
 }
 
@@ -381,7 +476,7 @@ func TestModifyPlan_AllowsPersonalToOrganizational(t *testing.T) {
 
 func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	typ := testObjectType()
-	rootType := sectionObjectType(maxSectionDepth - 1)
+	rootType := sectionObjectType(maxSectionDepth)
 	sections := mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
 		"name": types.StringValue("Flat"),
 		"tests": mustList(t, typ, mustObject(t, typ, map[string]attr.Value{
@@ -391,7 +486,7 @@ func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 			"control_unique_id":    types.StringNull(),
 			"origin_framework_id":  types.StringNull(),
 		})),
-		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
 	}))
 	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("derived"),
@@ -403,5 +498,53 @@ func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	}
 	if req.Sections[0].Tests[0].RuleIDInFramework != "1.1" {
 		t.Errorf("omitted rule_id_in_framework must derive, got %+v", req.Sections[0].Tests)
+	}
+}
+
+func TestRequestFromPlanIncludesScope(t *testing.T) {
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		Scope:              types.StringValue(api_client.ScopeUser),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if req.Scope != api_client.ScopeUser {
+		t.Errorf("scope: %q", req.Scope)
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"scope":"user"`) {
+		t.Errorf("PUT/POST payload must include scope, got %s", raw)
+	}
+}
+
+func TestModifyPlan_DestroyDoesNotRejectPersonal(t *testing.T) {
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		Visibility:         types.StringValue(api_client.VisibilityPersonal),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	}
+	r := &customComplianceFrameworkResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	st := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := st.Set(context.Background(), &state); diags.HasError() {
+		t.Fatal(diags)
+	}
+	nullPlan := tfsdk.Plan{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(context.Background()), nil),
+	}
+	resp := &resource.ModifyPlanResponse{Plan: nullPlan}
+	r.ModifyPlan(context.Background(), resource.ModifyPlanRequest{State: st, Plan: nullPlan}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("destroy must not raise visibility downgrade, got %v", resp.Diagnostics)
 	}
 }

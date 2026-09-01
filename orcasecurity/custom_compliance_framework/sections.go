@@ -15,13 +15,22 @@ import (
 )
 
 // maxSectionDepth is the API's stored depth (category / sub_category /
-// sub_sub_category). The schema uses remainingDepth = maxSectionDepth-1 so a
-// fourth nested `sections` is not an attribute at all.
+// sub_sub_category). The schema keeps one extra nested `sections` attribute
+// so a fourth level is visible to Terraform and rejected by validateSections
+// instead of being silently discarded.
 const maxSectionDepth = 3
 
 const mixedSectionMessage = "a section cannot have both tests and sub-sections; the API would silently flatten it and the sub-section would inherit the parent name"
 
-const emptyListMessage = "the API drops a section with no controls, so Terraform would see it disappear. Omit the empty list rather than setting it to []"
+const leafNeedsTestMessage = "every leaf section must have at least one test; the API drops a section with no controls, so Terraform would see it disappear"
+
+const emptyTestsListMessage = "an empty tests list is read back as null; omit the attribute instead of setting tests = []"
+
+const emptyNestedSectionsMessage = "an empty nested sections list is read back as null; omit the attribute instead of setting sections = []"
+
+const emptyRootSectionsMessage = "a framework must contain at least one section"
+
+const fourthLevelMessage = "the API stores three levels; move these controls up one level"
 
 const invalidSectionSummary = "Invalid section"
 
@@ -203,35 +212,70 @@ func listKnownEmpty(v attr.Value) bool {
 	return len(l.Elements()) == 0
 }
 
+func listUnknown(v attr.Value) bool {
+	return v != nil && v.IsUnknown()
+}
+
 func validateSections(resp *resource.ValidateConfigResponse, list types.List, parent path.Path) {
+	validateSectionsAt(resp, list, parent, 1)
+}
+
+func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, parent path.Path, depth int) {
 	if list.IsNull() || list.IsUnknown() {
 		return
 	}
 	if len(list.Elements()) == 0 {
-		resp.Diagnostics.AddAttributeError(parent, invalidSectionSummary, emptyListMessage)
+		msg := emptyRootSectionsMessage
+		if depth > 1 {
+			msg = emptyNestedSectionsMessage
+		}
+		resp.Diagnostics.AddAttributeError(parent, invalidSectionSummary, msg)
 		return
 	}
 	for i, e := range list.Elements() {
-		obj, ok := e.(types.Object)
-		if !ok || obj.IsNull() || obj.IsUnknown() {
-			continue
-		}
-		p := parent.AtListIndex(i)
-		attrs := obj.Attributes()
-		if listKnownEmpty(attrs["tests"]) {
-			resp.Diagnostics.AddAttributeError(p.AtName("tests"), invalidSectionSummary, emptyListMessage)
-		}
-		if listKnownEmpty(attrs["sections"]) {
-			resp.Diagnostics.AddAttributeError(p.AtName("sections"), invalidSectionSummary, emptyListMessage)
-		}
-		if listLen(attrs["tests"]) > 0 && listLen(attrs["sections"]) > 0 {
-			resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, mixedSectionMessage)
-		}
-		if nested, ok := attrs["sections"]; ok {
-			if l, ok := asList(nested); ok && !listKnownEmpty(nested) {
-				validateSections(resp, l, p.AtName("sections"))
-			}
-		}
+		validateOneSection(resp, e, parent.AtListIndex(i), depth)
+	}
+}
+
+func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p path.Path, depth int) {
+	obj, ok := e.(types.Object)
+	if !ok || obj.IsNull() || obj.IsUnknown() {
+		return
+	}
+	if depth > maxSectionDepth {
+		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, fourthLevelMessage)
+		return
+	}
+	attrs := obj.Attributes()
+	if listKnownEmpty(attrs["tests"]) {
+		resp.Diagnostics.AddAttributeError(p.AtName("tests"), invalidSectionSummary, emptyTestsListMessage)
+	}
+	if listKnownEmpty(attrs["sections"]) {
+		resp.Diagnostics.AddAttributeError(p.AtName("sections"), invalidSectionSummary, emptyNestedSectionsMessage)
+	}
+	// Data-source for-expressions are unknown during ValidateConfig.
+	if listUnknown(attrs["tests"]) || listUnknown(attrs["sections"]) {
+		validateNestedSections(resp, attrs, p, depth)
+		return
+	}
+	nTests, nSections := listLen(attrs["tests"]), listLen(attrs["sections"])
+	if nTests > 0 && nSections > 0 {
+		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, mixedSectionMessage)
+		return
+	}
+	if nSections > 0 {
+		validateNestedSections(resp, attrs, p, depth)
+		return
+	}
+	if nTests == 0 {
+		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, leafNeedsTestMessage)
+	}
+}
+
+func validateNestedSections(resp *resource.ValidateConfigResponse, attrs map[string]attr.Value, p path.Path, depth int) {
+	nested, ok := asList(attrs["sections"])
+	if ok {
+		validateSectionsAt(resp, nested, p.AtName("sections"), depth+1)
 	}
 }
 

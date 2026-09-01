@@ -3,6 +3,8 @@ package api_client
 const (
 	VisibilityPersonal       = "Personal"
 	VisibilityOrganizational = "Organizational"
+	ScopeUser                = "user"
+	ScopeOrganization        = "organization"
 
 	// ErrPersonalOrg* match the API 400 for Personal + organization scope.
 	ErrPersonalOrgSummary = "Personal framework cannot use organization scope"
@@ -20,7 +22,7 @@ func PersonalRejectsOrganization(visibility *string, scopes []string) bool {
 		return false
 	}
 	for _, s := range scopes {
-		if s == "organization" {
+		if s == ScopeOrganization {
 			return true
 		}
 	}

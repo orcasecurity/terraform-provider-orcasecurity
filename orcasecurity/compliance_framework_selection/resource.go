@@ -30,8 +30,6 @@ var (
 const (
 	errReadingSelection  = "Error reading compliance framework selection"
 	errUpdatingSelection = "Error updating compliance framework selection"
-	scopeUser            = "user"
-	scopeOrganization    = "organization"
 )
 
 type complianceFrameworkSelectionResource struct {
@@ -103,7 +101,7 @@ func (r *complianceFrameworkSelectionResource) Schema(_ context.Context, _ resou
 					"A set, not a list — the API returns them unordered. " +
 					"Personal frameworks cannot hold `organization` (the API returns 400).",
 				Validators: []validator.Set{
-					setvalidator.ValueStringsAre(stringvalidator.OneOf(scopeUser, scopeOrganization)),
+					setvalidator.ValueStringsAre(stringvalidator.OneOf(api_client.ScopeUser, api_client.ScopeOrganization)),
 				},
 			},
 			"display_name": schema.StringAttribute{
@@ -215,7 +213,7 @@ func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req r
 		return
 	}
 
-	if containsScope(to, scopeOrganization) {
+	if containsScope(to, api_client.ScopeOrganization) {
 		entry, err := r.lookup(plan.FrameworkID.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(errUpdatingSelection, "Could not read current selection: "+err.Error())

@@ -24,16 +24,17 @@ description: |-
   sections diff if state drifted from the live catalog.
 - **Tests or sub-sections, never both.** A section that carries both is silently
   flattened by the API (the child inherits the parent name). The provider
-  rejects that config. `tests = []` and `sections = []` are also rejected: the
-  API drops empty lists, so Terraform would see the section disappear after apply.
+  rejects that config. Every leaf section must have at least one test. An
+  explicit empty `tests = []` or nested `sections = []` is rejected because
+  the provider reads those back as null.
 - **`visibility` is a one-way promotion.** `Personal` can be promoted to
   `Organizational`; the reverse is rejected by the API. The provider fails the
   plan instead of applying a 400.
 - **Nesting is at most three levels** (`sections → sections → sections`). That
-  is an API limit (`category` / `sub_category` / `sub_sub_category`); a fourth
-  nested `sections` is not in the schema, so Terraform rejects it at parse time.
-  The API would otherwise accept it with HTTP 200 and silently drop it, reparenting
-  its controls onto the third level.
+  is an API limit (`category` / `sub_category` / `sub_sub_category`). A fourth
+  nested `sections` is kept in the schema so Terraform does not silently
+  discard it; ValidateConfig rejects it with an error telling you to move the
+  controls up one level.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

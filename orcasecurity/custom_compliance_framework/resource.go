@@ -7,7 +7,6 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -82,8 +81,8 @@ func testAttributes() map[string]schema.Attribute {
 		"rule_id_in_framework": computedOptional(
 			"The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). " +
 				"Omitted values are derived as `<positional-section-id>.<1-based index>` " +
-				"(e.g. `1.1`), matching the Orca UI. On read this is the catalog `reference_id`. " +
-				"Catalog section ids are `data.orcasecurity_compliance_framework.sections[].id`.",
+				"within this resource's own section tree (e.g. `1.1`), matching the Orca UI — " +
+				"not from a source framework's catalog ids. On read this is the catalog `reference_id`.",
 		),
 		"priority":            computedOptional("Control priority as accepted by the API (e.g. `Medium`)."),
 		"control_unique_id":   computedOptional("Catalog control unique id. Echoed when the API returns it."),
@@ -109,8 +108,8 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 		attrs["sections"] = schema.ListNestedAttribute{
 			Optional: true,
 			Description: "Nested sub-sections. The API stores exactly three levels " +
-				"(sections → sections → sections). A fourth nested `sections` is not " +
-				"an attribute — the server would drop it and reparent its controls. " +
+				"(sections → sections → sections). A fourth nested `sections` is kept in " +
+				"the schema so Terraform does not silently discard it; ValidateConfig rejects it. " +
 				"A section may have tests or sub-sections, never both.",
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: sectionAttributes(remainingDepth - 1),
@@ -126,7 +125,7 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 			"from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. " +
 			"A section may contain tests or nested sections, never both — the API would otherwise " +
 			"silently flatten it. Nesting is at most three levels (an API limit); a fourth nested " +
-			"`sections` block is not in the schema. " +
+			"`sections` block is rejected in ValidateConfig. " +
 			"Omit `scope` to create the framework inactive; ongoing activation belongs to " +
 			"`orcasecurity_compliance_framework_selection`.",
 		Attributes: map[string]schema.Attribute{
@@ -168,7 +167,7 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 					"`visibility = \"Personal\"` cannot use `organization`. " +
 					"Ongoing enable/disable belongs to `orcasecurity_compliance_framework_selection`.",
 				Validators: []validator.String{
-					stringvalidator.OneOf("user", "organization"),
+					stringvalidator.OneOf(api_client.ScopeUser, api_client.ScopeOrganization),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -183,14 +182,10 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 					"Omitting the attribute on update also clears enforcement.",
 			},
 			"sections": schema.ListNestedAttribute{
-				Required: true,
-				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). " +
-					"Must contain at least one section; `sections = []` is rejected because the API would drop it.",
-				Validators: []validator.List{
-					listvalidator.SizeAtLeast(1),
-				},
+				Required:    true,
+				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). Every leaf section must have at least one test.",
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: sectionAttributes(maxSectionDepth - 1),
+					Attributes: sectionAttributes(maxSectionDepth),
 				},
 			},
 		},
@@ -378,7 +373,7 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 	if catalog == nil {
 		return false, catalogMissingDiag(id)
 	}
-	sections, d := sectionsFromCatalog(catalog.Sections, maxSectionDepth-1)
+	sections, d := sectionsFromCatalog(catalog.Sections, maxSectionDepth)
 	if d.HasError() {
 		return false, d
 	}
