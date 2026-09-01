@@ -107,6 +107,16 @@ func TestSetCrownJewel(t *testing.T) {
 	}
 }
 
+func TestSetCrownJewel_EmptyDescriptionRejected(t *testing.T) {
+	client := newTestAPIClient(&http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		t.Fatal("empty description must not call the API")
+		return nil
+	})})
+	if _, err := client.SetCrownJewel(testCrownJewelGroupID, "  "); err == nil {
+		t.Fatal("expected error for empty/whitespace description")
+	}
+}
+
 func TestSetCrownJewel_RefetchMissSurfacesError(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		switch req.Method {

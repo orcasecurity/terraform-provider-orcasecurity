@@ -48,7 +48,7 @@ func planWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.Plan {
 }
 
 func TestSchemaContracts(t *testing.T) {
-	attrs := testutils.ResourceSchemaAttrs(t, &crownJewelResource{})
+	attrs := resourceSchema(t).Attributes
 
 	gid, ok := attrs["group_unique_id"].(schema.StringAttribute)
 	if !ok || !gid.Required || len(gid.PlanModifiers) != 1 {
@@ -88,7 +88,7 @@ func TestRead_NotFoundRemovesResource(t *testing.T) {
 	model := stateModel{
 		ID:            types.StringValue("gone"),
 		GroupUniqueID: types.StringValue("gone"),
-		Description:   types.StringValue(""),
+		Description:   types.StringValue("Customer data"),
 	}
 	req := resource.ReadRequest{State: stateWith(t, sch, model)}
 	resp := &resource.ReadResponse{State: stateWith(t, sch, model)}
@@ -139,9 +139,10 @@ func TestCreate_RefetchMissSurfacesDiag(t *testing.T) {
 	}
 }
 
-// Create success keeps Required attributes from the plan and sets id from the planned
-// group_unique_id (not by re-assigning Required fields from the API response).
-func TestCreate_SuccessKeepsPlanGroupUniqueID(t *testing.T) {
+// Create success keeps Required attributes from the plan — including description —
+// even when the API refetch returns a different string (normalization must not
+// rewrite Required fields and cause "inconsistent result after apply").
+func TestCreate_SuccessKeepsPlanRequiredAttrs(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		switch req.Method {
 		case "POST":
@@ -154,7 +155,7 @@ func TestCreate_SuccessKeepsPlanGroupUniqueID(t *testing.T) {
 			return &http.Response{
 				StatusCode: 200,
 				Body: io.NopCloser(strings.NewReader(
-					`[{"group_unique_id":"tf-keep","description":"Customer data"}]`)),
+					`[{"group_unique_id":"tf-keep","description":"API NORMALIZED DIFFERENT"}]`)),
 				Request: req,
 			}
 		default:
@@ -186,6 +187,6 @@ func TestCreate_SuccessKeepsPlanGroupUniqueID(t *testing.T) {
 		t.Errorf("id must equal planned group_unique_id, got %q", out.ID.ValueString())
 	}
 	if out.Description.ValueString() != "Customer data" {
-		t.Errorf("description must refresh from API, got %q", out.Description.ValueString())
+		t.Errorf("description must stay as planned (not API), got %q", out.Description.ValueString())
 	}
 }

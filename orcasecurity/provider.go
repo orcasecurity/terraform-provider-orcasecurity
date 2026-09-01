@@ -247,6 +247,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		automation_v2_priorities.NewAutomationPrioritiesDataSource,
+		crown_jewel.NewCrownJewelDataSource,
 	}
 }
 

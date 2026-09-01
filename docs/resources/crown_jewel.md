@@ -56,6 +56,8 @@ resource "orcasecurity_crown_jewel" "example" {
   resource only removes the user-marked overlay.
 - **Orca-detected assets.** Applying this resource on an Orca-detected asset adds a user-marked
   overlay (hybrid). You still cannot delete the Orca-detected side through Terraform.
+- **Look up before import.** Use the [`orcasecurity_crown_jewel` data source](../data-sources/crown_jewel.md)
+  to read the current Reason for an already-marked asset.
 
 ## Import
 

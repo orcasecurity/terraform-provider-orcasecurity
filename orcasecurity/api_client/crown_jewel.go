@@ -2,9 +2,16 @@ package api_client
 
 import (
 	"fmt"
+	"strings"
+	"time"
 )
 
 const crownJewelsAPIPath = "/api/attack_paths/crown_jewels"
+
+// crownJewelHTTPTimeout covers POST/DELETE on real assets: the API returns only
+// after attack-path score and inventory sync, which often exceeds the shared
+// defaultHTTPTimeout. Scoped here so other resources keep the shorter default.
+const crownJewelHTTPTimeout = 60 * time.Second
 
 // CrownJewel is a user-defined (user-marked) crown jewel.
 type CrownJewel struct {
@@ -14,7 +21,7 @@ type CrownJewel struct {
 
 type crownJewelWriteRequest struct {
 	GroupUniqueIDs []string `json:"group_unique_ids"`
-	Description    string   `json:"description,omitempty"`
+	Description    string   `json:"description"`
 }
 
 // GetCrownJewel looks up one user-defined crown jewel by group_unique_id.
@@ -42,17 +49,22 @@ func (client *APIClient) GetCrownJewel(groupUniqueID string) (*CrownJewel, error
 
 // SetCrownJewel marks an asset as a user-defined crown jewel (create or update).
 // POST is a synchronous upsert; the follow-up GET is a read-your-writes check.
-// Always pass a non-empty description (UI "Reason"): omitting it stores null and
-// breaks subsequent list/read of crown jewels on the API.
+// description must be non-empty (UI "Reason"): omitting it stores null and breaks
+// subsequent list/read of crown jewels on the API.
 func (client *APIClient) SetCrownJewel(groupUniqueID, description string) (*CrownJewel, error) {
-	if _, err := client.Post(crownJewelsAPIPath, crownJewelWriteRequest{
+	if strings.TrimSpace(description) == "" {
+		return nil, fmt.Errorf("description (Reason) must be non-empty")
+	}
+
+	c := client.withHTTPTimeout(crownJewelHTTPTimeout)
+	if _, err := c.Post(crownJewelsAPIPath, crownJewelWriteRequest{
 		GroupUniqueIDs: []string{groupUniqueID},
 		Description:    description,
 	}); err != nil {
 		return nil, err
 	}
 
-	jewel, err := client.GetCrownJewel(groupUniqueID)
+	jewel, err := c.GetCrownJewel(groupUniqueID)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +79,7 @@ func (client *APIClient) SetCrownJewel(groupUniqueID, description string) (*Crow
 // as already-gone. Closest structural analogue (rbac deleteAccess) does swallow
 // 404 — deliberately not matched here.
 func (client *APIClient) DeleteCrownJewel(groupUniqueID string) error {
-	_, err := client.DeleteWithBody(crownJewelsAPIPath, crownJewelWriteRequest{
+	_, err := client.withHTTPTimeout(crownJewelHTTPTimeout).DeleteWithBody(crownJewelsAPIPath, crownJewelWriteRequest{
 		GroupUniqueIDs: []string{groupUniqueID},
 	})
 	return err

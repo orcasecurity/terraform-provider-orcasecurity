@@ -17,10 +17,7 @@ import (
 const httpDebugEnvVar = "ORCASECURITY_HTTP_DEBUG"
 
 // defaultHTTPTimeout is the per-request timeout for the shared API client.
-// Crown-jewel POST/DELETE can exceed 10s on real assets because the API syncs
-// attack-path scores and inventory after writing the mark (UI updates sooner
-// than the HTTP response returns).
-const defaultHTTPTimeout = 60 * time.Second
+const defaultHTTPTimeout = 10 * time.Second
 
 // debugf logs to stderr (never stdout — stdout is the go-plugin protocol channel
 // Terraform speaks over) and only when httpDebugEnvVar is set.
@@ -44,6 +41,16 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 		HTTPClient:  &http.Client{Timeout: defaultHTTPTimeout},
 	}
 	return &apiclient, nil
+}
+
+// withHTTPTimeout returns a shallow client copy whose HTTP client uses timeout.
+// The original client is unchanged (safe for concurrent resource operations).
+func (c *APIClient) withHTTPTimeout(timeout time.Duration) *APIClient {
+	clone := *c
+	hc := *c.HTTPClient
+	hc.Timeout = timeout
+	clone.HTTPClient = &hc
+	return &clone
 }
 
 // Convenience wrapper over http.Response

@@ -69,7 +69,7 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"group_unique_id": schema.StringAttribute{
 				Description: "Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. " +
 					"If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one.",
-				Required:    true,
+				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -94,13 +94,11 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 // applyPlan POSTs the planned crown jewel and writes computed fields back onto plan.
 // Create and Update share this path because the API is a single upsert.
 func (r *crownJewelResource) applyPlan(plan *stateModel) error {
-	instance, err := r.apiClient.SetCrownJewel(plan.GroupUniqueID.ValueString(), plan.Description.ValueString())
-	if err != nil {
+	if _, err := r.apiClient.SetCrownJewel(plan.GroupUniqueID.ValueString(), plan.Description.ValueString()); err != nil {
 		return err
 	}
 	// Keep Required attributes from the plan; only refresh Computed ones from the API.
-	plan.ID = types.StringValue(plan.GroupUniqueID.ValueString())
-	plan.Description = types.StringValue(instance.Description)
+	plan.ID = plan.GroupUniqueID
 	return nil
 }
 
