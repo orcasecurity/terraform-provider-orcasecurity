@@ -3,12 +3,12 @@
 page_title: "orcasecurity_crown_jewel Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Marks an asset as a user-defined crown jewel. The asset is identified by group_unique_id. Orca-detected crown jewels are engine-managed and cannot be created or deleted through this resource.
+  Marks an asset as a user-defined crown jewel. The asset is identified by group_unique_id. Create and update both upsert: applying this resource on an asset that is already user-marked overwrites the existing reason instead of failing. Prefer terraform import to adopt an existing mark without changing it on first apply. Orca-detected crown jewels are engine-managed and cannot be deleted through this resource; applying here adds a user-marked overlay (hybrid).
 ---
 
 # orcasecurity_crown_jewel (Resource)
 
-Marks an asset as a user-defined crown jewel. The asset is identified by `group_unique_id`. Orca-detected crown jewels are engine-managed and cannot be created or deleted through this resource.
+Marks an asset as a user-defined crown jewel. The asset is identified by `group_unique_id`. Create and update both upsert: applying this resource on an asset that is already user-marked overwrites the existing reason instead of failing. Prefer `terraform import` to adopt an existing mark without changing it on first apply. Orca-detected crown jewels are engine-managed and cannot be deleted through this resource; applying here adds a user-marked overlay (hybrid).
 
 ## Example Usage
 
@@ -16,6 +16,9 @@ Marks an asset as a user-defined crown jewel. The asset is identified by `group_
 # description is the same field as Reason in the Orca UI ("Mark as Crown Jewel").
 # Typical UI values: "Critical business function", "Customer data", "High blast radius",
 # or free text when choosing Other.
+#
+# Apply is an upsert: if this asset is already user-marked, the existing Reason is
+# overwritten. To adopt an existing mark without changing it, import first.
 resource "orcasecurity_crown_jewel" "example" {
   group_unique_id = "vm_123456789012_i-0123456789abcdef0"
   description     = "Customer data"
@@ -28,11 +31,31 @@ resource "orcasecurity_crown_jewel" "example" {
 ### Required
 
 - `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). Common UI values are `Critical business function`, `Customer data`, `High blast radius`, or free text when choosing Other. Required: the API accepts omit, but creating without a reason stores a null description and breaks list/read of crown jewels.
-- `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource.
+- `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one.
 
 ### Read-Only
 
 - `id` (String) Same as `group_unique_id`.
+
+## Notes
+
+- **Upsert, not create-only.** The API marks (or re-marks) by `group_unique_id`. If the asset is
+  already a **user-marked** crown jewel, `terraform apply` succeeds and **overwrites** the
+  existing Reason (`description`) with the value in your configuration. It does not error and
+  does not create a second mark.
+- **Adopt existing marks with import.** To manage a crown jewel that was set in the UI (or
+  elsewhere) without changing its reason on first apply, import first, then align `description`
+  in config with the live value (or intentionally change it):
+
+  ```shell
+  terraform import orcasecurity_crown_jewel.example GROUP_UNIQUE_ID
+  ```
+
+- **Destroy unsets the user-marked crown jewel.** After destroy, the asset is no longer
+  user-marked. If it was also **Orca-detected**, that engine-managed detection can remain; this
+  resource only removes the user-marked overlay.
+- **Orca-detected assets.** Applying this resource on an Orca-detected asset adds a user-marked
+  overlay (hybrid). You still cannot delete the Orca-detected side through Terraform.
 
 ## Import
 

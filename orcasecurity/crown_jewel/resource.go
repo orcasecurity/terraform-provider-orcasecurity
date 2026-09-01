@@ -54,7 +54,10 @@ func (r *crownJewelResource) ImportState(ctx context.Context, req resource.Impor
 func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Marks an asset as a user-defined crown jewel. The asset is identified by `group_unique_id`. " +
-			"Orca-detected crown jewels are engine-managed and cannot be created or deleted through this resource.",
+			"Create and update both upsert: applying this resource on an asset that is already user-marked " +
+			"overwrites the existing reason instead of failing. Prefer `terraform import` to adopt an " +
+			"existing mark without changing it on first apply. Orca-detected crown jewels are engine-managed " +
+			"and cannot be deleted through this resource; applying here adds a user-marked overlay (hybrid).",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -64,7 +67,8 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Description: "Same as `group_unique_id`.",
 			},
 			"group_unique_id": schema.StringAttribute{
-				Description: "Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource.",
+				Description: "Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. " +
+					"If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

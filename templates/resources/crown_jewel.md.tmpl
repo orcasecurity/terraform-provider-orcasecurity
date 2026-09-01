@@ -16,6 +16,26 @@ description: |-
 
 {{ .SchemaMarkdown | trimspace }}
 
+## Notes
+
+- **Upsert, not create-only.** The API marks (or re-marks) by `group_unique_id`. If the asset is
+  already a **user-marked** crown jewel, `terraform apply` succeeds and **overwrites** the
+  existing Reason (`description`) with the value in your configuration. It does not error and
+  does not create a second mark.
+- **Adopt existing marks with import.** To manage a crown jewel that was set in the UI (or
+  elsewhere) without changing its reason on first apply, import first, then align `description`
+  in config with the live value (or intentionally change it):
+
+  ```shell
+  terraform import orcasecurity_crown_jewel.example GROUP_UNIQUE_ID
+  ```
+
+- **Destroy unsets the user-marked crown jewel.** After destroy, the asset is no longer
+  user-marked. If it was also **Orca-detected**, that engine-managed detection can remain; this
+  resource only removes the user-marked overlay.
+- **Orca-detected assets.** Applying this resource on an Orca-detected asset adds a user-marked
+  overlay (hybrid). You still cannot delete the Orca-detected side through Terraform.
+
 ## Import
 
 Import is supported using the following syntax:
