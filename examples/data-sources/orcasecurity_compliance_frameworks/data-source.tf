@@ -15,3 +15,11 @@ data "orcasecurity_compliance_frameworks" "pci" {
 output "active_custom_ids" {
   value = [for f in data.orcasecurity_compliance_frameworks.active_custom.frameworks : f.id]
 }
+
+output "orca_ids" {
+  value = [for f in data.orcasecurity_compliance_frameworks.orca.frameworks : f.id]
+}
+
+output "pci_versions" {
+  value = { for f in data.orcasecurity_compliance_frameworks.pci.frameworks : f.id => f.display_name }
+}

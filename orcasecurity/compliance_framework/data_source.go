@@ -74,7 +74,8 @@ func (d *complianceFrameworksDataSource) Schema(_ context.Context, _ datasource.
 			"version_agnostic_display_name": schema.StringAttribute{
 				Optional: true,
 				Description: "Exact match on `version_agnostic_display_name` (the family name without " +
-					"version, e.g. `PCI DSS`). Use this to pin a framework family across upgrades.",
+					"version, e.g. `PCI DSS`). Use this to pin a framework family across upgrades. " +
+					"Custom frameworks have a null `version_agnostic_display_name` and never match.",
 			},
 			"search": schema.StringAttribute{
 				Optional:    true,
