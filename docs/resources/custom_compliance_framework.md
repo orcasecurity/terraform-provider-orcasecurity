@@ -3,12 +3,12 @@
 page_title: "orcasecurity_custom_compliance_framework Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels (an API limit); a fourth nested sections block is rejected in ValidateConfig. Omit scope to create the framework inactive; ongoing activation belongs to orcasecurity_compliance_framework_selection.
+  Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels (an API limit); a fourth nested sections block is rejected in ValidateConfig. Drafts (/api/compliance/frameworks/drafts and draft_id on create) are a UI-only workflow and are not managed by this resource. Omit scope to create the framework inactive; ongoing activation belongs to orcasecurity_compliance_framework_selection.
 ---
 
 # orcasecurity_custom_compliance_framework (Resource)
 
-Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels (an API limit); a fourth nested `sections` block is rejected in ValidateConfig. Omit `scope` to create the framework inactive; ongoing activation belongs to `orcasecurity_compliance_framework_selection`.
+Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels (an API limit); a fourth nested `sections` block is rejected in ValidateConfig. Drafts (`/api/compliance/frameworks/drafts` and `draft_id` on create) are a UI-only workflow and are not managed by this resource. Omit `scope` to create the framework inactive; ongoing activation belongs to `orcasecurity_compliance_framework_selection`.
 
 ## Example Usage
 
@@ -72,7 +72,7 @@ resource "orcasecurity_compliance_framework_selection" "subset" {
 - `description` (String) Framework description.
 - `forced_cloud_vendors` (Set of String) Force the framework onto these cloud vendors. Sent only when non-empty. `forced_cloud_vendors = []` is treated as omit: the provider does not send the key, so enforcement is cleared on update (the API 400s on an explicit empty list). Omitting the attribute on update also clears enforcement.
 - `scope` (String) Create-only activation: `user` or `organization`. PUT ignores this field. Omitting it leaves the new framework inactive (`selection_scopes: []`). `visibility = "Personal"` cannot use `organization`. Ongoing enable/disable belongs to `orcasecurity_compliance_framework_selection`.
-- `visibility` (String) Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. `Personal` can be promoted to `Organizational`; the reverse is rejected by the API. `Personal` cannot be combined with `scope = "organization"` (the API returns 400).
+- `visibility` (String) Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. `Personal` can be promoted to `Organizational`; the reverse is rejected by the API. `Personal` cannot be combined with `scope = "organization"` (the API returns 400). Personal frameworks are visible only to the creating user; a different API token sees 404 and Terraform will try to recreate them.
 
 ### Read-Only
 
@@ -87,8 +87,9 @@ Required:
 
 Optional:
 
-- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections). A fourth nested `sections` is kept in the schema so Terraform does not silently discard it; ValidateConfig rejects it. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections))
-- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — the API drops an empty list. (see [below for nested schema](#nestedatt--sections--tests))
+- `section_id_in_framework` (String) Numeric id for this section inside the framework (e.g. `7` so controls become `7.1`). Omitted values are assigned positionally (`1`, `2`, …). Must be a decimal integer — the API 400s on any other value. On read this is the catalog section `id` (dotted for nested sections, e.g. `1.1`).
+- `sections` (Attributes List) Nested sub-sections. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections))
+- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--tests))
 
 <a id="nestedatt--sections--sections"></a>
 ### Nested Schema for `sections.sections`
@@ -99,8 +100,9 @@ Required:
 
 Optional:
 
-- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections). A fourth nested `sections` is kept in the schema so Terraform does not silently discard it; ValidateConfig rejects it. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections))
-- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — the API drops an empty list. (see [below for nested schema](#nestedatt--sections--sections--tests))
+- `section_id_in_framework` (String) Numeric id for this section inside the framework (e.g. `7` so controls become `7.1`). Omitted values are assigned positionally (`1`, `2`, …). Must be a decimal integer — the API 400s on any other value. On read this is the catalog section `id` (dotted for nested sections, e.g. `1.1`).
+- `sections` (Attributes List) Nested sub-sections. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections))
+- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--tests))
 
 <a id="nestedatt--sections--sections--sections"></a>
 ### Nested Schema for `sections.sections.sections`
@@ -111,8 +113,9 @@ Required:
 
 Optional:
 
-- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections). A fourth nested `sections` is kept in the schema so Terraform does not silently discard it; ValidateConfig rejects it. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections--sections))
-- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — the API drops an empty list. (see [below for nested schema](#nestedatt--sections--sections--sections--tests))
+- `section_id_in_framework` (String) Numeric id for this section inside the framework (e.g. `7` so controls become `7.1`). Omitted values are assigned positionally (`1`, `2`, …). Must be a decimal integer — the API 400s on any other value. On read this is the catalog section `id` (dotted for nested sections, e.g. `1.1`).
+- `sections` (Attributes List) Not supported — the API stores three levels; ValidateConfig rejects controls placed here. (see [below for nested schema](#nestedatt--sections--sections--sections--sections))
+- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--sections--tests))
 
 <a id="nestedatt--sections--sections--sections--sections"></a>
 ### Nested Schema for `sections.sections.sections.sections`
@@ -123,7 +126,8 @@ Required:
 
 Optional:
 
-- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — the API drops an empty list. (see [below for nested schema](#nestedatt--sections--sections--sections--sections--tests))
+- `section_id_in_framework` (String) Numeric id for this section inside the framework (e.g. `7` so controls become `7.1`). Omitted values are assigned positionally (`1`, `2`, …). Must be a decimal integer — the API 400s on any other value. On read this is the catalog section `id` (dotted for nested sections, e.g. `1.1`).
+- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--sections--sections--tests))
 
 <a id="nestedatt--sections--sections--sections--sections--tests"></a>
 ### Nested Schema for `sections.sections.sections.sections.tests`
@@ -200,12 +204,20 @@ Optional:
   the provider reads those back as null.
 - **`visibility` is a one-way promotion.** `Personal` can be promoted to
   `Organizational`; the reverse is rejected by the API. The provider fails the
-  plan instead of applying a 400.
+  plan instead of applying a 400. Personal frameworks are visible only to the
+  creating user; a different API token sees 404 and Terraform will try to
+  recreate them.
 - **Nesting is at most three levels** (`sections → sections → sections`). That
   is an API limit (`category` / `sub_category` / `sub_sub_category`). A fourth
   nested `sections` is kept in the schema so Terraform does not silently
   discard it; ValidateConfig rejects it with an error telling you to move the
   controls up one level.
+- **Drafts are not managed.** The UI can save unpublished drafts
+  (`/api/compliance/frameworks/drafts` and `draft_id` on create). This resource
+  only writes published frameworks.
+- **`section_id_in_framework`.** Optional numeric id for a section (so controls
+  become `7.1` instead of positional `1.1`). Must be a decimal integer; the API
+  400s otherwise. On read this is the catalog section `id`.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

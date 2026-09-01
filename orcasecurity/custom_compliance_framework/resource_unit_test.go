@@ -34,6 +34,11 @@ func schemaAndConfig(t *testing.T, model customComplianceFrameworkResourceModel)
 
 func mustObject(t *testing.T, typ types.ObjectType, attrs map[string]attr.Value) types.Object {
 	t.Helper()
+	if _, ok := typ.AttrTypes["section_id_in_framework"]; ok {
+		if _, present := attrs["section_id_in_framework"]; !present {
+			attrs["section_id_in_framework"] = types.StringNull()
+		}
+	}
 	obj, d := types.ObjectValue(typ.AttrTypes, attrs)
 	if d.HasError() {
 		t.Fatal(d)
@@ -121,6 +126,18 @@ func TestSchema_FourthLevelExistsForRejection(t *testing.T) {
 	if _, ok := l4.NestedObject.Attributes["sections"]; ok {
 		t.Fatal("fifth nested sections must not be in the schema")
 	}
+	if _, ok := l4.NestedObject.Attributes["section_id_in_framework"]; !ok {
+		t.Fatal("section_id_in_framework must exist at every section level")
+	}
+	if !strings.Contains(l4.Description, "Not supported") {
+		t.Errorf("fourth nested sections must advertise rejection, got %q", l4.Description)
+	}
+	if strings.Contains(l1.NestedObject.Attributes["sections"].(schema.ListNestedAttribute).Description, "Not supported") {
+		t.Error("supported nesting levels must not use the rejected-level description")
+	}
+	if strings.Contains(l2.Description, "fourth nested") {
+		t.Errorf("level-2 nested sections must not mention a fourth level, got %q", l2.Description)
+	}
 	tests, ok := l1.NestedObject.Attributes["tests"].(schema.ListNestedAttribute)
 	if !ok {
 		t.Fatal("tests")
@@ -189,6 +206,9 @@ func TestSchema_LoosenedAndAdditive(t *testing.T) {
 	}
 	if _, ok := sections.NestedObject.Attributes["sections"]; !ok {
 		t.Error("missing nested sections")
+	}
+	if _, ok := sections.NestedObject.Attributes["section_id_in_framework"]; !ok {
+		t.Error("missing section_id_in_framework")
 	}
 
 	scope, ok := attrs["scope"].(schema.StringAttribute)
@@ -293,6 +313,9 @@ func TestValidateConfig_RejectsEmptyNestedSections(t *testing.T) {
 	if !hasDetail(resp, emptyNestedSectionsMessage) {
 		t.Errorf("expected empty-nested-sections diagnostic, got %v", resp.Diagnostics)
 	}
+	if n := len(resp.Diagnostics); n != 1 {
+		t.Errorf("empty nested sections must produce one diagnostic, got %d: %v", n, resp.Diagnostics)
+	}
 }
 
 func TestValidateConfig_RejectsEmptyTests(t *testing.T) {
@@ -310,6 +333,12 @@ func TestValidateConfig_RejectsEmptyTests(t *testing.T) {
 	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
 	if !hasDetail(resp, emptyTestsListMessage) {
 		t.Errorf("expected empty-tests diagnostic, got %v", resp.Diagnostics)
+	}
+	if n := len(resp.Diagnostics); n != 1 {
+		t.Errorf("empty tests must produce one diagnostic, got %d: %v", n, resp.Diagnostics)
+	}
+	if hasDetail(resp, leafNeedsTestMessage) {
+		t.Error("must not also report the leaf-needs-test message")
 	}
 }
 
@@ -331,7 +360,7 @@ func TestValidateConfig_AllowsUnknownTests(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_RejectsNamelessLeaf(t *testing.T) {
+func TestValidateConfig_RejectsEmptyLeaf(t *testing.T) {
 	rootType := sectionObjectType(maxSectionDepth)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
 		Name:               types.StringValue("hole"),
@@ -498,6 +527,72 @@ func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	}
 	if req.Sections[0].Tests[0].RuleIDInFramework != "1.1" {
 		t.Errorf("omitted rule_id_in_framework must derive, got %+v", req.Sections[0].Tests)
+	}
+	if req.Sections[0].SectionIDInFramework != nil {
+		t.Errorf("omitted section_id_in_framework must not be sent, got %v", *req.Sections[0].SectionIDInFramework)
+	}
+}
+
+func TestRequestFromPlanSendsNumericSectionID(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	sections := mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+		"name":                    types.StringValue("Alpha"),
+		"section_id_in_framework": types.StringValue("7"),
+		"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "")),
+		"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+	}))
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           sections,
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if req.Sections[0].SectionIDInFramework == nil || *req.Sections[0].SectionIDInFramework != 7 {
+		t.Errorf("section_id_in_framework: %v", req.Sections[0].SectionIDInFramework)
+	}
+	if req.Sections[0].Tests[0].RuleIDInFramework != "7.1" {
+		t.Errorf("derived control id must use custom section id, got %q", req.Sections[0].Tests[0].RuleIDInFramework)
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"section_id_in_framework":7`) {
+		t.Errorf("write payload must send a JSON number, got %s", raw)
+	}
+}
+
+func TestValidateConfig_RejectsNonNumericSectionID(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("cc6"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":                    types.StringValue("A"),
+			"section_id_in_framework": types.StringValue("CC6"),
+			"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+			"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, invalidSectionIDMessage) {
+		t.Errorf("expected invalid section id diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestSchema_SectionDepthMatchesCatalogConvention(t *testing.T) {
+	if schemaSectionDepth != maxSectionDepth+1 {
+		t.Fatalf("schemaSectionDepth=%d maxSectionDepth=%d", schemaSectionDepth, maxSectionDepth)
+	}
+	r := &customComplianceFrameworkResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	root := schemaResp.Schema.Attributes["sections"].(schema.ListNestedAttribute)
+	if _, ok := root.NestedObject.Attributes["sections"]; !ok {
+		t.Fatal("root remaining depth must include nested sections")
 	}
 }
 

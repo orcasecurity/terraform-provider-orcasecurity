@@ -2,6 +2,8 @@ package custom_compliance_framework
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
@@ -15,10 +17,12 @@ import (
 )
 
 // maxSectionDepth is the API's stored depth (category / sub_category /
-// sub_sub_category). The schema keeps one extra nested `sections` attribute
-// so a fourth level is visible to Terraform and rejected by validateSections
-// instead of being silently discarded.
+// sub_sub_category). schemaSectionDepth includes one extra nested `sections`
+// attribute so a fourth level is visible to Terraform and rejected instead
+// of being silently discarded. Catalog data sources use maxCatalogDepth the
+// other way (maxCatalogDepth-1) because they have no rejected extra level.
 const maxSectionDepth = 3
+const schemaSectionDepth = maxSectionDepth + 1
 
 const mixedSectionMessage = "a section cannot have both tests and sub-sections; the API would silently flatten it and the sub-section would inherit the parent name"
 
@@ -32,7 +36,20 @@ const emptyRootSectionsMessage = "a framework must contain at least one section"
 
 const fourthLevelMessage = "the API stores three levels; move these controls up one level"
 
+const invalidSectionIDMessage = "section_id_in_framework must be a decimal integer (the API 400s otherwise); dotted catalog ids such as 1.1 are read-only"
+
+const nestedSectionsDescription = "Nested sub-sections. A section may have tests or sub-sections, never both."
+
+const rejectedLevelDescription = "Not supported — the API stores three levels; ValidateConfig rejects controls placed here."
+
 const invalidSectionSummary = "Invalid section"
+
+func nestedSectionsAttrDescription(remainingDepth int) string {
+	if remainingDepth == 1 {
+		return rejectedLevelDescription
+	}
+	return nestedSectionsDescription
+}
 
 func objectTypeFromAttributes(attrs map[string]schema.Attribute) types.ObjectType {
 	m := make(map[string]attr.Type, len(attrs))
@@ -94,6 +111,33 @@ func listLen(v attr.Value) int {
 	return len(l.Elements())
 }
 
+func atoiPtr(s string) *int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return nil
+	}
+	return &n
+}
+
+func invalidSectionID(s string) bool {
+	if s == "" {
+		return false
+	}
+	if _, err := strconv.Atoi(s); err == nil {
+		return false
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 {
+		return true
+	}
+	for _, p := range parts {
+		if _, err := strconv.Atoi(p); err != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func testsToAPI(sectionID string, list types.List) []api_client.CustomComplianceFrameworkTest {
 	if list.IsNull() || list.IsUnknown() {
 		return []api_client.CustomComplianceFrameworkTest{}
@@ -134,8 +178,12 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 		if !ok || obj.IsNull() || obj.IsUnknown() {
 			continue
 		}
-		id := positionalSectionID(parentID, i)
 		attrs := obj.Attributes()
+		userID := attrString(attrs, "section_id_in_framework")
+		id := userID
+		if id == "" {
+			id = positionalSectionID(parentID, i)
+		}
 		tests := []api_client.CustomComplianceFrameworkTest{}
 		if l, ok := asList(attrs["tests"]); ok {
 			tests = testsToAPI(id, l)
@@ -145,9 +193,10 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 			nested = sectionsToAPIAt(l, id)
 		}
 		out = append(out, api_client.CustomComplianceFrameworkSection{
-			Name:     attrString(attrs, "name"),
-			Tests:    tests,
-			Sections: nested,
+			Name:                 attrString(attrs, "name"),
+			SectionIDInFramework: atoiPtr(userID),
+			Tests:                tests,
+			Sections:             nested,
 		})
 	}
 	return out
@@ -187,8 +236,9 @@ func sectionsFromCatalog(sections []api_client.ComplianceCatalogSection, remaini
 		tests, d := testsFromCatalog(s.Tests)
 		diags.Append(d...)
 		attrs := map[string]attr.Value{
-			"name":  types.StringValue(s.Name),
-			"tests": tests,
+			"name":                    types.StringValue(s.Name),
+			"section_id_in_framework": tfconv.StringOrNull(s.ID),
+			"tests":                   tests,
 		}
 		if remainingDepth > 0 {
 			nested, d := sectionsFromCatalog(s.Sections, remainingDepth-1)
@@ -247,11 +297,18 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 		return
 	}
 	attrs := obj.Attributes()
+	if id := attrString(attrs, "section_id_in_framework"); invalidSectionID(id) {
+		resp.Diagnostics.AddAttributeError(p.AtName("section_id_in_framework"), invalidSectionSummary, invalidSectionIDMessage)
+	}
 	if listKnownEmpty(attrs["tests"]) {
 		resp.Diagnostics.AddAttributeError(p.AtName("tests"), invalidSectionSummary, emptyTestsListMessage)
+		if listLen(attrs["sections"]) == 0 {
+			return
+		}
 	}
 	if listKnownEmpty(attrs["sections"]) {
 		resp.Diagnostics.AddAttributeError(p.AtName("sections"), invalidSectionSummary, emptyNestedSectionsMessage)
+		return
 	}
 	// Data-source for-expressions are unknown during ValidateConfig.
 	if listUnknown(attrs["tests"]) || listUnknown(attrs["sections"]) {

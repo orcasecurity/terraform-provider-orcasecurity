@@ -2,7 +2,6 @@ package custom_compliance_framework
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -47,14 +46,6 @@ func planWith(t *testing.T, sch schema.Schema, model customComplianceFrameworkRe
 	return p
 }
 
-func jsonResp(req *http.Request, code int, body string) *http.Response {
-	return &http.Response{
-		StatusCode: code,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Request:    req,
-	}
-}
-
 const fwJSON = `{"data":{"id":"3887","display_name":"Lab","custom":true,"active":false,"selection_scopes":[],"visibility":"Personal"}}`
 
 const catalogJSON = `{"data":{"frameworks":[{"framework_id":"3887","name":"Lab","display_name":"Lab","custom":true,"sections":[{"id":"1","name":"Flat","tests":[{"rule_id":"r1","reference_id":"1.1","priority":"Medium"}]}]}]}}`
@@ -62,17 +53,17 @@ const catalogJSON = `{"data":{"frameworks":[{"framework_id":"3887","name":"Lab",
 func happyCRUD(req *http.Request) *http.Response {
 	switch {
 	case req.Method == "POST" && req.URL.Path == "/api/compliance/frameworks":
-		return jsonResp(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
+		return testutils.JSONResponse(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
 	case req.Method == "PUT" && strings.HasPrefix(req.URL.Path, "/api/compliance/frameworks/"):
-		return jsonResp(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
+		return testutils.JSONResponse(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
 	case req.Method == "GET" && req.URL.Path == "/api/compliance/frameworks/3887":
-		return jsonResp(req, 200, fwJSON)
+		return testutils.JSONResponse(req, 200, fwJSON)
 	case req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887":
-		return jsonResp(req, 200, catalogJSON)
+		return testutils.JSONResponse(req, 200, catalogJSON)
 	case req.Method == "DELETE" && req.URL.Path == "/api/compliance/frameworks/3887":
-		return jsonResp(req, 200, `{}`)
+		return testutils.JSONResponse(req, 200, `{}`)
 	default:
-		return jsonResp(req, 500, `{"error":"unexpected `+req.Method+` `+req.URL.Path+`"}`)
+		return testutils.JSONResponse(req, 500, `{"error":"unexpected `+req.Method+` `+req.URL.Path+`"}`)
 	}
 }
 
@@ -94,7 +85,7 @@ func stateModel(t *testing.T) customComplianceFrameworkResourceModel {
 
 func TestRead_NotFoundRemovesResource(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
-		return jsonResp(req, 404, `{"error":"Framework 3887 not found."}`)
+		return testutils.JSONResponse(req, 404, `{"error":"Framework 3887 not found."}`)
 	})
 	sch := resourceSchema(t)
 	m := stateModel(t)
@@ -136,6 +127,9 @@ func TestRead_PopulateMapsCatalog(t *testing.T) {
 	if sec.Attributes()["name"].(types.String).ValueString() != "Flat" {
 		t.Errorf("section name: %#v", sec.Attributes()["name"])
 	}
+	if sec.Attributes()["section_id_in_framework"].(types.String).ValueString() != "1" {
+		t.Errorf("section_id_in_framework: %#v", sec.Attributes()["section_id_in_framework"])
+	}
 	tests := sec.Attributes()["tests"].(types.List)
 	if len(tests.Elements()) != 1 {
 		t.Fatalf("tests: %#v", tests)
@@ -152,7 +146,7 @@ func TestRead_PopulateMapsCatalog(t *testing.T) {
 func TestCreate_APIErrorSurfaces(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		if req.Method == "POST" {
-			return jsonResp(req, 400, `{"error":"name already exists"}`)
+			return testutils.JSONResponse(req, 400, `{"error":"name already exists"}`)
 		}
 		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
 		return nil
@@ -199,7 +193,7 @@ func TestCreate_RefreshMapsCatalog(t *testing.T) {
 func TestUpdate_APIErrorSurfaces(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		if req.Method == "PUT" {
-			return jsonResp(req, 500, `{"error":"boom"}`)
+			return testutils.JSONResponse(req, 500, `{"error":"boom"}`)
 		}
 		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
 		return nil
@@ -238,7 +232,7 @@ func TestDelete_404Ignored(t *testing.T) {
 		if req.Method != "DELETE" {
 			t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
 		}
-		return jsonResp(req, 404, `{"error":"Framework 3887 not found."}`)
+		return testutils.JSONResponse(req, 404, `{"error":"Framework 3887 not found."}`)
 	})
 	sch := resourceSchema(t)
 	req := resource.DeleteRequest{State: stateWith(t, sch, stateModel(t))}
@@ -251,7 +245,7 @@ func TestDelete_404Ignored(t *testing.T) {
 
 func TestDelete_OtherErrorSurfaced(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
-		return jsonResp(req, 500, `{"error":"boom"}`)
+		return testutils.JSONResponse(req, 500, `{"error":"boom"}`)
 	})
 	sch := resourceSchema(t)
 	req := resource.DeleteRequest{State: stateWith(t, sch, stateModel(t))}
@@ -265,9 +259,9 @@ func TestDelete_OtherErrorSurfaced(t *testing.T) {
 func TestPopulate_CatalogMissing(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		if strings.Contains(req.URL.Path, "/catalog/") {
-			return jsonResp(req, 200, `{"data":{"frameworks":[]}}`)
+			return testutils.JSONResponse(req, 200, `{"data":{"frameworks":[]}}`)
 		}
-		return jsonResp(req, 200, fwJSON)
+		return testutils.JSONResponse(req, 200, fwJSON)
 	})
 	m := stateModel(t)
 	ok, d := r.populate(context.Background(), &m)

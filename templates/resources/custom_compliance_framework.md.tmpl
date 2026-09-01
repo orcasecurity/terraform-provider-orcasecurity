@@ -29,12 +29,20 @@ description: |-
   the provider reads those back as null.
 - **`visibility` is a one-way promotion.** `Personal` can be promoted to
   `Organizational`; the reverse is rejected by the API. The provider fails the
-  plan instead of applying a 400.
+  plan instead of applying a 400. Personal frameworks are visible only to the
+  creating user; a different API token sees 404 and Terraform will try to
+  recreate them.
 - **Nesting is at most three levels** (`sections → sections → sections`). That
   is an API limit (`category` / `sub_category` / `sub_sub_category`). A fourth
   nested `sections` is kept in the schema so Terraform does not silently
   discard it; ValidateConfig rejects it with an error telling you to move the
   controls up one level.
+- **Drafts are not managed.** The UI can save unpublished drafts
+  (`/api/compliance/frameworks/drafts` and `draft_id` on create). This resource
+  only writes published frameworks.
+- **`section_id_in_framework`.** Optional numeric id for a section (so controls
+  become `7.1` instead of positional `1.1`). Must be a decimal integer; the API
+  400s otherwise. On read this is the catalog section `id`.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

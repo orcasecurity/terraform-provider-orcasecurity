@@ -288,6 +288,113 @@ func TestUpdate_PersonalRejectsOrganization(t *testing.T) {
 	}
 }
 
+func TestCreate_LookupError(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 500,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"boom"}`)),
+			Request:    req,
+		}
+	})
+	sch := resourceSchema(t)
+	m := model(t, "fw", []string{"user"})
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWith(t, sch, m)}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("select GET 500 must be a diagnostic")
+	}
+}
+
+func TestCreate_FrameworkNotFound(t *testing.T) {
+	r := stubResource(selectStub(t, map[string]map[string]interface{}{}, nil, nil))
+	sch := resourceSchema(t)
+	m := model(t, "missing", []string{"user"})
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWith(t, sch, m)}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("unknown framework must be a diagnostic")
+	}
+	found := false
+	for _, d := range resp.Diagnostics {
+		if strings.Contains(d.Detail(), "missing") || strings.Contains(d.Summary(), "not found") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected not-found diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestCreate_ApplyScopeDiffError(t *testing.T) {
+	entries := map[string]map[string]interface{}{
+		"fw": {
+			"id": "fw", "active": false, "selection_scopes": []string{},
+			"display_name": "FW", "custom": false, "is_ready": true,
+		},
+	}
+	r := stubResource(selectStub(t, entries, nil, func(req *http.Request) int {
+		if req.Method == "POST" {
+			return 500
+		}
+		return 200
+	}))
+	sch := resourceSchema(t)
+	m := model(t, "fw", []string{"user"})
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWith(t, sch, m)}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("select POST 500 must be a diagnostic")
+	}
+}
+
+func TestCreate_RefreshDisappeared(t *testing.T) {
+	gets := 0
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "GET" {
+			gets++
+			if gets == 1 {
+				raw, _ := json.Marshal(map[string]map[string]interface{}{
+					"fw": {"id": "fw", "active": false, "selection_scopes": []string{}, "display_name": "FW", "custom": false, "is_ready": true},
+				})
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(raw)), Request: req}
+			}
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}
+	})
+	sch := resourceSchema(t)
+	m := model(t, "fw", []string{"user"})
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWith(t, sch, m)}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("refresh miss after write must be a diagnostic")
+	}
+}
+
+func TestCreate_RefreshLookupError(t *testing.T) {
+	gets := 0
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "GET" {
+			gets++
+			if gets == 1 {
+				raw, _ := json.Marshal(map[string]map[string]interface{}{
+					"fw": {"id": "fw", "active": false, "selection_scopes": []string{}, "display_name": "FW", "custom": false, "is_ready": true},
+				})
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(raw)), Request: req}
+			}
+			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(`{"error":"boom"}`)), Request: req}
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}
+	})
+	sch := resourceSchema(t)
+	m := model(t, "fw", []string{"user"})
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWith(t, sch, m)}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("refresh GET 500 must be a diagnostic")
+	}
+}
+
 func TestSchema_EmptyScopesAllowed(t *testing.T) {
 	sch := resourceSchema(t)
 	scopes, ok := sch.Attributes["scopes"].(schema.SetAttribute)

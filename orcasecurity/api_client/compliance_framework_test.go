@@ -16,6 +16,8 @@ func testAPIClient(fn RoundTripFunc) APIClient {
 	}
 }
 
+// jsonStatus is the api_client-test copy of testutils.JSONResponse.
+// Resource packages use testutils; this package cannot import it without a cycle.
 func jsonStatus(code int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: code,

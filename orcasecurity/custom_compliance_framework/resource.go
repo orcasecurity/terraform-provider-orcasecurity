@@ -96,9 +96,20 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 			Required:    true,
 			Description: "Section name.",
 		},
+		"section_id_in_framework": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+			Description: "Numeric id for this section inside the framework (e.g. `7` so controls " +
+				"become `7.1`). Omitted values are assigned positionally (`1`, `2`, …). " +
+				"Must be a decimal integer — the API 400s on any other value. " +
+				"On read this is the catalog section `id` (dotted for nested sections, e.g. `1.1`).",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
 		"tests": schema.ListNestedAttribute{
 			Optional:    true,
-			Description: "Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — the API drops an empty list.",
+			Description: "Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null.",
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: testAttributes(),
 			},
@@ -106,11 +117,8 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 	}
 	if remainingDepth > 0 {
 		attrs["sections"] = schema.ListNestedAttribute{
-			Optional: true,
-			Description: "Nested sub-sections. The API stores exactly three levels " +
-				"(sections → sections → sections). A fourth nested `sections` is kept in " +
-				"the schema so Terraform does not silently discard it; ValidateConfig rejects it. " +
-				"A section may have tests or sub-sections, never both.",
+			Optional:    true,
+			Description: nestedSectionsAttrDescription(remainingDepth),
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: sectionAttributes(remainingDepth - 1),
 			},
@@ -126,6 +134,8 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 			"A section may contain tests or nested sections, never both — the API would otherwise " +
 			"silently flatten it. Nesting is at most three levels (an API limit); a fourth nested " +
 			"`sections` block is rejected in ValidateConfig. " +
+			"Drafts (`/api/compliance/frameworks/drafts` and `draft_id` on create) are a UI-only " +
+			"workflow and are not managed by this resource. " +
 			"Omit `scope` to create the framework inactive; ongoing activation belongs to " +
 			"`orcasecurity_compliance_framework_selection`.",
 		Attributes: map[string]schema.Attribute{
@@ -152,7 +162,8 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				Computed: true,
 				Description: "Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. " +
 					"`Personal` can be promoted to `Organizational`; the reverse is rejected by the API. " +
-					"`Personal` cannot be combined with `scope = \"organization\"` (the API returns 400).",
+					"`Personal` cannot be combined with `scope = \"organization\"` (the API returns 400). " +
+					"Personal frameworks are visible only to the creating user; a different API token sees 404 and Terraform will try to recreate them.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(api_client.VisibilityOrganizational, api_client.VisibilityPersonal),
 				},
@@ -185,7 +196,7 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				Required:    true,
 				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). Every leaf section must have at least one test.",
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: sectionAttributes(maxSectionDepth),
+					Attributes: sectionAttributes(schemaSectionDepth - 1),
 				},
 			},
 		},
@@ -373,7 +384,7 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 	if catalog == nil {
 		return false, catalogMissingDiag(id)
 	}
-	sections, d := sectionsFromCatalog(catalog.Sections, maxSectionDepth)
+	sections, d := sectionsFromCatalog(catalog.Sections, schemaSectionDepth-1)
 	if d.HasError() {
 		return false, d
 	}

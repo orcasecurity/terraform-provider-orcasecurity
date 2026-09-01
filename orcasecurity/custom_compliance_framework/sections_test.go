@@ -176,3 +176,20 @@ func TestSectionsFromCatalog_EmptyListsAreNull(t *testing.T) {
 		t.Errorf("empty catalog tests must be null (the B1 mismatch), got %#v", objectList(parent, "tests"))
 	}
 }
+
+func TestSectionsFromCatalog_MapsSectionID(t *testing.T) {
+	got, d := sectionsFromCatalog([]api_client.ComplianceCatalogSection{{
+		ID: "7", Name: "Alpha", Tests: []api_client.ComplianceCatalogTest{{RuleID: "r1", ReferenceID: "7.1"}},
+	}}, schemaSectionDepth-1)
+	if d.HasError() {
+		t.Fatal(d)
+	}
+	sec := got.Elements()[0].(types.Object)
+	if objectString(sec, "section_id_in_framework") != "7" {
+		t.Errorf("catalog id must map to section_id_in_framework, got %q", objectString(sec, "section_id_in_framework"))
+	}
+	req := sectionsToAPI(got)
+	if req[0].SectionIDInFramework == nil || *req[0].SectionIDInFramework != 7 {
+		t.Errorf("write-back must send 7, got %+v", req[0].SectionIDInFramework)
+	}
+}

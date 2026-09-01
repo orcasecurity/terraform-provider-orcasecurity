@@ -2,7 +2,6 @@ package compliance_framework
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -14,12 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func jsonResp(req *http.Request, code int, body string) *http.Response {
-	return &http.Response{
-		StatusCode: code,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Request:    req,
-	}
+func configFrom(st tfsdk.State) tfsdk.Config {
+	return tfsdk.Config(st)
 }
 
 func singleSchema(t *testing.T) tfsdk.State {
@@ -41,7 +36,7 @@ func singleConfig(t *testing.T, id string) tfsdk.Config {
 	if diags := st.Set(context.Background(), &cfgModel); diags.HasError() {
 		t.Fatalf("set: %v", diags)
 	}
-	return tfsdk.Config{Schema: st.Schema, Raw: st.Raw}
+	return configFrom(st)
 }
 
 func listSchema(t *testing.T) tfsdk.State {
@@ -58,7 +53,7 @@ func listConfig(t *testing.T, model frameworksDataSourceModel) tfsdk.Config {
 	if diags := st.Set(context.Background(), &model); diags.HasError() {
 		t.Fatalf("set: %v", diags)
 	}
-	return tfsdk.Config{Schema: st.Schema, Raw: st.Raw}
+	return configFrom(st)
 }
 
 const selectJSON = `{
@@ -86,7 +81,7 @@ func TestListDataSource_FilterMatrix(t *testing.T) {
 		if req.URL.Path != "/api/compliance/frameworks/select" {
 			t.Fatalf("path %s", req.URL.Path)
 		}
-		return jsonResp(req, 200, selectJSON)
+		return testutils.JSONResponse(req, 200, selectJSON)
 	})}
 	cfg := listConfig(t, frameworksDataSourceModel{
 		Custom:      types.BoolValue(true),
@@ -149,7 +144,7 @@ func TestListDataSource_FilterMatrix(t *testing.T) {
 
 func TestListDataSource_APIError(t *testing.T) {
 	d := &complianceFrameworksDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		return jsonResp(req, 500, `{"error":"boom"}`)
+		return testutils.JSONResponse(req, 500, `{"error":"boom"}`)
 	})}
 	cfg := listConfig(t, frameworksDataSourceModel{
 		Custom:      types.BoolNull(),
@@ -169,9 +164,9 @@ func TestSingleDataSource_MapsSectionIDAndCISLevel(t *testing.T) {
 	d := &complianceFrameworkDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
 		switch req.URL.Path {
 		case "/api/compliance/frameworks/gcp_cis_3.0.0":
-			return jsonResp(req, 200, `{"data":{"id":"gcp_cis_3.0.0","display_name":"GCP CIS","custom":false,"active":true,"selection_scopes":["user"],"type":"CIS"}}`)
+			return testutils.JSONResponse(req, 200, `{"data":{"id":"gcp_cis_3.0.0","display_name":"GCP CIS","custom":false,"active":true,"selection_scopes":["user"],"type":"CIS"}}`)
 		case "/api/compliance/catalog/gcp_cis_3.0.0":
-			return jsonResp(req, 200, `{"data":{"frameworks":[{"framework_id":"gcp_cis_3.0.0","name":"GCP CIS","sections":[{"id":"1","name":"Identity","tests":[{"rule_id":"r1","reference_id":"1.1","cis_level":["Level 1"]}]}]}]}}`)
+			return testutils.JSONResponse(req, 200, `{"data":{"frameworks":[{"framework_id":"gcp_cis_3.0.0","name":"GCP CIS","sections":[{"id":"1","name":"Identity","tests":[{"rule_id":"r1","reference_id":"1.1","cis_level":["Level 1"]}]}]}]}}`)
 		default:
 			t.Fatalf("path %s", req.URL.Path)
 			return nil
@@ -206,9 +201,9 @@ func TestSingleDataSource_MapsSectionIDAndCISLevel(t *testing.T) {
 func TestSingleDataSource_CatalogMissing(t *testing.T) {
 	d := &complianceFrameworkDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
 		if strings.Contains(req.URL.Path, "/catalog/") {
-			return jsonResp(req, 200, `{"data":{"frameworks":[]}}`)
+			return testutils.JSONResponse(req, 200, `{"data":{"frameworks":[]}}`)
 		}
-		return jsonResp(req, 200, `{"data":{"id":"x","display_name":"X","custom":true,"active":false,"selection_scopes":[]}}`)
+		return testutils.JSONResponse(req, 200, `{"data":{"id":"x","display_name":"X","custom":true,"active":false,"selection_scopes":[]}}`)
 	})}
 	resp := &datasource.ReadResponse{State: singleSchema(t)}
 	d.Read(context.Background(), datasource.ReadRequest{Config: singleConfig(t, "x")}, resp)
@@ -219,26 +214,10 @@ func TestSingleDataSource_CatalogMissing(t *testing.T) {
 
 func TestSingleDataSource_NotFound(t *testing.T) {
 	d := &complianceFrameworkDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		return &http.Response{
-			StatusCode: 404,
-			Body:       io.NopCloser(strings.NewReader(`{"error":"Framework missing not found."}`)),
-			Request:    req,
-		}
+		return testutils.JSONResponse(req, 404, `{"error":"Framework missing not found."}`)
 	})}
-	schemaResp := &datasource.SchemaResponse{}
-	d.Schema(context.Background(), datasource.SchemaRequest{}, schemaResp)
-	cfgModel := singleDataSourceModel{frameworkModel: frameworkModel{
-		ID:                    types.StringValue("missing"),
-		SelectionScopes:       types.ListNull(types.StringType),
-		FrameworkCloudVendors: types.ListNull(types.StringType),
-	}, Sections: types.ListNull(catalogSectionObjectType(maxCatalogDepth - 1))}
-	st := tfsdk.State{Schema: schemaResp.Schema}
-	if diags := st.Set(context.Background(), &cfgModel); diags.HasError() {
-		t.Fatalf("set: %v", diags)
-	}
-	cfg := tfsdk.Config{Schema: schemaResp.Schema, Raw: st.Raw}
-	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
-	d.Read(context.Background(), datasource.ReadRequest{Config: cfg}, resp)
+	resp := &datasource.ReadResponse{State: singleSchema(t)}
+	d.Read(context.Background(), datasource.ReadRequest{Config: singleConfig(t, "missing")}, resp)
 	if !resp.Diagnostics.HasError() {
 		t.Fatal("missing framework must be a diagnostic, not empty state")
 	}
