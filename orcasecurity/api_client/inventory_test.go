@@ -1,21 +1,28 @@
 package api_client
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 )
 
-func TestGetInventoryGroup(t *testing.T) {
+func TestInventoryGroupExists(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		assertMethodPath(t, req, "POST", "/api/serving-layer/query")
+		var body servingLayerQueryRequest
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if len(body.Select) != 1 || body.Select[0] != "GroupUniqueId" {
+			t.Errorf("Select must project GroupUniqueId, got %v", body.Select)
+		}
 		return &http.Response{
 			StatusCode: 200,
 			Body: io.NopCloser(strings.NewReader(`{
 				"status":"success",
 				"data":[{
-					"group_unique_id":"` + testCrownJewelGroupID + `",
 					"data":{"GroupUniqueId":{"value":"` + testCrownJewelGroupID + `"}}
 				}]
 			}`)),
@@ -23,16 +30,16 @@ func TestGetInventoryGroup(t *testing.T) {
 		}
 	})}
 	client := newTestAPIClient(httpClient)
-	g, err := client.GetInventoryGroup(testCrownJewelGroupID)
+	exists, err := client.InventoryGroupExists(testCrownJewelGroupID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if g == nil {
+	if !exists {
 		t.Fatal("expected inventory hit")
 	}
 }
 
-func TestGetInventoryGroup_Missing(t *testing.T) {
+func TestInventoryGroupExists_Missing(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -41,11 +48,11 @@ func TestGetInventoryGroup_Missing(t *testing.T) {
 		}
 	})}
 	client := newTestAPIClient(httpClient)
-	g, err := client.GetInventoryGroup("tf-phantom")
+	exists, err := client.InventoryGroupExists("tf-phantom")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if g != nil {
-		t.Fatalf("expected miss for unknown group_unique_id, got %+v", g)
+	if exists {
+		t.Fatal("expected miss for unknown group_unique_id")
 	}
 }

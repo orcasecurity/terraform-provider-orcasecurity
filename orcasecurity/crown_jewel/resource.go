@@ -152,7 +152,7 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 		)
 		return
 	}
-	inv, err := r.apiClient.GetInventoryGroup(gid)
+	exists, err := r.apiClient.InventoryGroupExists(gid)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			errCreatingCrownJewel,
@@ -160,7 +160,7 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 		)
 		return
 	}
-	if inv == nil {
+	if !exists {
 		resp.Diagnostics.AddError(
 			"Asset not found",
 			fmt.Sprintf("No inventory asset found for group_unique_id %q. Crown jewels can only be set on existing assets.", gid),
