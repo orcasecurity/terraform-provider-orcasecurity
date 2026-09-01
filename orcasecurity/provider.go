@@ -16,6 +16,7 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/azure_sentinel"
 	"terraform-provider-orcasecurity/orcasecurity/business_unit"
 	"terraform-provider-orcasecurity/orcasecurity/cloudflare"
+	"terraform-provider-orcasecurity/orcasecurity/crown_jewel"
 	"terraform-provider-orcasecurity/orcasecurity/custom_compliance_framework"
 	"terraform-provider-orcasecurity/orcasecurity/custom_dashboard"
 	"terraform-provider-orcasecurity/orcasecurity/custom_discovery_alert"
@@ -246,6 +247,7 @@ func (p *orcasecurityProvider) DataSources(_ context.Context) []func() datasourc
 		sensitive_data_identifier.NewSensitiveDataIdentifiersDataSource,
 		shift_left_policy_catalog_controls.NewCatalogControlsDataSource,
 		automation_v2_priorities.NewAutomationPrioritiesDataSource,
+		crown_jewel.NewCrownJewelDataSource,
 	}
 }
 
@@ -256,6 +258,7 @@ func (p *orcasecurityProvider) Resources(_ context.Context) []func() resource.Re
 		admission_controller.NewAdmissionControllerPolicyResource,
 		admission_controller.NewAdmissionControllerPolicyAssignmentResource,
 		automation_v2.NewAutomationV2Resource,
+		crown_jewel.NewCrownJewelResource,
 		custom_compliance_framework.NewCustomComplianceFrameworkResource,
 		custom_discovery_alert.NewCustomDiscoveryAlertResource,
 		custom_sonar_alert.NewCustomSonarAlertResource,
