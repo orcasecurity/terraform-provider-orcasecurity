@@ -1029,16 +1029,18 @@ func siblingLeaf(t *testing.T, typ types.ObjectType, name, id, rule string) type
 	return mustObject(t, typ, attrs)
 }
 
+type siblingIDCase struct {
+	name   string
+	parent string
+	depth  int
+	ids    []string
+	want   []string
+	valid  []bool
+}
+
 func TestResolveSiblingIDs(t *testing.T) {
 	typ := sectionObjectType(maxSectionDepth)
-	tests := []struct {
-		name   string
-		parent string
-		depth  int
-		ids    []string
-		want   []string
-		valid  []bool
-	}{
+	tests := []siblingIDCase{
 		{"duplicate explicit", "", 1, []string{"7", "7"}, []string{"7", "7"}, []bool{true, true}},
 		{"descending explicit", "", 1, []string{"2", "1"}, []string{"2", "1"}, []bool{true, true}},
 		{"ascending explicit", "", 1, []string{"1", "2"}, []string{"1", "2"}, []bool{true, true}},
@@ -1050,23 +1052,28 @@ func TestResolveSiblingIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			elems := make([]attr.Value, len(tt.ids))
-			for i, id := range tt.ids {
-				elems[i] = siblingLeaf(t, typ, "S", id, "r1")
-			}
-			got := resolveSiblingIDs(elems, tt.parent, tt.depth)
-			if len(got) != len(tt.want) {
-				t.Fatalf("len=%d want %d", len(got), len(tt.want))
-			}
-			for i, w := range tt.want {
-				if got[i].ID != w {
-					t.Errorf("id[%d]=%q want %q", i, got[i].ID, w)
-				}
-				if got[i].Valid != tt.valid[i] {
-					t.Errorf("valid[%d]=%v want %v", i, got[i].Valid, tt.valid[i])
-				}
-			}
+			assertResolvedSiblingIDs(t, typ, tt)
 		})
+	}
+}
+
+func assertResolvedSiblingIDs(t *testing.T, typ types.ObjectType, tt siblingIDCase) {
+	t.Helper()
+	elems := make([]attr.Value, len(tt.ids))
+	for i, id := range tt.ids {
+		elems[i] = siblingLeaf(t, typ, "S", id, "r1")
+	}
+	got := resolveSiblingIDs(elems, tt.parent, tt.depth)
+	if len(got) != len(tt.want) {
+		t.Fatalf("len=%d want %d", len(got), len(tt.want))
+	}
+	for i, w := range tt.want {
+		if got[i].ID != w {
+			t.Errorf("id[%d]=%q want %q", i, got[i].ID, w)
+		}
+		if got[i].Valid != tt.valid[i] {
+			t.Errorf("valid[%d]=%v want %v", i, got[i].Valid, tt.valid[i])
+		}
 	}
 }
 

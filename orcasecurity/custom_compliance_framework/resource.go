@@ -239,45 +239,57 @@ func (r *customComplianceFrameworkResource) ModifyPlan(ctx context.Context, req 
 	if req.Plan.Raw.IsNull() {
 		return
 	}
-	var plan, config customComplianceFrameworkResourceModel
+	plan, config, state, ok := loadModifyPlanModels(ctx, req, resp)
+	if !ok {
+		return
+	}
+	if !rewriteKnownSections(ctx, resp, &plan, config, state) {
+		return
+	}
+	rejectVisibilityDowngrade(resp, state, plan)
+}
+
+func loadModifyPlanModels(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) (plan, config, state customComplianceFrameworkResourceModel, ok bool) {
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
-		return
+		return plan, config, state, false
 	}
 	// Live non-destroy plans always have Config. Unit tests that only
 	// exercise the visibility check omit it; skip the rewrite in that case.
 	if req.Config.Schema != nil && !req.Config.Raw.IsNull() {
 		resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 		if resp.Diagnostics.HasError() {
-			return
+			return plan, config, state, false
 		}
 	}
-	var state customComplianceFrameworkResourceModel
 	if !req.State.Raw.IsNull() {
 		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 		if resp.Diagnostics.HasError() {
-			return
+			return plan, config, state, false
 		}
 	}
-	if !config.Sections.IsNull() && !config.Sections.IsUnknown() && !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
-		sections, d := rewriteSectionsPlan(planRewrite{
-			config: config.Sections,
-			plan:   plan.Sections,
-			state:  state.Sections,
-		}, schemaSectionDepth-1, false)
-		resp.Diagnostics.Append(d...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		plan.Sections = sections
-		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	return plan, config, state, true
+}
+
+func rewriteKnownSections(ctx context.Context, resp *resource.ModifyPlanResponse, plan *customComplianceFrameworkResourceModel, config, state customComplianceFrameworkResourceModel) bool {
+	if config.Sections.IsNull() || config.Sections.IsUnknown() || plan.Sections.IsNull() || plan.Sections.IsUnknown() {
+		return true
 	}
-	if req.State.Raw.IsNull() {
-		return
+	sections, d := rewriteSectionsPlan(planRewrite{
+		config: config.Sections,
+		plan:   plan.Sections,
+		state:  state.Sections,
+	}, schemaSectionDepth-1, false)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return false
 	}
+	plan.Sections = sections
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+	return !resp.Diagnostics.HasError()
+}
+
+func rejectVisibilityDowngrade(resp *resource.ModifyPlanResponse, state, plan customComplianceFrameworkResourceModel) {
 	if state.Visibility.IsNull() || state.Visibility.IsUnknown() || plan.Visibility.IsNull() || plan.Visibility.IsUnknown() {
 		return
 	}

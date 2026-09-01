@@ -371,31 +371,34 @@ func rewriteTestsPlan(rw planRewrite, sectionChanged bool) (types.List, diag.Dia
 	out := make([]attr.Value, len(rw.plan.Elements()))
 	var diags diag.Diagnostics
 	for i, e := range rw.plan.Elements() {
-		pobj, ok := e.(types.Object)
-		if !ok || pobj.IsNull() || pobj.IsUnknown() {
-			out[i] = e
-			continue
-		}
-		cobj, _ := listObjectAt(rw.config, i)
-		sobj, hasState := listObjectAt(rw.state, i)
-		pattrs := pobj.Attributes()
-		attrs := make(map[string]attr.Value, len(pattrs))
-		for k, v := range pattrs {
-			attrs[k] = v
-		}
-		for _, name := range computedTestAttrs {
-			force := !hasState || (sectionChanged && name == "rule_id_in_framework")
-			cv, _ := objectAttr(cobj, name)
-			sv, _ := objectAttr(sobj, name)
-			attrs[name] = plannedComputedString(cv, pattrs[name], sv, force)
-		}
-		obj, d := types.ObjectValue(elem.AttrTypes, attrs)
+		rewritten, d := rewriteTestPlan(rw, i, e, elem, sectionChanged)
 		diags.Append(d...)
-		out[i] = obj
+		out[i] = rewritten
 	}
 	list, d := types.ListValue(elem, out)
 	diags.Append(d...)
 	return list, diags
+}
+
+func rewriteTestPlan(rw planRewrite, i int, e attr.Value, elem types.ObjectType, sectionChanged bool) (attr.Value, diag.Diagnostics) {
+	pobj, ok := e.(types.Object)
+	if !ok || pobj.IsNull() || pobj.IsUnknown() {
+		return e, nil
+	}
+	cobj, _ := listObjectAt(rw.config, i)
+	sobj, hasState := listObjectAt(rw.state, i)
+	pattrs := pobj.Attributes()
+	attrs := make(map[string]attr.Value, len(pattrs))
+	for k, v := range pattrs {
+		attrs[k] = v
+	}
+	for _, name := range computedTestAttrs {
+		force := !hasState || (sectionChanged && name == "rule_id_in_framework")
+		cv, _ := objectAttr(cobj, name)
+		sv, _ := objectAttr(sobj, name)
+		attrs[name] = plannedComputedString(cv, pattrs[name], sv, force)
+	}
+	return types.ObjectValue(elem.AttrTypes, attrs)
 }
 
 func testsToAPI(sectionID string, list types.List) []api_client.CustomComplianceFrameworkTest {
