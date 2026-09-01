@@ -271,6 +271,40 @@ func TestPopulate_CatalogMissing(t *testing.T) {
 	if !d.HasError() {
 		t.Fatal("empty catalog must be a diagnostic")
 	}
+	if !strings.Contains(d[0].Summary(), "catalog") || !strings.Contains(d[0].Detail(), "3887") {
+		t.Errorf("expected catalogMissingDiag, got %v", d)
+	}
+}
+
+func TestPopulate_CatalogFetchError(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if strings.Contains(req.URL.Path, "/catalog/") {
+			return testutils.JSONResponse(req, 500, `{"error":"catalog down"}`)
+		}
+		return testutils.JSONResponse(req, 200, fwJSON)
+	})
+	m := stateModel(t)
+	ok, d := r.populate(context.Background(), &m)
+	if ok || !d.HasError() {
+		t.Fatalf("catalog fetch error must fail, ok=%v d=%v", ok, d)
+	}
+	if !strings.Contains(d[0].Detail(), "catalog down") {
+		t.Errorf("expected catalog fetch error, got %v", d)
+	}
+}
+
+func TestRefresh_DisappearedAfterWrite(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		return testutils.JSONResponse(req, 404, `{"error":"Framework 3887 not found."}`)
+	})
+	m := stateModel(t)
+	d := r.refresh(context.Background(), &m)
+	if !d.HasError() {
+		t.Fatal("404 after write must be an error, not RemoveResource")
+	}
+	if !strings.Contains(d[0].Detail(), "disappeared after write") {
+		t.Errorf("expected disappeared-after-write, got %v", d)
+	}
 }
 
 func TestMetadataTypeName(t *testing.T) {
