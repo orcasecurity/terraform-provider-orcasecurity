@@ -64,10 +64,9 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 					),
 				},
 				{
-					ResourceName:            resourceAddr,
-					ImportState:             true,
-					ImportStateVerify:       true,
-					ImportStateVerifyIgnore: []string{"sections"},
+					ResourceName:      resourceAddr,
+					ImportState:       true,
+					ImportStateVerify: true,
 				},
 			},
 		},
