@@ -20,12 +20,12 @@ func TestAccCrownJewelResource_Basic(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "tf-acc crown jewel"
+  description     = "Customer data"
 }
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "group_unique_id", groupID),
-					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "tf-acc crown jewel"),
+					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Customer data"),
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},
@@ -38,11 +38,11 @@ resource "orcasecurity_crown_jewel" "test" {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "tf-acc crown jewel updated"
+  description     = "Critical business function"
 }
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "tf-acc crown jewel updated"),
+					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Critical business function"),
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},

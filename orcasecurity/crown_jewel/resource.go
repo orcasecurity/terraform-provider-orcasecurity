@@ -74,25 +74,30 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Optional note stored on the user-defined crown jewel.",
-				Optional:    true,
+				Description: "Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI " +
+					"(\"Mark as Crown Jewel\"). Common UI values are `Critical business function`, `Customer data`, " +
+					"`High blast radius`, or free text when choosing Other. Required: the API accepts omit, but " +
+					"creating without a reason stores a null description and breaks list/read of crown jewels.",
+				Required: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 		},
 	}
 }
 
-func generateAPIRequest(plan stateModel) api_client.CrownJewel {
-	return api_client.CrownJewel{
-		GroupUniqueID: plan.GroupUniqueID.ValueString(),
-		Description:   plan.Description.ValueString(),
+// applyPlan POSTs the planned crown jewel and writes computed fields back onto plan.
+// Create and Update share this path because the API is a single upsert.
+func (r *crownJewelResource) applyPlan(plan *stateModel) error {
+	instance, err := r.apiClient.SetCrownJewel(plan.GroupUniqueID.ValueString(), plan.Description.ValueString())
+	if err != nil {
+		return err
 	}
-}
-
-func descriptionValue(description string) types.String {
-	if description == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(description)
+	// Keep Required attributes from the plan; only refresh Computed ones from the API.
+	plan.ID = types.StringValue(plan.GroupUniqueID.ValueString())
+	plan.Description = types.StringValue(instance.Description)
+	return nil
 }
 
 func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -103,19 +108,12 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	instance, err := r.apiClient.CreateCrownJewel(generateAPIRequest(plan))
-	if err != nil {
+	if err := r.applyPlan(&plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating crown jewel",
 			"Could not create crown jewel, unexpected error: "+err.Error(),
 		)
 		return
-	}
-
-	plan.ID = types.StringValue(instance.GroupUniqueID)
-	plan.GroupUniqueID = types.StringValue(instance.GroupUniqueID)
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
-		plan.Description = descriptionValue(instance.Description)
 	}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -131,10 +129,6 @@ func (r *crownJewelResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	id := state.ID.ValueString()
-	if id == "" {
-		id = state.GroupUniqueID.ValueString()
-	}
-
 	instance, err := r.apiClient.GetCrownJewel(id)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -152,7 +146,7 @@ func (r *crownJewelResource) Read(ctx context.Context, req resource.ReadRequest,
 
 	state.ID = types.StringValue(instance.GroupUniqueID)
 	state.GroupUniqueID = types.StringValue(instance.GroupUniqueID)
-	state.Description = descriptionValue(instance.Description)
+	state.Description = types.StringValue(instance.Description)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -166,19 +160,12 @@ func (r *crownJewelResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	instance, err := r.apiClient.UpdateCrownJewel(generateAPIRequest(plan))
-	if err != nil {
+	if err := r.applyPlan(&plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating crown jewel",
 			"Could not update crown jewel, unexpected error: "+err.Error(),
 		)
 		return
-	}
-
-	plan.ID = types.StringValue(instance.GroupUniqueID)
-	plan.GroupUniqueID = types.StringValue(instance.GroupUniqueID)
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
-		plan.Description = descriptionValue(instance.Description)
 	}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -193,12 +180,7 @@ func (r *crownJewelResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	id := state.ID.ValueString()
-	if id == "" {
-		id = state.GroupUniqueID.ValueString()
-	}
-
-	err := r.apiClient.DeleteCrownJewel(id)
+	err := r.apiClient.DeleteCrownJewel(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting crown jewel",

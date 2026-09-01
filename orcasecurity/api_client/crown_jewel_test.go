@@ -16,8 +16,8 @@ func TestGetCrownJewel(t *testing.T) {
 		return &http.Response{
 			StatusCode: 200,
 			Body: io.NopCloser(strings.NewReader(`[
-				{"group_unique_id":"vm_other","severity":4,"description":"keep me"},
-				{"group_unique_id":"` + testCrownJewelGroupID + `","severity":4,"description":"tf-probe","create_time":"2026-09-01T14:00:57+03:00","update_time":"2026-09-01T14:00:57+03:00","user_email":"lab@example.com","last_user_action":"set_as_crown_jewel"}
+				{"group_unique_id":"vm_other","description":"keep me"},
+				{"group_unique_id":"` + testCrownJewelGroupID + `","description":"tf-probe"}
 			]`)),
 			Request: req,
 		}
@@ -58,7 +58,8 @@ func TestGetCrownJewel_NotFound(t *testing.T) {
 	}
 }
 
-func TestCreateCrownJewel(t *testing.T) {
+// SetCrownJewel POSTs the reason then GETs for read-your-writes.
+func TestSetCrownJewel(t *testing.T) {
 	var postedBody []byte
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		switch req.Method {
@@ -74,7 +75,7 @@ func TestCreateCrownJewel(t *testing.T) {
 			return &http.Response{
 				StatusCode: 200,
 				Body: io.NopCloser(strings.NewReader(`[
-					{"group_unique_id":"` + testCrownJewelGroupID + `","severity":4,"description":"tf-probe","last_user_action":"set_as_crown_jewel"}
+					{"group_unique_id":"` + testCrownJewelGroupID + `","description":"Customer data"}
 				]`)),
 				Request: req,
 			}
@@ -85,14 +86,11 @@ func TestCreateCrownJewel(t *testing.T) {
 	})}
 
 	client := newTestAPIClient(httpClient)
-	jewel, err := client.CreateCrownJewel(CrownJewel{
-		GroupUniqueID: testCrownJewelGroupID,
-		Description:   "tf-probe",
-	})
+	jewel, err := client.SetCrownJewel(testCrownJewelGroupID, "Customer data")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if jewel == nil || jewel.GroupUniqueID != testCrownJewelGroupID || jewel.Description != "tf-probe" {
+	if jewel == nil || jewel.GroupUniqueID != testCrownJewelGroupID || jewel.Description != "Customer data" {
 		t.Errorf("unexpected crown jewel: %+v", jewel)
 	}
 
@@ -104,17 +102,15 @@ func TestCreateCrownJewel(t *testing.T) {
 	if len(ids) != 1 || ids[0] != testCrownJewelGroupID {
 		t.Errorf("expected group_unique_ids [%s], got %v", testCrownJewelGroupID, payload["group_unique_ids"])
 	}
-	if payload["description"] != "tf-probe" {
+	if payload["description"] != "Customer data" {
 		t.Errorf("unexpected description in payload: %v", payload["description"])
 	}
 }
 
-func TestUpdateCrownJewel(t *testing.T) {
-	var postedBody []byte
+func TestSetCrownJewel_RefetchMissSurfacesError(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		switch req.Method {
 		case "POST":
-			postedBody, _ = io.ReadAll(req.Body)
 			return &http.Response{
 				StatusCode: 200,
 				Body:       io.NopCloser(strings.NewReader(`{"status":"success"}`)),
@@ -123,10 +119,8 @@ func TestUpdateCrownJewel(t *testing.T) {
 		case "GET":
 			return &http.Response{
 				StatusCode: 200,
-				Body: io.NopCloser(strings.NewReader(`[
-					{"group_unique_id":"` + testCrownJewelGroupID + `","description":"tf-probe-updated"}
-				]`)),
-				Request: req,
+				Body:       io.NopCloser(strings.NewReader(`[]`)),
+				Request:    req,
 			}
 		default:
 			t.Fatalf("unexpected method %s", req.Method)
@@ -135,23 +129,12 @@ func TestUpdateCrownJewel(t *testing.T) {
 	})}
 
 	client := newTestAPIClient(httpClient)
-	jewel, err := client.UpdateCrownJewel(CrownJewel{
-		GroupUniqueID: testCrownJewelGroupID,
-		Description:   "tf-probe-updated",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := client.SetCrownJewel(testCrownJewelGroupID, "desc")
+	if err == nil {
+		t.Fatal("expected error when refetch misses the written jewel")
 	}
-	if jewel == nil || jewel.Description != "tf-probe-updated" {
-		t.Errorf("unexpected crown jewel: %+v", jewel)
-	}
-
-	var payload map[string]interface{}
-	if err := json.Unmarshal(postedBody, &payload); err != nil {
-		t.Fatalf("invalid POST body: %v", err)
-	}
-	if payload["description"] != "tf-probe-updated" {
-		t.Errorf("unexpected description in payload: %v", payload["description"])
+	if !strings.Contains(err.Error(), testCrownJewelGroupID) {
+		t.Errorf("error must name the group_unique_id, got: %v", err)
 	}
 }
 

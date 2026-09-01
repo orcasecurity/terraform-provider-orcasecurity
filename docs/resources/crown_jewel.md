@@ -13,9 +13,12 @@ Marks an asset as a user-defined crown jewel. The asset is identified by `group_
 ## Example Usage
 
 ```terraform
+# description is the same field as Reason in the Orca UI ("Mark as Crown Jewel").
+# Typical UI values: "Critical business function", "Customer data", "High blast radius",
+# or free text when choosing Other.
 resource "orcasecurity_crown_jewel" "example" {
   group_unique_id = "vm_123456789012_i-0123456789abcdef0"
-  description     = "Production database host"
+  description     = "Customer data"
 }
 ```
 
@@ -24,11 +27,8 @@ resource "orcasecurity_crown_jewel" "example" {
 
 ### Required
 
+- `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). Common UI values are `Critical business function`, `Customer data`, `High blast radius`, or free text when choosing Other. Required: the API accepts omit, but creating without a reason stores a null description and breaks list/read of crown jewels.
 - `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource.
-
-### Optional
-
-- `description` (String) Optional note stored on the user-defined crown jewel.
 
 ### Read-Only
 

@@ -1,4 +1,7 @@
+# description is the same field as Reason in the Orca UI ("Mark as Crown Jewel").
+# Typical UI values: "Critical business function", "Customer data", "High blast radius",
+# or free text when choosing Other.
 resource "orcasecurity_crown_jewel" "example" {
   group_unique_id = "vm_123456789012_i-0123456789abcdef0"
-  description     = "Production database host"
+  description     = "Customer data"
 }

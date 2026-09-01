@@ -48,4 +48,4 @@ demo
 docs/superpowers/
 
 # Local lab harness (tokens, tenant fixtures) — never commit
-tests/
+/tests/
