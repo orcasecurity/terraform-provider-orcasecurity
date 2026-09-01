@@ -119,33 +119,48 @@ type frameworkFilters struct {
 	search      types.String
 }
 
+func matchBoolFilter(filter types.Bool, got bool) bool {
+	return filter.IsNull() || filter.IsUnknown() || got == filter.ValueBool()
+}
+
+func stringFilterValue(v types.String) (string, bool) {
+	if v.IsNull() || v.IsUnknown() {
+		return "", false
+	}
+	s := v.ValueString()
+	return s, s != ""
+}
+
+func pointerEquals(got *string, want string) bool {
+	return got != nil && *got == want
+}
+
+func searchMatches(fw api_client.ComplianceFramework, q string) bool {
+	q = strings.ToLower(q)
+	if strings.Contains(strings.ToLower(fw.DisplayName), q) {
+		return true
+	}
+	if fw.Description == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(*fw.Description), q)
+}
+
 func matchFramework(fw api_client.ComplianceFramework, f frameworkFilters) bool {
-	if !f.custom.IsNull() && !f.custom.IsUnknown() && fw.Custom != f.custom.ValueBool() {
+	if !matchBoolFilter(f.custom, fw.Custom) {
 		return false
 	}
-	if !f.active.IsNull() && !f.active.IsUnknown() && fw.Active != f.active.ValueBool() {
+	if !matchBoolFilter(f.active, fw.Active) {
 		return false
 	}
-	if !f.typ.IsNull() && !f.typ.IsUnknown() && f.typ.ValueString() != "" {
-		if fw.Type == nil || *fw.Type != f.typ.ValueString() {
-			return false
-		}
+	if want, ok := stringFilterValue(f.typ); ok && !pointerEquals(fw.Type, want) {
+		return false
 	}
-	if !f.displayName.IsNull() && !f.displayName.IsUnknown() && f.displayName.ValueString() != "" {
-		if fw.DisplayName != f.displayName.ValueString() {
-			return false
-		}
+	if want, ok := stringFilterValue(f.displayName); ok && fw.DisplayName != want {
+		return false
 	}
-	if !f.search.IsNull() && !f.search.IsUnknown() && f.search.ValueString() != "" {
-		q := strings.ToLower(f.search.ValueString())
-		name := strings.ToLower(fw.DisplayName)
-		desc := ""
-		if fw.Description != nil {
-			desc = strings.ToLower(*fw.Description)
-		}
-		if !strings.Contains(name, q) && !strings.Contains(desc, q) {
-			return false
-		}
+	if q, ok := stringFilterValue(f.search); ok && !searchMatches(fw, q) {
+		return false
 	}
 	return true
 }

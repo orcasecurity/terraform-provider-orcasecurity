@@ -47,7 +47,9 @@ const mixedSectionMessage = "a section cannot have both tests and sub-sections; 
 
 const depthSectionMessage = "nesting is at most three levels; the API would silently drop a fourth level and reparent its controls onto the third"
 
-func sectionHasTestsAndChildren(tests int, children int) bool {
+const invalidSectionSummary = "Invalid section"
+
+func sectionHasTestsAndChildren(tests, children int) bool {
 	return tests > 0 && children > 0
 }
 

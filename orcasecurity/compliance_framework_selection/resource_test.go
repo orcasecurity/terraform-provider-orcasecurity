@@ -237,56 +237,44 @@ func TestDelete_DefaultIssuesNoHTTP(t *testing.T) {
 	}
 }
 
+func restoreDeleteCalls(t *testing.T, current, original []string, statusFor func(*http.Request) int) []httpCall {
+	t.Helper()
+	var calls []httpCall
+	r := stubResource(selectStub(t, map[string]map[string]interface{}{}, &calls, statusFor))
+	req := resource.DeleteRequest{State: stateWith(t, resourceSchema(t), model(t, "fw", current, true, original))}
+	resp := &resource.DeleteResponse{}
+	r.Delete(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("delete: %v", resp.Diagnostics)
+	}
+	return calls
+}
+
+func assertScopeMethods(t *testing.T, calls []httpCall, want map[string]string) {
+	t.Helper()
+	got := map[string]string{}
+	for _, c := range calls {
+		got[c.Scope] = c.Method
+	}
+	for scope, method := range want {
+		if got[scope] != method {
+			t.Errorf("calls = %#v, want %#v", calls, want)
+			return
+		}
+	}
+}
+
 func TestDelete_RestoreOnDestroy(t *testing.T) {
 	t.Run("empty original deselects all", func(t *testing.T) {
-		var calls []httpCall
-		r := stubResource(selectStub(t, map[string]map[string]interface{}{}, &calls, nil))
-		sch := resourceSchema(t)
-		m := model(t, "fw", []string{"user", "organization"}, true, []string{})
-		req := resource.DeleteRequest{State: stateWith(t, sch, m)}
-		resp := &resource.DeleteResponse{}
-		r.Delete(context.Background(), req, resp)
-		if resp.Diagnostics.HasError() {
-			t.Fatalf("delete: %v", resp.Diagnostics)
-		}
-		got := map[string]string{}
-		for _, c := range calls {
-			got[c.Scope] = c.Method
-		}
-		if got["user"] != "DELETE" || got["organization"] != "DELETE" {
-			t.Errorf("calls = %#v, want DELETE of user and organization", calls)
-		}
+		assertScopeMethods(t, restoreDeleteCalls(t, []string{"user", "organization"}, nil, nil),
+			map[string]string{"user": "DELETE", "organization": "DELETE"})
 	})
 	t.Run("organization to user swaps", func(t *testing.T) {
-		var calls []httpCall
-		r := stubResource(selectStub(t, map[string]map[string]interface{}{}, &calls, nil))
-		sch := resourceSchema(t)
-		m := model(t, "fw", []string{"user"}, true, []string{"organization"})
-		req := resource.DeleteRequest{State: stateWith(t, sch, m)}
-		resp := &resource.DeleteResponse{}
-		r.Delete(context.Background(), req, resp)
-		if resp.Diagnostics.HasError() {
-			t.Fatalf("delete: %v", resp.Diagnostics)
-		}
-		want := map[string]string{"organization": "POST", "user": "DELETE"}
-		got := map[string]string{}
-		for _, c := range calls {
-			got[c.Scope] = c.Method
-		}
-		if got["organization"] != want["organization"] || got["user"] != want["user"] {
-			t.Errorf("calls = %#v, want POST organization + DELETE user", calls)
-		}
+		assertScopeMethods(t, restoreDeleteCalls(t, []string{"user"}, []string{"organization"}, nil),
+			map[string]string{"organization": "POST", "user": "DELETE"})
 	})
 	t.Run("swallows 404", func(t *testing.T) {
-		r := stubResource(selectStub(t, map[string]map[string]interface{}{}, nil, func(*http.Request) int { return 404 }))
-		sch := resourceSchema(t)
-		m := model(t, "fw", []string{"user"}, true, []string{})
-		req := resource.DeleteRequest{State: stateWith(t, sch, m)}
-		resp := &resource.DeleteResponse{}
-		r.Delete(context.Background(), req, resp)
-		if resp.Diagnostics.HasError() {
-			t.Fatalf("404 on restore must be swallowed, got %v", resp.Diagnostics)
-		}
+		restoreDeleteCalls(t, []string{"user"}, nil, func(*http.Request) int { return 404 })
 	})
 }
 

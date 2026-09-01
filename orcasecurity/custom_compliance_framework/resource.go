@@ -193,26 +193,38 @@ func (r *customComplianceFrameworkResource) ValidateConfig(ctx context.Context, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	for i, s := range config.Sections {
+	validateSections(resp, config.Sections)
+}
+
+func rejectMixedSection(resp *resource.ValidateConfigResponse, p path.Path, tests, children int) {
+	if sectionHasTestsAndChildren(tests, children) {
+		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, mixedSectionError(p.String()))
+	}
+}
+
+func validateLeafSections(resp *resource.ValidateConfigResponse, parent path.Path, leaves []leafSectionModel) {
+	for k, leaf := range leaves {
+		lp := parent.AtName("sections").AtListIndex(k)
+		rejectMixedSection(resp, lp, len(leaf.Tests), len(leaf.Sections))
+		if len(leaf.Sections) > 0 {
+			resp.Diagnostics.AddAttributeError(lp.AtName("sections"), "Section nesting too deep", depthSectionMessage)
+		}
+	}
+}
+
+func validateMidSections(resp *resource.ValidateConfigResponse, parent path.Path, mids []midSectionModel) {
+	for j, mid := range mids {
+		mp := parent.AtName("sections").AtListIndex(j)
+		rejectMixedSection(resp, mp, len(mid.Tests), len(mid.Sections))
+		validateLeafSections(resp, mp, mid.Sections)
+	}
+}
+
+func validateSections(resp *resource.ValidateConfigResponse, sections []sectionModel) {
+	for i, s := range sections {
 		p := path.Root("sections").AtListIndex(i)
-		if sectionHasTestsAndChildren(len(s.Tests), len(s.Sections)) {
-			resp.Diagnostics.AddAttributeError(p, "Invalid section", mixedSectionError(p.String()))
-		}
-		for j, mid := range s.Sections {
-			mp := p.AtName("sections").AtListIndex(j)
-			if sectionHasTestsAndChildren(len(mid.Tests), len(mid.Sections)) {
-				resp.Diagnostics.AddAttributeError(mp, "Invalid section", mixedSectionError(mp.String()))
-			}
-			for k, leaf := range mid.Sections {
-				lp := mp.AtName("sections").AtListIndex(k)
-				if sectionHasTestsAndChildren(len(leaf.Tests), len(leaf.Sections)) {
-					resp.Diagnostics.AddAttributeError(lp, "Invalid section", mixedSectionError(lp.String()))
-				}
-				if len(leaf.Sections) > 0 {
-					resp.Diagnostics.AddAttributeError(lp.AtName("sections"), "Section nesting too deep", depthSectionMessage)
-				}
-			}
-		}
+		rejectMixedSection(resp, p, len(s.Tests), len(s.Sections))
+		validateMidSections(resp, p, s.Sections)
 	}
 }
 
