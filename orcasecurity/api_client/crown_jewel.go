@@ -24,6 +24,12 @@ type crownJewelWriteRequest struct {
 	Description    string   `json:"description"`
 }
 
+// crownJewelDeleteRequest omits description: DELETE must not send an empty
+// description field (the API treats blank/null description as harmful on write paths).
+type crownJewelDeleteRequest struct {
+	GroupUniqueIDs []string `json:"group_unique_ids"`
+}
+
 // GetCrownJewel looks up one user-defined crown jewel by group_unique_id.
 //
 // The crown-jewels list endpoint is a single unpaginated GET that returns every
@@ -79,7 +85,7 @@ func (client *APIClient) SetCrownJewel(groupUniqueID, description string) (*Crow
 // as already-gone. Closest structural analogue (rbac deleteAccess) does swallow
 // 404 — deliberately not matched here.
 func (client *APIClient) DeleteCrownJewel(groupUniqueID string) error {
-	_, err := client.withHTTPTimeout(crownJewelHTTPTimeout).DeleteWithBody(crownJewelsAPIPath, crownJewelWriteRequest{
+	_, err := client.withHTTPTimeout(crownJewelHTTPTimeout).DeleteWithBody(crownJewelsAPIPath, crownJewelDeleteRequest{
 		GroupUniqueIDs: []string{groupUniqueID},
 	})
 	return err

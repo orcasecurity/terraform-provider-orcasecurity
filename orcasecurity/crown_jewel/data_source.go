@@ -21,12 +21,6 @@ type crownJewelDataSource struct {
 	apiClient *api_client.APIClient
 }
 
-type dataSourceModel struct {
-	ID            types.String `tfsdk:"id"`
-	GroupUniqueID types.String `tfsdk:"group_unique_id"`
-	Description   types.String `tfsdk:"description"`
-}
-
 func NewCrownJewelDataSource() datasource.DataSource {
 	return &crownJewelDataSource{}
 }
@@ -69,7 +63,7 @@ func (d *crownJewelDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 }
 
 func (d *crownJewelDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var config dataSourceModel
+	var config stateModel
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -93,7 +87,7 @@ func (d *crownJewelDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	state := dataSourceModel{
+	state := stateModel{
 		ID:            types.StringValue(instance.GroupUniqueID),
 		GroupUniqueID: types.StringValue(instance.GroupUniqueID),
 		Description:   types.StringValue(instance.Description),

@@ -31,13 +31,32 @@ func dataSourceSchema(t *testing.T) schema.Schema {
 
 // dataConfigWith builds a read-only tfsdk.Config from model. tfsdk.Config has no
 // Set, so populate a State then copy its Raw (same pattern as servicenow tests).
-func dataConfigWith(t *testing.T, sch schema.Schema, model dataSourceModel) tfsdk.Config {
+func dataConfigWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.Config {
 	t.Helper()
 	st := tfsdk.State{Schema: sch}
 	if diags := st.Set(context.Background(), &model); diags.HasError() {
 		t.Fatalf("failed to seed config: %v", diags)
 	}
 	return tfsdk.Config{Schema: sch, Raw: st.Raw}
+}
+
+func TestDataSourceSchemaContracts(t *testing.T) {
+	attrs := dataSourceSchema(t).Attributes
+
+	gid, ok := attrs["group_unique_id"].(schema.StringAttribute)
+	if !ok || !gid.Required {
+		t.Errorf("group_unique_id must be Required, got %#v", attrs["group_unique_id"])
+	}
+
+	desc, ok := attrs["description"].(schema.StringAttribute)
+	if !ok || !desc.Computed || desc.Required || desc.Optional {
+		t.Errorf("description must be Computed-only, got %#v", attrs["description"])
+	}
+
+	id, ok := attrs["id"].(schema.StringAttribute)
+	if !ok || !id.Computed {
+		t.Errorf("id must be Computed, got %#v", attrs["id"])
+	}
 }
 
 func TestDataSourceMetadataTypeName(t *testing.T) {
@@ -60,14 +79,14 @@ func TestDataSourceRead_Found(t *testing.T) {
 		}
 	})
 	sch := dataSourceSchema(t)
-	cfg := dataSourceModel{GroupUniqueID: types.StringValue("vm_marked")}
+	cfg := stateModel{GroupUniqueID: types.StringValue("vm_marked")}
 	req := datasource.ReadRequest{Config: dataConfigWith(t, sch, cfg)}
 	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
 	d.Read(context.Background(), req, resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected diags: %v", resp.Diagnostics)
 	}
-	var out dataSourceModel
+	var out stateModel
 	if diags := resp.State.Get(context.Background(), &out); diags.HasError() {
 		t.Fatalf("failed to read state: %v", diags)
 	}
@@ -86,7 +105,7 @@ func TestDataSourceRead_NotFound(t *testing.T) {
 		}
 	})
 	sch := dataSourceSchema(t)
-	cfg := dataSourceModel{GroupUniqueID: types.StringValue("missing")}
+	cfg := stateModel{GroupUniqueID: types.StringValue("missing")}
 	req := datasource.ReadRequest{Config: dataConfigWith(t, sch, cfg)}
 	resp := &datasource.ReadResponse{State: tfsdk.State{Schema: sch}}
 	d.Read(context.Background(), req, resp)

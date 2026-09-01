@@ -173,4 +173,7 @@ func TestDeleteCrownJewel(t *testing.T) {
 	if len(ids) != 1 || ids[0] != testCrownJewelGroupID {
 		t.Errorf("expected group_unique_ids [%s], got %v", testCrownJewelGroupID, payload["group_unique_ids"])
 	}
+	if _, ok := payload["description"]; ok {
+		t.Errorf("DELETE body must omit description, got %v", payload)
+	}
 }

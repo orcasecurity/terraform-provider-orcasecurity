@@ -3,6 +3,7 @@ package crown_jewel
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -15,6 +16,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
+
+// nonWhitespaceRegex rejects whitespace-only Reason values at plan time.
+var nonWhitespaceRegex = regexp.MustCompile(`.*\S.*`)
 
 var (
 	_ resource.Resource                = &crownJewelResource{}
@@ -85,6 +89,7 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Required: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+					stringvalidator.RegexMatches(nonWhitespaceRegex, "must contain at least one non-whitespace character"),
 				},
 			},
 		},

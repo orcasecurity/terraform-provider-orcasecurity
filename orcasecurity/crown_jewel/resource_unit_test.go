@@ -56,8 +56,8 @@ func TestSchemaContracts(t *testing.T) {
 	}
 
 	desc, ok := attrs["description"].(schema.StringAttribute)
-	if !ok || !desc.Required || desc.Optional {
-		t.Errorf("description must be Required (UI Reason), got %#v", attrs["description"])
+	if !ok || !desc.Required || desc.Optional || len(desc.Validators) < 2 {
+		t.Errorf("description must be Required with length+non-whitespace validators, got %#v", attrs["description"])
 	}
 
 	id, ok := attrs["id"].(schema.StringAttribute)
