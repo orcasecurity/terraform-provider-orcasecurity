@@ -13,9 +13,9 @@ Provides a custom compliance framework resource. Sections are read back from GET
 ## Example Usage
 
 ```terraform
-# Build a custom framework from CIS Level 1 controls on a built-in one. The
-# single-framework data source returns sections[].tests[].rule_id and cis_level;
-# omit rule_id_in_framework and the provider derives it as
+# Build a custom framework from CIS Level 1 and Level 2 controls on a built-in
+# one. The single-framework data source returns sections[].tests[].rule_id and
+# cis_level; omit rule_id_in_framework and the provider derives it as
 # <section_id_in_framework>.<1-based index>. Sibling ids must be unique and
 # strictly ascending (7 then 8) because the API returns sections sorted by id.
 data "orcasecurity_compliance_framework" "source" {
@@ -38,8 +38,7 @@ locals {
     )
   ])
   level1_tests = [for t in local.source_tests : t if contains(coalesce(t.cis_level, []), "Level 1")]
-  level1_head  = slice(local.level1_tests, 0, 1)
-  level1_tail  = slice(local.level1_tests, 1, length(local.level1_tests))
+  level2_tests = [for t in local.source_tests : t if contains(coalesce(t.cis_level, []), "Level 2")]
 }
 
 resource "orcasecurity_custom_compliance_framework" "subset" {
@@ -48,17 +47,17 @@ resource "orcasecurity_custom_compliance_framework" "subset" {
 
   sections = [
     {
-      name                    = "Selected controls"
+      name                    = "CIS Level 1"
       section_id_in_framework = "7"
       tests = [
-        for t in local.level1_head : { rule_id = t.rule_id }
+        for t in local.level1_tests : { rule_id = t.rule_id }
       ]
     },
     {
-      name                    = "Additional controls"
+      name                    = "CIS Level 2"
       section_id_in_framework = "8"
       tests = [
-        for t in local.level1_tail : { rule_id = t.rule_id }
+        for t in local.level2_tests : { rule_id = t.rule_id }
       ]
     }
   ]
@@ -98,7 +97,7 @@ Required:
 
 Optional:
 
-- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique and strictly ascending among siblings, and a nested section must extend its parent (`7.2`) — the API returns sections sorted by id. Omitted values take the next integer above the previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog section `id`.
+- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Updatable — changing it re-derives omitted control ids. Must be an unsigned integer, unique and strictly ascending among siblings, and a nested section must extend its parent (`7.2`) — the API returns sections sorted by id. Omitted values take the next integer above the previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog section `id`.
 - `sections` (Attributes List) Nested sub-sections. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--tests))
 
@@ -111,7 +110,7 @@ Required:
 
 Optional:
 
-- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique and strictly ascending among siblings, and a nested section must extend its parent (`7.2`) — the API returns sections sorted by id. Omitted values take the next integer above the previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog section `id`.
+- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Updatable — changing it re-derives omitted control ids. Must be an unsigned integer, unique and strictly ascending among siblings, and a nested section must extend its parent (`7.2`) — the API returns sections sorted by id. Omitted values take the next integer above the previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog section `id`.
 - `sections` (Attributes List) Nested sub-sections. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--tests))
 
@@ -124,7 +123,7 @@ Required:
 
 Optional:
 
-- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique and strictly ascending among siblings, and a nested section must extend its parent (`7.2`) — the API returns sections sorted by id. Omitted values take the next integer above the previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog section `id`.
+- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Updatable — changing it re-derives omitted control ids. Must be an unsigned integer, unique and strictly ascending among siblings, and a nested section must extend its parent (`7.2`) — the API returns sections sorted by id. Omitted values take the next integer above the previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog section `id`.
 - `sections` (Attributes List) Not supported — the API stores three levels; ValidateConfig rejects controls placed here. (see [below for nested schema](#nestedatt--sections--sections--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--sections--tests))
 
@@ -148,7 +147,7 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<positional-section-id>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. On read this is the catalog `reference_id`.
+- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
 
 
 
@@ -164,7 +163,7 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<positional-section-id>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. On read this is the catalog `reference_id`.
+- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
 
 
 
@@ -180,7 +179,7 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<positional-section-id>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. On read this is the catalog `reference_id`.
+- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section_id_in_framework>.<1-based index>` within this resource's own section tree (e.g. `1.1`), matching the Orca UI — not from a source framework's catalog ids. Changing the section id re-derives an omitted value. On read this is the catalog `reference_id`.
 
 ## Notes
 
@@ -207,13 +206,14 @@ Optional:
   (`/api/compliance/frameworks/drafts` and `draft_id` on create). This resource
   only writes published frameworks.
 - **`section_id_in_framework`.** Sets this section's id, which becomes the
-  prefix of each control's `rule_id_in_framework` (`7` → `7.1`). Must be an
-  unsigned integer, unique and strictly ascending among siblings, and a nested
-  section must extend its parent (`7.2`). Omitted values take the next integer
-  above the previous sibling (`7.2` then omitted → `7.3`). The API returns
-  sections sorted by id and derives those ids from control ids; the provider
-  does not send `section_id_in_framework` on the wire. On read this is the
-  catalog section `id`.
+  prefix of each control's `rule_id_in_framework` (`7` → `7.1`). Updatable —
+  changing it re-derives omitted control ids (`1` → `5` sends `5.1`). Must be
+  an unsigned integer, unique and strictly ascending among siblings, and a
+  nested section must extend its parent (`7.2`). Omitted values take the next
+  integer above the previous sibling (`7.2` then omitted → `7.3`). The API
+  returns sections sorted by id and derives those ids from control ids; the
+  provider does not send `section_id_in_framework` on the wire. On read this
+  is the catalog section `id`.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

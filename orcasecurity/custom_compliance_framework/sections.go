@@ -87,11 +87,15 @@ func lastUint(id string) (uint64, bool) {
 }
 
 func nextAfter(parentID, prevID string) string {
-	var n uint64
+	n := uint64(0)
 	if prevID != "" {
-		if v, ok := lastUint(prevID); ok {
-			n = v
+		v, ok := lastUint(prevID)
+		if !ok {
+			// resolveSiblingIDs only stores prev from a valid id. If that
+			// invariant is broken, start from 0 so the next id is still 1.
+			v = 0
 		}
+		n = v
 	}
 	s := strconv.FormatUint(n+1, 10)
 	if parentID == "" {
@@ -185,6 +189,147 @@ func listLen(v attr.Value) int {
 		return 0
 	}
 	return len(l.Elements())
+}
+
+var computedTestAttrs = []string{"rule_id_in_framework", "priority", "control_unique_id", "origin_framework_id"}
+
+func listObjectAt(list types.List, i int) (types.Object, bool) {
+	if list.IsNull() || list.IsUnknown() || i >= len(list.Elements()) {
+		return types.ObjectNull(map[string]attr.Type{}), false
+	}
+	obj, ok := list.Elements()[i].(types.Object)
+	if !ok || obj.IsNull() || obj.IsUnknown() {
+		return types.ObjectNull(map[string]attr.Type{}), false
+	}
+	return obj, true
+}
+
+func objectAttr(obj types.Object, name string) attr.Value {
+	if obj.IsNull() || obj.IsUnknown() {
+		return types.StringNull()
+	}
+	v, ok := obj.Attributes()[name]
+	if !ok {
+		return types.StringNull()
+	}
+	return v
+}
+
+func plannedComputedString(configV, planV, stateV attr.Value, forceUnknown bool) attr.Value {
+	if s, ok := configV.(types.String); ok && !s.IsNull() && !s.IsUnknown() {
+		return planV
+	}
+	if forceUnknown || stateV == nil || stateV.IsNull() {
+		return types.StringUnknown()
+	}
+	return planV
+}
+
+// rewriteSectionsPlan marks Optional+Computed section/test attributes unknown
+// when config omits them and there is no prior state at that index (or the
+// section id changed, so omitted control ids must re-derive). That is the
+// list-element case UseStateForUnknown cannot cover.
+func rewriteSectionsPlan(config, plan, state types.List, remainingDepth int) (types.List, diag.Diagnostics) {
+	if plan.IsNull() || plan.IsUnknown() {
+		return plan, nil
+	}
+	typ := sectionObjectType(remainingDepth)
+	out := make([]attr.Value, len(plan.Elements()))
+	var diags diag.Diagnostics
+	for i, e := range plan.Elements() {
+		pobj, ok := e.(types.Object)
+		if !ok || pobj.IsNull() || pobj.IsUnknown() {
+			out[i] = e
+			continue
+		}
+		cobj, _ := listObjectAt(config, i)
+		sobj, hasState := listObjectAt(state, i)
+		rewritten, d := rewriteSectionPlan(cobj, pobj, sobj, hasState, remainingDepth)
+		diags.Append(d...)
+		out[i] = rewritten
+	}
+	list, d := types.ListValue(typ, out)
+	diags.Append(d...)
+	return list, diags
+}
+
+func rewriteSectionPlan(cfg, plan, state types.Object, hasState bool, remainingDepth int) (types.Object, diag.Diagnostics) {
+	if remainingDepth == 0 {
+		return plan, nil
+	}
+	pattrs := plan.Attributes()
+	attrs := make(map[string]attr.Value, len(pattrs))
+	for k, v := range pattrs {
+		attrs[k] = v
+	}
+	cfgID := ""
+	if !cfg.IsNull() && !cfg.IsUnknown() {
+		cfgID = attrString(cfg.Attributes(), "section_id_in_framework")
+	}
+	stID := ""
+	if hasState {
+		stID = attrString(state.Attributes(), "section_id_in_framework")
+	}
+	sectionChanged := cfgID != "" && stID != "" && cfgID != stID
+	attrs["section_id_in_framework"] = plannedComputedString(
+		objectAttr(cfg, "section_id_in_framework"),
+		pattrs["section_id_in_framework"],
+		objectAttr(state, "section_id_in_framework"),
+		!hasState,
+	)
+	var diags diag.Diagnostics
+	if tests, ok := asList(pattrs["tests"]); ok {
+		ct, _ := asList(objectAttr(cfg, "tests"))
+		st, _ := asList(objectAttr(state, "tests"))
+		rewritten, d := rewriteTestsPlan(ct, tests, st, sectionChanged)
+		diags.Append(d...)
+		attrs["tests"] = rewritten
+	}
+	if remainingDepth > 0 {
+		if nested, ok := asList(pattrs["sections"]); ok {
+			cn, _ := asList(objectAttr(cfg, "sections"))
+			sn, _ := asList(objectAttr(state, "sections"))
+			rewritten, d := rewriteSectionsPlan(cn, nested, sn, remainingDepth-1)
+			diags.Append(d...)
+			attrs["sections"] = rewritten
+		}
+	}
+	obj, d := types.ObjectValue(sectionObjectType(remainingDepth).AttrTypes, attrs)
+	diags.Append(d...)
+	return obj, diags
+}
+
+func rewriteTestsPlan(config, plan, state types.List, sectionChanged bool) (types.List, diag.Diagnostics) {
+	if plan.IsNull() || plan.IsUnknown() {
+		return plan, nil
+	}
+	elem := testObjectType()
+	out := make([]attr.Value, len(plan.Elements()))
+	var diags diag.Diagnostics
+	for i, e := range plan.Elements() {
+		pobj, ok := e.(types.Object)
+		if !ok || pobj.IsNull() || pobj.IsUnknown() {
+			out[i] = e
+			continue
+		}
+		cobj, _ := listObjectAt(config, i)
+		sobj, hasState := listObjectAt(state, i)
+		pattrs := pobj.Attributes()
+		attrs := make(map[string]attr.Value, len(pattrs))
+		for k, v := range pattrs {
+			attrs[k] = v
+		}
+		for _, name := range computedTestAttrs {
+			force := !hasState || (sectionChanged && name == "rule_id_in_framework")
+			attrs[name] = plannedComputedString(objectAttr(cobj, name), pattrs[name], objectAttr(sobj, name), force)
+		}
+		obj, d := types.ObjectValue(elem.AttrTypes, attrs)
+		diags.Append(d...)
+		out[i] = obj
+	}
+	list, d := types.ListValue(elem, out)
+	diags.Append(d...)
+	return list, diags
 }
 
 func testsToAPI(sectionID string, list types.List) []api_client.CustomComplianceFrameworkTest {
@@ -344,6 +489,8 @@ func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, 
 }
 
 func reportSiblingIDErrors(resp *resource.ValidateConfigResponse, elems []attr.Value, parent path.Path, ids []resolvedSectionID) {
+	// Order is the last segment only: every resolved sibling already shares
+	// the same parent prefix, so the suffix is the numeric sort key.
 	var prev uint64
 	hasPrev := false
 	for i, r := range ids {

@@ -449,6 +449,12 @@ func hasDetail(resp *resource.ValidateConfigResponse, want string) bool {
 
 func planAndState(t *testing.T, state, plan customComplianceFrameworkResourceModel) (*customComplianceFrameworkResource, resource.ModifyPlanRequest) {
 	t.Helper()
+	r, req := planStateConfig(t, state, plan, nil)
+	return r, req
+}
+
+func planStateConfig(t *testing.T, state, plan customComplianceFrameworkResourceModel, config *customComplianceFrameworkResourceModel) (*customComplianceFrameworkResource, resource.ModifyPlanRequest) {
+	t.Helper()
 	r := &customComplianceFrameworkResource{}
 	schemaResp := &resource.SchemaResponse{}
 	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
@@ -460,7 +466,15 @@ func planAndState(t *testing.T, state, plan customComplianceFrameworkResourceMod
 	if diags := pl.Set(context.Background(), &plan); diags.HasError() {
 		t.Fatalf("plan: %v", diags)
 	}
-	return r, resource.ModifyPlanRequest{State: st, Plan: pl}
+	req := resource.ModifyPlanRequest{State: st, Plan: pl}
+	if config != nil {
+		cs := tfsdk.State{Schema: schemaResp.Schema}
+		if diags := cs.Set(context.Background(), config); diags.HasError() {
+			t.Fatalf("config: %v", diags)
+		}
+		req.Config = tfsdk.Config{Schema: schemaResp.Schema, Raw: cs.Raw}
+	}
+	return r, req
 }
 
 func TestModifyPlan_RejectsOrganizationalToPersonal(t *testing.T) {
@@ -505,6 +519,127 @@ func TestModifyPlan_AllowsPersonalToOrganizational(t *testing.T) {
 	r.ModifyPlan(context.Background(), req, resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Personal → Organizational is a promotion, got %v", resp.Diagnostics)
+	}
+}
+
+func flatSection(t *testing.T, name, id string, tests ...types.Object) types.Object {
+	t.Helper()
+	rootType := sectionObjectType(maxSectionDepth)
+	attrs := map[string]attr.Value{
+		"name":     types.StringValue(name),
+		"tests":    mustList(t, testObjectType(), testsAsValues(tests)...),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+	}
+	if id != "" {
+		attrs["section_id_in_framework"] = types.StringValue(id)
+	}
+	return mustObject(t, rootType, attrs)
+}
+
+func testsAsValues(objs []types.Object) []attr.Value {
+	out := make([]attr.Value, len(objs))
+	for i, o := range objs {
+		out[i] = o
+	}
+	return out
+}
+
+func testComputed(t *testing.T, ruleID, rid, priority, origin string) types.Object {
+	t.Helper()
+	str := func(s string) types.String {
+		if s == "" {
+			return types.StringNull()
+		}
+		return types.StringValue(s)
+	}
+	return mustObject(t, testObjectType(), map[string]attr.Value{
+		"rule_id":              types.StringValue(ruleID),
+		"rule_id_in_framework": str(rid),
+		"priority":             str(priority),
+		"control_unique_id":    types.StringNull(),
+		"origin_framework_id":  str(origin),
+	})
+}
+
+func TestModifyPlan_NewTestMarksComputedUnknown(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           mustList(t, rootType, flatSection(t, "Alpha", "1", testComputed(t, "r1", "1.1", "Medium", "9"))),
+	}
+	plan := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, flatSection(t, "Alpha", "1",
+			testComputed(t, "r1", "1.1", "Medium", "9"),
+			testComputed(t, "r2", "", "", ""),
+		)),
+	}
+	config := plan
+	r, req := planStateConfig(t, state, plan, &config)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var out customComplianceFrameworkResourceModel
+	if diags := resp.Plan.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	sec := out.Sections.Elements()[0].(types.Object)
+	tests := sec.Attributes()["tests"].(types.List)
+	first := tests.Elements()[0].(types.Object).Attributes()
+	if first["priority"].IsUnknown() {
+		t.Error("existing test priority must stay known")
+	}
+	second := tests.Elements()[1].(types.Object).Attributes()
+	for _, name := range computedTestAttrs {
+		if !second[name].IsUnknown() {
+			t.Errorf("new test %s must be unknown, got %#v", name, second[name])
+		}
+	}
+}
+
+func TestModifyPlan_SectionRenumberMarksRuleIDUnknown(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	state := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           mustList(t, rootType, flatSection(t, "Alpha", "1", testComputed(t, "r1", "1.1", "Medium", "9"))),
+	}
+	plan := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           mustList(t, rootType, flatSection(t, "Alpha", "5", testComputed(t, "r1", "1.1", "Medium", "9"))),
+	}
+	config := customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           mustList(t, rootType, flatSection(t, "Alpha", "5", testComputed(t, "r1", "", "", ""))),
+	}
+	r, req := planStateConfig(t, state, plan, &config)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var out customComplianceFrameworkResourceModel
+	if diags := resp.Plan.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	sec := out.Sections.Elements()[0].(types.Object)
+	test0 := sec.Attributes()["tests"].(types.List).Elements()[0].(types.Object).Attributes()
+	if !test0["rule_id_in_framework"].IsUnknown() {
+		t.Errorf("omitted rule_id_in_framework must re-derive after section renumber, got %#v", test0["rule_id_in_framework"])
+	}
+	if test0["priority"].IsUnknown() {
+		t.Error("priority must stay known when only the section id changed")
 	}
 }
 
@@ -627,7 +762,6 @@ func TestResolveSiblingIDs(t *testing.T) {
 		{"descending explicit", "", 1, []string{"2", "1"}, []string{"2", "1"}, []bool{true, true}},
 		{"ascending explicit", "", 1, []string{"1", "2"}, []string{"1", "2"}, []bool{true, true}},
 		{"explicit then omitted next above", "7", 2, []string{"7.2", ""}, []string{"7.2", "7.3"}, []bool{true, true}},
-		{"distinct", "", 1, []string{"1", "2"}, []string{"1", "2"}, []bool{true, true}},
 		{"all omitted", "", 1, []string{"", ""}, []string{"1", "2"}, []bool{true, true}},
 		{"invalid keeps user value", "", 1, []string{"CC6"}, []string{"CC6"}, []bool{false}},
 		{"invalid nested keeps user value", "1", 2, []string{"9"}, []string{"9"}, []bool{false}},

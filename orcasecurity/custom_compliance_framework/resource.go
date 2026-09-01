@@ -80,9 +80,10 @@ func testAttributes() map[string]schema.Attribute {
 		},
 		"rule_id_in_framework": computedOptional(
 			"The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). " +
-				"Omitted values are derived as `<positional-section-id>.<1-based index>` " +
+				"Omitted values are derived as `<section_id_in_framework>.<1-based index>` " +
 				"within this resource's own section tree (e.g. `1.1`), matching the Orca UI — " +
-				"not from a source framework's catalog ids. On read this is the catalog `reference_id`.",
+				"not from a source framework's catalog ids. Changing the section id re-derives " +
+				"an omitted value. On read this is the catalog `reference_id`.",
 		),
 		"priority":            computedOptional("Control priority as accepted by the API (e.g. `Medium`)."),
 		"control_unique_id":   computedOptional("Catalog control unique id. Echoed when the API returns it."),
@@ -108,11 +109,12 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 			Optional: true,
 			Computed: true,
 			Description: "Sets this section's id, which becomes the prefix of each control's " +
-				"`rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique " +
-				"and strictly ascending among siblings, and a nested section must extend its " +
-				"parent (`7.2`) — the API returns sections sorted by id. Omitted values take the " +
-				"next integer above the previous sibling (`7.2` then omitted → `7.3`). On read " +
-				"this is the catalog section `id`.",
+				"`rule_id_in_framework` (`7` → `7.1`, `7.2`). Updatable — changing it re-derives " +
+				"omitted control ids. Must be an unsigned integer, unique and strictly ascending " +
+				"among siblings, and a nested section must extend its parent (`7.2`) — the API " +
+				"returns sections sorted by id. Omitted values take the next integer above the " +
+				"previous sibling (`7.2` then omitted → `7.3`). On read this is the catalog " +
+				"section `id`.",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 			},
@@ -234,13 +236,40 @@ func validatePersonalOrganization(resp *resource.ValidateConfigResponse, config 
 }
 
 func (r *customComplianceFrameworkResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() {
 		return
 	}
-	var state, plan customComplianceFrameworkResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	var plan, config customComplianceFrameworkResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if req.Config.Schema != nil && !req.Config.Raw.IsNull() {
+		resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	var state customComplianceFrameworkResourceModel
+	if !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	if !config.Sections.IsNull() && !config.Sections.IsUnknown() && !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+		sections, d := rewriteSectionsPlan(config.Sections, plan.Sections, state.Sections, schemaSectionDepth-1)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Sections = sections
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	if req.State.Raw.IsNull() {
 		return
 	}
 	if state.Visibility.IsNull() || state.Visibility.IsUnknown() || plan.Visibility.IsNull() || plan.Visibility.IsUnknown() {
