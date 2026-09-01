@@ -260,7 +260,11 @@ func (r *customComplianceFrameworkResource) ModifyPlan(ctx context.Context, req 
 		}
 	}
 	if !config.Sections.IsNull() && !config.Sections.IsUnknown() && !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
-		sections, d := rewriteSectionsPlan(config.Sections, plan.Sections, state.Sections, schemaSectionDepth-1, false)
+		sections, d := rewriteSectionsPlan(planRewrite{
+			config: config.Sections,
+			plan:   plan.Sections,
+			state:  state.Sections,
+		}, schemaSectionDepth-1, false)
 		resp.Diagnostics.Append(d...)
 		if resp.Diagnostics.HasError() {
 			return

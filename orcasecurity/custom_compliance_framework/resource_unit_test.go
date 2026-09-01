@@ -778,6 +778,152 @@ func TestModifyPlan_ParentIDChangeUnpinsOmittedChildren(t *testing.T) {
 	}
 }
 
+func sectionAt(t *testing.T, remainingDepth int, name, id string, tests []types.Object, children []types.Object) types.Object {
+	t.Helper()
+	typ := sectionObjectType(remainingDepth)
+	attrs := map[string]attr.Value{
+		"name": types.StringValue(name),
+	}
+	if id != "" {
+		attrs["section_id_in_framework"] = types.StringValue(id)
+	}
+	if len(tests) > 0 {
+		attrs["tests"] = mustList(t, testObjectType(), testsAsValues(tests)...)
+	} else {
+		attrs["tests"] = types.ListNull(testObjectType())
+	}
+	if remainingDepth > 0 {
+		childType := sectionObjectType(remainingDepth - 1)
+		if len(children) > 0 {
+			vals := make([]attr.Value, len(children))
+			for i, c := range children {
+				vals[i] = c
+			}
+			attrs["sections"] = mustList(t, childType, vals...)
+		} else {
+			attrs["sections"] = types.ListNull(childType)
+		}
+	}
+	return mustObject(t, typ, attrs)
+}
+
+func frameworkLists(t *testing.T, sections types.List) customComplianceFrameworkResourceModel {
+	t.Helper()
+	return customComplianceFrameworkResourceModel{
+		ID:                 types.StringValue("1"),
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           sections,
+	}
+}
+
+func TestModifyPlan_GrandparentIDChangeUnpinsOmittedTree(t *testing.T) {
+	root := maxSectionDepth
+	mid := maxSectionDepth - 1
+	leaf := maxSectionDepth - 2
+	stateTree := sectionAt(t, root, "GP", "7", nil, []types.Object{
+		sectionAt(t, mid, "P", "7.1", nil, []types.Object{
+			sectionAt(t, leaf, "C1", "7.1.1", []types.Object{testComputed(t, "r1", "7.1.1.1", "Medium", "9")}, nil),
+			sectionAt(t, leaf, "C2", "7.1.2", []types.Object{testComputed(t, "r2", "7.1.2.1", "Medium", "9")}, nil),
+		}),
+	})
+	planTree := sectionAt(t, root, "GP", "9", nil, []types.Object{
+		sectionAt(t, mid, "P", "7.1", nil, []types.Object{
+			sectionAt(t, leaf, "C1", "7.1.1", []types.Object{testComputed(t, "r1", "7.1.1.1", "Medium", "9")}, nil),
+			sectionAt(t, leaf, "C2", "7.1.2", []types.Object{testComputed(t, "r2", "7.1.2.1", "Medium", "9")}, nil),
+		}),
+	})
+	configTree := sectionAt(t, root, "GP", "9", nil, []types.Object{
+		sectionAt(t, mid, "P", "", nil, []types.Object{
+			sectionAt(t, leaf, "C1", "", []types.Object{testComputed(t, "r1", "", "", "")}, nil),
+			sectionAt(t, leaf, "C2", "", []types.Object{testComputed(t, "r2", "", "", "")}, nil),
+		}),
+	})
+	rootType := sectionObjectType(root)
+	r, req := planStateConfig(t,
+		frameworkLists(t, mustList(t, rootType, stateTree)),
+		frameworkLists(t, mustList(t, rootType, planTree)),
+		ptrModel(frameworkLists(t, mustList(t, rootType, configTree))),
+	)
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var out customComplianceFrameworkResourceModel
+	if diags := resp.Plan.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	parent := out.Sections.Elements()[0].(types.Object).Attributes()["sections"].(types.List).Elements()[0].(types.Object)
+	if !parent.Attributes()["section_id_in_framework"].IsUnknown() {
+		t.Errorf("omitted child of a renumbered grandparent must unpin, got %#v", parent.Attributes()["section_id_in_framework"])
+	}
+	for i, e := range parent.Attributes()["sections"].(types.List).Elements() {
+		ch := e.(types.Object).Attributes()
+		if !ch["section_id_in_framework"].IsUnknown() {
+			t.Errorf("grandchild[%d] section id must unpin, got %#v", i, ch["section_id_in_framework"])
+		}
+		rid := ch["tests"].(types.List).Elements()[0].(types.Object).Attributes()["rule_id_in_framework"]
+		if !rid.IsUnknown() {
+			t.Errorf("grandchild[%d] control id must re-derive, got %#v", i, rid)
+		}
+	}
+}
+
+func TestModifyPlan_SiblingIDChangeUnpinsNestedSubtree(t *testing.T) {
+	root := maxSectionDepth
+	child := maxSectionDepth - 1
+	state := mustList(t, sectionObjectType(root),
+		flatSection(t, "A", "1", testComputed(t, "r1", "1.1", "Medium", "9")),
+		sectionAt(t, root, "B", "2", nil, []types.Object{
+			sectionAt(t, child, "C1", "2.1", []types.Object{testComputed(t, "r2", "2.1.1", "Medium", "9")}, nil),
+			sectionAt(t, child, "C2", "2.2", []types.Object{testComputed(t, "r3", "2.2.1", "Medium", "9")}, nil),
+		}),
+	)
+	plan := mustList(t, sectionObjectType(root),
+		flatSection(t, "A", "5", testComputed(t, "r1", "1.1", "Medium", "9")),
+		sectionAt(t, root, "B", "2", nil, []types.Object{
+			sectionAt(t, child, "C1", "2.1", []types.Object{testComputed(t, "r2", "2.1.1", "Medium", "9")}, nil),
+			sectionAt(t, child, "C2", "2.2", []types.Object{testComputed(t, "r3", "2.2.1", "Medium", "9")}, nil),
+		}),
+	)
+	config := mustList(t, sectionObjectType(root),
+		flatSection(t, "A", "5", testComputed(t, "r1", "", "", "")),
+		sectionAt(t, root, "B", "", nil, []types.Object{
+			sectionAt(t, child, "C1", "", []types.Object{testComputed(t, "r2", "", "", "")}, nil),
+			sectionAt(t, child, "C2", "", []types.Object{testComputed(t, "r3", "", "", "")}, nil),
+		}),
+	)
+	r, req := planStateConfig(t, frameworkLists(t, state), frameworkLists(t, plan), ptrModel(frameworkLists(t, config)))
+	resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var out customComplianceFrameworkResourceModel
+	if diags := resp.Plan.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	b := out.Sections.Elements()[1].(types.Object)
+	if !b.Attributes()["section_id_in_framework"].IsUnknown() {
+		t.Errorf("omitted sibling B must unpin when A changes, got %#v", b.Attributes()["section_id_in_framework"])
+	}
+	for i, e := range b.Attributes()["sections"].(types.List).Elements() {
+		ch := e.(types.Object).Attributes()
+		if !ch["section_id_in_framework"].IsUnknown() {
+			t.Errorf("B.child[%d] section id must unpin with sibling A, got %#v", i, ch["section_id_in_framework"])
+		}
+		rid := ch["tests"].(types.List).Elements()[0].(types.Object).Attributes()["rule_id_in_framework"]
+		if !rid.IsUnknown() {
+			t.Errorf("B.child[%d] control id must re-derive, got %#v", i, rid)
+		}
+	}
+}
+
+func ptrModel(m customComplianceFrameworkResourceModel) *customComplianceFrameworkResourceModel {
+	return &m
+}
+
 func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	typ := testObjectType()
 	rootType := sectionObjectType(maxSectionDepth)
