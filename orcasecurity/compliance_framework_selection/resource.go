@@ -239,9 +239,10 @@ func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req r
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// Destroy is state-only: this resource never created the framework, and the
-// organization scope is shared tenant state. Disabling is `scopes = []`.
 func (r *complianceFrameworkSelectionResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+	// Intentionally empty: destroy is state-only. This resource never created
+	// the framework, and the organization scope is shared tenant state.
+	// Disabling is `scopes = []`.
 }
 
 const (
