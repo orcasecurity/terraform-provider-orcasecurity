@@ -36,7 +36,7 @@ const emptyRootSectionsMessage = "a framework must contain at least one section"
 
 const fourthLevelMessage = "the API stores three levels; move these controls up one level"
 
-const invalidSectionIDMessage = "section_id_in_framework must be a decimal integer (the API 400s otherwise); dotted catalog ids such as 1.1 are read-only"
+const invalidSectionIDMessage = "section_id_in_framework must be an integer, and a nested section must extend its parent (e.g. 7.2); the API derives section ids from control ids and rejects a non-numeric part"
 
 const nestedSectionsDescription = "Nested sub-sections. A section may have tests or sub-sections, never both."
 
@@ -80,6 +80,36 @@ func positionalSectionID(parentID string, index int) string {
 	return parentID + "." + n
 }
 
+// sectionIDMatchesDepth is the server's rule: one integer per level, and each
+// nested id must extend its parent. Empty id is omitted (positional).
+func sectionIDMatchesDepth(id, parentID string, depth int) bool {
+	if id == "" {
+		return true
+	}
+	if depth <= 1 {
+		_, err := strconv.Atoi(id)
+		return err == nil && !strings.Contains(id, ".")
+	}
+	prefix := parentID + "."
+	if parentID == "" || !strings.HasPrefix(id, prefix) {
+		return false
+	}
+	rest := id[len(prefix):]
+	_, err := strconv.Atoi(rest)
+	return err == nil && rest != "" && !strings.Contains(rest, ".")
+}
+
+func resolveSectionID(userID, parentID string, depth, index int) (string, bool) {
+	resolved := positionalSectionID(parentID, index)
+	if userID == "" {
+		return resolved, true
+	}
+	if !sectionIDMatchesDepth(userID, parentID, depth) {
+		return resolved, false
+	}
+	return userID, true
+}
+
 func attrString(attrs map[string]attr.Value, name string) string {
 	v, ok := attrs[name]
 	if !ok || v.IsNull() || v.IsUnknown() {
@@ -109,33 +139,6 @@ func listLen(v attr.Value) int {
 		return 0
 	}
 	return len(l.Elements())
-}
-
-func atoiPtr(s string) *int {
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return nil
-	}
-	return &n
-}
-
-func invalidSectionID(s string) bool {
-	if s == "" {
-		return false
-	}
-	if _, err := strconv.Atoi(s); err == nil {
-		return false
-	}
-	parts := strings.Split(s, ".")
-	if len(parts) < 2 {
-		return true
-	}
-	for _, p := range parts {
-		if _, err := strconv.Atoi(p); err != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func testsToAPI(sectionID string, list types.List) []api_client.CustomComplianceFrameworkTest {
@@ -193,10 +196,9 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 			nested = sectionsToAPIAt(l, id)
 		}
 		out = append(out, api_client.CustomComplianceFrameworkSection{
-			Name:                 attrString(attrs, "name"),
-			SectionIDInFramework: atoiPtr(userID),
-			Tests:                tests,
-			Sections:             nested,
+			Name:     attrString(attrs, "name"),
+			Tests:    tests,
+			Sections: nested,
 		})
 	}
 	return out
@@ -233,6 +235,14 @@ func sectionsFromCatalog(sections []api_client.ComplianceCatalogSection, remaini
 	vals := make([]attr.Value, len(sections))
 	var diags diag.Diagnostics
 	for i, s := range sections {
+		if remainingDepth == 0 {
+			obj, d := types.ObjectValue(elem.AttrTypes, map[string]attr.Value{
+				"name": types.StringValue(s.Name),
+			})
+			diags.Append(d...)
+			vals[i] = obj
+			continue
+		}
 		tests, d := testsFromCatalog(s.Tests)
 		diags.Append(d...)
 		attrs := map[string]attr.Value{
@@ -267,10 +277,10 @@ func listUnknown(v attr.Value) bool {
 }
 
 func validateSections(resp *resource.ValidateConfigResponse, list types.List, parent path.Path) {
-	validateSectionsAt(resp, list, parent, 1)
+	validateSectionsAt(resp, list, parent, 1, "")
 }
 
-func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, parent path.Path, depth int) {
+func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, parent path.Path, depth int, parentID string) {
 	if list.IsNull() || list.IsUnknown() {
 		return
 	}
@@ -283,11 +293,11 @@ func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, 
 		return
 	}
 	for i, e := range list.Elements() {
-		validateOneSection(resp, e, parent.AtListIndex(i), depth)
+		validateOneSection(resp, e, parent.AtListIndex(i), depth, parentID, i)
 	}
 }
 
-func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p path.Path, depth int) {
+func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p path.Path, depth int, parentID string, index int) {
 	obj, ok := e.(types.Object)
 	if !ok || obj.IsNull() || obj.IsUnknown() {
 		return
@@ -297,7 +307,9 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 		return
 	}
 	attrs := obj.Attributes()
-	if id := attrString(attrs, "section_id_in_framework"); invalidSectionID(id) {
+	userID := attrString(attrs, "section_id_in_framework")
+	resolved, idOK := resolveSectionID(userID, parentID, depth, index)
+	if !idOK {
 		resp.Diagnostics.AddAttributeError(p.AtName("section_id_in_framework"), invalidSectionSummary, invalidSectionIDMessage)
 	}
 	if listKnownEmpty(attrs["tests"]) {
@@ -312,7 +324,7 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 	}
 	// Data-source for-expressions are unknown during ValidateConfig.
 	if listUnknown(attrs["tests"]) || listUnknown(attrs["sections"]) {
-		validateNestedSections(resp, attrs, p, depth)
+		validateNestedSections(resp, attrs, p, depth, resolved)
 		return
 	}
 	nTests, nSections := listLen(attrs["tests"]), listLen(attrs["sections"])
@@ -321,7 +333,7 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 		return
 	}
 	if nSections > 0 {
-		validateNestedSections(resp, attrs, p, depth)
+		validateNestedSections(resp, attrs, p, depth, resolved)
 		return
 	}
 	if nTests == 0 {
@@ -329,10 +341,10 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 	}
 }
 
-func validateNestedSections(resp *resource.ValidateConfigResponse, attrs map[string]attr.Value, p path.Path, depth int) {
+func validateNestedSections(resp *resource.ValidateConfigResponse, attrs map[string]attr.Value, p path.Path, depth int, parentID string) {
 	nested, ok := asList(attrs["sections"])
 	if ok {
-		validateSectionsAt(resp, nested, p.AtName("sections"), depth+1)
+		validateSectionsAt(resp, nested, p.AtName("sections"), depth+1, parentID)
 	}
 }
 

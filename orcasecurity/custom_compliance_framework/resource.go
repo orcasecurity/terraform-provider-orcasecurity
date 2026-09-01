@@ -91,6 +91,14 @@ func testAttributes() map[string]schema.Attribute {
 }
 
 func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
+	if remainingDepth == 0 {
+		return map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Required:    true,
+				Description: "Section name. This nesting level is not supported; ValidateConfig rejects it.",
+			},
+		}
+	}
 	attrs := map[string]schema.Attribute{
 		"name": schema.StringAttribute{
 			Required:    true,
@@ -99,10 +107,11 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 		"section_id_in_framework": schema.StringAttribute{
 			Optional: true,
 			Computed: true,
-			Description: "Numeric id for this section inside the framework (e.g. `7` so controls " +
-				"become `7.1`). Omitted values are assigned positionally (`1`, `2`, …). " +
-				"Must be a decimal integer — the API 400s on any other value. " +
-				"On read this is the catalog section `id` (dotted for nested sections, e.g. `1.1`).",
+			Description: "Sets this section's id, which becomes the prefix of each control's " +
+				"`rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an integer, and a nested " +
+				"section must extend its parent (`7.2`) — the API derives section ids from the " +
+				"control ids and rejects a non-numeric part. Omitted values are assigned " +
+				"positionally. On read this is the catalog section `id`.",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 			},

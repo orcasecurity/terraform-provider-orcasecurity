@@ -189,7 +189,14 @@ func TestSectionsFromCatalog_MapsSectionID(t *testing.T) {
 		t.Errorf("catalog id must map to section_id_in_framework, got %q", objectString(sec, "section_id_in_framework"))
 	}
 	req := sectionsToAPI(got)
-	if req[0].SectionIDInFramework == nil || *req[0].SectionIDInFramework != 7 {
-		t.Errorf("write-back must send 7, got %+v", req[0].SectionIDInFramework)
+	if req[0].Tests[0].RuleIDInFramework != "7.1" {
+		t.Errorf("catalog section id must prefix derived controls on write-back, got %+v", req[0].Tests)
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "section_id_in_framework") {
+		t.Errorf("write payload must not send the ignored key, got %s", raw)
 	}
 }

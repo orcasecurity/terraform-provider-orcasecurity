@@ -1,7 +1,7 @@
 # Build a custom framework from CIS Level 1 controls on a built-in one. The
 # single-framework data source returns sections[].tests[].rule_id and cis_level;
 # omit rule_id_in_framework and the provider derives it as
-# <positional-section-id>.<1-based index>, matching the Orca UI.
+# <section_id_in_framework>.<1-based index>, matching the Orca UI.
 data "orcasecurity_compliance_framework" "source" {
   id = "gcp_cis_3.0.0"
 }
@@ -30,7 +30,8 @@ resource "orcasecurity_custom_compliance_framework" "subset" {
 
   sections = [
     {
-      name = "Selected controls"
+      name                    = "Selected controls"
+      section_id_in_framework = "1"
       tests = [
         for t in local.level1_tests : { rule_id = t.rule_id }
       ]

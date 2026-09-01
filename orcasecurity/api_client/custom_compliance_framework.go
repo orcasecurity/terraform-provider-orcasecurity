@@ -16,10 +16,9 @@ type CustomComplianceFrameworkTest struct {
 }
 
 type CustomComplianceFrameworkSection struct {
-	Name                 string                             `json:"name"`
-	SectionIDInFramework *int                               `json:"section_id_in_framework,omitempty"`
-	Tests                []CustomComplianceFrameworkTest    `json:"tests"`
-	Sections             []CustomComplianceFrameworkSection `json:"sections"`
+	Name     string                             `json:"name"`
+	Tests    []CustomComplianceFrameworkTest    `json:"tests"`
+	Sections []CustomComplianceFrameworkSection `json:"sections"`
 }
 
 type CustomComplianceFrameworkRequest struct {

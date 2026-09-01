@@ -126,8 +126,14 @@ func TestSchema_FourthLevelExistsForRejection(t *testing.T) {
 	if _, ok := l4.NestedObject.Attributes["sections"]; ok {
 		t.Fatal("fifth nested sections must not be in the schema")
 	}
-	if _, ok := l4.NestedObject.Attributes["section_id_in_framework"]; !ok {
-		t.Fatal("section_id_in_framework must exist at every section level")
+	if _, ok := l4.NestedObject.Attributes["tests"]; ok {
+		t.Fatal("rejected level must not document tests")
+	}
+	if _, ok := l4.NestedObject.Attributes["section_id_in_framework"]; ok {
+		t.Fatal("rejected level must not document section_id_in_framework")
+	}
+	if _, ok := l4.NestedObject.Attributes["name"]; !ok {
+		t.Fatal("rejected level keeps name so Terraform cannot silently discard the object")
 	}
 	if !strings.Contains(l4.Description, "Not supported") {
 		t.Errorf("fourth nested sections must advertise rejection, got %q", l4.Description)
@@ -419,8 +425,7 @@ func TestValidateConfig_RejectsFourthLevel(t *testing.T) {
 					"name":  types.StringValue("C"),
 					"tests": types.ListNull(testObjectType()),
 					"sections": mustList(t, l4, mustObject(t, l4, map[string]attr.Value{
-						"name":  types.StringValue("D"),
-						"tests": mustList(t, testObjectType(), testObj(t, "r1", "1.1.1.1")),
+						"name": types.StringValue("D"),
 					})),
 				})),
 			})),
@@ -528,12 +533,16 @@ func TestRequestFromPlanDerivesOmittedRuleIDInFramework(t *testing.T) {
 	if req.Sections[0].Tests[0].RuleIDInFramework != "1.1" {
 		t.Errorf("omitted rule_id_in_framework must derive, got %+v", req.Sections[0].Tests)
 	}
-	if req.Sections[0].SectionIDInFramework != nil {
-		t.Errorf("omitted section_id_in_framework must not be sent, got %v", *req.Sections[0].SectionIDInFramework)
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "section_id_in_framework") {
+		t.Errorf("write payload must not send the ignored section_id_in_framework key, got %s", raw)
 	}
 }
 
-func TestRequestFromPlanSendsNumericSectionID(t *testing.T) {
+func TestRequestFromPlanUsesSectionIDAsControlPrefix(t *testing.T) {
 	rootType := sectionObjectType(maxSectionDepth)
 	sections := mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
 		"name":                    types.StringValue("Alpha"),
@@ -549,9 +558,6 @@ func TestRequestFromPlanSendsNumericSectionID(t *testing.T) {
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
-	if req.Sections[0].SectionIDInFramework == nil || *req.Sections[0].SectionIDInFramework != 7 {
-		t.Errorf("section_id_in_framework: %v", req.Sections[0].SectionIDInFramework)
-	}
 	if req.Sections[0].Tests[0].RuleIDInFramework != "7.1" {
 		t.Errorf("derived control id must use custom section id, got %q", req.Sections[0].Tests[0].RuleIDInFramework)
 	}
@@ -559,8 +565,104 @@ func TestRequestFromPlanSendsNumericSectionID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"section_id_in_framework":7`) {
-		t.Errorf("write payload must send a JSON number, got %s", raw)
+	if strings.Contains(string(raw), "section_id_in_framework") {
+		t.Errorf("write payload must not send the ignored section_id_in_framework key, got %s", raw)
+	}
+}
+
+func TestSectionIDMatchesDepth(t *testing.T) {
+	tests := []struct {
+		id, parent string
+		depth      int
+		ok         bool
+	}{
+		{"1", "", 1, true},
+		{"7", "", 1, true},
+		{"1.1", "", 1, false},
+		{"CC6", "", 1, false},
+		{"1.1", "1", 2, true},
+		{"7.2", "7", 2, true},
+		{"9", "1", 2, false},
+		{"1", "1", 2, false},
+		{"CC6", "1", 2, false},
+		{"1.1.1", "1", 2, false},
+		{"7.2.1", "7.2", 3, true},
+		{"7.3.1", "7.2", 3, false},
+		{"", "", 1, true},
+	}
+	for _, tt := range tests {
+		if got := sectionIDMatchesDepth(tt.id, tt.parent, tt.depth); got != tt.ok {
+			t.Errorf("sectionIDMatchesDepth(%q, %q, %d) = %v, want %v", tt.id, tt.parent, tt.depth, got, tt.ok)
+		}
+	}
+}
+
+func TestValidateConfig_RejectsDottedTopLevelSectionID(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("dotted"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":                    types.StringValue("Alpha"),
+			"section_id_in_framework": types.StringValue("1.1"),
+			"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+			"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, invalidSectionIDMessage) {
+		t.Errorf("expected section-id diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_RejectsNestedSectionIDNotExtendingParent(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("mismatch"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":                    types.StringValue("Parent"),
+			"section_id_in_framework": types.StringValue("1"),
+			"tests":                   types.ListNull(testObjectType()),
+			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
+				"name":                    types.StringValue("Child"),
+				"section_id_in_framework": types.StringValue("9"),
+				"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "9.1")),
+				"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+			})),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, invalidSectionIDMessage) {
+		t.Errorf("expected section-id diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_AcceptsNestedSectionIDExtendingParent(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("ok"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":                    types.StringValue("Parent"),
+			"section_id_in_framework": types.StringValue("7"),
+			"tests":                   types.ListNull(testObjectType()),
+			"sections": mustList(t, childType, mustObject(t, childType, map[string]attr.Value{
+				"name":                    types.StringValue("Child"),
+				"section_id_in_framework": types.StringValue("7.2"),
+				"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "")),
+				"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+			})),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("7 / 7.2 must be valid, got %v", resp.Diagnostics)
 	}
 }
 
