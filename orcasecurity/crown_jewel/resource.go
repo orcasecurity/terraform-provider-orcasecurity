@@ -68,10 +68,9 @@ func (r *crownJewelResource) ImportState(ctx context.Context, req resource.Impor
 func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). " +
-			"The asset is identified by `group_unique_id` and must exist in inventory. Create fails when the UI " +
-			"would not offer Mark — already user-marked or Orca-detected. Import first to adopt an existing user " +
-			"mark. Update changes the Reason on a mark this resource already manages. Destroy matches the UI " +
-			"disable action.",
+			"The asset is identified by `group_unique_id` and must exist in inventory. Create fails if the asset " +
+			"is already user-marked — import first to adopt it. Orca-detected assets can still be marked. " +
+			"Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -82,7 +81,7 @@ func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaReques
 			},
 			"group_unique_id": schema.StringAttribute{
 				Description: "Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. " +
-					"Create requires the id to exist in inventory and not already be user-marked or Orca-detected.",
+					"Create requires the id to exist in inventory and not already be user-marked.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -93,8 +92,9 @@ func (r *crownJewelResource) Schema(ctx context.Context, _ resource.SchemaReques
 			},
 			"description": schema.StringAttribute{
 				Description: "Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI " +
-					"(\"Mark as Crown Jewel\"). Common UI values are `Critical business function`, `Customer data`, " +
-					"`High blast radius`, or free text when choosing Other.",
+					"(\"Mark as Crown Jewel\"). UI presets are `Data: Personal identifiable information`, " +
+					"`Access: Broad permission access`, `Access: Secrets exposure`, `Data: Intellectual property`, " +
+					"`Data: Financial information`, or Other (free text, max 50 characters).",
 				Required: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
@@ -162,13 +162,6 @@ func (r *crownJewelResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError(
 			"Asset not found",
 			fmt.Sprintf("No inventory asset found for group_unique_id %q. Crown jewels can only be set on existing assets.", gid),
-		)
-		return
-	}
-	if inv.IsOrcaDetected() {
-		resp.Diagnostics.AddError(
-			"Asset is an Orca-detected crown jewel",
-			fmt.Sprintf("Asset %q is already an Orca-detected crown jewel (DetectedCrownJewelScore=%d). The Orca UI does not offer Mark on engine-managed detections.", gid, inv.DetectedCrownJewelScore),
 		)
 		return
 	}

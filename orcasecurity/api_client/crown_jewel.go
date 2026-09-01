@@ -8,9 +8,10 @@ import (
 
 const crownJewelsAPIPath = "/api/attack_paths/crown_jewels"
 
-const detectedCrownJewelThreshold = 20
-
-const servingLayerQueryPath = "/api/serving-layer/query"
+// crownJewelsUserMarkedPath requests only user-marked rows. The list default is
+// source=all; once the source-aware backend ships, that would include
+// Orca-detected rows with a null description and break Required reads.
+const crownJewelsUserMarkedPath = crownJewelsAPIPath + "?source=user-marked"
 
 // DefaultCrownJewelTimeout is the create/update/delete HTTP timeout when the
 // resource timeouts block is omitted. POST/DELETE return only after attack-path
@@ -44,11 +45,10 @@ func (client *APIClient) crownJewelWriteClient(timeout time.Duration) *APIClient
 
 // GetCrownJewel looks up one user-defined crown jewel by group_unique_id.
 //
-// The crown-jewels list endpoint is a single unpaginated GET that returns every
-// row and ignores query params — do not send limit/start_at_index. Live probe
-// and RestCrownJewels.get both return the full list in one response.
+// The list is a single unpaginated GET. source=user-marked keeps Orca-detected
+// rows (null description) out of the match once that list mode is enabled.
 func (client *APIClient) GetCrownJewel(groupUniqueID string) (*CrownJewel, error) {
-	resp, err := client.Get(crownJewelsAPIPath)
+	resp, err := client.Get(crownJewelsUserMarkedPath)
 	if err != nil {
 		return nil, err
 	}
@@ -63,110 +63,6 @@ func (client *APIClient) GetCrownJewel(groupUniqueID string) (*CrownJewel, error
 		}
 	}
 	return nil, nil
-}
-
-// InventoryGroup is a serving-layer inventory row keyed by group_unique_id.
-type InventoryGroup struct {
-	GroupUniqueID           string
-	DetectedCrownJewelScore int
-	IsCrownJewel            bool
-}
-
-// IsOrcaDetected is true when the analyzer score meets the engine threshold
-// (same cutoff as RestCrownJewels / DETECTED_CROWN_JEWEL_THRESHOLD).
-func (g *InventoryGroup) IsOrcaDetected() bool {
-	return g != nil && g.DetectedCrownJewelScore >= detectedCrownJewelThreshold
-}
-
-type servingLayerQueryRequest struct {
-	Query  servingLayerObjectSet `json:"query"`
-	Limit  int                   `json:"limit"`
-	Select []string              `json:"select"`
-}
-
-type servingLayerObjectSet struct {
-	Models []string           `json:"models"`
-	Type   string             `json:"type"`
-	With   servingLayerFilter `json:"with"`
-}
-
-type servingLayerFilter struct {
-	Key      string   `json:"key"`
-	Type     string   `json:"type"`
-	Operator string   `json:"operator"`
-	Values   []string `json:"values"`
-}
-
-type servingLayerQueryResponse struct {
-	Data []servingLayerRow `json:"data"`
-}
-
-type servingLayerRow struct {
-	GroupUniqueID string            `json:"group_unique_id"`
-	Data          servingLayerAttrs `json:"data"`
-}
-
-type servingLayerAttrs struct {
-	DetectedCrownJewelScore servingLayerInt  `json:"DetectedCrownJewelScore"`
-	IsCrownJewel            servingLayerBool `json:"IsCrownJewel"`
-}
-
-type servingLayerInt struct {
-	Value *int `json:"value"`
-}
-
-type servingLayerBool struct {
-	Value *bool `json:"value"`
-}
-
-// GetInventoryGroup looks up one inventory group via serving-layer query.
-// Returns nil, nil when the id is not in inventory.
-func (client *APIClient) GetInventoryGroup(groupUniqueID string) (*InventoryGroup, error) {
-	resp, err := client.Post(servingLayerQueryPath, servingLayerQueryRequest{
-		Query: servingLayerObjectSet{
-			Models: []string{"Inventory"},
-			Type:   "object_set",
-			With: servingLayerFilter{
-				Key:      "GroupUniqueId",
-				Type:     "str",
-				Operator: "eq",
-				Values:   []string{groupUniqueID},
-			},
-		},
-		Limit:  1,
-		Select: []string{"GroupUniqueId", "DetectedCrownJewelScore", "IsCrownJewel"},
-	})
-	if err != nil {
-		return nil, err
-	}
-	var payload servingLayerQueryResponse
-	if err := resp.ReadJSON(&payload); err != nil {
-		return nil, err
-	}
-	if len(payload.Data) == 0 {
-		return nil, nil
-	}
-	row := payload.Data[0]
-	g := &InventoryGroup{GroupUniqueID: row.GroupUniqueID}
-	if g.GroupUniqueID == "" {
-		g.GroupUniqueID = groupUniqueID
-	}
-	if row.Data.DetectedCrownJewelScore.Value != nil {
-		g.DetectedCrownJewelScore = *row.Data.DetectedCrownJewelScore.Value
-	}
-	if row.Data.IsCrownJewel.Value != nil {
-		g.IsCrownJewel = *row.Data.IsCrownJewel.Value
-	}
-	return g, nil
-}
-
-// InventoryGroupExists reports whether inventory contains this group_unique_id.
-func (client *APIClient) InventoryGroupExists(groupUniqueID string) (bool, error) {
-	g, err := client.GetInventoryGroup(groupUniqueID)
-	if err != nil {
-		return false, err
-	}
-	return g != nil, nil
 }
 
 // SetCrownJewel marks an asset as a user-defined crown jewel (create or update).
@@ -201,7 +97,7 @@ func (client *APIClient) SetCrownJewel(groupUniqueID, description string, timeou
 // does (DELETE /attack_paths/crown_jewels). That is not a hard delete: the API
 // upserts is_crown_jewel=false (an active "not a crown jewel" override). Calling
 // DELETE on an unmarked id returns 200 and may create such a row — the endpoint
-// does not 404.
+// does not 404. GET filters is_crown_jewel=true, so the override is not visible.
 func (client *APIClient) DeleteCrownJewel(groupUniqueID string, timeout time.Duration) error {
 	_, err := client.crownJewelWriteClient(timeout).DeleteWithBody(crownJewelsAPIPath, crownJewelDeleteRequest{
 		GroupUniqueIDs: []string{groupUniqueID},

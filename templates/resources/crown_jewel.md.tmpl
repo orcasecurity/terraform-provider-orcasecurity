@@ -18,8 +18,7 @@ description: |-
 
 ## Notes
 
-- **Create matches the Orca UI.** Apply fails when the UI would not offer Mark — the asset is
-  already a user-marked or Orca-detected crown jewel. Import first to adopt an existing user
+- **Create fails if already user-marked.** Import first to adopt an existing user
   mark, then change `description` later if you want a new Reason:
 
   ```shell
@@ -27,6 +26,8 @@ description: |-
   ```
 
 - **The asset must exist.** Create refuses unknown `group_unique_id` values.
+- **Orca-detected assets can still be marked.** Create adds a user-defined mark
+  on top of engine detection, matching the UI.
 - **Destroy matches the UI disable action.**
 - **Look up before import.** Use the [`orcasecurity_crown_jewel` data source](../data-sources/crown_jewel.md)
   to read the current Reason for an already-marked asset.

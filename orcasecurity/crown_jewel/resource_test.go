@@ -10,10 +10,9 @@ import (
 )
 
 // ORCA_TEST_CROWN_JEWEL_GROUP_UNIQUE_ID must be a real inventory group_unique_id
-// in the lab tenant that is not already user-marked or Orca-detected. Create
-// refuses unknown ids, already-marked assets (import those instead), and
-// engine-managed detections. Destroy leaves an is_crown_jewel=false override,
-// not a hard delete.
+// in the lab tenant that is not already user-marked. Create refuses unknown ids
+// and already-marked assets (import those instead). Orca-detected unmarked assets
+// can still be marked.
 func TestAccCrownJewelResource_Basic(t *testing.T) {
 	groupID := os.Getenv("ORCA_TEST_CROWN_JEWEL_GROUP_UNIQUE_ID")
 	if groupID == "" {
@@ -28,12 +27,12 @@ func TestAccCrownJewelResource_Basic(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "Customer data"
+  description     = "Data: Financial information"
 }
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "group_unique_id", groupID),
-					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Customer data"),
+					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Data: Financial information"),
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},
@@ -46,11 +45,11 @@ resource "orcasecurity_crown_jewel" "test" {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "Critical business function"
+  description     = "Access: Broad permission access"
 }
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Critical business function"),
+					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "description", "Access: Broad permission access"),
 					resource.TestCheckResourceAttr("orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},
@@ -72,7 +71,7 @@ func TestAccCrownJewelDataSource_Basic(t *testing.T) {
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_crown_jewel" "test" {
   group_unique_id = %q
-  description     = "Customer data"
+  description     = "Data: Financial information"
 }
 
 data "orcasecurity_crown_jewel" "test" {
@@ -81,7 +80,7 @@ data "orcasecurity_crown_jewel" "test" {
 `, groupID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "group_unique_id", groupID),
-					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "description", "Customer data"),
+					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "description", "Data: Financial information"),
 					resource.TestCheckResourceAttr("data.orcasecurity_crown_jewel.test", "id", groupID),
 				),
 			},

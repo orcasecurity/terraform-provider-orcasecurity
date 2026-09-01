@@ -70,8 +70,8 @@ func planWith(t *testing.T, sch schema.Schema, model resourceModel) tfsdk.Plan {
 
 func TestSchemaContracts(t *testing.T) {
 	sch := resourceSchema(t)
-	if !strings.Contains(sch.Description, "is_crown_jewel=false") {
-		t.Errorf("schema Description must document DELETE as an is_crown_jewel=false override, got %q", sch.Description)
+	if !strings.Contains(sch.Description, "user-marked") {
+		t.Errorf("schema Description must mention already user-marked create, got %q", sch.Description)
 	}
 
 	attrs := sch.Attributes
@@ -136,7 +136,7 @@ func TestCreate_RefetchMissSurfacesDiag(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		switch {
 		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
-			return jsonOK(req, `{"status":"success","data":[{"group_unique_id":"tf-miss","data":{"DetectedCrownJewelScore":{"value":0},"IsCrownJewel":{"value":false}}}]}`)
+			return jsonOK(req, `{"status":"success","data":[{"group_unique_id":"tf-miss","data":{"GroupUniqueId":{"value":"tf-miss"}}}]}`)
 		case req.Method == "POST":
 			return jsonOK(req, `{"status":"success"}`)
 		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
@@ -171,7 +171,7 @@ func TestCreate_SuccessKeepsPlanRequiredAttrs(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		switch {
 		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
-			return jsonOK(req, `{"status":"success","data":[{"group_unique_id":"tf-keep","data":{"DetectedCrownJewelScore":{"value":0},"IsCrownJewel":{"value":false}}}]}`)
+			return jsonOK(req, `{"status":"success","data":[{"group_unique_id":"tf-keep","data":{"GroupUniqueId":{"value":"tf-keep"}}}]}`)
 		case req.Method == "POST":
 			return jsonOK(req, `{"status":"success"}`)
 		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
@@ -288,27 +288,28 @@ func TestCreate_UnknownAssetFails(t *testing.T) {
 	}
 }
 
-// Create matches the UI: Mark is not offered on an Orca-detected crown jewel.
-func TestCreate_OrcaDetectedFails(t *testing.T) {
+// Create on an Orca-detected (but not user-marked) asset still POSTs — the UI
+// allows Mark there and the API upserts a user overlay (hybrid).
+func TestCreate_OrcaDetectedSucceeds(t *testing.T) {
+	var posted bool
 	r := stubResource(func(req *http.Request) *http.Response {
-		if req.Method == "POST" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels") {
-			t.Fatal("must not POST when the asset is Orca-detected")
-		}
 		switch {
 		case req.Method == "GET" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
+			if posted {
+				return jsonOK(req, `[{"group_unique_id":"vm_orca","description":"Data: Financial information"}]`)
+			}
 			return jsonOK(req, `[]`)
 		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/serving-layer/query"):
 			return jsonOK(req, `{
 				"status":"success",
 				"data":[{
 					"group_unique_id":"vm_orca",
-					"data":{
-						"GroupUniqueId":{"value":"vm_orca"},
-						"DetectedCrownJewelScore":{"value":75},
-						"IsCrownJewel":{"value":true}
-					}
+					"data":{"GroupUniqueId":{"value":"vm_orca"}}
 				}]
 			}`)
+		case req.Method == "POST" && strings.Contains(req.URL.Path, "/api/attack_paths/crown_jewels"):
+			posted = true
+			return jsonOK(req, `{"status":"success"}`)
 		default:
 			t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
 			return nil
@@ -318,19 +319,15 @@ func TestCreate_OrcaDetectedFails(t *testing.T) {
 	plan := resourceModel{
 		ID:            types.StringUnknown(),
 		GroupUniqueID: types.StringValue("vm_orca"),
-		Description:   types.StringValue("Customer data"),
+		Description:   types.StringValue("Data: Financial information"),
 	}
 	req := resource.CreateRequest{Plan: planWith(t, sch, plan)}
 	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
 	r.Create(context.Background(), req, resp)
-	if !resp.Diagnostics.HasError() {
-		t.Fatal("expected create to fail when the asset is Orca-detected")
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Orca-detected unmarked asset must be markable, got: %v", resp.Diagnostics)
 	}
-	detail := strings.ToLower(resp.Diagnostics.Errors()[0].Detail())
-	if !strings.Contains(detail, "vm_orca") {
-		t.Errorf("diagnostic must name the group_unique_id, got: %v", resp.Diagnostics)
-	}
-	if !strings.Contains(detail, "orca") {
-		t.Errorf("diagnostic must say the asset is Orca-detected, got: %v", resp.Diagnostics)
+	if !posted {
+		t.Fatal("expected POST to mark the Orca-detected asset")
 	}
 }

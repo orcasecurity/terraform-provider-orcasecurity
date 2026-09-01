@@ -3,25 +3,27 @@
 page_title: "orcasecurity_crown_jewel Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). The asset is identified by group_unique_id and must exist in inventory. Create fails when the UI would not offer Mark — already user-marked or Orca-detected. Import first to adopt an existing user mark. Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.
+  Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). The asset is identified by group_unique_id and must exist in inventory. Create fails if the asset is already user-marked — import first to adopt it. Orca-detected assets can still be marked. Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.
 ---
 
 # orcasecurity_crown_jewel (Resource)
 
-Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). The asset is identified by `group_unique_id` and must exist in inventory. Create fails when the UI would not offer Mark — already user-marked or Orca-detected. Import first to adopt an existing user mark. Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.
+Marks an asset as a user-defined crown jewel, matching the Orca UI (Mark as Crown Jewel). The asset is identified by `group_unique_id` and must exist in inventory. Create fails if the asset is already user-marked — import first to adopt it. Orca-detected assets can still be marked. Update changes the Reason on a mark this resource already manages. Destroy matches the UI disable action.
 
 ## Example Usage
 
 ```terraform
 # description is the same field as Reason in the Orca UI ("Mark as Crown Jewel").
-# Typical UI values: "Critical business function", "Customer data", "High blast radius",
-# or free text when choosing Other.
+# UI presets: "Data: Personal identifiable information", "Access: Broad permission access",
+# "Access: Secrets exposure", "Data: Intellectual property", "Data: Financial information",
+# or Other (free text, max 50 characters).
 #
-# Create fails if this asset is already user-marked or Orca-detected (same as the UI).
-# Import first to adopt an existing user mark. group_unique_id must exist in inventory.
+# Create fails if this asset is already user-marked. Import first to adopt an
+# existing mark. group_unique_id must exist in inventory. Orca-detected assets
+# can still be marked.
 resource "orcasecurity_crown_jewel" "example" {
   group_unique_id = "vm_123456789012_i-0123456789abcdef0"
-  description     = "Customer data"
+  description     = "Data: Financial information"
 
   timeouts = {
     create = "90s"
@@ -36,8 +38,8 @@ resource "orcasecurity_crown_jewel" "example" {
 
 ### Required
 
-- `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). Common UI values are `Critical business function`, `Customer data`, `High blast radius`, or free text when choosing Other.
-- `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. Create requires the id to exist in inventory and not already be user-marked or Orca-detected.
+- `description` (String) Reason for marking the asset as a crown jewel — the same field as **Reason** in the Orca UI ("Mark as Crown Jewel"). UI presets are `Data: Personal identifiable information`, `Access: Broad permission access`, `Access: Secrets exposure`, `Data: Intellectual property`, `Data: Financial information`, or Other (free text, max 50 characters).
+- `group_unique_id` (String) Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. Create requires the id to exist in inventory and not already be user-marked.
 
 ### Optional
 
@@ -58,8 +60,7 @@ Optional:
 
 ## Notes
 
-- **Create matches the Orca UI.** Apply fails when the UI would not offer Mark — the asset is
-  already a user-marked or Orca-detected crown jewel. Import first to adopt an existing user
+- **Create fails if already user-marked.** Import first to adopt an existing user
   mark, then change `description` later if you want a new Reason:
 
   ```shell
@@ -67,6 +68,8 @@ Optional:
   ```
 
 - **The asset must exist.** Create refuses unknown `group_unique_id` values.
+- **Orca-detected assets can still be marked.** Create adds a user-defined mark
+  on top of engine detection, matching the UI.
 - **Destroy matches the UI disable action.**
 - **Look up before import.** Use the [`orcasecurity_crown_jewel` data source](../data-sources/crown_jewel.md)
   to read the current Reason for an already-marked asset.

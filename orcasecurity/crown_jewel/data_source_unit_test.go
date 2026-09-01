@@ -42,8 +42,8 @@ func dataConfigWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.Con
 
 func TestDataSourceSchemaContracts(t *testing.T) {
 	sch := dataSourceSchema(t)
-	if !strings.Contains(sch.Description, "is_crown_jewel=true") {
-		t.Errorf("schema Description must mention GET only returns is_crown_jewel=true rows, got %q", sch.Description)
+	if !strings.Contains(sch.Description, "user-marked") {
+		t.Errorf("schema Description must mention user-marked lookup, got %q", sch.Description)
 	}
 
 	attrs := sch.Attributes

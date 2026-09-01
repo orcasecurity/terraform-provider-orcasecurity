@@ -40,8 +40,7 @@ func (d *crownJewelDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 	resp.Schema = schema.Schema{
 		Description: "Looks up a user-defined (user-marked) crown jewel by `group_unique_id`. " +
 			"Useful to read the current Reason before import, or to confirm an asset is marked. " +
-			"Returns an error when the asset is not user-marked. The list API only returns " +
-			"`is_crown_jewel=true` rows, so a disable override left by destroy is not visible.",
+			"Returns an error when the asset is not user-marked.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,

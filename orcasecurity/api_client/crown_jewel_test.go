@@ -14,6 +14,9 @@ const testCrownJewelGroupID = "tf-wasp-1553-probe-do-not-keep"
 func TestGetCrownJewel(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		assertMethodPath(t, req, "GET", "/api/attack_paths/crown_jewels")
+		if req.URL.Query().Get("source") != "user-marked" {
+			t.Errorf("GET must request source=user-marked, got %q", req.URL.RawQuery)
+		}
 		return &http.Response{
 			StatusCode: 200,
 			Body: io.NopCloser(strings.NewReader(`[
@@ -176,94 +179,6 @@ func TestDeleteCrownJewel(t *testing.T) {
 	}
 	if _, ok := payload["description"]; ok {
 		t.Errorf("DELETE body must omit description, got %v", payload)
-	}
-}
-
-func TestInventoryGroupExists(t *testing.T) {
-	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		assertMethodPath(t, req, "POST", "/api/serving-layer/query")
-		return &http.Response{
-			StatusCode: 200,
-			Body: io.NopCloser(strings.NewReader(`{
-				"status":"success",
-				"data":[{
-					"group_unique_id":"` + testCrownJewelGroupID + `",
-					"data":{"GroupUniqueId":{"value":"` + testCrownJewelGroupID + `"},"DetectedCrownJewelScore":{"value":0},"IsCrownJewel":{"value":false}}
-				}]
-			}`)),
-			Request: req,
-		}
-	})}
-	client := newTestAPIClient(httpClient)
-	ok, err := client.InventoryGroupExists(testCrownJewelGroupID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected inventory hit")
-	}
-}
-
-func TestIsOrcaDetected_Threshold(t *testing.T) {
-	cases := []struct {
-		score int
-		want  bool
-	}{
-		{0, false},
-		{19, false},
-		{20, true},
-		{75, true},
-	}
-	for _, tc := range cases {
-		g := &InventoryGroup{DetectedCrownJewelScore: tc.score}
-		if got := g.IsOrcaDetected(); got != tc.want {
-			t.Errorf("score %d: IsOrcaDetected()=%v, want %v", tc.score, got, tc.want)
-		}
-	}
-	if (*InventoryGroup)(nil).IsOrcaDetected() {
-		t.Error("nil inventory must not be Orca-detected")
-	}
-}
-
-func TestGetInventoryGroup_OrcaDetected(t *testing.T) {
-	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		return &http.Response{
-			StatusCode: 200,
-			Body: io.NopCloser(strings.NewReader(`{
-				"status":"success",
-				"data":[{
-					"group_unique_id":"vm_orca",
-					"data":{"DetectedCrownJewelScore":{"value":75},"IsCrownJewel":{"value":true}}
-				}]
-			}`)),
-			Request: req,
-		}
-	})}
-	client := newTestAPIClient(httpClient)
-	g, err := client.GetInventoryGroup("vm_orca")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if g == nil || !g.IsOrcaDetected() || g.DetectedCrownJewelScore != 75 {
-		t.Fatalf("expected orca-detected inventory, got %+v", g)
-	}
-}
-
-func TestInventoryGroupExists_Missing(t *testing.T) {
-	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":[]}`)),
-			Request:    req,
-		}
-	})}
-	client := newTestAPIClient(httpClient)
-	ok, err := client.InventoryGroupExists("tf-phantom")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ok {
-		t.Fatal("expected miss for unknown group_unique_id")
 	}
 }
 
