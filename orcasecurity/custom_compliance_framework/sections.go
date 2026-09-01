@@ -38,6 +38,8 @@ const fourthLevelMessage = "the API stores three levels; move these controls up 
 
 const invalidSectionIDMessage = "section_id_in_framework must be an integer, and a nested section must extend its parent (e.g. 7.2); the API derives section ids from control ids and rejects a non-numeric part"
 
+const duplicateSectionIDMessage = "section_id_in_framework must be unique among siblings; the API merges sections that share an id, so Terraform would see a smaller tree"
+
 const nestedSectionsDescription = "Nested sub-sections. A section may have tests or sub-sections, never both."
 
 const rejectedLevelDescription = "Not supported — the API stores three levels; ValidateConfig rejects controls placed here."
@@ -80,34 +82,86 @@ func positionalSectionID(parentID string, index int) string {
 	return parentID + "." + n
 }
 
-// sectionIDMatchesDepth is the server's rule: one integer per level, and each
-// nested id must extend its parent. Empty id is omitted (positional).
+func sectionDepth(parentID string) int {
+	if parentID == "" {
+		return 1
+	}
+	return strings.Count(parentID, ".") + 2
+}
+
+func isPlainUint(s string) bool {
+	_, err := strconv.ParseUint(s, 10, 64)
+	return err == nil
+}
+
+// sectionIDMatchesDepth is the server's rule: one unsigned integer per level,
+// and each nested id must extend its parent. Empty id is omitted (positional).
 func sectionIDMatchesDepth(id, parentID string, depth int) bool {
 	if id == "" {
 		return true
 	}
 	if depth <= 1 {
-		_, err := strconv.Atoi(id)
-		return err == nil && !strings.Contains(id, ".")
+		return isPlainUint(id)
 	}
 	prefix := parentID + "."
 	if parentID == "" || !strings.HasPrefix(id, prefix) {
 		return false
 	}
-	rest := id[len(prefix):]
-	_, err := strconv.Atoi(rest)
-	return err == nil && rest != "" && !strings.Contains(rest, ".")
+	return isPlainUint(id[len(prefix):])
 }
 
-func resolveSectionID(userID, parentID string, depth, index int) (string, bool) {
-	resolved := positionalSectionID(parentID, index)
-	if userID == "" {
-		return resolved, true
+type resolvedSectionID struct {
+	ID    string
+	Valid bool
+}
+
+// resolveSiblingIDs assigns ids for one sibling list. Explicit values win;
+// omitted values take the next unused positional id so they cannot collide
+// with an earlier explicit sibling (B8 shape 2).
+func resolveSiblingIDs(elems []attr.Value, parentID string, depth int) []resolvedSectionID {
+	out := make([]resolvedSectionID, len(elems))
+	userIDs := make([]string, len(elems))
+	claimed := make(map[string]struct{}, len(elems))
+
+	for i, e := range elems {
+		obj, ok := e.(types.Object)
+		if !ok || obj.IsNull() || obj.IsUnknown() {
+			out[i].Valid = true
+			continue
+		}
+		userIDs[i] = attrString(obj.Attributes(), "section_id_in_framework")
+		if userIDs[i] == "" {
+			continue
+		}
+		if !sectionIDMatchesDepth(userIDs[i], parentID, depth) {
+			out[i] = resolvedSectionID{ID: positionalSectionID(parentID, i), Valid: false}
+			continue
+		}
+		out[i] = resolvedSectionID{ID: userIDs[i], Valid: true}
+		claimed[userIDs[i]] = struct{}{}
 	}
-	if !sectionIDMatchesDepth(userID, parentID, depth) {
-		return resolved, false
+
+	next := 1
+	for i := range elems {
+		if userIDs[i] != "" {
+			continue
+		}
+		obj, ok := elems[i].(types.Object)
+		if !ok || obj.IsNull() || obj.IsUnknown() {
+			continue
+		}
+		for {
+			id := positionalSectionID(parentID, next-1)
+			next++
+			if _, taken := claimed[id]; taken {
+				continue
+			}
+			out[i] = resolvedSectionID{ID: id, Valid: true}
+			claimed[id] = struct{}{}
+			break
+		}
 	}
-	return userID, true
+	return out
 }
 
 func attrString(attrs map[string]attr.Value, name string) string {
@@ -175,15 +229,16 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 	if list.IsNull() || list.IsUnknown() {
 		return []api_client.CustomComplianceFrameworkSection{}
 	}
-	out := make([]api_client.CustomComplianceFrameworkSection, 0, len(list.Elements()))
-	for i, e := range list.Elements() {
+	elems := list.Elements()
+	ids := resolveSiblingIDs(elems, parentID, sectionDepth(parentID))
+	out := make([]api_client.CustomComplianceFrameworkSection, 0, len(elems))
+	for i, e := range elems {
 		obj, ok := e.(types.Object)
 		if !ok || obj.IsNull() || obj.IsUnknown() {
 			continue
 		}
 		attrs := obj.Attributes()
-		userID := attrString(attrs, "section_id_in_framework")
-		id := userID
+		id := ids[i].ID
 		if id == "" {
 			id = positionalSectionID(parentID, i)
 		}
@@ -292,12 +347,38 @@ func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, 
 		resp.Diagnostics.AddAttributeError(parent, invalidSectionSummary, msg)
 		return
 	}
+	ids := resolveSiblingIDs(list.Elements(), parentID, depth)
+	reportSiblingIDErrors(resp, list.Elements(), parent, ids)
 	for i, e := range list.Elements() {
-		validateOneSection(resp, e, parent.AtListIndex(i), depth, parentID, i)
+		validateOneSection(resp, e, parent.AtListIndex(i), depth, ids[i].ID)
 	}
 }
 
-func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p path.Path, depth int, parentID string, index int) {
+func reportSiblingIDErrors(resp *resource.ValidateConfigResponse, elems []attr.Value, parent path.Path, ids []resolvedSectionID) {
+	seen := make(map[string]int, len(ids))
+	for i, r := range ids {
+		obj, ok := elems[i].(types.Object)
+		if !ok || obj.IsNull() || obj.IsUnknown() {
+			continue
+		}
+		p := parent.AtListIndex(i).AtName("section_id_in_framework")
+		userID := attrString(obj.Attributes(), "section_id_in_framework")
+		if userID != "" && !r.Valid {
+			resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, invalidSectionIDMessage)
+			continue
+		}
+		if r.ID == "" || !r.Valid {
+			continue
+		}
+		if _, dup := seen[r.ID]; dup {
+			resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, duplicateSectionIDMessage)
+			continue
+		}
+		seen[r.ID] = i
+	}
+}
+
+func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p path.Path, depth int, resolved string) {
 	obj, ok := e.(types.Object)
 	if !ok || obj.IsNull() || obj.IsUnknown() {
 		return
@@ -307,11 +388,6 @@ func validateOneSection(resp *resource.ValidateConfigResponse, e attr.Value, p p
 		return
 	}
 	attrs := obj.Attributes()
-	userID := attrString(attrs, "section_id_in_framework")
-	resolved, idOK := resolveSectionID(userID, parentID, depth, index)
-	if !idOK {
-		resp.Diagnostics.AddAttributeError(p.AtName("section_id_in_framework"), invalidSectionSummary, invalidSectionIDMessage)
-	}
 	if listKnownEmpty(attrs["tests"]) {
 		resp.Diagnostics.AddAttributeError(p.AtName("tests"), invalidSectionSummary, emptyTestsListMessage)
 		if listLen(attrs["sections"]) == 0 {

@@ -16,7 +16,8 @@ Provides a custom compliance framework resource. Sections are read back from GET
 # Build a custom framework from CIS Level 1 controls on a built-in one. The
 # single-framework data source returns sections[].tests[].rule_id and cis_level;
 # omit rule_id_in_framework and the provider derives it as
-# <section_id_in_framework>.<1-based index>, matching the Orca UI.
+# <section_id_in_framework>.<1-based index>. Here that prefix is 7, so
+# controls become 7.1, 7.2, … — not the positional 1.1 default.
 data "orcasecurity_compliance_framework" "source" {
   id = "gcp_cis_3.0.0"
 }
@@ -46,7 +47,7 @@ resource "orcasecurity_custom_compliance_framework" "subset" {
   sections = [
     {
       name                    = "Selected controls"
-      section_id_in_framework = "1"
+      section_id_in_framework = "7"
       tests = [
         for t in local.level1_tests : { rule_id = t.rule_id }
       ]
@@ -88,7 +89,7 @@ Required:
 
 Optional:
 
-- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an integer, and a nested section must extend its parent (`7.2`) — the API derives section ids from the control ids and rejects a non-numeric part. Omitted values are assigned positionally. On read this is the catalog section `id`.
+- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique among siblings, and a nested section must extend its parent (`7.2`) — the API derives section ids from the control ids and merges siblings that share an id. Omitted values take the next unused positional id. On read this is the catalog section `id`.
 - `sections` (Attributes List) Nested sub-sections. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--tests))
 
@@ -101,7 +102,7 @@ Required:
 
 Optional:
 
-- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an integer, and a nested section must extend its parent (`7.2`) — the API derives section ids from the control ids and rejects a non-numeric part. Omitted values are assigned positionally. On read this is the catalog section `id`.
+- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique among siblings, and a nested section must extend its parent (`7.2`) — the API derives section ids from the control ids and merges siblings that share an id. Omitted values take the next unused positional id. On read this is the catalog section `id`.
 - `sections` (Attributes List) Nested sub-sections. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--tests))
 
@@ -114,7 +115,7 @@ Required:
 
 Optional:
 
-- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an integer, and a nested section must extend its parent (`7.2`) — the API derives section ids from the control ids and rejects a non-numeric part. Omitted values are assigned positionally. On read this is the catalog section `id`.
+- `section_id_in_framework` (String) Sets this section's id, which becomes the prefix of each control's `rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique among siblings, and a nested section must extend its parent (`7.2`) — the API derives section ids from the control ids and merges siblings that share an id. Omitted values take the next unused positional id. On read this is the catalog section `id`.
 - `sections` (Attributes List) Not supported — the API stores three levels; ValidateConfig rejects controls placed here. (see [below for nested schema](#nestedatt--sections--sections--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. Omit the attribute rather than setting `tests = []` — an empty tests list is read back as null. (see [below for nested schema](#nestedatt--sections--sections--sections--tests))
 
@@ -198,10 +199,12 @@ Optional:
   only writes published frameworks.
 - **`section_id_in_framework`.** Sets this section's id, which becomes the
   prefix of each control's `rule_id_in_framework` (`7` → `7.1`). Must be an
-  integer, and a nested section must extend its parent (`7.2`). The API
-  derives section ids from those control ids; the provider does not send
-  `section_id_in_framework` on the wire. On read this is the catalog section
-  `id`.
+  unsigned integer, unique among siblings, and a nested section must extend
+  its parent (`7.2`). Omitted values take the next unused positional id
+  (skipping ids already claimed by an explicit sibling). The API derives
+  section ids from those control ids and merges siblings that share an id;
+  the provider does not send `section_id_in_framework` on the wire. On read
+  this is the catalog section `id`.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

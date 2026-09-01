@@ -589,11 +589,146 @@ func TestSectionIDMatchesDepth(t *testing.T) {
 		{"7.2.1", "7.2", 3, true},
 		{"7.3.1", "7.2", 3, false},
 		{"", "", 1, true},
+		{"+7", "", 1, false},
+		{"-1", "", 1, false},
+		{"07", "", 1, true},
 	}
 	for _, tt := range tests {
 		if got := sectionIDMatchesDepth(tt.id, tt.parent, tt.depth); got != tt.ok {
 			t.Errorf("sectionIDMatchesDepth(%q, %q, %d) = %v, want %v", tt.id, tt.parent, tt.depth, got, tt.ok)
 		}
+	}
+}
+
+func siblingLeaf(t *testing.T, typ types.ObjectType, name, id, rule string) types.Object {
+	t.Helper()
+	attrs := map[string]attr.Value{
+		"name":     types.StringValue(name),
+		"tests":    mustList(t, testObjectType(), testObj(t, rule, "")),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+	}
+	if id != "" {
+		attrs["section_id_in_framework"] = types.StringValue(id)
+	}
+	return mustObject(t, typ, attrs)
+}
+
+func TestResolveSiblingIDs(t *testing.T) {
+	typ := sectionObjectType(maxSectionDepth)
+	tests := []struct {
+		name   string
+		parent string
+		depth  int
+		ids    []string
+		want   []string
+	}{
+		{"duplicate explicit", "", 1, []string{"7", "7"}, []string{"7", "7"}},
+		{"explicit then omitted skips claimed", "7", 2, []string{"7.2", ""}, []string{"7.2", "7.1"}},
+		{"distinct", "", 1, []string{"1", "2"}, []string{"1", "2"}},
+		{"all omitted", "", 1, []string{"", ""}, []string{"1", "2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			elems := make([]attr.Value, len(tt.ids))
+			for i, id := range tt.ids {
+				elems[i] = siblingLeaf(t, typ, "S", id, "r1")
+			}
+			got := resolveSiblingIDs(elems, tt.parent, tt.depth)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len=%d want %d", len(got), len(tt.want))
+			}
+			for i, w := range tt.want {
+				if got[i].ID != w {
+					t.Errorf("id[%d]=%q want %q", i, got[i].ID, w)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateConfig_RejectsDuplicateSiblingSectionIDs(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("dup"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType,
+			siblingLeaf(t, rootType, "Alpha", "7", "r1"),
+			siblingLeaf(t, rootType, "Beta", "7", "r2"),
+		),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, duplicateSectionIDMessage) {
+		t.Errorf("expected duplicate sibling diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_AcceptsOmittedSiblingSkippingClaimed(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("skip"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":                    types.StringValue("Parent"),
+			"section_id_in_framework": types.StringValue("7"),
+			"tests":                   types.ListNull(testObjectType()),
+			"sections": mustList(t, childType,
+				mustObject(t, childType, map[string]attr.Value{
+					"name":                    types.StringValue("C1"),
+					"section_id_in_framework": types.StringValue("7.2"),
+					"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "")),
+					"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+				}),
+				mustObject(t, childType, map[string]attr.Value{
+					"name":     types.StringValue("C2"),
+					"tests":    mustList(t, testObjectType(), testObj(t, "r2", "")),
+					"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+				}),
+			),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("omitted sibling must skip claimed 7.2, got %v", resp.Diagnostics)
+	}
+}
+
+func TestRequestFromPlanSkipsClaimedPositionalID(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	childType := sectionObjectType(maxSectionDepth - 1)
+	sections := mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+		"name":                    types.StringValue("Parent"),
+		"section_id_in_framework": types.StringValue("7"),
+		"tests":                   types.ListNull(testObjectType()),
+		"sections": mustList(t, childType,
+			mustObject(t, childType, map[string]attr.Value{
+				"name":                    types.StringValue("C1"),
+				"section_id_in_framework": types.StringValue("7.2"),
+				"tests":                   mustList(t, testObjectType(), testObj(t, "r1", "")),
+				"sections":                types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+			}),
+			mustObject(t, childType, map[string]attr.Value{
+				"name":     types.StringValue("C2"),
+				"tests":    mustList(t, testObjectType(), testObj(t, "r2", "")),
+				"sections": types.ListNull(sectionObjectType(maxSectionDepth - 2)),
+			}),
+		),
+	}))
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           sections,
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if req.Sections[0].Sections[0].Tests[0].RuleIDInFramework != "7.2.1" {
+		t.Errorf("explicit 7.2: %+v", req.Sections[0].Sections[0].Tests)
+	}
+	if req.Sections[0].Sections[1].Tests[0].RuleIDInFramework != "7.1.1" {
+		t.Errorf("omitted sibling must become 7.1, got %+v", req.Sections[0].Sections[1].Tests)
 	}
 }
 

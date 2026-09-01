@@ -108,10 +108,11 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 			Optional: true,
 			Computed: true,
 			Description: "Sets this section's id, which becomes the prefix of each control's " +
-				"`rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an integer, and a nested " +
-				"section must extend its parent (`7.2`) — the API derives section ids from the " +
-				"control ids and rejects a non-numeric part. Omitted values are assigned " +
-				"positionally. On read this is the catalog section `id`.",
+				"`rule_id_in_framework` (`7` → `7.1`, `7.2`). Must be an unsigned integer, unique " +
+				"among siblings, and a nested section must extend its parent (`7.2`) — the API " +
+				"derives section ids from the control ids and merges siblings that share an id. " +
+				"Omitted values take the next unused positional id. On read this is the catalog " +
+				"section `id`.",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 			},
