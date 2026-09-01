@@ -177,6 +177,46 @@ func TestStringOrNull(t *testing.T) {
 	}
 }
 
+func TestStringPtrOrNull(t *testing.T) {
+	if got := StringPtrOrNull(nil); !got.IsNull() {
+		t.Errorf("nil must map to null, got %v", got)
+	}
+	empty := ""
+	if got := StringPtrOrNull(&empty); !got.IsNull() {
+		t.Errorf("empty must map to null, got %v", got)
+	}
+	s := "x"
+	if got := StringPtrOrNull(&s); got.ValueString() != "x" {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestBoolPtrOrNull(t *testing.T) {
+	if got := BoolPtrOrNull(nil); !got.IsNull() {
+		t.Errorf("nil must map to null, got %v", got)
+	}
+	v := true
+	if got := BoolPtrOrNull(&v); !got.ValueBool() {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestStringListFromAPI(t *testing.T) {
+	ctx := context.Background()
+	got, d := StringListFromAPI(ctx, nil)
+	if d.HasError() || !got.IsNull() {
+		t.Errorf("nil must be null, got %v %v", got, d)
+	}
+	got, d = StringListFromAPI(ctx, []string{})
+	if d.HasError() || got.IsNull() || len(got.Elements()) != 0 {
+		t.Errorf("empty must be empty list, got %v %v", got, d)
+	}
+	got, d = StringListFromAPI(ctx, []string{"a"})
+	if d.HasError() || len(got.Elements()) != 1 {
+		t.Errorf("got %v %v", got, d)
+	}
+}
+
 func TestInt64ToAPIPtr(t *testing.T) {
 	if got := Int64ToAPIPtr(types.Int64Null()); got != nil {
 		t.Errorf("null must map to nil, got %v", got)

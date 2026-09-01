@@ -21,7 +21,7 @@ description: |-
 - **Destroy does not deselect.** Built-in frameworks exist before Terraform and the
   `organization` scope drives every user's compliance reporting. Removing this
   resource drops it from state and issues **no API call**. Use `scopes = []` to
-  disable, or `restore_on_destroy = true` to put `original_scopes` back.
+  disable.
 - **`scopes = []` is the disable action.** Read round-trips an empty set rather
   than treating it as "resource vanished", so an out-of-band deselect shows as
   drift (`[] → ["user"]`) instead of a misleading delete.

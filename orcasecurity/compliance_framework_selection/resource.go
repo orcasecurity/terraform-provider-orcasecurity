@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -40,15 +39,12 @@ type complianceFrameworkSelectionResource struct {
 }
 
 type resourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	FrameworkID      types.String `tfsdk:"framework_id"`
-	Scopes           types.Set    `tfsdk:"scopes"`
-	RestoreOnDestroy types.Bool   `tfsdk:"restore_on_destroy"`
-	OriginalScopes   types.Set    `tfsdk:"original_scopes"`
-	Active           types.Bool   `tfsdk:"active"`
-	DisplayName      types.String `tfsdk:"display_name"`
-	Custom           types.Bool   `tfsdk:"custom"`
-	IsReady          types.Bool   `tfsdk:"is_ready"`
+	ID          types.String `tfsdk:"id"`
+	FrameworkID types.String `tfsdk:"framework_id"`
+	Scopes      types.Set    `tfsdk:"scopes"`
+	DisplayName types.String `tfsdk:"display_name"`
+	Custom      types.Bool   `tfsdk:"custom"`
+	IsReady     types.Bool   `tfsdk:"is_ready"`
 }
 
 func NewComplianceFrameworkSelectionResource() resource.Resource {
@@ -75,10 +71,9 @@ func (r *complianceFrameworkSelectionResource) Schema(_ context.Context, _ resou
 		Description: "Manages which scopes (`user`, `organization`) a compliance framework is " +
 			"selected for. One resource per framework. `scopes = []` is the explicit disable " +
 			"action — it DELETEs every held scope. " +
-			"**Destroy is state-only by default** and does not deselect the framework: built-in " +
+			"**Destroy is state-only** and does not deselect the framework: built-in " +
 			"frameworks exist before Terraform and the `organization` scope is shared tenant " +
-			"state. Set `restore_on_destroy = true` to put `original_scopes` back instead. " +
-			"This resource never deletes the framework itself. " +
+			"state. This resource never deletes the framework itself. " +
 			"The `user` scope is token-scoped (the API token's own user), so a different token " +
 			"sees a different `user` selection. Two resources pointing at the same " +
 			"`framework_id` will fight.",
@@ -109,21 +104,6 @@ func (r *complianceFrameworkSelectionResource) Schema(_ context.Context, _ resou
 				Validators: []validator.Set{
 					setvalidator.ValueStringsAre(stringvalidator.OneOf(scopeUser, scopeOrganization)),
 				},
-			},
-			"restore_on_destroy": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
-				Description: "When true, destroy restores `original_scopes` instead of leaving the tenant untouched. Defaults to `false`.",
-			},
-			"original_scopes": schema.SetAttribute{
-				Computed:    true,
-				ElementType: types.StringType,
-				Description: "The framework's `selection_scopes` as they were the moment Create ran. Used by `restore_on_destroy`.",
-			},
-			"active": schema.BoolAttribute{
-				Computed:    true,
-				Description: "Whether the framework currently has any selection scope. From the API.",
 			},
 			"display_name": schema.StringAttribute{
 				Computed:    true,
@@ -170,8 +150,7 @@ func (r *complianceFrameworkSelectionResource) Create(ctx context.Context, req r
 		return
 	}
 
-	original := append([]string(nil), entry.SelectionScopes...)
-	if err := r.applyScopeDiff(plan.FrameworkID.ValueString(), original, desired); err != nil {
+	if err := r.applyScopeDiff(plan.FrameworkID.ValueString(), entry.SelectionScopes, desired); err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating compliance framework selection",
 			"Could not apply scopes, unexpected error: "+err.Error(),
@@ -179,15 +158,8 @@ func (r *complianceFrameworkSelectionResource) Create(ctx context.Context, req r
 		return
 	}
 
-	originalSet, d := stringSet(ctx, original)
-	resp.Diagnostics.Append(d...)
+	resp.Diagnostics.Append(r.refresh(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.OriginalScopes = originalSet
-
-	if err := r.refresh(ctx, &plan); err != nil {
-		resp.Diagnostics.AddError(errReadingSelection, err.Error())
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -218,14 +190,6 @@ func (r *complianceFrameworkSelectionResource) Read(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if state.OriginalScopes.IsNull() {
-		original, d := stringSet(ctx, entry.SelectionScopes)
-		resp.Diagnostics.Append(d...)
-		state.OriginalScopes = original
-	}
-	if state.RestoreOnDestroy.IsNull() {
-		state.RestoreOnDestroy = types.BoolValue(false)
-	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -251,41 +215,16 @@ func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req r
 		return
 	}
 
-	plan.OriginalScopes = state.OriginalScopes
-	if err := r.refresh(ctx, &plan); err != nil {
-		resp.Diagnostics.AddError(errReadingSelection, err.Error())
+	resp.Diagnostics.Append(r.refresh(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *complianceFrameworkSelectionResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state resourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Default destroy is state-only: this resource never created the framework,
-	// and the organization scope is shared tenant state. Disabling is `scopes = []`.
-	if !state.RestoreOnDestroy.ValueBool() {
-		return
-	}
-
-	current, d := integrations_common.StringSliceFromSet(ctx, state.Scopes)
-	resp.Diagnostics.Append(d...)
-	original, d := integrations_common.StringSliceFromSet(ctx, state.OriginalScopes)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if err := r.applyScopeDiffIgnoringGone(state.FrameworkID.ValueString(), current, original); err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting compliance framework selection",
-			"Could not restore original scopes: "+err.Error(),
-		)
-	}
+// Destroy is state-only: this resource never created the framework, and the
+// organization scope is shared tenant state. Disabling is `scopes = []`.
+func (r *complianceFrameworkSelectionResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
 }
 
 func (r *complianceFrameworkSelectionResource) lookup(id string) (*api_client.ComplianceFramework, error) {
@@ -300,37 +239,33 @@ func (r *complianceFrameworkSelectionResource) lookup(id string) (*api_client.Co
 	return &entry, nil
 }
 
-func (r *complianceFrameworkSelectionResource) refresh(ctx context.Context, plan *resourceModel) error {
+func (r *complianceFrameworkSelectionResource) refresh(ctx context.Context, plan *resourceModel) diag.Diagnostics {
 	entry, err := r.lookup(plan.FrameworkID.ValueString())
 	if err != nil {
-		return err
+		var d diag.Diagnostics
+		d.AddError(errReadingSelection, err.Error())
+		return d
 	}
 	if entry == nil {
-		return fmt.Errorf("framework %s disappeared after write", plan.FrameworkID.ValueString())
+		var d diag.Diagnostics
+		d.AddError(errReadingSelection, fmt.Sprintf("framework %s disappeared after write", plan.FrameworkID.ValueString()))
+		return d
 	}
-	if diags := populateFromEntry(ctx, plan, entry); diags.HasError() {
-		return fmt.Errorf("%s", diags.Errors())
-	}
-	return nil
+	return populateFromEntry(ctx, plan, entry)
 }
 
 func populateFromEntry(ctx context.Context, model *resourceModel, entry *api_client.ComplianceFramework) diag.Diagnostics {
-	scopes, d := stringSet(ctx, entry.SelectionScopes)
+	scopes, d := tfconv.StringSetFromAPIPreserveNull(ctx, model.Scopes, entry.SelectionScopes)
 	if d.HasError() {
 		return d
 	}
 	model.ID = types.StringValue(entry.ID)
 	model.FrameworkID = types.StringValue(entry.ID)
 	model.Scopes = scopes
-	model.Active = types.BoolValue(entry.Active)
 	model.DisplayName = types.StringValue(entry.DisplayName)
 	model.Custom = types.BoolValue(entry.Custom)
-	if entry.IsReady == nil {
-		model.IsReady = types.BoolNull()
-	} else {
-		model.IsReady = types.BoolValue(*entry.IsReady)
-	}
-	return nil
+	model.IsReady = tfconv.BoolPtrOrNull(entry.IsReady)
+	return d
 }
 
 func (r *complianceFrameworkSelectionResource) applyScopeDiff(frameworkID string, from, to []string) error {
@@ -346,32 +281,6 @@ func (r *complianceFrameworkSelectionResource) applyScopeDiff(frameworkID string
 		}
 	}
 	return nil
-}
-
-func (r *complianceFrameworkSelectionResource) applyScopeDiffIgnoringGone(frameworkID string, from, to []string) error {
-	add, remove := DiffScopes(from, to)
-	for _, scope := range add {
-		if err := ignoreGone(r.apiClient.SelectComplianceFrameworks([]string{frameworkID}, scope)); err != nil {
-			return err
-		}
-	}
-	for _, scope := range remove {
-		if err := ignoreGone(r.apiClient.DeselectComplianceFrameworks([]string{frameworkID}, scope)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func ignoreGone(err error) error {
-	if err == nil {
-		return nil
-	}
-	// doRequest wraps 404 as "API returned error - status: 404, ..."
-	if strings.Contains(err.Error(), "status: 404") {
-		return nil
-	}
-	return err
 }
 
 // DiffScopes returns the scopes to POST (add) and DELETE (remove) to go from
@@ -396,11 +305,4 @@ func DiffScopes(from, to []string) (add, remove []string) {
 	sort.Strings(add)
 	sort.Strings(remove)
 	return add, remove
-}
-
-func stringSet(ctx context.Context, values []string) (types.Set, diag.Diagnostics) {
-	if values == nil {
-		values = []string{}
-	}
-	return types.SetValueFrom(ctx, types.StringType, values)
 }

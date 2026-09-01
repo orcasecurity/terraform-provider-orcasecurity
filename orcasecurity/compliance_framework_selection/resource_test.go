@@ -57,18 +57,15 @@ func resourceSchema(t *testing.T) schema.Schema {
 	return resp.Schema
 }
 
-func model(t *testing.T, frameworkID string, scopes []string, restore bool, original []string) resourceModel {
+func model(t *testing.T, frameworkID string, scopes []string) resourceModel {
 	t.Helper()
 	return resourceModel{
-		ID:               types.StringValue(frameworkID),
-		FrameworkID:      types.StringValue(frameworkID),
-		Scopes:           testutils.StringSet(t, scopes...),
-		RestoreOnDestroy: types.BoolValue(restore),
-		OriginalScopes:   testutils.StringSet(t, original...),
-		Active:           types.BoolValue(len(scopes) > 0),
-		DisplayName:      types.StringValue("Lab"),
-		Custom:           types.BoolValue(false),
-		IsReady:          types.BoolValue(true),
+		ID:          types.StringValue(frameworkID),
+		FrameworkID: types.StringValue(frameworkID),
+		Scopes:      testutils.StringSet(t, scopes...),
+		DisplayName: types.StringValue("Lab"),
+		Custom:      types.BoolValue(false),
+		IsReady:     types.BoolValue(true),
 	}
 }
 
@@ -133,7 +130,7 @@ func selectStub(t *testing.T, entries map[string]map[string]interface{}, record 
 func TestRead_AbsentRemovesResource(t *testing.T) {
 	r := stubResource(selectStub(t, map[string]map[string]interface{}{}, nil, nil))
 	sch := resourceSchema(t)
-	m := model(t, "gone", []string{"user"}, false, nil)
+	m := model(t, "gone", []string{"user"})
 	req := resource.ReadRequest{State: stateWith(t, sch, m)}
 	resp := &resource.ReadResponse{State: stateWith(t, sch, m)}
 	r.Read(context.Background(), req, resp)
@@ -154,7 +151,7 @@ func TestRead_EmptyScopesKeepsResource(t *testing.T) {
 	}
 	r := stubResource(selectStub(t, entries, nil, nil))
 	sch := resourceSchema(t)
-	m := model(t, "cost_optimization", []string{"user"}, false, []string{})
+	m := model(t, "cost_optimization", []string{"user"})
 	req := resource.ReadRequest{State: stateWith(t, sch, m)}
 	resp := &resource.ReadResponse{State: stateWith(t, sch, m)}
 	r.Read(context.Background(), req, resp)
@@ -173,9 +170,6 @@ func TestRead_EmptyScopesKeepsResource(t *testing.T) {
 	}
 	if len(out.Scopes.Elements()) != 0 {
 		t.Errorf("scopes = %v, want empty", out.Scopes.Elements())
-	}
-	if out.Active.ValueBool() {
-		t.Error("active must be false when scopes are empty")
 	}
 }
 
@@ -201,8 +195,8 @@ func TestUpdate_ScopeDiffs(t *testing.T) {
 			}
 			r := stubResource(selectStub(t, entries, &calls, nil))
 			sch := resourceSchema(t)
-			from := model(t, "fw", tt.from, false, nil)
-			to := model(t, "fw", tt.to, false, nil)
+			from := model(t, "fw", tt.from)
+			to := model(t, "fw", tt.to)
 			req := resource.UpdateRequest{State: stateWith(t, sch, from), Plan: planWith(t, sch, to)}
 			resp := &resource.UpdateResponse{State: stateWith(t, sch, from)}
 			r.Update(context.Background(), req, resp)
@@ -225,7 +219,7 @@ func TestDelete_DefaultIssuesNoHTTP(t *testing.T) {
 	var calls []httpCall
 	r := stubResource(selectStub(t, map[string]map[string]interface{}{}, &calls, nil))
 	sch := resourceSchema(t)
-	m := model(t, "fw", []string{"user"}, false, []string{})
+	m := model(t, "fw", []string{"user"})
 	req := resource.DeleteRequest{State: stateWith(t, sch, m)}
 	resp := &resource.DeleteResponse{}
 	r.Delete(context.Background(), req, resp)
@@ -235,47 +229,6 @@ func TestDelete_DefaultIssuesNoHTTP(t *testing.T) {
 	if len(calls) != 0 {
 		t.Errorf("default destroy must issue no HTTP, got %#v", calls)
 	}
-}
-
-func restoreDeleteCalls(t *testing.T, current, original []string, statusFor func(*http.Request) int) []httpCall {
-	t.Helper()
-	var calls []httpCall
-	r := stubResource(selectStub(t, map[string]map[string]interface{}{}, &calls, statusFor))
-	req := resource.DeleteRequest{State: stateWith(t, resourceSchema(t), model(t, "fw", current, true, original))}
-	resp := &resource.DeleteResponse{}
-	r.Delete(context.Background(), req, resp)
-	if resp.Diagnostics.HasError() {
-		t.Fatalf("delete: %v", resp.Diagnostics)
-	}
-	return calls
-}
-
-func assertScopeMethods(t *testing.T, calls []httpCall, want map[string]string) {
-	t.Helper()
-	got := map[string]string{}
-	for _, c := range calls {
-		got[c.Scope] = c.Method
-	}
-	for scope, method := range want {
-		if got[scope] != method {
-			t.Errorf("calls = %#v, want %#v", calls, want)
-			return
-		}
-	}
-}
-
-func TestDelete_RestoreOnDestroy(t *testing.T) {
-	t.Run("empty original deselects all", func(t *testing.T) {
-		assertScopeMethods(t, restoreDeleteCalls(t, []string{"user", "organization"}, nil, nil),
-			map[string]string{"user": "DELETE", "organization": "DELETE"})
-	})
-	t.Run("organization to user swaps", func(t *testing.T) {
-		assertScopeMethods(t, restoreDeleteCalls(t, []string{"user"}, []string{"organization"}, nil),
-			map[string]string{"organization": "POST", "user": "DELETE"})
-	})
-	t.Run("swallows 404", func(t *testing.T) {
-		restoreDeleteCalls(t, []string{"user"}, nil, func(*http.Request) int { return 404 })
-	})
 }
 
 func TestSchema_EmptyScopesAllowed(t *testing.T) {

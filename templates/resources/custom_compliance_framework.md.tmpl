@@ -27,8 +27,9 @@ description: |-
   rejects that config.
 - **Nesting is at most three levels** (`sections → sections → sections`). That
   is an API limit (`category` / `sub_category` / `sub_sub_category`); a fourth
-  level is accepted with HTTP 200 and then silently dropped, with its controls
-  reparented onto the third. The provider rejects a fourth level in config.
+  nested `sections` is not in the schema, so Terraform rejects it at parse time.
+  The API would otherwise accept it with HTTP 200 and silently drop it, reparenting
+  its controls onto the third level.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

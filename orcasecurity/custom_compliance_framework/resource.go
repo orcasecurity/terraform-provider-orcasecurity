@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -32,13 +33,13 @@ type customComplianceFrameworkResource struct {
 }
 
 type customComplianceFrameworkResourceModel struct {
-	ID                 types.String   `tfsdk:"id"`
-	Name               types.String   `tfsdk:"name"`
-	Description        types.String   `tfsdk:"description"`
-	Visibility         types.String   `tfsdk:"visibility"`
-	Scope              types.String   `tfsdk:"scope"`
-	ForcedCloudVendors types.Set      `tfsdk:"forced_cloud_vendors"`
-	Sections           []sectionModel `tfsdk:"sections"`
+	ID                 types.String `tfsdk:"id"`
+	Name               types.String `tfsdk:"name"`
+	Description        types.String `tfsdk:"description"`
+	Visibility         types.String `tfsdk:"visibility"`
+	Scope              types.String `tfsdk:"scope"`
+	ForcedCloudVendors types.Set    `tfsdk:"forced_cloud_vendors"`
+	Sections           types.List   `tfsdk:"sections"`
 }
 
 func NewCustomComplianceFrameworkResource() resource.Resource {
@@ -84,7 +85,6 @@ func testAttributes() map[string]schema.Attribute {
 		"priority":            computedOptional("Control priority as accepted by the API (e.g. `Medium`)."),
 		"control_unique_id":   computedOptional("Catalog control unique id. Echoed when the API returns it."),
 		"origin_framework_id": computedOptional("Origin framework id when this control was copied from another framework."),
-		"reference_id":        computedOptional("Server-echoed control id. Same value as `rule_id_in_framework` after apply."),
 	}
 }
 
@@ -106,8 +106,9 @@ func sectionAttributes(remainingDepth int) map[string]schema.Attribute {
 		attrs["sections"] = schema.ListNestedAttribute{
 			Optional: true,
 			Description: "Nested sub-sections. The API stores exactly three levels " +
-				"(sections → sections → sections); a fourth is a config error because the " +
-				"server would drop it and reparent its controls. A section may have tests or sub-sections, never both.",
+				"(sections → sections → sections). A fourth nested `sections` is not " +
+				"an attribute — the server would drop it and reparent its controls. " +
+				"A section may have tests or sub-sections, never both.",
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: sectionAttributes(remainingDepth - 1),
 			},
@@ -121,8 +122,8 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 		Description: "Provides a custom compliance framework resource. Sections are read back " +
 			"from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. " +
 			"A section may contain tests or nested sections, never both — the API would otherwise " +
-			"silently flatten it. Nesting is at most three levels; a fourth is rejected because " +
-			"the API would drop it and reparent its controls. " +
+			"silently flatten it. Nesting is at most three levels (an API limit); a fourth nested " +
+			"`sections` block is not in the schema. " +
 			"Omit `scope` to create the framework inactive; ongoing activation belongs to " +
 			"`orcasecurity_compliance_framework_selection`.",
 		Attributes: map[string]schema.Attribute{
@@ -178,9 +179,7 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				Required:    true,
 				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit).",
 				NestedObject: schema.NestedAttributeObject{
-					// remainingDepth 3 exposes a fourth nested `sections` so ValidateConfig
-					// can reject it with a data-loss message instead of an opaque schema error.
-					Attributes: sectionAttributes(3),
+					Attributes: sectionAttributes(maxSectionDepth - 1),
 				},
 			},
 		},
@@ -193,39 +192,7 @@ func (r *customComplianceFrameworkResource) ValidateConfig(ctx context.Context, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	validateSections(resp, config.Sections)
-}
-
-func rejectMixedSection(resp *resource.ValidateConfigResponse, p path.Path, tests, children int) {
-	if sectionHasTestsAndChildren(tests, children) {
-		resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, mixedSectionError(p.String()))
-	}
-}
-
-func validateLeafSections(resp *resource.ValidateConfigResponse, parent path.Path, leaves []leafSectionModel) {
-	for k, leaf := range leaves {
-		lp := parent.AtName("sections").AtListIndex(k)
-		rejectMixedSection(resp, lp, len(leaf.Tests), len(leaf.Sections))
-		if len(leaf.Sections) > 0 {
-			resp.Diagnostics.AddAttributeError(lp.AtName("sections"), "Section nesting too deep", depthSectionMessage)
-		}
-	}
-}
-
-func validateMidSections(resp *resource.ValidateConfigResponse, parent path.Path, mids []midSectionModel) {
-	for j, mid := range mids {
-		mp := parent.AtName("sections").AtListIndex(j)
-		rejectMixedSection(resp, mp, len(mid.Tests), len(mid.Sections))
-		validateLeafSections(resp, mp, mid.Sections)
-	}
-}
-
-func validateSections(resp *resource.ValidateConfigResponse, sections []sectionModel) {
-	for i, s := range sections {
-		p := path.Root("sections").AtListIndex(i)
-		rejectMixedSection(resp, p, len(s.Tests), len(s.Sections))
-		validateMidSections(resp, p, s.Sections)
-	}
+	validateSections(resp, config.Sections, path.Root("sections"))
 }
 
 func (r *customComplianceFrameworkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -251,8 +218,8 @@ func (r *customComplianceFrameworkResource) Create(ctx context.Context, req reso
 	}
 
 	plan.ID = types.StringValue(instance.ID.String())
-	if err := r.refresh(ctx, &plan); err != nil {
-		resp.Diagnostics.AddError(errReadingFramework, err.Error())
+	resp.Diagnostics.Append(r.refresh(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -265,12 +232,9 @@ func (r *customComplianceFrameworkResource) Read(ctx context.Context, req resour
 		return
 	}
 
-	ok, err := r.populate(ctx, &state)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			errReadingFramework,
-			fmt.Sprintf("Could not read custom compliance framework ID %s: %s", state.ID.ValueString(), err.Error()),
-		)
+	ok, d := r.populate(ctx, &state)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	if !ok {
@@ -303,8 +267,8 @@ func (r *customComplianceFrameworkResource) Update(ctx context.Context, req reso
 		return
 	}
 
-	if err := r.refresh(ctx, &plan); err != nil {
-		resp.Diagnostics.AddError(errReadingFramework, err.Error())
+	resp.Diagnostics.Append(r.refresh(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -325,41 +289,35 @@ func (r *customComplianceFrameworkResource) Delete(ctx context.Context, req reso
 	}
 }
 
-func (r *customComplianceFrameworkResource) refresh(ctx context.Context, model *customComplianceFrameworkResourceModel) error {
-	ok, err := r.populate(ctx, model)
-	if err != nil {
-		return err
+func (r *customComplianceFrameworkResource) refresh(ctx context.Context, model *customComplianceFrameworkResourceModel) diag.Diagnostics {
+	ok, d := r.populate(ctx, model)
+	if d.HasError() {
+		return d
 	}
 	if !ok {
-		return fmt.Errorf("custom compliance framework %s disappeared after write", model.ID.ValueString())
+		var diags diag.Diagnostics
+		diags.AddError(errReadingFramework, fmt.Sprintf("custom compliance framework %s disappeared after write", model.ID.ValueString()))
+		return diags
 	}
 	return nil
 }
 
 // populate reads metadata + catalog into model. ok=false means 404/gone.
-func (r *customComplianceFrameworkResource) populate(ctx context.Context, model *customComplianceFrameworkResourceModel) (bool, error) {
+func (r *customComplianceFrameworkResource) populate(ctx context.Context, model *customComplianceFrameworkResourceModel) (bool, diag.Diagnostics) {
 	id := model.ID.ValueString()
 	fw, err := r.apiClient.GetCustomComplianceFramework(id)
 	if err != nil {
-		return false, err
+		var d diag.Diagnostics
+		d.AddError(errReadingFramework, err.Error())
+		return false, d
 	}
 	if fw == nil {
 		return false, nil
 	}
 
 	model.Name = types.StringValue(fw.DisplayName)
-	if fw.Description == nil || *fw.Description == "" {
-		if model.Description.IsNull() || model.Description.IsUnknown() {
-			model.Description = types.StringNull()
-		}
-	} else {
-		model.Description = types.StringValue(*fw.Description)
-	}
-	if fw.Visibility == nil || *fw.Visibility == "" {
-		model.Visibility = types.StringNull()
-	} else {
-		model.Visibility = types.StringValue(*fw.Visibility)
-	}
+	model.Description = tfconv.StringPtrOrNull(fw.Description)
+	model.Visibility = tfconv.StringPtrOrNull(fw.Visibility)
 
 	forced := []string(nil)
 	if fw.IsForcedCloudVendors != nil && *fw.IsForcedCloudVendors {
@@ -367,17 +325,24 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 	}
 	set, d := integrations_common.OptionalSetMatchPlan(ctx, model.ForcedCloudVendors, forced)
 	if d.HasError() {
-		return false, fmt.Errorf("%s", d.Errors())
+		return false, d
 	}
 	model.ForcedCloudVendors = set
 
 	catalog, err := r.apiClient.GetComplianceCatalogFramework(id)
 	if err != nil {
-		return false, err
+		var diags diag.Diagnostics
+		diags.AddError(errReadingFramework, err.Error())
+		return false, diags
 	}
-	if catalog != nil {
-		model.Sections = sectionsFromCatalog(catalog.Sections)
+	if catalog == nil {
+		return false, catalogMissingDiag(id)
 	}
+	sections, d := sectionsFromCatalog(ctx, catalog.Sections, maxSectionDepth-1)
+	if d.HasError() {
+		return false, d
+	}
+	model.Sections = sections
 	return true, nil
 }
 

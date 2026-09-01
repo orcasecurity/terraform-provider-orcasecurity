@@ -21,7 +21,7 @@ type complianceFrameworkDataSource struct {
 
 type singleDataSourceModel struct {
 	frameworkModel
-	Sections []catalogSectionModel `tfsdk:"sections"`
+	Sections types.List `tfsdk:"sections"`
 }
 
 func NewComplianceFrameworkDataSource() datasource.DataSource {
@@ -45,7 +45,7 @@ func (d *complianceFrameworkDataSource) Schema(_ context.Context, _ datasource.S
 		Computed:    true,
 		Description: "Section/test tree from GET /api/compliance/catalog/{id}. Nested at most three levels (a section has tests, or sub-sections, never both). Server-assigned section ids are omitted.",
 		NestedObject: schema.NestedAttributeObject{
-			Attributes: catalogSectionAttributes(2),
+			Attributes: catalogSectionAttributes(maxCatalogDepth - 1),
 		},
 	}
 	resp.Schema = schema.Schema{
@@ -108,14 +108,27 @@ func (d *complianceFrameworkDataSource) Read(ctx context.Context, req datasource
 		return
 	}
 
-	state := singleDataSourceModel{frameworkModel: frameworkToModel(*fw)}
+	fwModel, diags := frameworkToModel(ctx, *fw)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := singleDataSourceModel{frameworkModel: fwModel}
 	catalog, err := d.apiClient.GetComplianceCatalogFramework(id)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading compliance catalog", fmt.Sprintf("Could not read catalog for framework %s: %s", id, err.Error()))
 		return
 	}
-	if catalog != nil {
-		state.Sections = catalogSectionsToModel(catalog.Sections)
+	if catalog == nil {
+		resp.Diagnostics.AddError("Error reading compliance catalog", fmt.Sprintf("GET /api/compliance/catalog/%s returned no framework.", id))
+		return
 	}
+	sections, diags := catalogSectionsToModel(ctx, catalog.Sections, maxCatalogDepth-1)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Sections = sections
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

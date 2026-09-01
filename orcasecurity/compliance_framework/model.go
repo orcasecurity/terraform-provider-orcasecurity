@@ -1,14 +1,20 @@
 package compliance_framework
 
 import (
+	"context"
 	"sort"
 	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+const maxCatalogDepth = 3
 
 type frameworkModel struct {
 	ID                         types.String `tfsdk:"id"`
@@ -27,96 +33,54 @@ type frameworkModel struct {
 	Visibility                 types.String `tfsdk:"visibility"`
 }
 
-type catalogTestModel struct {
-	Name              types.String `tfsdk:"name"`
-	RuleID            types.String `tfsdk:"rule_id"`
-	ReferenceID       types.String `tfsdk:"reference_id"`
-	OriginFrameworkID types.String `tfsdk:"origin_framework_id"`
-	CloudVendors      types.List   `tfsdk:"cloud_vendors"`
-	ControlUniqueID   types.String `tfsdk:"control_unique_id"`
-	Priority          types.String `tfsdk:"priority"`
-}
-
-type catalogLeafSectionModel struct {
-	Name  types.String       `tfsdk:"name"`
-	Tests []catalogTestModel `tfsdk:"tests"`
-}
-
-type catalogMidSectionModel struct {
-	Name     types.String              `tfsdk:"name"`
-	Tests    []catalogTestModel        `tfsdk:"tests"`
-	Sections []catalogLeafSectionModel `tfsdk:"sections"`
-}
-
-type catalogSectionModel struct {
-	Name     types.String             `tfsdk:"name"`
-	Tests    []catalogTestModel       `tfsdk:"tests"`
-	Sections []catalogMidSectionModel `tfsdk:"sections"`
-}
-
-func optionalString(s *string) types.String {
-	if s == nil || *s == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(*s)
-}
-
-func optionalNonEmpty(s string) types.String {
-	if s == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(s)
-}
-
-func optionalBool(b *bool) types.Bool {
-	if b == nil {
-		return types.BoolNull()
-	}
-	return types.BoolValue(*b)
-}
-
-func optionalStringList(values []string) types.List {
-	if values == nil {
-		return types.ListNull(types.StringType)
-	}
-	elems := make([]attr.Value, len(values))
-	for i, v := range values {
-		elems[i] = types.StringValue(v)
-	}
-	return types.ListValueMust(types.StringType, elems)
-}
-
-func sortedStringList(values []string) types.List {
-	cp := append([]string(nil), values...)
-	sort.Strings(cp)
-	return optionalStringList(cp)
-}
-
-func frameworkToModel(fw api_client.ComplianceFramework) frameworkModel {
-	return frameworkModel{
-		ID:                         types.StringValue(fw.ID),
-		DisplayName:                types.StringValue(fw.DisplayName),
-		Description:                optionalString(fw.Description),
-		Custom:                     types.BoolValue(fw.Custom),
-		Active:                     types.BoolValue(fw.Active),
-		SelectionScopes:            sortedStringList(fw.SelectionScopes),
-		Type:                       optionalString(fw.Type),
-		Version:                    optionalString(fw.Version),
-		VersionAgnosticDisplayName: optionalString(fw.VersionAgnosticDisplayName),
-		IsReady:                    optionalBool(fw.IsReady),
-		FrameworkCloudVendors:      optionalStringList(fw.FrameworkCloudVendors),
-		IconFamily:                 optionalString(fw.IconFamily),
-		OrcaEndOfSupportDate:       optionalString(fw.OrcaEndOfSupportDate),
-		Visibility:                 optionalString(fw.Visibility),
-	}
-}
-
 type frameworkFilters struct {
 	custom      types.Bool
 	active      types.Bool
 	typ         types.String
 	displayName types.String
 	search      types.String
+}
+
+func catalogObjectTypeFromAttributes(attrs map[string]schema.Attribute) types.ObjectType {
+	m := make(map[string]attr.Type, len(attrs))
+	for k, a := range attrs {
+		m[k] = a.GetType()
+	}
+	return types.ObjectType{AttrTypes: m}
+}
+
+func catalogSectionObjectType(remainingDepth int) types.ObjectType {
+	return catalogObjectTypeFromAttributes(catalogSectionAttributes(remainingDepth))
+}
+
+func catalogTestObjectType() types.ObjectType {
+	return catalogSectionObjectType(0).AttrTypes["tests"].(types.ListType).ElemType.(types.ObjectType)
+}
+
+func frameworkToModel(ctx context.Context, fw api_client.ComplianceFramework) (frameworkModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	sorted := append([]string(nil), fw.SelectionScopes...)
+	sort.Strings(sorted)
+	scopes, d := tfconv.StringListFromAPI(ctx, sorted)
+	diags.Append(d...)
+	vendors, d := tfconv.StringListFromAPI(ctx, fw.FrameworkCloudVendors)
+	diags.Append(d...)
+	return frameworkModel{
+		ID:                         types.StringValue(fw.ID),
+		DisplayName:                types.StringValue(fw.DisplayName),
+		Description:                tfconv.StringPtrOrNull(fw.Description),
+		Custom:                     types.BoolValue(fw.Custom),
+		Active:                     types.BoolValue(fw.Active),
+		SelectionScopes:            scopes,
+		Type:                       tfconv.StringPtrOrNull(fw.Type),
+		Version:                    tfconv.StringPtrOrNull(fw.Version),
+		VersionAgnosticDisplayName: tfconv.StringPtrOrNull(fw.VersionAgnosticDisplayName),
+		IsReady:                    tfconv.BoolPtrOrNull(fw.IsReady),
+		FrameworkCloudVendors:      vendors,
+		IconFamily:                 tfconv.StringPtrOrNull(fw.IconFamily),
+		OrcaEndOfSupportDate:       tfconv.StringPtrOrNull(fw.OrcaEndOfSupportDate),
+		Visibility:                 tfconv.StringPtrOrNull(fw.Visibility),
+	}, diags
 }
 
 func matchBoolFilter(filter types.Bool, got bool) bool {
@@ -129,10 +93,6 @@ func stringFilterValue(v types.String) (string, bool) {
 	}
 	s := v.ValueString()
 	return s, s != ""
-}
-
-func pointerEquals(got *string, want string) bool {
-	return got != nil && *got == want
 }
 
 func searchMatches(fw api_client.ComplianceFramework, q string) bool {
@@ -153,7 +113,7 @@ func matchFramework(fw api_client.ComplianceFramework, f frameworkFilters) bool 
 	if !matchBoolFilter(f.active, fw.Active) {
 		return false
 	}
-	if want, ok := stringFilterValue(f.typ); ok && !pointerEquals(fw.Type, want) {
+	if want, ok := stringFilterValue(f.typ); ok && (fw.Type == nil || *fw.Type != want) {
 		return false
 	}
 	if want, ok := stringFilterValue(f.displayName); ok && fw.DisplayName != want {
@@ -165,79 +125,75 @@ func matchFramework(fw api_client.ComplianceFramework, f frameworkFilters) bool 
 	return true
 }
 
-func filterAndSort(all map[string]api_client.ComplianceFramework, f frameworkFilters) []frameworkModel {
+func filterAndSort(ctx context.Context, all map[string]api_client.ComplianceFramework, f frameworkFilters) ([]frameworkModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	ids := make([]string, 0, len(all))
 	for id, fw := range all {
-		if fw.ID == "" {
-			fw.ID = id
-		}
 		if matchFramework(fw, f) {
-			ids = append(ids, fw.ID)
+			ids = append(ids, id)
 		}
 	}
 	sort.Strings(ids)
 	out := make([]frameworkModel, 0, len(ids))
 	for _, id := range ids {
-		fw := all[id]
-		if fw.ID == "" {
-			fw.ID = id
-		}
-		out = append(out, frameworkToModel(fw))
+		m, d := frameworkToModel(ctx, all[id])
+		diags.Append(d...)
+		out = append(out, m)
 	}
-	return out
+	return out, diags
 }
 
-func catalogTestsToModel(tests []api_client.ComplianceCatalogTest) []catalogTestModel {
+func catalogTestsToModel(ctx context.Context, tests []api_client.ComplianceCatalogTest) (types.List, diag.Diagnostics) {
+	elem := catalogTestObjectType()
 	if len(tests) == 0 {
-		return nil
+		return types.ListNull(elem), nil
 	}
-	out := make([]catalogTestModel, len(tests))
+	var diags diag.Diagnostics
+	vals := make([]attr.Value, len(tests))
 	for i, t := range tests {
-		out[i] = catalogTestModel{
-			Name:              optionalNonEmpty(t.Name),
-			RuleID:            types.StringValue(t.RuleID),
-			ReferenceID:       optionalNonEmpty(t.ReferenceID),
-			OriginFrameworkID: optionalNonEmpty(t.OriginFrameworkID),
-			CloudVendors:      optionalStringList(t.CloudVendors),
-			ControlUniqueID:   optionalNonEmpty(t.ControlUniqueID),
-			Priority:          optionalNonEmpty(t.Priority),
-		}
+		vendors, d := tfconv.StringListFromAPI(ctx, t.CloudVendors)
+		diags.Append(d...)
+		obj, d := types.ObjectValue(elem.AttrTypes, map[string]attr.Value{
+			"name":                tfconv.StringOrNull(t.Name),
+			"rule_id":             types.StringValue(t.RuleID),
+			"reference_id":        tfconv.StringOrNull(t.ReferenceID),
+			"origin_framework_id": tfconv.StringOrNull(t.OriginFrameworkID),
+			"cloud_vendors":       vendors,
+			"control_unique_id":   tfconv.StringOrNull(t.ControlUniqueID),
+			"priority":            tfconv.StringOrNull(t.Priority),
+		})
+		diags.Append(d...)
+		vals[i] = obj
 	}
-	return out
+	list, d := types.ListValue(elem, vals)
+	diags.Append(d...)
+	return list, diags
 }
 
-func catalogSectionsToModel(sections []api_client.ComplianceCatalogSection) []catalogSectionModel {
+func catalogSectionsToModel(ctx context.Context, sections []api_client.ComplianceCatalogSection, remainingDepth int) (types.List, diag.Diagnostics) {
+	elem := catalogSectionObjectType(remainingDepth)
 	if len(sections) == 0 {
-		return nil
+		return types.ListNull(elem), nil
 	}
-	out := make([]catalogSectionModel, len(sections))
+	var diags diag.Diagnostics
+	vals := make([]attr.Value, len(sections))
 	for i, s := range sections {
-		out[i] = catalogSectionModel{
-			Name:  types.StringValue(s.Name),
-			Tests: catalogTestsToModel(s.Tests),
+		tests, d := catalogTestsToModel(ctx, s.Tests)
+		diags.Append(d...)
+		attrs := map[string]attr.Value{
+			"name":  types.StringValue(s.Name),
+			"tests": tests,
 		}
-		if len(s.Sections) == 0 {
-			continue
+		if remainingDepth > 0 {
+			nested, d := catalogSectionsToModel(ctx, s.Sections, remainingDepth-1)
+			diags.Append(d...)
+			attrs["sections"] = nested
 		}
-		mids := make([]catalogMidSectionModel, len(s.Sections))
-		for j, mid := range s.Sections {
-			mids[j] = catalogMidSectionModel{
-				Name:  types.StringValue(mid.Name),
-				Tests: catalogTestsToModel(mid.Tests),
-			}
-			if len(mid.Sections) == 0 {
-				continue
-			}
-			leaves := make([]catalogLeafSectionModel, len(mid.Sections))
-			for k, leaf := range mid.Sections {
-				leaves[k] = catalogLeafSectionModel{
-					Name:  types.StringValue(leaf.Name),
-					Tests: catalogTestsToModel(leaf.Tests),
-				}
-			}
-			mids[j].Sections = leaves
-		}
-		out[i].Sections = mids
+		obj, d := types.ObjectValue(elem.AttrTypes, attrs)
+		diags.Append(d...)
+		vals[i] = obj
 	}
-	return out
+	list, d := types.ListValue(elem, vals)
+	diags.Append(d...)
+	return list, diags
 }

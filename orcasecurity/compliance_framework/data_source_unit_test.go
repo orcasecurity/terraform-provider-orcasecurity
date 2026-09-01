@@ -28,7 +28,7 @@ func TestSingleDataSource_NotFound(t *testing.T) {
 		ID:                    types.StringValue("missing"),
 		SelectionScopes:       types.ListNull(types.StringType),
 		FrameworkCloudVendors: types.ListNull(types.StringType),
-	}}
+	}, Sections: types.ListNull(catalogSectionObjectType(maxCatalogDepth - 1))}
 	st := tfsdk.State{Schema: schemaResp.Schema}
 	if diags := st.Set(context.Background(), &cfgModel); diags.HasError() {
 		t.Fatalf("set: %v", diags)

@@ -3,12 +3,12 @@
 page_title: "orcasecurity_custom_compliance_framework Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels; a fourth is rejected because the API would drop it and reparent its controls. Omit scope to create the framework inactive; ongoing activation belongs to orcasecurity_compliance_framework_selection.
+  Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels (an API limit); a fourth nested sections block is not in the schema. Omit scope to create the framework inactive; ongoing activation belongs to orcasecurity_compliance_framework_selection.
 ---
 
 # orcasecurity_custom_compliance_framework (Resource)
 
-Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels; a fourth is rejected because the API would drop it and reparent its controls. Omit `scope` to create the framework inactive; ongoing activation belongs to `orcasecurity_compliance_framework_selection`.
+Provides a custom compliance framework resource. Sections are read back from GET /api/compliance/catalog/{id}, so import and drift detection cover the tree. A section may contain tests or nested sections, never both — the API would otherwise silently flatten it. Nesting is at most three levels (an API limit); a fourth nested `sections` block is not in the schema. Omit `scope` to create the framework inactive; ongoing activation belongs to `orcasecurity_compliance_framework_selection`.
 
 ## Example Usage
 
@@ -83,7 +83,7 @@ Required:
 
 Optional:
 
-- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections); a fourth is a config error because the server would drop it and reparent its controls. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections))
+- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections). A fourth nested `sections` is not an attribute — the server would drop it and reparent its controls. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--tests))
 
 <a id="nestedatt--sections--sections"></a>
@@ -95,7 +95,7 @@ Required:
 
 Optional:
 
-- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections); a fourth is a config error because the server would drop it and reparent its controls. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections))
+- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections). A fourth nested `sections` is not an attribute — the server would drop it and reparent its controls. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--tests))
 
 <a id="nestedatt--sections--sections--sections"></a>
@@ -107,36 +107,7 @@ Required:
 
 Optional:
 
-- `sections` (Attributes List) Nested sub-sections. The API stores exactly three levels (sections → sections → sections); a fourth is a config error because the server would drop it and reparent its controls. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections--sections))
 - `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections--tests))
-
-<a id="nestedatt--sections--sections--sections--sections"></a>
-### Nested Schema for `sections.sections.sections.sections`
-
-Required:
-
-- `name` (String) Section name.
-
-Optional:
-
-- `tests` (Attributes List) Tests (controls) within this section. A section may have tests or sub-sections, never both. (see [below for nested schema](#nestedatt--sections--sections--sections--sections--tests))
-
-<a id="nestedatt--sections--sections--sections--sections--tests"></a>
-### Nested Schema for `sections.sections.sections.sections.tests`
-
-Required:
-
-- `rule_id` (String) The rule ID for the test/control.
-
-Optional:
-
-- `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
-- `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
-- `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `reference_id` (String) Server-echoed control id. Same value as `rule_id_in_framework` after apply.
-- `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section-id>.<1-based index>`, matching the Orca UI. On read this is the catalog `reference_id`.
-
-
 
 <a id="nestedatt--sections--sections--sections--tests"></a>
 ### Nested Schema for `sections.sections.sections.tests`
@@ -150,7 +121,6 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `reference_id` (String) Server-echoed control id. Same value as `rule_id_in_framework` after apply.
 - `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section-id>.<1-based index>`, matching the Orca UI. On read this is the catalog `reference_id`.
 
 
@@ -167,7 +137,6 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `reference_id` (String) Server-echoed control id. Same value as `rule_id_in_framework` after apply.
 - `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section-id>.<1-based index>`, matching the Orca UI. On read this is the catalog `reference_id`.
 
 
@@ -184,7 +153,6 @@ Optional:
 - `control_unique_id` (String) Catalog control unique id. Echoed when the API returns it.
 - `origin_framework_id` (String) Origin framework id when this control was copied from another framework.
 - `priority` (String) Control priority as accepted by the API (e.g. `Medium`).
-- `reference_id` (String) Server-echoed control id. Same value as `rule_id_in_framework` after apply.
 - `rule_id_in_framework` (String) The identifier for this rule within the framework (e.g. `1.1`, `1.1.1`). Omitted values are derived as `<section-id>.<1-based index>`, matching the Orca UI. On read this is the catalog `reference_id`.
 
 ## Notes
@@ -198,8 +166,9 @@ Optional:
   rejects that config.
 - **Nesting is at most three levels** (`sections → sections → sections`). That
   is an API limit (`category` / `sub_category` / `sub_sub_category`); a fourth
-  level is accepted with HTTP 200 and then silently dropped, with its controls
-  reparented onto the third. The provider rejects a fourth level in config.
+  nested `sections` is not in the schema, so Terraform rejects it at parse time.
+  The API would otherwise accept it with HTTP 200 and silently drop it, reparenting
+  its controls onto the third level.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

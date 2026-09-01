@@ -138,12 +138,17 @@ func (d *complianceFrameworksDataSource) Read(ctx context.Context, req datasourc
 		return
 	}
 
-	config.Frameworks = filterAndSort(all, frameworkFilters{
+	frameworks, diags := filterAndSort(ctx, all, frameworkFilters{
 		custom:      config.Custom,
 		active:      config.Active,
 		typ:         config.Type,
 		displayName: config.DisplayName,
 		search:      config.Search,
 	})
+	resp.Diagnostics.Append(diags...)
+	config.Frameworks = frameworks
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 }
