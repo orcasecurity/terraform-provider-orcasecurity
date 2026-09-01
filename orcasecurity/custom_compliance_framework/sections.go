@@ -38,7 +38,7 @@ const fourthLevelMessage = "the API stores three levels; move these controls up 
 
 const invalidSectionIDMessage = "section_id_in_framework must be an integer, and a nested section must extend its parent (e.g. 7.2); the API derives section ids from control ids and rejects a non-numeric part"
 
-const duplicateSectionIDMessage = "section_id_in_framework must be unique among siblings; the API merges sections that share an id, so Terraform would see a smaller tree"
+const duplicateSectionIDMessage = "section_id_in_framework must be unique and strictly ascending among siblings; the API returns sections sorted by id, so a descending or duplicate list would permute after apply"
 
 const nestedSectionsDescription = "Nested sub-sections. A section may have tests or sub-sections, never both."
 
@@ -74,19 +74,30 @@ func DeriveRuleIDInFramework(sectionID string, index int) string {
 	return fmt.Sprintf("%s.%d", sectionID, index+1)
 }
 
-func positionalSectionID(parentID string, index int) string {
-	n := fmt.Sprintf("%d", index+1)
-	if parentID == "" {
-		return n
+func lastSegment(id string) string {
+	if i := strings.LastIndex(id, "."); i >= 0 {
+		return id[i+1:]
 	}
-	return parentID + "." + n
+	return id
 }
 
-func sectionDepth(parentID string) int {
-	if parentID == "" {
-		return 1
+func lastUint(id string) (uint64, bool) {
+	n, err := strconv.ParseUint(lastSegment(id), 10, 64)
+	return n, err == nil
+}
+
+func nextAfter(parentID, prevID string) string {
+	var n uint64
+	if prevID != "" {
+		if v, ok := lastUint(prevID); ok {
+			n = v
+		}
 	}
-	return strings.Count(parentID, ".") + 2
+	s := strconv.FormatUint(n+1, 10)
+	if parentID == "" {
+		return s
+	}
+	return parentID + "." + s
 }
 
 func isPlainUint(s string) bool {
@@ -115,51 +126,32 @@ type resolvedSectionID struct {
 	Valid bool
 }
 
-// resolveSiblingIDs assigns ids for one sibling list. Explicit values win;
-// omitted values take the next unused positional id so they cannot collide
-// with an earlier explicit sibling (B8 shape 2).
+// resolveSiblingIDs assigns ids for one sibling list in config order.
+// Explicit values are kept as written. Omitted values take the next integer
+// above the previous sibling so the list is strictly ascending — the API
+// returns sections sorted by id, and a Terraform list would permute otherwise.
 func resolveSiblingIDs(elems []attr.Value, parentID string, depth int) []resolvedSectionID {
 	out := make([]resolvedSectionID, len(elems))
-	userIDs := make([]string, len(elems))
-	claimed := make(map[string]struct{}, len(elems))
-
+	prev := ""
 	for i, e := range elems {
 		obj, ok := e.(types.Object)
 		if !ok || obj.IsNull() || obj.IsUnknown() {
 			out[i].Valid = true
 			continue
 		}
-		userIDs[i] = attrString(obj.Attributes(), "section_id_in_framework")
-		if userIDs[i] == "" {
-			continue
-		}
-		if !sectionIDMatchesDepth(userIDs[i], parentID, depth) {
-			out[i] = resolvedSectionID{ID: positionalSectionID(parentID, i), Valid: false}
-			continue
-		}
-		out[i] = resolvedSectionID{ID: userIDs[i], Valid: true}
-		claimed[userIDs[i]] = struct{}{}
-	}
-
-	next := 1
-	for i := range elems {
-		if userIDs[i] != "" {
-			continue
-		}
-		obj, ok := elems[i].(types.Object)
-		if !ok || obj.IsNull() || obj.IsUnknown() {
-			continue
-		}
-		for {
-			id := positionalSectionID(parentID, next-1)
-			next++
-			if _, taken := claimed[id]; taken {
+		userID := attrString(obj.Attributes(), "section_id_in_framework")
+		if userID != "" {
+			if !sectionIDMatchesDepth(userID, parentID, depth) {
+				out[i] = resolvedSectionID{ID: userID, Valid: false}
 				continue
 			}
-			out[i] = resolvedSectionID{ID: id, Valid: true}
-			claimed[id] = struct{}{}
-			break
+			out[i] = resolvedSectionID{ID: userID, Valid: true}
+			prev = userID
+			continue
 		}
+		id := nextAfter(parentID, prev)
+		out[i] = resolvedSectionID{ID: id, Valid: true}
+		prev = id
 	}
 	return out
 }
@@ -222,15 +214,15 @@ func testsToAPI(sectionID string, list types.List) []api_client.CustomCompliance
 }
 
 func sectionsToAPI(list types.List) []api_client.CustomComplianceFrameworkSection {
-	return sectionsToAPIAt(list, "")
+	return sectionsToAPIAt(list, "", 1)
 }
 
-func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomComplianceFrameworkSection {
+func sectionsToAPIAt(list types.List, parentID string, depth int) []api_client.CustomComplianceFrameworkSection {
 	if list.IsNull() || list.IsUnknown() {
 		return []api_client.CustomComplianceFrameworkSection{}
 	}
 	elems := list.Elements()
-	ids := resolveSiblingIDs(elems, parentID, sectionDepth(parentID))
+	ids := resolveSiblingIDs(elems, parentID, depth)
 	out := make([]api_client.CustomComplianceFrameworkSection, 0, len(elems))
 	for i, e := range elems {
 		obj, ok := e.(types.Object)
@@ -239,16 +231,13 @@ func sectionsToAPIAt(list types.List, parentID string) []api_client.CustomCompli
 		}
 		attrs := obj.Attributes()
 		id := ids[i].ID
-		if id == "" {
-			id = positionalSectionID(parentID, i)
-		}
 		tests := []api_client.CustomComplianceFrameworkTest{}
 		if l, ok := asList(attrs["tests"]); ok {
 			tests = testsToAPI(id, l)
 		}
 		nested := []api_client.CustomComplianceFrameworkSection{}
 		if l, ok := asList(attrs["sections"]); ok {
-			nested = sectionsToAPIAt(l, id)
+			nested = sectionsToAPIAt(l, id, depth+1)
 		}
 		out = append(out, api_client.CustomComplianceFrameworkSection{
 			Name:     attrString(attrs, "name"),
@@ -355,7 +344,8 @@ func validateSectionsAt(resp *resource.ValidateConfigResponse, list types.List, 
 }
 
 func reportSiblingIDErrors(resp *resource.ValidateConfigResponse, elems []attr.Value, parent path.Path, ids []resolvedSectionID) {
-	seen := make(map[string]int, len(ids))
+	var prev uint64
+	hasPrev := false
 	for i, r := range ids {
 		obj, ok := elems[i].(types.Object)
 		if !ok || obj.IsNull() || obj.IsUnknown() {
@@ -370,11 +360,16 @@ func reportSiblingIDErrors(resp *resource.ValidateConfigResponse, elems []attr.V
 		if r.ID == "" || !r.Valid {
 			continue
 		}
-		if _, dup := seen[r.ID]; dup {
+		n, ok := lastUint(r.ID)
+		if !ok {
+			continue
+		}
+		if hasPrev && n <= prev {
 			resp.Diagnostics.AddAttributeError(p, invalidSectionSummary, duplicateSectionIDMessage)
 			continue
 		}
-		seen[r.ID] = i
+		prev = n
+		hasPrev = true
 	}
 }
 

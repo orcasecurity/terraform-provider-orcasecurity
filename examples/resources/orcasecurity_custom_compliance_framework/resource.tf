@@ -1,8 +1,8 @@
 # Build a custom framework from CIS Level 1 controls on a built-in one. The
 # single-framework data source returns sections[].tests[].rule_id and cis_level;
 # omit rule_id_in_framework and the provider derives it as
-# <section_id_in_framework>.<1-based index>. Here that prefix is 7, so
-# controls become 7.1, 7.2, … — not the positional 1.1 default.
+# <section_id_in_framework>.<1-based index>. Sibling ids must be unique and
+# strictly ascending (7 then 8) because the API returns sections sorted by id.
 data "orcasecurity_compliance_framework" "source" {
   id = "gcp_cis_3.0.0"
 }
@@ -23,6 +23,8 @@ locals {
     )
   ])
   level1_tests = [for t in local.source_tests : t if contains(coalesce(t.cis_level, []), "Level 1")]
+  level1_head  = slice(local.level1_tests, 0, 1)
+  level1_tail  = slice(local.level1_tests, 1, length(local.level1_tests))
 }
 
 resource "orcasecurity_custom_compliance_framework" "subset" {
@@ -34,7 +36,14 @@ resource "orcasecurity_custom_compliance_framework" "subset" {
       name                    = "Selected controls"
       section_id_in_framework = "7"
       tests = [
-        for t in local.level1_tests : { rule_id = t.rule_id }
+        for t in local.level1_head : { rule_id = t.rule_id }
+      ]
+    },
+    {
+      name                    = "Additional controls"
+      section_id_in_framework = "8"
+      tests = [
+        for t in local.level1_tail : { rule_id = t.rule_id }
       ]
     }
   ]

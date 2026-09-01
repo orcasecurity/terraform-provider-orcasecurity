@@ -621,11 +621,17 @@ func TestResolveSiblingIDs(t *testing.T) {
 		depth  int
 		ids    []string
 		want   []string
+		valid  []bool
 	}{
-		{"duplicate explicit", "", 1, []string{"7", "7"}, []string{"7", "7"}},
-		{"explicit then omitted skips claimed", "7", 2, []string{"7.2", ""}, []string{"7.2", "7.1"}},
-		{"distinct", "", 1, []string{"1", "2"}, []string{"1", "2"}},
-		{"all omitted", "", 1, []string{"", ""}, []string{"1", "2"}},
+		{"duplicate explicit", "", 1, []string{"7", "7"}, []string{"7", "7"}, []bool{true, true}},
+		{"descending explicit", "", 1, []string{"2", "1"}, []string{"2", "1"}, []bool{true, true}},
+		{"ascending explicit", "", 1, []string{"1", "2"}, []string{"1", "2"}, []bool{true, true}},
+		{"explicit then omitted next above", "7", 2, []string{"7.2", ""}, []string{"7.2", "7.3"}, []bool{true, true}},
+		{"distinct", "", 1, []string{"1", "2"}, []string{"1", "2"}, []bool{true, true}},
+		{"all omitted", "", 1, []string{"", ""}, []string{"1", "2"}, []bool{true, true}},
+		{"invalid keeps user value", "", 1, []string{"CC6"}, []string{"CC6"}, []bool{false}},
+		{"invalid nested keeps user value", "1", 2, []string{"9"}, []string{"9"}, []bool{false}},
+		{"dotted top-level keeps user value", "", 1, []string{"1.1"}, []string{"1.1"}, []bool{false}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -640,6 +646,9 @@ func TestResolveSiblingIDs(t *testing.T) {
 			for i, w := range tt.want {
 				if got[i].ID != w {
 					t.Errorf("id[%d]=%q want %q", i, got[i].ID, w)
+				}
+				if got[i].Valid != tt.valid[i] {
+					t.Errorf("valid[%d]=%v want %v", i, got[i].Valid, tt.valid[i])
 				}
 			}
 		})
@@ -663,7 +672,41 @@ func TestValidateConfig_RejectsDuplicateSiblingSectionIDs(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_AcceptsOmittedSiblingSkippingClaimed(t *testing.T) {
+func TestValidateConfig_RejectsDescendingSiblingSectionIDs(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("desc"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType,
+			siblingLeaf(t, rootType, "Alpha", "2", "r1"),
+			siblingLeaf(t, rootType, "Beta", "1", "r2"),
+		),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, duplicateSectionIDMessage) {
+		t.Errorf("expected descending sibling diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_AcceptsAscendingSiblingSectionIDs(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("asc"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType,
+			siblingLeaf(t, rootType, "Alpha", "1", "r1"),
+			siblingLeaf(t, rootType, "Beta", "2", "r2"),
+		),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("1 then 2 must be valid, got %v", resp.Diagnostics)
+	}
+}
+
+func TestValidateConfig_AcceptsOmittedSiblingAfterExplicit(t *testing.T) {
 	rootType := sectionObjectType(maxSectionDepth)
 	childType := sectionObjectType(maxSectionDepth - 1)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
@@ -691,11 +734,11 @@ func TestValidateConfig_AcceptsOmittedSiblingSkippingClaimed(t *testing.T) {
 	resp := &resource.ValidateConfigResponse{}
 	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
 	if resp.Diagnostics.HasError() {
-		t.Fatalf("omitted sibling must skip claimed 7.2, got %v", resp.Diagnostics)
+		t.Fatalf("omitted sibling must become 7.3 after 7.2, got %v", resp.Diagnostics)
 	}
 }
 
-func TestRequestFromPlanSkipsClaimedPositionalID(t *testing.T) {
+func TestRequestFromPlanOmittedSiblingFollowsPrevious(t *testing.T) {
 	rootType := sectionObjectType(maxSectionDepth)
 	childType := sectionObjectType(maxSectionDepth - 1)
 	sections := mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
@@ -727,8 +770,8 @@ func TestRequestFromPlanSkipsClaimedPositionalID(t *testing.T) {
 	if req.Sections[0].Sections[0].Tests[0].RuleIDInFramework != "7.2.1" {
 		t.Errorf("explicit 7.2: %+v", req.Sections[0].Sections[0].Tests)
 	}
-	if req.Sections[0].Sections[1].Tests[0].RuleIDInFramework != "7.1.1" {
-		t.Errorf("omitted sibling must become 7.1, got %+v", req.Sections[0].Sections[1].Tests)
+	if req.Sections[0].Sections[1].Tests[0].RuleIDInFramework != "7.3.1" {
+		t.Errorf("omitted sibling must become 7.3, got %+v", req.Sections[0].Sections[1].Tests)
 	}
 }
 

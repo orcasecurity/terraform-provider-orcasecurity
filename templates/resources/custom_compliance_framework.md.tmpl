@@ -42,12 +42,12 @@ description: |-
   only writes published frameworks.
 - **`section_id_in_framework`.** Sets this section's id, which becomes the
   prefix of each control's `rule_id_in_framework` (`7` → `7.1`). Must be an
-  unsigned integer, unique among siblings, and a nested section must extend
-  its parent (`7.2`). Omitted values take the next unused positional id
-  (skipping ids already claimed by an explicit sibling). The API derives
-  section ids from those control ids and merges siblings that share an id;
-  the provider does not send `section_id_in_framework` on the wire. On read
-  this is the catalog section `id`.
+  unsigned integer, unique and strictly ascending among siblings, and a nested
+  section must extend its parent (`7.2`). Omitted values take the next integer
+  above the previous sibling (`7.2` then omitted → `7.3`). The API returns
+  sections sorted by id and derives those ids from control ids; the provider
+  does not send `section_id_in_framework` on the wire. On read this is the
+  catalog section `id`.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).
