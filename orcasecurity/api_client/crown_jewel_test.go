@@ -177,3 +177,20 @@ func TestDeleteCrownJewel(t *testing.T) {
 		t.Errorf("DELETE body must omit description, got %v", payload)
 	}
 }
+
+func TestCrownJewelWriteClient_DisablesTimeoutRetry(t *testing.T) {
+	orig := &APIClient{HTTPClient: &http.Client{Timeout: defaultHTTPTimeout}}
+	w := orig.crownJewelWriteClient()
+	if !w.disableTimeoutRetry {
+		t.Fatal("write client must not retry client timeouts")
+	}
+	if w.HTTPClient.Timeout != crownJewelHTTPTimeout {
+		t.Fatalf("write timeout = %v, want %v", w.HTTPClient.Timeout, crownJewelHTTPTimeout)
+	}
+	if orig.disableTimeoutRetry {
+		t.Fatal("original client must be unchanged")
+	}
+	if orig.HTTPClient.Timeout != defaultHTTPTimeout {
+		t.Fatal("original HTTP timeout must be unchanged")
+	}
+}

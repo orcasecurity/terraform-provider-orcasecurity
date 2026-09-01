@@ -139,3 +139,52 @@ func TestRoundTripWithRetry_POSTBodyPreservedAcrossRetries(t *testing.T) {
 		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())
 	}
 }
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
+type errRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f errRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestIsRetriableRoundTripError_TimeoutFlag(t *testing.T) {
+	err := timeoutError{}
+	c := &APIClient{}
+	if !c.isRetriableRoundTripError(err) {
+		t.Fatal("timeout should be retriable by default")
+	}
+	c.disableTimeoutRetry = true
+	if c.isRetriableRoundTripError(err) {
+		t.Fatal("timeout should not be retriable when disableTimeoutRetry is set")
+	}
+	if !c.isRetriableRoundTripError(io.ErrUnexpectedEOF) {
+		t.Fatal("unexpected EOF should still be retriable when timeouts are not")
+	}
+}
+
+func TestRoundTripWithRetry_TimeoutNotRetriedWhenDisabled(t *testing.T) {
+	var n int
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		n++
+		return nil, timeoutError{}
+	})}
+	c := &APIClient{
+		APIEndpoint:         retryTestAPIEndpoint,
+		APIToken:            "secret",
+		HTTPClient:          httpClient,
+		disableTimeoutRetry: true,
+	}
+	req, _ := http.NewRequest(http.MethodPost, retryTestAPIEndpoint+"/r", nil)
+	_, err := c.roundTripWithRetry(*req)
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 attempt when timeout retry is disabled, got %d", n)
+	}
+}

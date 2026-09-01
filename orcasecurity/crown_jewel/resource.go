@@ -60,8 +60,10 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		Description: "Marks an asset as a user-defined crown jewel. The asset is identified by `group_unique_id`. " +
 			"Create and update both upsert: applying this resource on an asset that is already user-marked " +
 			"overwrites the existing reason instead of failing. Prefer `terraform import` to adopt an " +
-			"existing mark without changing it on first apply. Orca-detected crown jewels are engine-managed " +
-			"and cannot be deleted through this resource; applying here adds a user-marked overlay (hybrid).",
+			"existing mark without changing it on first apply. Destroy matches the Orca UI disable action " +
+			"(DELETE): it upserts `is_crown_jewel=false` (an active \"not a crown jewel\" override), not a " +
+			"hard delete — see resource Notes. Orca-detected scoring on attack paths does not automatically " +
+			"return after destroy; Inventory.IsCrownJewel can fall back to the analyzer threshold.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -72,7 +74,8 @@ func (r *crownJewelResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"group_unique_id": schema.StringAttribute{
 				Description: "Inventory group unique id of the asset to mark as a crown jewel. Changing this value replaces the resource. " +
-					"If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one.",
+					"If the asset is already user-marked, apply updates that mark (upsert) rather than creating a second one. " +
+					"The API does not verify the id exists in inventory — a typo still creates a CrownJewel row.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

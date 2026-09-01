@@ -53,8 +53,8 @@ func readResponseBody(res *http.Response) ([]byte, error) {
 // sleepIfRetriableTransportError backs off when err is retriable and attempts remain.
 // Returns retry=true to run another attempt; retry=false with nil err to surface errOut;
 // or retry=false with non-nil err on context cancellation during sleep.
-func sleepIfRetriableTransportError(ctx context.Context, attempt int, errOut error) (retry bool, err error) {
-	if attempt >= maxHTTPRetryAttempts-1 || !isRetriableRoundTripError(errOut) {
+func (c *APIClient) sleepIfRetriableTransportError(ctx context.Context, attempt int, errOut error) (retry bool, err error) {
+	if attempt >= maxHTTPRetryAttempts-1 || !c.isRetriableRoundTripError(errOut) {
 		return false, nil
 	}
 	if err := sleepCtx(ctx, retryDelay(attempt, nil)); err != nil {
@@ -82,8 +82,8 @@ func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, r
 
 // transportPhaseOutcome maps Execute / body-read errors to either another attempt
 // (continueLoop) or a terminal error for the caller to return.
-func transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error) (continueLoop bool, err error) {
-	retry, sleepErr := sleepIfRetriableTransportError(ctx, attempt, phaseErr)
+func (c *APIClient) transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error) (continueLoop bool, err error) {
+	retry, sleepErr := c.sleepIfRetriableTransportError(ctx, attempt, phaseErr)
 	if sleepErr != nil {
 		return false, sleepErr
 	}
@@ -115,7 +115,7 @@ func isRetriableHTTPStatus(status int) bool {
 	}
 }
 
-func isRetriableRoundTripError(err error) bool {
+func (c *APIClient) isRetriableRoundTripError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -125,7 +125,7 @@ func isRetriableRoundTripError(err error) bool {
 	var ne net.Error
 	if errors.As(err, &ne) {
 		if ne.Timeout() {
-			return true
+			return !c.disableTimeoutRetry
 		}
 		if t, ok := ne.(interface{ Temporary() bool }); ok && t.Temporary() {
 			return true
@@ -178,7 +178,7 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 	r := cloneRequestWithBody(ctx, proto, reqBody)
 	res, execErr := c.Execute(r)
 	if execErr != nil {
-		cont, out := transportPhaseOutcome(ctx, attempt, execErr)
+		cont, out := c.transportPhaseOutcome(ctx, attempt, execErr)
 		if cont {
 			return nil, true, nil
 		}
@@ -187,7 +187,7 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 
 	body, readErr := readResponseBody(res)
 	if readErr != nil {
-		cont, out := transportPhaseOutcome(ctx, attempt, readErr)
+		cont, out := c.transportPhaseOutcome(ctx, attempt, readErr)
 		if cont {
 			return nil, true, nil
 		}

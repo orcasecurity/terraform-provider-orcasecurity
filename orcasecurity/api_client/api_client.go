@@ -32,6 +32,10 @@ type APIClient struct {
 	APIEndpoint string
 	APIToken    string
 	HTTPClient  *http.Client
+	// disableTimeoutRetry skips retrying net.Error timeouts. Crown-jewel writes
+	// set this: the server may have already committed the upsert before the
+	// client times out, and replaying POST/DELETE re-runs expensive rescoring.
+	disableTimeoutRetry bool
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {
@@ -50,6 +54,14 @@ func (c *APIClient) withHTTPTimeout(timeout time.Duration) *APIClient {
 	hc := *c.HTTPClient
 	hc.Timeout = timeout
 	clone.HTTPClient = &hc
+	return &clone
+}
+
+// withoutTimeoutRetry returns a shallow client copy that does not retry
+// client/transport timeouts (other retriable errors are unchanged).
+func (c *APIClient) withoutTimeoutRetry() *APIClient {
+	clone := *c
+	clone.disableTimeoutRetry = true
 	return &clone
 }
 

@@ -48,7 +48,12 @@ func planWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.Plan {
 }
 
 func TestSchemaContracts(t *testing.T) {
-	attrs := resourceSchema(t).Attributes
+	sch := resourceSchema(t)
+	if !strings.Contains(sch.Description, "is_crown_jewel=false") {
+		t.Errorf("schema Description must document DELETE as an is_crown_jewel=false override, got %q", sch.Description)
+	}
+
+	attrs := sch.Attributes
 
 	gid, ok := attrs["group_unique_id"].(schema.StringAttribute)
 	if !ok || !gid.Required || len(gid.PlanModifiers) != 1 {

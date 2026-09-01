@@ -3,12 +3,12 @@
 page_title: "orcasecurity_crown_jewel Data Source - orcasecurity"
 subcategory: ""
 description: |-
-  Looks up a user-defined (user-marked) crown jewel by group_unique_id. Useful to read the current Reason before import, or to confirm an asset is marked. Returns an error when the asset is not user-marked.
+  Looks up a user-defined (user-marked) crown jewel by group_unique_id. Useful to read the current Reason before import, or to confirm an asset is marked. Returns an error when the asset is not user-marked. The list API only returns is_crown_jewel=true rows, so a disable override left by destroy is not visible.
 ---
 
 # orcasecurity_crown_jewel (Data Source)
 
-Looks up a user-defined (user-marked) crown jewel by `group_unique_id`. Useful to read the current Reason before import, or to confirm an asset is marked. Returns an error when the asset is not user-marked.
+Looks up a user-defined (user-marked) crown jewel by `group_unique_id`. Useful to read the current Reason before import, or to confirm an asset is marked. Returns an error when the asset is not user-marked. The list API only returns `is_crown_jewel=true` rows, so a disable override left by destroy is not visible.
 
 ## Example Usage
 

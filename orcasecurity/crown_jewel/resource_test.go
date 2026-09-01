@@ -10,9 +10,9 @@ import (
 )
 
 // ORCA_TEST_CROWN_JEWEL_GROUP_UNIQUE_ID must be a real inventory group_unique_id
-// in the lab tenant. Fabricated ids can POST successfully but miss the
-// read-your-writes GET when the list shape/filtering changes; use a disposable
-// asset that is safe to mark and unmark.
+// in the lab tenant. A fabricated id still creates a CrownJewel row (the API does
+// not validate inventory existence); use a disposable asset that is safe to mark
+// and unmark. Destroy leaves an is_crown_jewel=false override, not a hard delete.
 func TestAccCrownJewelResource_Basic(t *testing.T) {
 	groupID := os.Getenv("ORCA_TEST_CROWN_JEWEL_GROUP_UNIQUE_ID")
 	if groupID == "" {

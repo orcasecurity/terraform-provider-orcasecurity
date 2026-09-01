@@ -41,7 +41,12 @@ func dataConfigWith(t *testing.T, sch schema.Schema, model stateModel) tfsdk.Con
 }
 
 func TestDataSourceSchemaContracts(t *testing.T) {
-	attrs := dataSourceSchema(t).Attributes
+	sch := dataSourceSchema(t)
+	if !strings.Contains(sch.Description, "is_crown_jewel=true") {
+		t.Errorf("schema Description must mention GET only returns is_crown_jewel=true rows, got %q", sch.Description)
+	}
+
+	attrs := sch.Attributes
 
 	gid, ok := attrs["group_unique_id"].(schema.StringAttribute)
 	if !ok || !gid.Required {
