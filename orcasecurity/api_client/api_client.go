@@ -16,6 +16,12 @@ import (
 // secrets (API tokens, keys). Set it to any non-empty value to troubleshoot.
 const httpDebugEnvVar = "ORCASECURITY_HTTP_DEBUG"
 
+// defaultHTTPTimeout is the per-request timeout for the shared API client.
+// Crown-jewel POST/DELETE can exceed 10s on real assets because the API syncs
+// attack-path scores and inventory after writing the mark (UI updates sooner
+// than the HTTP response returns).
+const defaultHTTPTimeout = 60 * time.Second
+
 // debugf logs to stderr (never stdout — stdout is the go-plugin protocol channel
 // Terraform speaks over) and only when httpDebugEnvVar is set.
 func (c *APIClient) debugf(format string, a ...any) {
@@ -35,7 +41,7 @@ func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	apiclient := APIClient{
 		APIEndpoint: *endpoint,
 		APIToken:    *token,
-		HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		HTTPClient:  &http.Client{Timeout: defaultHTTPTimeout},
 	}
 	return &apiclient, nil
 }
