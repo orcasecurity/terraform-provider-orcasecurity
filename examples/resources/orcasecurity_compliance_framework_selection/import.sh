@@ -1,0 +1,1 @@
+terraform import orcasecurity_compliance_framework_selection.example FRAMEWORK_ID

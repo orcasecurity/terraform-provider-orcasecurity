@@ -89,6 +89,31 @@ func StringOrNull(v string) types.String {
 	return types.StringValue(v)
 }
 
+// StringPtrOrNull maps an optional API string pointer: nil or empty becomes null.
+func StringPtrOrNull(v *string) types.String {
+	if v == nil {
+		return types.StringNull()
+	}
+	return StringOrNull(*v)
+}
+
+// BoolPtrOrNull maps an optional API bool pointer: nil becomes null.
+func BoolPtrOrNull(v *bool) types.Bool {
+	if v == nil {
+		return types.BoolNull()
+	}
+	return types.BoolValue(*v)
+}
+
+// StringListFromAPI maps an API string slice to a list. nil becomes null;
+// an empty slice becomes an empty list (not null).
+func StringListFromAPI(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
+	if values == nil {
+		return types.ListNull(types.StringType), nil
+	}
+	return types.ListValueFrom(ctx, types.StringType, values)
+}
+
 // Int64ToAPIPtr converts an optional types.Int64 to a pointer.
 // Null and unknown values become nil (omitted from the JSON payload).
 func Int64ToAPIPtr(v types.Int64) *int64 {

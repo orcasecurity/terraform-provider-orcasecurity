@@ -45,7 +45,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -60,14 +60,13 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Section 1"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "1"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1.1"),
 					),
 				},
 				{
-					ResourceName:            resourceAddr,
-					ImportState:             true,
-					ImportStateVerify:       true,
-					ImportStateVerifyIgnore: []string{"sections"},
+					ResourceName:      resourceAddr,
+					ImportState:       true,
+					ImportStateVerify: true,
 				},
 			},
 		},
@@ -84,7 +83,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -108,7 +107,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -138,7 +137,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -161,7 +160,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -189,7 +188,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -211,7 +210,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -239,11 +238,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 },
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "2"
+                    rule_id_in_framework = "1.2"
                 }
             ]
         },
@@ -252,7 +251,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "3"
+                    rule_id_in_framework = "2.1"
                 }
             ]
         }
@@ -269,14 +268,14 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Access Control"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "2"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1.1"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "1.2"),
 						// Section 1
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1Name, "Data Protection"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1TestsCount, "1"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "3"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "2.1"),
 					),
 				},
 			},
@@ -294,7 +293,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -316,7 +315,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         },
@@ -325,7 +324,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "2"
+                    rule_id_in_framework = "2.1"
                 }
             ]
         }
@@ -337,7 +336,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "Section 1"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1Name, "Section 2"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "2.1"),
 					),
 				},
 			},
@@ -355,7 +354,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         },
@@ -364,7 +363,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "2"
+                    rule_id_in_framework = "2.1"
                 }
             ]
         }
@@ -386,7 +385,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -413,7 +412,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -435,11 +434,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 },
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "2"
+                    rule_id_in_framework = "1.2"
                 }
             ]
         }
@@ -449,9 +448,9 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 					Check: resource.ComposeAggregateTestCheckFunc(
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "2"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1.1"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1RuleID, testRuleID),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "2"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "1.2"),
 					),
 				},
 			},
@@ -469,7 +468,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "1"
+                    rule_id_in_framework = "1.1"
                 }
             ]
         }
@@ -494,11 +493,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "10"
+                    rule_id_in_framework = "1.1"
                 },
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "20"
+                    rule_id_in_framework = "1.2"
                 }
             ]
         },
@@ -507,7 +506,7 @@ resource "orcasecurity_custom_compliance_framework" "test" {
             tests = [
                 {
                     rule_id              = "rc7bcf3b77f"
-                    rule_id_in_framework = "30"
+                    rule_id_in_framework = "2.1"
                 }
             ]
         }
@@ -521,11 +520,11 @@ resource "orcasecurity_custom_compliance_framework" "test" {
 						resource.TestCheckResourceAttr(resourceAddr, attrSectionsCount, "2"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0Name, "New Section"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection0TestsCount, "2"),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "10"),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "20"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test0FrameworkID, "1.1"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection0Test1FrameworkID, "1.2"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1Name, "Another New Section"),
 						resource.TestCheckResourceAttr(resourceAddr, attrSection1TestsCount, "1"),
-						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "30"),
+						resource.TestCheckResourceAttr(resourceAddr, attrSection1Test0FrameworkID, "2.1"),
 					),
 				},
 			},
