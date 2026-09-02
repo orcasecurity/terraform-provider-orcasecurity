@@ -97,53 +97,82 @@ type httpCall struct {
 func selectStub(t *testing.T, entries map[string]map[string]interface{}, record *[]httpCall, statusFor func(*http.Request) int) testutils.RoundTripFunc {
 	t.Helper()
 	return func(req *http.Request) *http.Response {
-		var payload struct {
-			FrameworkIDs []string `json:"framework_ids"`
-			Scope        string   `json:"scope"`
-		}
-		if req.Body != nil {
-			body, _ := io.ReadAll(req.Body)
-			req.Body = io.NopCloser(bytes.NewReader(body))
-			_ = json.Unmarshal(body, &payload)
-		}
-		if record != nil && req.URL.Path == "/api/compliance/frameworks/select" && req.Method != "GET" {
-			*record = append(*record, httpCall{Method: req.Method, Path: req.URL.Path, Scope: payload.Scope})
-		}
+		payload := decodeSelectPayload(req)
+		recordSelectCall(record, req, payload.Scope)
 		code := 200
 		if statusFor != nil {
 			code = statusFor(req)
 		}
-		if req.Method == "GET" {
-			raw, _ := json.Marshal(entries)
-			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(raw)), Request: req}
-		}
-		if code == 200 && (req.Method == "POST" || req.Method == "DELETE") {
-			for _, fid := range payload.FrameworkIDs {
-				e, ok := entries[fid]
-				if !ok {
-					continue
-				}
-				scopes := scopesFromAny(e["selection_scopes"])
-				if req.Method == "POST" {
-					if !containsString(scopes, payload.Scope) {
-						scopes = append(scopes, payload.Scope)
-					}
-				} else {
-					scopes = removeString(scopes, payload.Scope)
-				}
-				e["selection_scopes"] = scopes
-				e["active"] = len(scopes) > 0
-			}
-		}
-		if code != 200 {
-			return &http.Response{
-				StatusCode: code,
-				Body:       io.NopCloser(strings.NewReader(`{"error":"Framework X can't be selected as it doesn't exist."}`)),
-				Request:    req,
-			}
-		}
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}
+		return selectResponse(req, entries, payload, code)
 	}
+}
+
+type selectPayload struct {
+	FrameworkIDs []string `json:"framework_ids"`
+	Scope        string   `json:"scope"`
+}
+
+func decodeSelectPayload(req *http.Request) selectPayload {
+	var payload selectPayload
+	if req.Body == nil {
+		return payload
+	}
+	body, _ := io.ReadAll(req.Body)
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	_ = json.Unmarshal(body, &payload)
+	return payload
+}
+
+func recordSelectCall(record *[]httpCall, req *http.Request, scope string) {
+	if record == nil || req.URL.Path != "/api/compliance/frameworks/select" || req.Method == "GET" {
+		return
+	}
+	*record = append(*record, httpCall{Method: req.Method, Path: req.URL.Path, Scope: scope})
+}
+
+func selectResponse(req *http.Request, entries map[string]map[string]interface{}, payload selectPayload, code int) *http.Response {
+	if req.Method == "GET" {
+		raw, _ := json.Marshal(entries)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(raw)), Request: req}
+	}
+	applySelectWrite(entries, req.Method, payload, code)
+	if code != 200 {
+		return &http.Response{
+			StatusCode: code,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"Framework X can't be selected as it doesn't exist."}`)),
+			Request:    req,
+		}
+	}
+	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}
+}
+
+func applySelectWrite(entries map[string]map[string]interface{}, method string, payload selectPayload, code int) {
+	if code != 200 || (method != http.MethodPost && method != http.MethodDelete) {
+		return
+	}
+	for _, fid := range payload.FrameworkIDs {
+		applyOneSelectWrite(entries, fid, method, payload.Scope)
+	}
+}
+
+func applyOneSelectWrite(entries map[string]map[string]interface{}, fid, method, scope string) {
+	e, ok := entries[fid]
+	if !ok {
+		return
+	}
+	scopes := mutateScopes(scopesFromAny(e["selection_scopes"]), method, scope)
+	e["selection_scopes"] = scopes
+	e["active"] = len(scopes) > 0
+}
+
+func mutateScopes(scopes []string, method, scope string) []string {
+	if method == http.MethodPost {
+		if containsString(scopes, scope) {
+			return scopes
+		}
+		return append(scopes, scope)
+	}
+	return removeString(scopes, scope)
 }
 
 func TestRead_AbsentRemovesResource(t *testing.T) {

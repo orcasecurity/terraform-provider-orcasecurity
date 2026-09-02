@@ -56,23 +56,6 @@ func TestRequestFromPlanOmitsDescriptionAsNull(t *testing.T) {
 	if !strings.Contains(string(raw), `"description":null`) {
 		t.Errorf("omitted description must marshal as JSON null, got %s", raw)
 	}
-
-	empty, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
-		Name:               types.StringValue("n"),
-		Description:        types.StringValue(""),
-		ForcedCloudVendors: types.SetNull(types.StringType),
-		Sections:           oneSection(t),
-	})
-	if diags.HasError() {
-		t.Fatal(diags)
-	}
-	raw, err = json.Marshal(empty)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), `"description":null`) {
-		t.Errorf("empty description must marshal as JSON null, not %q, got %s", "", raw)
-	}
 }
 
 func TestRequestFromPlanSendsDescription(t *testing.T) {

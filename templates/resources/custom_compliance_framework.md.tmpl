@@ -64,6 +64,8 @@ description: |-
 - **`description`.** Omit to clear. PUT is partial, so a missing key leaves
   the previous text; an empty string 400s (`This field may not be blank`).
   The provider sends JSON `null`, the only form that clears it.
+  `description = ""` is rejected — omit the attribute instead of setting
+  an empty string.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

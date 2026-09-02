@@ -14,10 +14,10 @@ func ptr[T any](v T) *T { return &v }
 func TestFilterAndSort(t *testing.T) {
 	ctx := context.Background()
 	all := map[string]api_client.ComplianceFramework{
-		"b": {ID: "b", DisplayName: "Beta", Custom: true, Active: true, Description: ptr("beta desc"), SelectionScopes: []string{"user"}},
-		"a": {ID: "a", DisplayName: "Alpha", Custom: false, Active: false, Type: ptr("Orca Frameworks"), SelectionScopes: []string{}},
-		"c": {ID: "c", DisplayName: "Gamma", Custom: true, Active: false, Description: ptr("other"), SelectionScopes: []string{}},
-		"d": {ID: "d", DisplayName: "PCI DSS 4.0.0", VersionAgnosticDisplayName: ptr("PCI DSS"), Custom: false, Active: false, SelectionScopes: []string{}},
+		"b": {ID: "b", DisplayName: "Beta", Custom: true, Description: ptr("beta desc"), SelectionScopes: []string{"user"}},
+		"a": {ID: "a", DisplayName: "Alpha", Custom: false, Type: ptr("Orca Frameworks"), SelectionScopes: []string{}},
+		"c": {ID: "c", DisplayName: "Gamma", Custom: true, Description: ptr("other"), SelectionScopes: []string{}},
+		"d": {ID: "d", DisplayName: "PCI DSS 4.0.0", VersionAgnosticDisplayName: ptr("PCI DSS"), Custom: false, SelectionScopes: []string{}},
 	}
 
 	got, d := filterAndSort(ctx, all, frameworkFilters{})
@@ -51,7 +51,7 @@ func TestFilterAndSort(t *testing.T) {
 
 func TestFrameworkToModel_NullOptionalFields(t *testing.T) {
 	m, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
-		ID: "minimal", DisplayName: "Minimal", Custom: true, Active: false, SelectionScopes: []string{},
+		ID: "minimal", DisplayName: "Minimal", Custom: true, SelectionScopes: []string{},
 	})
 	if d.HasError() {
 		t.Fatal(d)
@@ -68,30 +68,30 @@ func TestFrameworkToModel_NullOptionalFields(t *testing.T) {
 }
 
 func TestFrameworkToModel_DerivesActiveFromScopes(t *testing.T) {
-	staleTrue, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
-		ID: "stale", DisplayName: "Stale", Active: true, SelectionScopes: []string{},
+	empty, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
+		ID: "stale", DisplayName: "Stale", SelectionScopes: []string{},
 	})
 	if d.HasError() {
 		t.Fatal(d)
 	}
-	if staleTrue.Active.ValueBool() {
-		t.Error("empty selection_scopes must be inactive even when the API flag is true")
+	if empty.Active.ValueBool() {
+		t.Error("empty selection_scopes must be inactive")
 	}
 
-	staleFalse, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
-		ID: "held", DisplayName: "Held", Active: false, SelectionScopes: []string{"user"},
+	held, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
+		ID: "held", DisplayName: "Held", SelectionScopes: []string{"user"},
 	})
 	if d.HasError() {
 		t.Fatal(d)
 	}
-	if !staleFalse.Active.ValueBool() {
-		t.Error("non-empty selection_scopes must be active even when the API flag is false")
+	if !held.Active.ValueBool() {
+		t.Error("non-empty selection_scopes must be active")
 	}
 
 	ctx := context.Background()
 	all := map[string]api_client.ComplianceFramework{
-		"stale": {ID: "stale", DisplayName: "Stale", Active: true, SelectionScopes: []string{}},
-		"held":  {ID: "held", DisplayName: "Held", Active: false, SelectionScopes: []string{"organization"}},
+		"stale": {ID: "stale", DisplayName: "Stale", SelectionScopes: []string{}},
+		"held":  {ID: "held", DisplayName: "Held", SelectionScopes: []string{"organization"}},
 	}
 	inactive, d := filterAndSort(ctx, all, frameworkFilters{active: types.BoolValue(false)})
 	if d.HasError() || len(inactive) != 1 || inactive[0].ID.ValueString() != "stale" {

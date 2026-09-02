@@ -79,7 +79,7 @@ resource "orcasecurity_compliance_framework_selection" "subset" {
 
 ### Optional
 
-- `description` (String) Framework description. Omit to clear — the provider sends JSON `null`, the only form the API accepts (an empty string 400s; omitting the key on PUT leaves the previous value).
+- `description` (String) Framework description. Omit to clear — the provider sends JSON `null`, the only form the API accepts (omitting the key on PUT leaves the previous value). `description = ""` is not valid.
 - `forced_cloud_vendors` (Set of String) Force the framework onto these cloud vendors. Sent only when non-empty. `forced_cloud_vendors = []` is treated as omit: the provider does not send the key, so enforcement is cleared on update (the API 400s on an explicit empty list). Omitting the attribute on update also clears enforcement.
 - `scope` (String) Create-only activation: `user` or `organization`. PUT ignores this field. Omitting it leaves the new framework inactive (`selection_scopes: []`). `visibility = "Personal"` cannot use `organization`. Ongoing enable/disable belongs to `orcasecurity_compliance_framework_selection`.
 - `visibility` (String) Who can see the framework: `Organizational` or `Personal`. The server default is used when omitted. `Personal` can be promoted to `Organizational`; the reverse is rejected by the API. `Personal` cannot be combined with `scope = "organization"` (the API returns 400). Personal frameworks are visible only to the creating user; a different API token sees 404 and Terraform will try to recreate them.
@@ -229,6 +229,8 @@ Optional:
 - **`description`.** Omit to clear. PUT is partial, so a missing key leaves
   the previous text; an empty string 400s (`This field may not be blank`).
   The provider sends JSON `null`, the only form that clears it.
+  `description = ""` is rejected — omit the attribute instead of setting
+  an empty string.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

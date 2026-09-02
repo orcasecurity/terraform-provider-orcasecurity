@@ -98,6 +98,25 @@ func TestValidateConfig_RejectsPersonalWithOrganizationScope(t *testing.T) {
 	}
 }
 
+func TestValidateConfig_RejectsEmptyDescription(t *testing.T) {
+	rootType := sectionObjectType(maxSectionDepth)
+	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		Description:        types.StringValue(""),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections: mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+			"name":     types.StringValue("S"),
+			"tests":    mustList(t, testObjectType(), testObj(t, "r1", "1.1")),
+			"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+		})),
+	})
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: cfg}, resp)
+	if !hasDetail(resp, emptyDescriptionMessage) {
+		t.Errorf("expected empty-description diagnostic, got %v", resp.Diagnostics)
+	}
+}
+
 func TestValidateConfig_RejectsEmptyRootSections(t *testing.T) {
 	rootType := sectionObjectType(maxSectionDepth)
 	r, cfg := schemaAndConfig(t, customComplianceFrameworkResourceModel{

@@ -73,9 +73,6 @@ func TestSchema_LoosenedAndAdditive(t *testing.T) {
 	if !ok || !desc.Optional || desc.Required {
 		t.Errorf("description must be Optional, got %#v", attrs["description"])
 	}
-	if !strings.Contains(desc.Description, "null") {
-		t.Errorf("description schema must mention JSON null, got %q", desc.Description)
-	}
 	if _, ok := attrs["visibility"]; !ok {
 		t.Error("missing visibility")
 	}
@@ -114,6 +111,22 @@ func TestSchema_LoosenedAndAdditive(t *testing.T) {
 	}
 	if !foundReplace {
 		t.Error("scope must RequiresReplace")
+	}
+}
+
+func TestSchema_DescriptionOmitClears(t *testing.T) {
+	r := &customComplianceFrameworkResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	desc, ok := schemaResp.Schema.Attributes["description"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("description")
+	}
+	if !strings.Contains(desc.Description, "null") {
+		t.Errorf("description schema must mention JSON null, got %q", desc.Description)
+	}
+	if !strings.Contains(desc.Description, `""`) {
+		t.Errorf("description schema must reject empty string, got %q", desc.Description)
 	}
 }
 

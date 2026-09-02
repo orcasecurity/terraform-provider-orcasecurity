@@ -14,8 +14,10 @@ const (
 // and the data envelope of GET /api/compliance/frameworks/{id}. Optional keys
 // differ between system and custom frameworks; missing values stay nil.
 type ComplianceFramework struct {
-	ID                         string   `json:"id"`
-	Active                     bool     `json:"active"`
+	ID string `json:"id"`
+	// The select map also carries `active`. It is not decoded: the provider
+	// derives that attribute from selection_scopes (non-empty) so the schema
+	// description stays true if the two ever disagree.
 	SelectionScopes            []string `json:"selection_scopes"`
 	DisplayName                string   `json:"display_name"`
 	Custom                     bool     `json:"custom"`

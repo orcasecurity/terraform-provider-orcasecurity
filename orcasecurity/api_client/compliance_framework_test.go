@@ -61,7 +61,7 @@ func TestGetComplianceFrameworkSelections_OptionalKeys(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	min := got["minimal"]
-	if min.ID != "minimal" || min.Active || min.Custom != true || min.DisplayName != "Minimal" {
+	if min.ID != "minimal" || min.Custom != true || min.DisplayName != "Minimal" {
 		t.Errorf("minimal entry: %+v", min)
 	}
 	if min.Type != nil || min.Version != nil || min.IsReady != nil || min.Visibility != nil {

@@ -19,7 +19,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-const errReadingFramework = "Error reading custom compliance framework"
+const (
+	errReadingFramework     = "Error reading custom compliance framework"
+	emptyDescriptionMessage = `description = "" is not valid — omit the attribute to clear the description.`
+)
 
 var (
 	_ resource.Resource                   = &customComplianceFrameworkResource{}
@@ -173,8 +176,8 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 			"description": schema.StringAttribute{
 				Optional: true,
 				Description: "Framework description. Omit to clear — the provider sends JSON " +
-					"`null`, the only form the API accepts (an empty string 400s; omitting the " +
-					"key on PUT leaves the previous value).",
+					"`null`, the only form the API accepts (omitting the key on PUT leaves the " +
+					"previous value). `description = \"\"` is not valid.",
 			},
 			"visibility": schema.StringAttribute{
 				Optional: true,
@@ -230,6 +233,14 @@ func (r *customComplianceFrameworkResource) ValidateConfig(ctx context.Context, 
 	}
 	validateSections(resp, config.Sections, path.Root("sections"))
 	validatePersonalOrganization(resp, config)
+	validateEmptyDescription(resp, config)
+}
+
+func validateEmptyDescription(resp *resource.ValidateConfigResponse, config customComplianceFrameworkResourceModel) {
+	if config.Description.IsNull() || config.Description.IsUnknown() || config.Description.ValueString() != "" {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(path.Root("description"), "Invalid description", emptyDescriptionMessage)
 }
 
 func validatePersonalOrganization(resp *resource.ValidateConfigResponse, config customComplianceFrameworkResourceModel) {
@@ -474,17 +485,14 @@ func requestFromPlan(ctx context.Context, plan customComplianceFrameworkResource
 	}, d
 }
 
-// stringPtrOrNil returns a pointer for a non-empty configured string. Null,
-// unknown, and "" all become nil so encoding/json emits `null` — the only
-// form the API accepts to clear description (`""` 400s; omitting the key
-// leaves the previous value because PUT is partial).
+// stringPtrOrNil returns a pointer for a configured string. Null and unknown
+// become nil so encoding/json emits `null` — the only form the API accepts to
+// clear description (omitting the key leaves the previous value because PUT
+// is partial). An empty string is rejected in ValidateConfig.
 func stringPtrOrNil(v types.String) *string {
 	if v.IsNull() || v.IsUnknown() {
 		return nil
 	}
 	s := v.ValueString()
-	if s == "" {
-		return nil
-	}
 	return &s
 }
