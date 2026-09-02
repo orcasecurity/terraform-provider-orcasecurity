@@ -3,12 +3,12 @@
 page_title: "orcasecurity_compliance_framework_selection Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Manages which scopes (user, organization) a compliance framework is selected for. One resource per framework. scopes = [] is the explicit disable action — it DELETEs every held scope. Destroy is state-only and does not deselect the framework: built-in frameworks exist before Terraform and the organization scope is shared tenant state. This resource never deletes the framework itself. The user scope is token-scoped (the API token's own user), so a different token sees a different user selection. Two resources pointing at the same framework_id will fight.
+  Manages which scopes (user, organization) a compliance framework is selected for. One resource per framework. scopes = [] is the explicit disable action — it DELETEs every held scope. Create and Update both read live selection_scopes and converge to scopes, dropping any held scope the config does not list. Destroy is state-only and does not deselect the framework: built-in frameworks exist before Terraform and the organization scope is shared tenant state. This resource never deletes the framework itself. The user scope is token-scoped (the API token's own user), so a different token sees a different user selection. Two resources pointing at the same framework_id will fight.
 ---
 
 # orcasecurity_compliance_framework_selection (Resource)
 
-Manages which scopes (`user`, `organization`) a compliance framework is selected for. One resource per framework. `scopes = []` is the explicit disable action — it DELETEs every held scope. **Destroy is state-only** and does not deselect the framework: built-in frameworks exist before Terraform and the `organization` scope is shared tenant state. This resource never deletes the framework itself. The `user` scope is token-scoped (the API token's own user), so a different token sees a different `user` selection. Two resources pointing at the same `framework_id` will fight.
+Manages which scopes (`user`, `organization`) a compliance framework is selected for. One resource per framework. `scopes = []` is the explicit disable action — it DELETEs every held scope. Create and Update both read live `selection_scopes` and converge to `scopes`, dropping any held scope the config does not list. **Destroy is state-only** and does not deselect the framework: built-in frameworks exist before Terraform and the `organization` scope is shared tenant state. This resource never deletes the framework itself. The `user` scope is token-scoped (the API token's own user), so a different token sees a different `user` selection. Two resources pointing at the same `framework_id` will fight.
 
 ## Example Usage
 
@@ -49,6 +49,10 @@ resource "orcasecurity_compliance_framework_selection" "cost_optimization" {
   `organization` scope drives every user's compliance reporting. Removing this
   resource drops it from state and issues **no API call**. Use `scopes = []` to
   disable.
+- **Adopting or updating drops unlisted scopes.** Create and Update both read
+  live `selection_scopes` and converge to `scopes`. A framework already
+  selected for `organization` is deselected there if the config lists only
+  `user`. Destroy still does not deselect.
 - **`scopes = []` is the disable action.** Read round-trips an empty set rather
   than treating it as "resource vanished", so an out-of-band deselect shows as
   drift (`[] → ["user"]`) instead of a misleading delete.

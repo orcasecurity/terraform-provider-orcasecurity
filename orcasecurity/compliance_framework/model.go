@@ -77,7 +77,7 @@ func frameworkToModel(ctx context.Context, fw api_client.ComplianceFramework) (f
 		DisplayName:                types.StringValue(fw.DisplayName),
 		Description:                tfconv.StringPtrOrNull(fw.Description),
 		Custom:                     types.BoolValue(fw.Custom),
-		Active:                     types.BoolValue(fw.Active),
+		Active:                     types.BoolValue(len(fw.SelectionScopes) > 0),
 		SelectionScopes:            scopes,
 		Type:                       tfconv.StringPtrOrNull(fw.Type),
 		Version:                    tfconv.StringPtrOrNull(fw.Version),
@@ -123,7 +123,7 @@ func matchFramework(fw api_client.ComplianceFramework, f frameworkFilters) bool 
 	if !matchBoolFilter(f.custom, fw.Custom) {
 		return false
 	}
-	if !matchBoolFilter(f.active, fw.Active) {
+	if !matchBoolFilter(f.active, len(fw.SelectionScopes) > 0) {
 		return false
 	}
 	if want, ok := stringFilterValue(f.typ); ok && (fw.Type == nil || *fw.Type != want) {

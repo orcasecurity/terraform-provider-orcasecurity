@@ -67,6 +67,42 @@ func TestFrameworkToModel_NullOptionalFields(t *testing.T) {
 	}
 }
 
+func TestFrameworkToModel_DerivesActiveFromScopes(t *testing.T) {
+	staleTrue, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
+		ID: "stale", DisplayName: "Stale", Active: true, SelectionScopes: []string{},
+	})
+	if d.HasError() {
+		t.Fatal(d)
+	}
+	if staleTrue.Active.ValueBool() {
+		t.Error("empty selection_scopes must be inactive even when the API flag is true")
+	}
+
+	staleFalse, d := frameworkToModel(context.Background(), api_client.ComplianceFramework{
+		ID: "held", DisplayName: "Held", Active: false, SelectionScopes: []string{"user"},
+	})
+	if d.HasError() {
+		t.Fatal(d)
+	}
+	if !staleFalse.Active.ValueBool() {
+		t.Error("non-empty selection_scopes must be active even when the API flag is false")
+	}
+
+	ctx := context.Background()
+	all := map[string]api_client.ComplianceFramework{
+		"stale": {ID: "stale", DisplayName: "Stale", Active: true, SelectionScopes: []string{}},
+		"held":  {ID: "held", DisplayName: "Held", Active: false, SelectionScopes: []string{"organization"}},
+	}
+	inactive, d := filterAndSort(ctx, all, frameworkFilters{active: types.BoolValue(false)})
+	if d.HasError() || len(inactive) != 1 || inactive[0].ID.ValueString() != "stale" {
+		t.Fatalf("active=false must follow scopes, got %+v %v", inactive, d)
+	}
+	active, d := filterAndSort(ctx, all, frameworkFilters{active: types.BoolValue(true)})
+	if d.HasError() || len(active) != 1 || active[0].ID.ValueString() != "held" {
+		t.Fatalf("active=true must follow scopes, got %+v %v", active, d)
+	}
+}
+
 func TestCatalogSectionsLeafAbsent(t *testing.T) {
 	got, d := catalogSectionsToModel(context.Background(), []api_client.ComplianceCatalogSection{{
 		Name:  "Flat",

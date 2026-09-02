@@ -117,6 +117,24 @@ func selectStub(t *testing.T, entries map[string]map[string]interface{}, record 
 			raw, _ := json.Marshal(entries)
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(raw)), Request: req}
 		}
+		if code == 200 && (req.Method == "POST" || req.Method == "DELETE") {
+			for _, fid := range payload.FrameworkIDs {
+				e, ok := entries[fid]
+				if !ok {
+					continue
+				}
+				scopes := scopesFromAny(e["selection_scopes"])
+				if req.Method == "POST" {
+					if !containsString(scopes, payload.Scope) {
+						scopes = append(scopes, payload.Scope)
+					}
+				} else {
+					scopes = removeString(scopes, payload.Scope)
+				}
+				e["selection_scopes"] = scopes
+				e["active"] = len(scopes) > 0
+			}
+		}
 		if code != 200 {
 			return &http.Response{
 				StatusCode: code,
@@ -190,7 +208,7 @@ func TestUpdate_ScopeDiffs(t *testing.T) {
 			var calls []httpCall
 			entries := map[string]map[string]interface{}{
 				"fw": {
-					"id": "fw", "active": len(tt.to) > 0, "selection_scopes": tt.to,
+					"id": "fw", "active": len(tt.from) > 0, "selection_scopes": liveScopes(tt.from),
 					"display_name": "FW", "custom": false, "is_ready": true,
 				},
 			}
@@ -395,6 +413,102 @@ func TestCreate_RefreshLookupError(t *testing.T) {
 	}
 }
 
+func TestCreate_DropsUnlistedLiveScopes(t *testing.T) {
+	var calls []httpCall
+	entries := map[string]map[string]interface{}{
+		"fw": {
+			"id": "fw", "active": true, "selection_scopes": []string{"organization", "user"},
+			"display_name": "FW", "custom": false, "is_ready": true,
+		},
+	}
+	r := stubResource(selectStub(t, entries, &calls, nil))
+	sch := resourceSchema(t)
+	m := model(t, "fw", []string{"user"})
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWith(t, sch, m)}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("create: %v", resp.Diagnostics)
+	}
+	want := []httpCall{{"DELETE", "/api/compliance/frameworks/select", "organization"}}
+	if len(calls) != len(want) || calls[0] != want[0] {
+		t.Errorf("calls = %#v, want %#v", calls, want)
+	}
+	var out resourceModel
+	if diags := resp.State.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	got := setElems(out.Scopes)
+	if !testutils.SameElements(got, []string{"user"}) {
+		t.Errorf("state scopes = %v, want [user]", got)
+	}
+}
+
+func TestUpdate_DiffsFromLiveNotState(t *testing.T) {
+	var calls []httpCall
+	entries := map[string]map[string]interface{}{
+		"fw": {
+			"id": "fw", "active": true, "selection_scopes": []string{"organization"},
+			"display_name": "FW", "custom": false, "is_ready": true,
+		},
+	}
+	r := stubResource(selectStub(t, entries, &calls, nil))
+	sch := resourceSchema(t)
+	from := model(t, "fw", []string{"user"})
+	to := model(t, "fw", []string{"user", "organization"})
+	req := resource.UpdateRequest{State: stateWith(t, sch, from), Plan: planWith(t, sch, to)}
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, from)}
+	r.Update(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("update: %v", resp.Diagnostics)
+	}
+	want := []httpCall{{"POST", "/api/compliance/frameworks/select", "user"}}
+	if len(calls) != len(want) || calls[0] != want[0] {
+		t.Errorf("calls = %#v, want %#v", calls, want)
+	}
+	var out resourceModel
+	if diags := resp.State.Get(context.Background(), &out); diags.HasError() {
+		t.Fatal(diags)
+	}
+	got := setElems(out.Scopes)
+	if !testutils.SameElements(got, []string{"user", "organization"}) {
+		t.Errorf("state scopes = %v, want [user organization]", got)
+	}
+}
+
+func TestUpdate_LookupError(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 500,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"boom"}`)),
+			Request:    req,
+		}
+	})
+	sch := resourceSchema(t)
+	from := model(t, "fw", []string{"user"})
+	to := model(t, "fw", []string{"user", "organization"})
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, from)}
+	r.Update(context.Background(), resource.UpdateRequest{
+		State: stateWith(t, sch, from), Plan: planWith(t, sch, to),
+	}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("select GET 500 must be a diagnostic")
+	}
+}
+
+func TestUpdate_FrameworkNotFound(t *testing.T) {
+	r := stubResource(selectStub(t, map[string]map[string]interface{}{}, nil, nil))
+	sch := resourceSchema(t)
+	from := model(t, "missing", []string{"user"})
+	to := model(t, "missing", []string{"user", "organization"})
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, from)}
+	r.Update(context.Background(), resource.UpdateRequest{
+		State: stateWith(t, sch, from), Plan: planWith(t, sch, to),
+	}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("unknown framework must be a diagnostic")
+	}
+}
+
 func TestSchema_EmptyScopesAllowed(t *testing.T) {
 	sch := resourceSchema(t)
 	scopes, ok := sch.Attributes["scopes"].(schema.SetAttribute)
@@ -424,4 +538,54 @@ func TestModelCoversSchema(t *testing.T) {
 			t.Errorf("missing tfsdk tag for %q", name)
 		}
 	}
+}
+
+func liveScopes(from []string) []string {
+	if from == nil {
+		return []string{}
+	}
+	return from
+}
+
+func setElems(s types.Set) []string {
+	out := make([]string, 0, len(s.Elements()))
+	for _, e := range s.Elements() {
+		out = append(out, e.(types.String).ValueString())
+	}
+	return out
+}
+
+func scopesFromAny(v interface{}) []string {
+	switch x := v.(type) {
+	case []string:
+		return append([]string{}, x...)
+	case []interface{}:
+		out := make([]string, 0, len(x))
+		for _, e := range x {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func containsString(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
+func removeString(ss []string, drop string) []string {
+	out := ss[:0]
+	for _, s := range ss {
+		if s != drop {
+			out = append(out, s)
+		}
+	}
+	return out
 }

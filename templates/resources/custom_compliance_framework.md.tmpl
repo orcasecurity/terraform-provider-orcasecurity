@@ -56,7 +56,14 @@ description: |-
   400. A source `reference_id` is not always legal (`V-225223`, `5`). The
   prefix does not have to match this section's id — `8.8` under an omitted
   top-level section still reads back as `8` — but the part count must match
-  the nesting depth.
+  the nesting depth. **Control ids are now validated.** Configs that
+  previously applied with a single number (`5`) or a source `reference_id`
+  (`V-225223`) now fail at plan. Those controls were being dropped by the
+  API, so the framework was already missing them; the error surfaces a
+  pre-existing problem rather than creating one.
+- **`description`.** Omit to clear. PUT is partial, so a missing key leaves
+  the previous text; an empty string 400s (`This field may not be blank`).
+  The provider sends JSON `null`, the only form that clears it.
 - **`scope` is create-only.** Omit it to create the framework inactive.
   Ongoing enable/disable belongs to
   [`orcasecurity_compliance_framework_selection`](compliance_framework_selection.md).

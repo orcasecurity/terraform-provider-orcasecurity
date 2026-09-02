@@ -171,8 +171,10 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 				},
 			},
 			"description": schema.StringAttribute{
-				Optional:    true,
-				Description: "Framework description.",
+				Optional: true,
+				Description: "Framework description. Omit to clear — the provider sends JSON " +
+					"`null`, the only form the API accepts (an empty string 400s; omitting the " +
+					"key on PUT leaves the previous value).",
 			},
 			"visibility": schema.StringAttribute{
 				Optional: true,
@@ -464,10 +466,25 @@ func requestFromPlan(ctx context.Context, plan customComplianceFrameworkResource
 	}
 	return api_client.CustomComplianceFrameworkRequest{
 		Name:               plan.Name.ValueString(),
-		Description:        plan.Description.ValueString(),
+		Description:        stringPtrOrNil(plan.Description),
 		Visibility:         plan.Visibility.ValueString(),
 		Scope:              plan.Scope.ValueString(),
 		ForcedCloudVendors: vendors,
 		Sections:           sectionsToAPI(plan.Sections),
 	}, d
+}
+
+// stringPtrOrNil returns a pointer for a non-empty configured string. Null,
+// unknown, and "" all become nil so encoding/json emits `null` — the only
+// form the API accepts to clear description (`""` 400s; omitting the key
+// leaves the previous value because PUT is partial).
+func stringPtrOrNil(v types.String) *string {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	s := v.ValueString()
+	if s == "" {
+		return nil
+	}
+	return &s
 }

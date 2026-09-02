@@ -22,6 +22,10 @@ description: |-
   `organization` scope drives every user's compliance reporting. Removing this
   resource drops it from state and issues **no API call**. Use `scopes = []` to
   disable.
+- **Adopting or updating drops unlisted scopes.** Create and Update both read
+  live `selection_scopes` and converge to `scopes`. A framework already
+  selected for `organization` is deselected there if the config lists only
+  `user`. Destroy still does not deselect.
 - **`scopes = []` is the disable action.** Read round-trips an empty set rather
   than treating it as "resource vanished", so an out-of-band deselect shows as
   drift (`[] → ["user"]`) instead of a misleading delete.

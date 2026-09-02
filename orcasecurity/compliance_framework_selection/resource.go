@@ -68,7 +68,9 @@ func (r *complianceFrameworkSelectionResource) Schema(_ context.Context, _ resou
 	resp.Schema = schema.Schema{
 		Description: "Manages which scopes (`user`, `organization`) a compliance framework is " +
 			"selected for. One resource per framework. `scopes = []` is the explicit disable " +
-			"action — it DELETEs every held scope. " +
+			"action — it DELETEs every held scope. Create and Update both read live " +
+			"`selection_scopes` and converge to `scopes`, dropping any held scope the config " +
+			"does not list. " +
 			"**Destroy is state-only** and does not deselect the framework: built-in " +
 			"frameworks exist before Terraform and the `organization` scope is shared tenant " +
 			"state. This resource never deletes the framework itself. " +
@@ -198,36 +200,35 @@ func (r *complianceFrameworkSelectionResource) Read(ctx context.Context, req res
 
 func (r *complianceFrameworkSelectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan resourceModel
-	var state resourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	from, d := integrations_common.StringSliceFromSet(ctx, state.Scopes)
-	resp.Diagnostics.Append(d...)
 	to, d := integrations_common.StringSliceFromSet(ctx, plan.Scopes)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if containsScope(to, api_client.ScopeOrganization) {
-		entry, err := r.lookup(plan.FrameworkID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(errUpdatingSelection, "Could not read current selection: "+err.Error())
-			return
-		}
-		if entry != nil {
-			if pd := personalOrganizationDiag(entry.Visibility, to); pd != nil {
-				resp.Diagnostics.Append(pd...)
-				return
-			}
-		}
+	entry, err := r.lookup(plan.FrameworkID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(errUpdatingSelection, "Could not read current selection: "+err.Error())
+		return
+	}
+	if entry == nil {
+		resp.Diagnostics.AddError(
+			errUpdatingSelection,
+			fmt.Sprintf("Framework %q does not exist, so it cannot be selected.", plan.FrameworkID.ValueString()),
+		)
+		return
+	}
+	if pd := personalOrganizationDiag(entry.Visibility, to); pd != nil {
+		resp.Diagnostics.Append(pd...)
+		return
 	}
 
-	if err := r.applyScopeDiff(plan.FrameworkID.ValueString(), from, to); err != nil {
+	if err := r.applyScopeDiff(plan.FrameworkID.ValueString(), entry.SelectionScopes, to); err != nil {
 		resp.Diagnostics.AddError(errUpdatingSelection, "Could not update scopes, unexpected error: "+err.Error())
 		return
 	}
@@ -252,15 +253,6 @@ func personalOrganizationDiag(visibility *string, scopes []string) diag.Diagnost
 	var d diag.Diagnostics
 	d.AddError(api_client.ErrPersonalOrgSummary, api_client.ErrPersonalOrgDetail)
 	return d
-}
-
-func containsScope(scopes []string, want string) bool {
-	for _, s := range scopes {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *complianceFrameworkSelectionResource) lookup(id string) (*api_client.ComplianceFramework, error) {

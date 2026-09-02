@@ -37,6 +37,66 @@ func TestUpdateRequestOmitsEmptyForcedCloudVendors(t *testing.T) {
 	}
 }
 
+func TestRequestFromPlanOmitsDescriptionAsNull(t *testing.T) {
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if req.Description != nil {
+		t.Fatalf("omitted description must be nil, got %q", *req.Description)
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"description":null`) {
+		t.Errorf("omitted description must marshal as JSON null, got %s", raw)
+	}
+
+	empty, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		Description:        types.StringValue(""),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	raw, err = json.Marshal(empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"description":null`) {
+		t.Errorf("empty description must marshal as JSON null, not %q, got %s", "", raw)
+	}
+}
+
+func TestRequestFromPlanSendsDescription(t *testing.T) {
+	req, diags := requestFromPlan(context.Background(), customComplianceFrameworkResourceModel{
+		Name:               types.StringValue("n"),
+		Description:        types.StringValue("original text"),
+		ForcedCloudVendors: types.SetNull(types.StringType),
+		Sections:           oneSection(t),
+	})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if req.Description == nil || *req.Description != "original text" {
+		t.Fatalf("description: %v", req.Description)
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"description":"original text"`) {
+		t.Errorf("set description must be sent, got %s", raw)
+	}
+}
+
 func TestModifyPlan_RejectsOrganizationalToPersonal(t *testing.T) {
 	state := customComplianceFrameworkResourceModel{
 		ID:                 types.StringValue("1"),

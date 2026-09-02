@@ -23,7 +23,7 @@ type CustomComplianceFrameworkSection struct {
 
 type CustomComplianceFrameworkRequest struct {
 	Name               string                             `json:"name"`
-	Description        string                             `json:"description,omitempty"`
+	Description        *string                            `json:"description"`
 	Visibility         string                             `json:"visibility,omitempty"`
 	Scope              string                             `json:"scope,omitempty"`
 	ForcedCloudVendors []string                           `json:"forced_cloud_vendors,omitempty"`

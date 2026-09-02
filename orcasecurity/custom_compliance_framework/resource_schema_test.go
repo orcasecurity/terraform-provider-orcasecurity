@@ -73,6 +73,9 @@ func TestSchema_LoosenedAndAdditive(t *testing.T) {
 	if !ok || !desc.Optional || desc.Required {
 		t.Errorf("description must be Optional, got %#v", attrs["description"])
 	}
+	if !strings.Contains(desc.Description, "null") {
+		t.Errorf("description schema must mention JSON null, got %q", desc.Description)
+	}
 	if _, ok := attrs["visibility"]; !ok {
 		t.Error("missing visibility")
 	}

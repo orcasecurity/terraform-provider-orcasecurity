@@ -222,6 +222,9 @@ func TestCreateCustomComplianceFramework_OmitsCheckedKeys(t *testing.T) {
 		if payload["name"] != "Lab" {
 			t.Errorf("name: %v", payload["name"])
 		}
+		if payload["description"] != nil {
+			t.Errorf("omitted description must marshal as JSON null, got %s", body)
+		}
 		return jsonStatus(200, `{"data":{"id": 3887, "name":"Lab","description":""}}`)
 	})
 	got, err := client.CreateCustomComplianceFramework(CustomComplianceFrameworkRequest{
