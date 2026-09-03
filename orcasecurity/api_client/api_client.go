@@ -11,9 +11,7 @@ import (
 	"time"
 )
 
-// httpDebugEnvVar gates verbose HTTP logging. When unset, the client emits no
-// request/response detail — critical because those bodies carry integration
-// secrets (API tokens, keys). Set it to any non-empty value to troubleshoot.
+// Off by default: request/response bodies carry secrets (API tokens).
 const httpDebugEnvVar = "ORCASECURITY_HTTP_DEBUG"
 
 // defaultHTTPTimeout is the per-request timeout for the shared API client.
@@ -71,7 +69,6 @@ type APIResponse struct {
 	response *http.Response
 }
 
-// Return response status code
 func (resp *APIResponse) StatusCode() int {
 	return resp.response.StatusCode
 }
@@ -81,27 +78,18 @@ func (resp *APIResponse) IsOk() bool {
 	return resp.StatusCode() < 400
 }
 
-// Read response body.
-// Careful, it contains full body in the memory.
-// If you wish a memory-effective version then use Execute function
-// that returns pointer to raw http.Response.
 func (resp *APIResponse) Body() []byte {
 	return resp._body
 }
 
-// Returns either response body or response error.
-// Note, the error contains the message provided by API on unsuccessful request.
 func (resp *APIResponse) Read() ([]byte, error) {
 	return resp.Body(), resp.Error()
 }
 
-// Load response JSON into user struct.
 func (resp *APIResponse) ReadJSON(typ interface{}) error {
 	return json.Unmarshal(resp.Body(), typ)
 }
 
-// Return API error message.
-// Returns nil if request was successful.
 func (resp *APIResponse) Error() error {
 	type errorType struct {
 		Message string `json:"message,omitempty"`
@@ -122,7 +110,6 @@ func (resp *APIResponse) Error() error {
 	return nil
 }
 
-// Perform API call.
 func (c *APIClient) Execute(req http.Request) (*http.Response, error) {
 	req.Header.Set("authorization", fmt.Sprintf("Token %s", c.APIToken))
 	req.Header.Set("content-type", "application/json")
@@ -191,9 +178,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 
 	response, err := c.doRequest(*req)
 	if err != nil {
-		// Do not append the request payload — it carries integration secrets and
-		// this error surfaces to the user via diagnostics. doRequest already wraps
-		// the server's response body for context.
+		// Never append the payload — it carries secrets and surfaces in diagnostics.
 		return nil, fmt.Errorf("request failed: %v, URL: %s", err, fullURL)
 	}
 
@@ -248,9 +233,6 @@ func (c *APIClient) Delete(path string) (*APIResponse, error) {
 	return c.doRequest(*req)
 }
 
-// DeleteWithBody executes a DELETE HTTP request carrying a JSON body. Some Orca
-// RBAC endpoints (e.g. /api/rbac/access/user) identify the record by an id in
-// the request body rather than in the URL path.
 func (c *APIClient) DeleteWithBody(path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
 	if err != nil {

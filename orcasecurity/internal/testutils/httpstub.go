@@ -29,6 +29,18 @@ func NewStubAPIClient(fn RoundTripFunc) *api_client.APIClient {
 	}
 }
 
+// FirstPageOnly returns body for the first page of a getAllScmPages-style
+// paginated request and an empty data envelope for every page after it.
+// That pagination always follows up past a non-empty page to confirm it's
+// over, so any stub serving a fixed paginated envelope needs this or it
+// spins to the max-page guard on the confirmation request.
+func FirstPageOnly(r *http.Request, body string) string {
+	if start := r.URL.Query().Get("start_at_index"); start != "" && start != "0" {
+		return `{"data":[]}`
+	}
+	return body
+}
+
 // JSONResponse is a one-shot http.Response for RoundTripFunc stubs.
 func JSONResponse(req *http.Request, code int, body string) *http.Response {
 	return &http.Response{

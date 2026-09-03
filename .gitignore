@@ -47,5 +47,13 @@ demo
 # Local superpowers plan/spec docs — never commit
 docs/superpowers/
 
+# Local agent notes and state — never commit
+.claude/
+
 # Local lab harness (tokens, tenant fixtures) — never commit
 /tests/lab/
+
+tests/shift_left_acc_require.md
+
+# Pinned tool binaries installed by `make lint` (version from .golangci-version)
+/bin/

@@ -171,6 +171,56 @@ func TestAddAllCatalogControls_ContainerScope(t *testing.T) {
 	}
 }
 
+// file_system catalog is scope-grouped under vulnerabilities/secret_detection
+// (confirmed live), so file_system_* all_controls must resolve a non-empty set.
+func TestAddAllCatalogControls_FileSystemScoped(t *testing.T) {
+	catalogBody := `{
+		"vulnerabilities":{"controls":[{"id":"fs-vuln-1","priority":"HIGH"},{"id":"fs-vuln-2"}]},
+		"secret_detection":{"controls":[{"id":"fs-secret-1","priority":"LOW"}]}
+	}`
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(catalogBody))}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	policy := ShiftLeftPolicy{}
+	if err := client.AddAllCatalogControls("file_system", &policy, []string{"vulnerabilities"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var policyData map[string]interface{}
+	if err := json.Unmarshal(policy.PolicyData, &policyData); err != nil {
+		t.Fatalf("failed to decode policy_data: %v", err)
+	}
+	scope, ok := policyData["vulnerabilities"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected vulnerabilities scope in policy_data")
+	}
+	ctrls, ok := scope["controls"].([]interface{})
+	if !ok || len(ctrls) != 2 {
+		t.Fatalf("expected 2 controls under vulnerabilities scope, got %v", scope["controls"])
+	}
+}
+
+// A scope key the catalog does not group under must error, not silently write
+// an empty control set (guards the legacy flat file_system type + future drift).
+func TestAddAllCatalogControls_EmptyScopeErrors(t *testing.T) {
+	catalogBody := `{
+		"vulnerabilities":{"controls":[{"id":"fs-vuln-1"}]},
+		"secret_detection":{"controls":[{"id":"fs-secret-1"}]}
+	}`
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(catalogBody))}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	policy := ShiftLeftPolicy{}
+	err := client.AddAllCatalogControls("file_system", &policy, []string{""})
+	if err == nil || !strings.Contains(err.Error(), "empty policy") {
+		t.Fatalf("expected empty-scope error, got %v", err)
+	}
+}
+
 func TestAddAllCatalogControls_NoScopes(t *testing.T) {
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret"}
 	policy := ShiftLeftPolicy{}

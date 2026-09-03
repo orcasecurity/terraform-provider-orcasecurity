@@ -1,0 +1,25 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **Write-only token:** API never returns `access_token`; Terraform keeps the configured value (unknown after import until next apply re-sends it). `account_name` scopes to one org (`SINGLE_ACCOUNT`); omit for all orgs (`ALL_ACCOUNTS`).
+
+!> **Destroy:** Removes the entire SCM connection and everything under it — wider blast radius than a single `orcasecurity_shift_left_azure_devops_account`.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

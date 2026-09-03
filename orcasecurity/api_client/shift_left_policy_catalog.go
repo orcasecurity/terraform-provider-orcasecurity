@@ -55,7 +55,7 @@ func (index catalogControlIndex) indexWalk(node interface{}) {
 	}
 }
 
-func buildCatalogControlIndex(catalogRaw json.RawMessage, policyType string) (catalogControlIndex, error) {
+func buildCatalogControlIndex(catalogRaw json.RawMessage) (catalogControlIndex, error) {
 	index := catalogControlIndex{}
 	if len(catalogRaw) == 0 {
 		return index, nil
@@ -212,7 +212,7 @@ func (client *APIClient) EnrichShiftLeftPolicyFromCatalog(policyType string, pol
 		return err
 	}
 
-	index, err := buildCatalogControlIndex(catalog.Body, policyType)
+	index, err := buildCatalogControlIndex(catalog.Body)
 	if err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func enrichPolicyDataRaw(raw json.RawMessage, index catalogControlIndex) (json.R
 	return json.Marshal(policyData)
 }
 
-func toControlMaps(items []interface{}) []map[string]interface{} {
+func ToControlMaps(items []interface{}) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(items))
 	for _, item := range items {
 		if m, ok := item.(map[string]interface{}); ok {
@@ -280,7 +280,7 @@ func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]
 
 	var asArray []interface{}
 	if err := json.Unmarshal(catalogRaw, &asArray); err == nil && len(asArray) > 0 {
-		result[""] = toControlMaps(asArray)
+		result[""] = ToControlMaps(asArray)
 		return result
 	}
 
@@ -289,7 +289,7 @@ func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]
 		return result
 	}
 	if controls, ok := catalog["controls"].([]interface{}); ok {
-		result[""] = toControlMaps(controls)
+		result[""] = ToControlMaps(controls)
 	}
 	for scope, value := range catalog {
 		obj, ok := value.(map[string]interface{})
@@ -297,7 +297,7 @@ func catalogControlsByScope(catalogRaw json.RawMessage) map[string][]map[string]
 			continue
 		}
 		if controls, ok := obj["controls"].([]interface{}); ok {
-			result[scope] = toControlMaps(controls)
+			result[scope] = ToControlMaps(controls)
 		}
 	}
 	return result
@@ -380,7 +380,11 @@ func (client *APIClient) AddAllCatalogControls(policyType string, policy *ShiftL
 	}
 
 	for _, scopeKey := range scopeKeys {
-		injectScopeControls(policyData, scopeKey, scopeEntries(byScope[scopeKey]))
+		entries := scopeEntries(byScope[scopeKey])
+		if len(entries) == 0 {
+			return fmt.Errorf("catalog for policy type %q has no controls for scope %q; all_controls would produce an empty policy", policyType, scopeKey)
+		}
+		injectScopeControls(policyData, scopeKey, entries)
 	}
 
 	pdRaw, err := json.Marshal(policyData)
@@ -407,7 +411,7 @@ type CatalogControlSummary struct {
 
 // FlattenCatalogControls extracts control summaries from a nested catalog response.
 func FlattenCatalogControls(catalogRaw json.RawMessage) []CatalogControlSummary {
-	index, _ := buildCatalogControlIndex(catalogRaw, "")
+	index, _ := buildCatalogControlIndex(catalogRaw)
 	controls := make([]CatalogControlSummary, 0, len(index))
 	for id, control := range index {
 		c := CatalogControlSummary{ID: id}

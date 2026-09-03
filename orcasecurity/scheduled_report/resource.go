@@ -231,6 +231,7 @@ func (r *scheduledReportResource) Schema(ctx context.Context, req resource.Schem
 			},
 			"compression": schema.StringAttribute{
 				Description: fmt.Sprintf("Compression applied to the generated report file. Valid values are: `%v`. "+
+					"Only supported for the text formats `csv` and `json`; the API rejects it for `pdf`, `xlsx` and `html`. "+
 					"Maps to `compression_type` inside the report `config`.", reportCompressionTypes),
 				Optional: true,
 				Validators: []validator.String{

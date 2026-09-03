@@ -1,7 +1,6 @@
 package api_client
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
@@ -63,29 +62,8 @@ func (client *APIClient) GetAutomationV2(automationID string) (*AutomationV2, er
 // deterministic.
 func (client *APIClient) ListAutomationsV2() ([]AutomationV2, error) {
 	const pageLimit = 300
-	var all []AutomationV2
-	for {
-		// Offset by items actually received, not page count, so a short page
-		// with more items remaining (concurrent inserts, server-side cap)
-		// under-fetches safely instead of silently skipping items.
-		resp, err := client.Get(fmt.Sprintf("/api/automations?limit=%d&start_at_index=%d", pageLimit, len(all)))
-		if err != nil {
-			return nil, err
-		}
-
-		var response struct {
-			TotalItems int            `json:"total_items"`
-			Data       []AutomationV2 `json:"data"`
-		}
-		if err := json.Unmarshal(resp.Body(), &response); err != nil {
-			return nil, err
-		}
-
-		all = append(all, response.Data...)
-		if len(response.Data) == 0 || len(all) >= response.TotalItems {
-			return all, nil
-		}
-	}
+	const maxPages = 500
+	return paginateOffset[AutomationV2](client, "/api/automations", nil, pageLimit, maxPages)
 }
 
 func (client *APIClient) DoesAutomationV2Exist(id string) (bool, error) {

@@ -1,0 +1,131 @@
+package shift_left_integration
+
+import (
+	"testing"
+
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+func TestScmConfigFieldsFromAPI_NullProjectWhenUnbound(t *testing.T) {
+	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		IntegrationStatus: "ENABLED",
+		InstallationMode:  "SELECTED_REPOSITORIES",
+	})
+	if !f.ProjectID.IsNull() {
+		t.Fatalf("expected null project_id, got %#v", f.ProjectID)
+	}
+	if f.IntegrationStatus.ValueString() != "ENABLED" {
+		t.Fatalf("integration_status: %v", f.IntegrationStatus)
+	}
+	f2 := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		InstallationMode: "SELECTED_REPOSITORIES",
+		Project:          &api_client.ScmProjectRef{ID: "proj-1"},
+	})
+	if f2.ProjectID.ValueString() != "proj-1" {
+		t.Fatalf("expected project id, got %#v", f2.ProjectID)
+	}
+	if !f2.IntegrationStatus.IsNull() {
+		t.Fatalf("empty status must be null, got %#v", f2.IntegrationStatus)
+	}
+}
+
+func TestScmConfigFieldsFromAPI_ReadOnlyStatusFields(t *testing.T) {
+	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		ScanAllState:                "COMPLETED",
+		IntegratedRepositoriesCount: 7,
+		ScmPosturePolicyID:          "sp-1",
+	})
+	if f.ScanAllState.ValueString() != "COMPLETED" {
+		t.Fatalf("scan_all_state: %v", f.ScanAllState)
+	}
+	if f.IntegratedRepositoriesCount.ValueInt64() != 7 {
+		t.Fatalf("integrated_repositories_count: %v", f.IntegratedRepositoriesCount)
+	}
+	if f.ScmPosturePolicyID.ValueString() != "sp-1" {
+		t.Fatalf("scm_posture_policy_id: %v", f.ScmPosturePolicyID)
+	}
+}
+
+func TestExpandConfigSettings_UnavailableAvoidScan(t *testing.T) {
+	m := &ConfigSettingsModel{
+		UnavailableConditions: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("AVOID_SCAN")}),
+	}
+	api := ExpandConfigSettings(m)
+	if api.InstallationReposConfig == nil || api.InstallationReposConfig.UnavailableActions == nil {
+		t.Fatalf("expected unavailable actions, got %+v", api.InstallationReposConfig)
+	}
+	got := api.InstallationReposConfig.UnavailableActions.Conditions
+	if len(got) != 1 || got[0] != "AVOID_SCAN" {
+		t.Fatalf("expected [AVOID_SCAN], got %v", got)
+	}
+}
+
+func TestSharedScmConfigAttributes_HasIntegrationStatus(t *testing.T) {
+	attrs := SharedScmConfigAttributes()
+	if _, ok := attrs["integration_status"]; !ok {
+		t.Fatal("expected integration_status attribute")
+	}
+}
+
+// The data source and the resource must report installation_mode identically.
+func TestInstallationModeAgreesBetweenResourceAndDataSource(t *testing.T) {
+	for _, mode := range []string{"SCAN_ALL", "", "SELECTED_REPOSITORIES", "SCAN_ALL_INCLUDE_FUTURE"} {
+		unit := api_client.ScmUnitCommonFields{InstallationMode: mode}
+
+		resourceValue := ScmConfigFieldsFromAPI("acme", unit).InstallationMode
+		listValue, ok := SharedScmListUnitValues("acme", unit)["installation_mode"].(types.String)
+		if !ok {
+			t.Fatal("installation_mode must be a types.String")
+		}
+		if !listValue.Equal(resourceValue) {
+			t.Errorf("mode %q: data source reports %v, resource reports %v", mode, listValue, resourceValue)
+		}
+	}
+}
+
+// Azure DevOps (live) reports default_policies=true while also expanding the
+// flag into the concrete built-in policy list. Storing both would put the pair
+// ValidateScmBindingPlan rejects into state, so an imported unit could never
+// plan. On read the flag owns the binding and the expansion maps to null.
+func TestScmConfigFieldsFromAPI_DefaultPoliciesOwnsBinding(t *testing.T) {
+	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		DefaultPolicies: true,
+		Policies:        []api_client.ScmPolicyRef{{ID: "pol-1"}, {ID: "pol-2"}},
+	})
+	if !f.DefaultPolicies.ValueBool() {
+		t.Fatalf("default_policies: %v", f.DefaultPolicies)
+	}
+	if !f.PoliciesIds.IsNull() {
+		t.Fatalf("policies_ids must be null when default_policies=true, got %#v", f.PoliciesIds)
+	}
+	var diags diag.Diagnostics
+	ValidateScmBindingPlan(&f, &diags)
+	if diags.HasError() {
+		t.Fatalf("read result must be plannable, got %v", diags)
+	}
+
+	// Explicit binding (flag false) still round-trips the ids untouched.
+	f = ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{
+		DefaultPolicies: false,
+		Policies:        []api_client.ScmPolicyRef{{ID: "pol-1"}},
+	})
+	if f.PoliciesIds.IsNull() || len(f.PoliciesIds.Elements()) != 1 {
+		t.Fatalf("expected explicit policies preserved, got %#v", f.PoliciesIds)
+	}
+}
+
+func TestScmConfigFieldsFromAPI_PreservesLegacyScanAll(t *testing.T) {
+	f := ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{InstallationMode: "SCAN_ALL"})
+	if f.InstallationMode.ValueString() != "SCAN_ALL" {
+		t.Fatalf("read must not rewrite SCAN_ALL to SELECTED_REPOSITORIES, got %q", f.InstallationMode.ValueString())
+	}
+	// Absent mode still gets the schema default.
+	f = ScmConfigFieldsFromAPI("acme", api_client.ScmUnitCommonFields{})
+	if f.InstallationMode.ValueString() != "SELECTED_REPOSITORIES" {
+		t.Fatalf("empty mode should default, got %q", f.InstallationMode.ValueString())
+	}
+}

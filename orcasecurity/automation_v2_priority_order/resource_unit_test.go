@@ -136,7 +136,7 @@ func orderStub(serverOrder ...string) *automationPriorityOrderResource {
 			items = append(items, automationJSON(id, i+1))
 		}
 		body := fmt.Sprintf(`{"total_items": %d, "data": [%s]}`, len(serverOrder), strings.Join(items, ","))
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(testutils.FirstPageOnly(req, body))), Request: req}
 	})
 }
 
@@ -165,7 +165,8 @@ func TestTopNIDs(t *testing.T) {
 	body := `{"total_items": 3, "data": [` +
 		automationJSON("x", 1) + `,` + automationJSON("y", 2) + `,` + automationJSON("z", 3) + `]}`
 	r := stubResource(func(req *http.Request) *http.Response {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+		resp := testutils.FirstPageOnly(req, body)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(resp)), Request: req}
 	})
 
 	ids, err := r.topNIDs(2)
@@ -180,7 +181,8 @@ func TestTopNIDs(t *testing.T) {
 func TestTopNIDsFewerThanN(t *testing.T) {
 	body := `{"total_items": 1, "data": [` + automationJSON("x", 1) + `]}`
 	r := stubResource(func(req *http.Request) *http.Response {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+		resp := testutils.FirstPageOnly(req, body)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(resp)), Request: req}
 	})
 
 	ids, err := r.topNIDs(5)

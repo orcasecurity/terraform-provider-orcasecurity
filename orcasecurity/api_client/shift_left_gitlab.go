@@ -1,0 +1,127 @@
+package api_client
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type GitlabGroup struct {
+	ID             string `json:"id"`
+	InstallationID string `json:"installation_id,omitempty"`
+	AccountName    string `json:"account_name"`
+	GitlabGroupID  int64  `json:"gitlab_group_id,omitempty"`
+	ScmUnitCommonFields
+}
+
+func (g *GitlabGroup) unitID() string { return g.ID }
+
+func (g *GitlabGroup) stampInstallationID(id string) {
+	if g.InstallationID == "" {
+		g.InstallationID = id
+	}
+}
+
+// GitLab returns gitlab_group_name, not account_name.
+func (g *GitlabGroup) UnmarshalJSON(b []byte) error {
+	type alias GitlabGroup
+	aux := struct {
+		alias
+		GitlabGroupName string `json:"gitlab_group_name"`
+	}{alias: alias(*g)}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	*g = GitlabGroup(aux.alias)
+	if g.AccountName == "" {
+		g.AccountName = aux.GitlabGroupName
+	}
+	return nil
+}
+
+type GitlabInstallation struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	ServerURL         string `json:"server_url,omitempty"`
+	ExternalServerURL string `json:"external_server_url,omitempty"`
+	AccessTokenName   string `json:"access_token_name,omitempty"`
+	AccessTokenType   string `json:"access_token_type,omitempty"`
+	ReadOnly          bool   `json:"read_only"`
+	IntegrationStatus string `json:"integration_status,omitempty"`
+	CloudIntegration  bool   `json:"cloud_integration"`
+}
+
+// Omitted read_only defaults to false on PATCH, not "unchanged".
+type GitlabInstallationWrite struct {
+	AccessToken string `json:"access_token,omitempty"`
+	Name        string `json:"name,omitempty"`
+	ServerURL   string `json:"server_url,omitempty"`
+	ReadOnly    bool   `json:"read_only"`
+}
+
+func (g *GitlabInstallation) installationID() string { return g.ID }
+
+const gitlabInstallationsPath = "/api/shiftleft/gitlab/installations/"
+
+func (client *APIClient) ListGitlabInstallations() ([]GitlabInstallation, error) {
+	return getAllScmPages[GitlabInstallation](client, gitlabInstallationsPath, nil)
+}
+
+func (client *APIClient) GetGitlabInstallation(id string) (*GitlabInstallation, error) {
+	return findScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, id)
+}
+
+func (client *APIClient) CreateGitlabInstallation(body GitlabInstallationWrite) (*GitlabInstallation, error) {
+	return createScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, body)
+}
+
+func (client *APIClient) UpdateGitlabInstallation(id string, body GitlabInstallationWrite) (*GitlabInstallation, error) {
+	return patchScmInstallationAndReread[GitlabInstallation](client, gitlabInstallationsPath, id, body)
+}
+
+func (client *APIClient) DeleteGitlabInstallation(id string) error {
+	return deleteScmInstallation(client, gitlabInstallationsPath, id)
+}
+
+func gitlabGroupsPath(installationID string) string {
+	return fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_groups/", installationID)
+}
+
+func (client *APIClient) ListGitlabGroups() ([]GitlabGroup, error) {
+	return listScmUnitsByInstallation[GitlabGroup](client, "/api/shiftleft/gitlab/installations/", gitlabGroupsPath)
+}
+
+func (client *APIClient) GetGitlabGroup(installationID, orcaGroupID string) (*GitlabGroup, error) {
+	return findScmUnit[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, orcaGroupID)
+}
+
+func (client *APIClient) FindGitlabGroupByGitlabID(installationID string, gitlabGroupID int64) (*GitlabGroup, error) {
+	// The GitLab unit list only searches the group name, and this lookup keys on the numeric GitLab
+	// group id, so there is nothing to narrow with server-side.
+	return findScmUnitBy[GitlabGroup](client, gitlabGroupsPath(installationID), installationID, nil,
+		func(g *GitlabGroup) bool { return g.GitlabGroupID == gitlabGroupID })
+}
+
+func (client *APIClient) UpdateGitlabGroup(installationID, orcaGroupID string, body ScmInstallationUpdate) (*GitlabGroup, error) {
+	// List path is integrated_groups; update path is integrated_group.
+	updatePath := fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, orcaGroupID)
+	return updateScmUnit[GitlabGroup](client, updatePath, gitlabGroupsPath(installationID), installationID, orcaGroupID, body)
+}
+
+func (client *APIClient) DeleteGitlabGroup(installationID, orcaGroupID string) error {
+	return deleteScmPathIgnoring404(client,
+		fmt.Sprintf("/api/shiftleft/gitlab/installations/%s/integrated_group/%s/", installationID, orcaGroupID))
+}
+
+type GitlabUnitIntegrate struct {
+	InstallationID string
+	GitlabGroupID  int64
+	Body           ScmInstallationUpdate
+}
+
+func (client *APIClient) IntegrateGitlabUnit(req GitlabUnitIntegrate) error {
+	body := struct {
+		scmUnitIntegrateBody
+		GroupID int64 `json:"group_id"`
+	}{newScmUnitIntegrateBody(req.InstallationID, req.Body), req.GitlabGroupID}
+	return client.integrateScmRepositories("gitlab", body)
+}

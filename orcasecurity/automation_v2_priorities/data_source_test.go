@@ -12,10 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 )
 
-// stubDataSource returns a data source whose API always answers with body.
+// stubDataSource returns a data source whose API answers with body on the
+// first page only (see testutils.FirstPageOnly).
 func stubDataSource(body string) *automationPrioritiesDataSource {
 	return &automationPrioritiesDataSource{apiClient: testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+		resp := testutils.FirstPageOnly(req, body)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(resp)), Request: req}
 	})}
 }
 

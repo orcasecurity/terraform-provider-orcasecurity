@@ -107,6 +107,7 @@ func TestFindUserAccess(t *testing.T) {
 	}
 	if ua == nil {
 		t.Fatal("expected an assignment, got nil")
+		return
 	}
 	if ua.ID != testUserAccessID || ua.RoleID != testUserAccessRoleID || !ua.AllCloudAccounts {
 		t.Errorf("unexpected assignment: %+v", ua)

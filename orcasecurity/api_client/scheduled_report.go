@@ -1,10 +1,21 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
 const scheduledReportAPIPath = "/api/reporting/scheduled_reports"
+
+// Nil map marshals as {} — reporting API returns 500 on null object fields.
+type jsonObject map[string]interface{}
+
+func (o jsonObject) MarshalJSON() ([]byte, error) {
+	if o == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(map[string]interface{}(o))
+}
 
 type scheduledReportAPIResponseType struct {
 	Data ScheduledReport `json:"data"`
@@ -31,32 +42,33 @@ type ScheduledReport struct {
 	// Status is an integer enum on the API side (responses always return integers).
 	Status *int `json:"status,omitempty"`
 
-	Columns          []string               `json:"columns"`
-	DSLFilter        map[string]interface{} `json:"dsl_filter,omitempty"`
-	SonarQuery       string                 `json:"sonar_query,omitempty"`
-	SonarQueryParams map[string]interface{} `json:"sonar_query_params,omitempty"`
-	QueryFilters     map[string]interface{} `json:"query_filters,omitempty"`
-	Config           map[string]interface{} `json:"config,omitempty"`
-	S3Path           string                 `json:"s3_path,omitempty"`
+	// No omitempty: PATCH omits keys → unchanged. Zero values clear ("" / {}); only id and status keep omitempty.
+	Columns          []string   `json:"columns"`
+	DSLFilter        jsonObject `json:"dsl_filter"`
+	SonarQuery       string     `json:"sonar_query"`
+	SonarQueryParams jsonObject `json:"sonar_query_params"`
+	QueryFilters     jsonObject `json:"query_filters"`
+	Config           jsonObject `json:"config"`
+	S3Path           string     `json:"s3_path"`
 
 	RecipientsEmails   []string `json:"recipients_emails"`
-	CustomEmailSubject string   `json:"custom_email_subject,omitempty"`
-	CustomEmailContent string   `json:"custom_email_content,omitempty"`
+	CustomEmailSubject string   `json:"custom_email_subject"`
+	CustomEmailContent string   `json:"custom_email_content"`
 
-	ShareToSlack bool                   `json:"share_to_slack"`
-	SlackChannel map[string]interface{} `json:"slack_channel,omitempty"`
+	ShareToSlack bool       `json:"share_to_slack"`
+	SlackChannel jsonObject `json:"slack_channel"`
 
 	ShareToBucket bool   `json:"share_to_bucket"`
-	Bucket        string `json:"bucket,omitempty"`
+	Bucket        string `json:"bucket"`
 
 	ShareToAzureBlob   bool   `json:"share_to_azure_blob"`
-	AzureBlobContainer string `json:"azure_blob_container,omitempty"`
+	AzureBlobContainer string `json:"azure_blob_container"`
 
 	ShareToGoogleCloudStorage  bool   `json:"share_to_google_cloud_storage"`
-	GoogleCloudStorageTemplate string `json:"google_cloud_storage_template,omitempty"`
+	GoogleCloudStorageTemplate string `json:"google_cloud_storage_template"`
 
 	ShareToSnowflake  bool   `json:"share_to_snowflake"`
-	SnowflakeTemplate string `json:"snowflake_template,omitempty"`
+	SnowflakeTemplate string `json:"snowflake_template"`
 }
 
 func (client *APIClient) DoesScheduledReportExist(id string) (bool, error) {
