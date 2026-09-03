@@ -5,7 +5,9 @@
 package testutils
 
 import (
+	"io"
 	"net/http"
+	"strings"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
@@ -37,4 +39,13 @@ func FirstPageOnly(r *http.Request, body string) string {
 		return `{"data":[]}`
 	}
 	return body
+}
+
+// JSONResponse is a one-shot http.Response for RoundTripFunc stubs.
+func JSONResponse(req *http.Request, code int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: code,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}
 }

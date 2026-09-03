@@ -14,7 +14,11 @@ import (
 // Off by default: request/response bodies carry secrets (API tokens).
 const httpDebugEnvVar = "ORCASECURITY_HTTP_DEBUG"
 
-// Logs to stderr only — stdout is the go-plugin channel Terraform speaks over.
+// defaultHTTPTimeout is the per-request timeout for the shared API client.
+const defaultHTTPTimeout = 10 * time.Second
+
+// debugf logs to stderr (never stdout — stdout is the go-plugin protocol channel
+// Terraform speaks over) and only when httpDebugEnvVar is set.
 func (c *APIClient) debugf(format string, a ...any) {
 	if os.Getenv(httpDebugEnvVar) == "" {
 		return
@@ -26,17 +30,40 @@ type APIClient struct {
 	APIEndpoint string
 	APIToken    string
 	HTTPClient  *http.Client
+	// disableTimeoutRetry skips retrying net.Error timeouts. Crown-jewel writes
+	// set this: the server may have already committed the upsert before the
+	// client times out, and replaying POST/DELETE re-runs expensive rescoring.
+	disableTimeoutRetry bool
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	apiclient := APIClient{
 		APIEndpoint: *endpoint,
 		APIToken:    *token,
-		HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		HTTPClient:  &http.Client{Timeout: defaultHTTPTimeout},
 	}
 	return &apiclient, nil
 }
 
+// withHTTPTimeout returns a shallow client copy whose HTTP client uses timeout.
+// The original client is unchanged (safe for concurrent resource operations).
+func (c *APIClient) withHTTPTimeout(timeout time.Duration) *APIClient {
+	clone := *c
+	hc := *c.HTTPClient
+	hc.Timeout = timeout
+	clone.HTTPClient = &hc
+	return &clone
+}
+
+// withoutTimeoutRetry returns a shallow client copy that does not retry
+// client/transport timeouts (other retriable errors are unchanged).
+func (c *APIClient) withoutTimeoutRetry() *APIClient {
+	clone := *c
+	clone.disableTimeoutRetry = true
+	return &clone
+}
+
+// Convenience wrapper over http.Response
 type APIResponse struct {
 	_body    []byte
 	response *http.Response

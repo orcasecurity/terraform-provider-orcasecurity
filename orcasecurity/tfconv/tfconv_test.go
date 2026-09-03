@@ -189,12 +189,78 @@ func TestStringSliceToSetPreserveNull(t *testing.T) {
 	}
 }
 
+func TestStringSetFromAPIPreserveNull(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name   string
+		prior  types.Set
+		values []string
+		want   types.Set
+	}{
+		{"empty remote + null prior stays null", types.SetNull(types.StringType), nil, types.SetNull(types.StringType)},
+		{"empty remote + configured prior becomes empty set", stringSet(t, []string{}), nil, stringSet(t, []string{})},
+		{"values override null prior", types.SetNull(types.StringType), []string{"a"}, stringSet(t, []string{"a"})},
+		{"values override prior", stringSet(t, []string{"old"}), []string{"new"}, stringSet(t, []string{"new"})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, diags := StringSetFromAPIPreserveNull(ctx, tt.prior, tt.values)
+			if diags.HasError() {
+				t.Fatalf("unexpected diagnostics: %v", diags)
+			}
+			if !got.Equal(tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStringOrNull(t *testing.T) {
 	if got := StringOrNull(""); !got.IsNull() {
 		t.Errorf("empty string must map to null, got %v", got)
 	}
 	if got := StringOrNull("x"); got.ValueString() != "x" {
 		t.Errorf("expected x, got %v", got)
+	}
+}
+
+func TestStringPtrOrNull(t *testing.T) {
+	if got := StringPtrOrNull(nil); !got.IsNull() {
+		t.Errorf("nil must map to null, got %v", got)
+	}
+	empty := ""
+	if got := StringPtrOrNull(&empty); !got.IsNull() {
+		t.Errorf("empty must map to null, got %v", got)
+	}
+	s := "x"
+	if got := StringPtrOrNull(&s); got.ValueString() != "x" {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestBoolPtrOrNull(t *testing.T) {
+	if got := BoolPtrOrNull(nil); !got.IsNull() {
+		t.Errorf("nil must map to null, got %v", got)
+	}
+	v := true
+	if got := BoolPtrOrNull(&v); !got.ValueBool() {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestStringListFromAPI(t *testing.T) {
+	ctx := context.Background()
+	got, d := StringListFromAPI(ctx, nil)
+	if d.HasError() || !got.IsNull() {
+		t.Errorf("nil must be null, got %v %v", got, d)
+	}
+	got, d = StringListFromAPI(ctx, []string{})
+	if d.HasError() || got.IsNull() || len(got.Elements()) != 0 {
+		t.Errorf("empty must be empty list, got %v %v", got, d)
+	}
+	got, d = StringListFromAPI(ctx, []string{"a"})
+	if d.HasError() || len(got.Elements()) != 1 {
+		t.Errorf("got %v %v", got, d)
 	}
 }
 
