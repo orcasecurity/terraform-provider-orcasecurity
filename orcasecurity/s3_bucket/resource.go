@@ -231,23 +231,21 @@ func buildBucketPolicyJSON(bucketName, folder string, settings *api_client.OrcaS
 	return string(encoded), nil
 }
 
-// knownAWSPartitions is the set of partitions AWS accepts in Resource ARNs.
-// Unknown values are rejected so we never emit MalformedPolicy documents.
+// knownAWSPartitions is the set of partitions Orca deploys into. It mirrors
+// orca_vendor_information.py in the API repo, the only source of
+// settings.resource_partition — extend both together.
 var knownAWSPartitions = map[string]struct{}{
 	"aws":        {},
 	"aws-cn":     {},
 	"aws-us-gov": {},
-	"aws-iso":    {},
-	"aws-iso-b":  {},
-	"aws-iso-e":  {},
-	"aws-iso-f":  {},
 }
 
 // policyPartition picks the AWS partition for the rendered bucket Resource ARN
 // from the Orca tenant: settings.resource_partition first, then the partition
 // of report_uploader_arn, then commercial "aws". It errors if both sources
 // are present and name different partitions — that would emit a policy whose
-// Principal and Resource cannot attach.
+// Principal and Resource cannot attach — or if both are present but neither
+// is a known Orca partition.
 func policyPartition(resourcePartition, uploaderArn string) (string, error) {
 	settingsPart := knownPartition(resourcePartition)
 	uploaderPart := partitionFromARN(uploaderArn)
@@ -262,6 +260,12 @@ func policyPartition(resourcePartition, uploaderArn string) (string, error) {
 	}
 	if uploaderPart != "" {
 		return uploaderPart, nil
+	}
+	if strings.TrimSpace(resourcePartition) != "" && strings.TrimSpace(uploaderArn) != "" {
+		return "", fmt.Errorf(
+			"orca settings have unrecognized AWS partitions: resource_partition=%q report_uploader_arn=%q",
+			resourcePartition, uploaderArn,
+		)
 	}
 	return "aws", nil
 }

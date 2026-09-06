@@ -158,10 +158,16 @@ func TestPolicyPartition(t *testing.T) {
 			want:              "aws-us-gov",
 		},
 		{
-			name:              "bogus settings and uploader default to aws",
+			name:              "unrecognized partitions on both sources is an error",
+			resourcePartition: "aws-iso",
+			uploader:          "arn:aws-iso:iam::123456789012:role/integrations_s3_uploader",
+			wantErr:           true,
+		},
+		{
+			name:              "bogus settings and uploader is an error",
 			resourcePartition: "bogus",
 			uploader:          "arn:bogus:iam::123456789012:role/integrations_s3_uploader",
-			want:              "aws",
+			wantErr:           true,
 		},
 		{
 			name:              "china settings",
