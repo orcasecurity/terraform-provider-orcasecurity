@@ -197,7 +197,11 @@ func buildBucketPolicyJSON(bucketName, folder string, settings *api_client.OrcaS
 	if settings == nil {
 		return "", fmt.Errorf("orca settings unavailable")
 	}
-	resource := fmt.Sprintf("arn:%s:s3:::%s", policyPartition(settings.ResourcePartition, settings.ReportUploaderArn), bucketName)
+	partition, err := policyPartition(settings.ResourcePartition, settings.ReportUploaderArn)
+	if err != nil {
+		return "", err
+	}
+	resource := fmt.Sprintf("arn:%s:s3:::%s", partition, bucketName)
 	if folder != "" {
 		resource = fmt.Sprintf("%s/%s/*", resource, strings.Trim(folder, "/"))
 	} else {
@@ -241,15 +245,25 @@ var knownAWSPartitions = map[string]struct{}{
 
 // policyPartition picks the AWS partition for the rendered bucket Resource ARN
 // from the Orca tenant: settings.resource_partition first, then the partition
-// of report_uploader_arn, then commercial "aws".
-func policyPartition(resourcePartition, uploaderArn string) string {
-	if p := knownPartition(resourcePartition); p != "" {
-		return p
+// of report_uploader_arn, then commercial "aws". It errors if both sources
+// are present and name different partitions — that would emit a policy whose
+// Principal and Resource cannot attach.
+func policyPartition(resourcePartition, uploaderArn string) (string, error) {
+	settingsPart := knownPartition(resourcePartition)
+	uploaderPart := partitionFromARN(uploaderArn)
+	if settingsPart != "" && uploaderPart != "" && settingsPart != uploaderPart {
+		return "", fmt.Errorf(
+			"orca settings are inconsistent: resource_partition is %q but report_uploader_arn is in partition %q; a bucket policy cannot span AWS partitions",
+			settingsPart, uploaderPart,
+		)
 	}
-	if p := partitionFromARN(uploaderArn); p != "" {
-		return p
+	if settingsPart != "" {
+		return settingsPart, nil
 	}
-	return "aws"
+	if uploaderPart != "" {
+		return uploaderPart, nil
+	}
+	return "aws", nil
 }
 
 func knownPartition(value string) string {

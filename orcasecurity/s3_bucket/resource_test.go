@@ -113,12 +113,19 @@ func TestPolicyPartition(t *testing.T) {
 		resourcePartition string
 		uploader          string
 		want              string
+		wantErr           bool
 	}{
 		{
-			name:              "settings resource_partition wins",
+			name:              "matching gov settings and uploader",
 			resourcePartition: "aws-us-gov",
-			uploader:          commercialUploader,
+			uploader:          govUploader,
 			want:              "aws-us-gov",
+		},
+		{
+			name:              "matching commercial settings and uploader",
+			resourcePartition: "aws",
+			uploader:          commercialUploader,
+			want:              "aws",
 		},
 		{
 			name:              "empty settings falls back to uploader",
@@ -129,8 +136,20 @@ func TestPolicyPartition(t *testing.T) {
 		{
 			name:              "uppercase settings partition is normalized",
 			resourcePartition: "AWS-US-GOV",
-			uploader:          commercialUploader,
+			uploader:          govUploader,
 			want:              "aws-us-gov",
+		},
+		{
+			name:              "gov settings with commercial uploader is inconsistent",
+			resourcePartition: "aws-us-gov",
+			uploader:          commercialUploader,
+			wantErr:           true,
+		},
+		{
+			name:              "commercial settings with gov uploader is inconsistent",
+			resourcePartition: "aws",
+			uploader:          govUploader,
+			wantErr:           true,
 		},
 		{
 			name:              "bogus settings partition falls back to uploader",
@@ -160,7 +179,17 @@ func TestPolicyPartition(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := policyPartition(tc.resourcePartition, tc.uploader); got != tc.want {
+			got, err := policyPartition(tc.resourcePartition, tc.uploader)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got partition %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
 				t.Errorf("policyPartition(%q, %q) = %q, want %q", tc.resourcePartition, tc.uploader, got, tc.want)
 			}
 		})
@@ -178,6 +207,7 @@ func TestBuildBucketPolicyJSON_UsesOrcaTenantPartition(t *testing.T) {
 		uploader          string
 		resourcePartition string
 		wantResource      string
+		wantErr           bool
 	}{
 		{
 			name:              "commercial settings",
@@ -215,11 +245,11 @@ func TestBuildBucketPolicyJSON_UsesOrcaTenantPartition(t *testing.T) {
 			wantResource:      "arn:aws:s3:::us-gov-reports/*",
 		},
 		{
-			name:              "settings partition wins over commercial-looking uploader",
+			name:              "mismatched settings and uploader is an error",
 			bucket:            "my-bucket-name",
 			uploader:          commercialUploader,
 			resourcePartition: "aws-us-gov",
-			wantResource:      "arn:aws-us-gov:s3:::my-bucket-name/*",
+			wantErr:           true,
 		},
 	}
 
@@ -229,6 +259,15 @@ func TestBuildBucketPolicyJSON_UsesOrcaTenantPartition(t *testing.T) {
 				ReportUploaderArn: tc.uploader,
 				ResourcePartition: tc.resourcePartition,
 			})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got policy %q", got)
+				}
+				if got != "" {
+					t.Errorf("expected empty policy on error, got %q", got)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
