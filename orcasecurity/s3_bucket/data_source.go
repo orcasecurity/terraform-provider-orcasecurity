@@ -51,7 +51,7 @@ func (ds *s3BucketPolicyDataSource) Schema(_ context.Context, _ datasource.Schem
 		Attributes: map[string]schema.Attribute{
 			"arn_or_url": schema.StringAttribute{
 				Required:    true,
-				Description: "S3 bucket reference. Must start with `arn:`, `https://`, `http://`, or `s3://`.",
+				Description: "S3 bucket reference. Must start with `arn:`, `https://`, `http://`, or `s3://`. The rendered policy uses the AWS partition of the Orca tenant (`GET /api/settings`).",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 					stringvalidator.RegexMatches(arnOrURLPattern, "must start with arn:, https://, http://, or s3://"),
@@ -103,7 +103,7 @@ func (ds *s3BucketPolicyDataSource) Read(ctx context.Context, req datasource.Rea
 		return
 	}
 
-	policy, err := buildBucketPolicyJSON(bucket, state.Folder.ValueString(), settings.ReportUploaderArn)
+	policy, err := buildBucketPolicyJSON(bucket, state.Folder.ValueString(), settings.ReportUploaderArn, settings.ResourcePartition)
 	if err != nil {
 		resp.Diagnostics.AddError("Error rendering bucket policy", err.Error())
 		return

@@ -51,8 +51,9 @@ Both flows are shown below.
   in the Orca UI. Changing this forces a new resource.
 * `arn_or_url` — (Required, String) S3 bucket reference. Must start with one of
   `arn:`, `https://`, `http://`, or `s3://`. The rendered `bucket_policy_json`
-  always uses the bucket-name-only ARN form (`arn:aws:s3:::<bucket>/...`)
-  regardless of the shape supplied here.
+  always uses the bucket-name-only ARN form (`arn:<partition>:s3:::<bucket>/...`).
+  The partition comes from the Orca tenant (`GET /api/settings`), not from
+  this value.
 * `folder` — (Optional, String) Sub-folder inside the bucket where Orca writes
   objects. Defaults to the bucket root.
 * `is_enabled` — (Optional, Bool) Defaults to `true`.
@@ -76,7 +77,7 @@ Both flows are shown below.
         "Effect": "Allow",
         "Principal": { "AWS": "<uploader_role_arn>" },
         "Action":    ["s3:PutObject", "s3:PutObjectAcl"],
-        "Resource":  "arn:aws:s3:::<bucket_name>/<folder>/*",
+        "Resource":  "arn:<partition>:s3:::<bucket_name>/<folder>/*",
         "Condition": {
           "StringEquals": { "s3:x-amz-acl": "bucket-owner-full-control" }
         }

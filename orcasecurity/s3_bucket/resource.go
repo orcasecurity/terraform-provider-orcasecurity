@@ -49,7 +49,7 @@ func NewS3BucketResource() resource.Resource {
 		VariantAttributes: map[string]schema.Attribute{
 			"arn_or_url": schema.StringAttribute{
 				Required:    true,
-				Description: "S3 bucket ARN (for example, `arn:aws:s3:::my-bucket`) or URL with an `https://`, `http://`, or `s3://` scheme. The rendered `bucket_policy_json` always uses the bucket-name-only ARN form regardless of which shape is supplied here.",
+				Description: "S3 bucket ARN (for example, `arn:aws:s3:::my-bucket` or `arn:aws-us-gov:s3:::my-bucket`) or URL with an `https://`, `http://`, or `s3://` scheme. The rendered `bucket_policy_json` always uses the bucket-name-only ARN form; the AWS partition comes from the Orca tenant (`GET /api/settings`).",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 					stringvalidator.RegexMatches(arnOrURLPattern, "must start with arn:, https://, http://, or s3://"),
@@ -130,7 +130,7 @@ func populateComputed(client *api_client.APIClient, st cc.State, diags *diag.Dia
 		diags.AddError(errRenderingPolicy, fmt.Sprintf("could not fetch Orca settings to build bucket policy: %s", err.Error()))
 		return
 	}
-	policy, err := buildBucketPolicyJSON(bucket, s.Folder.ValueString(), settings.ReportUploaderArn)
+	policy, err := buildBucketPolicyJSON(bucket, s.Folder.ValueString(), settings.ReportUploaderArn, settings.ResourcePartition)
 	if err != nil {
 		diags.AddError(errRenderingPolicy, err.Error())
 		return
@@ -193,8 +193,8 @@ func bucketFromURL(rawURL string) (string, error) {
 // buildBucketPolicyJSON renders the policy document the customer must attach to the bucket so
 // Orca's uploader role can write into “folder/*“. The Resource ARN matches what Orca's
 // connectivity check exercises (PutObject with bucket-owner-full-control ACL).
-func buildBucketPolicyJSON(bucketName, folder, uploaderArn string) (string, error) {
-	resource := fmt.Sprintf("arn:aws:s3:::%s", bucketName)
+func buildBucketPolicyJSON(bucketName, folder, uploaderArn, resourcePartition string) (string, error) {
+	resource := fmt.Sprintf("arn:%s:s3:::%s", policyPartition(resourcePartition, uploaderArn), bucketName)
 	if folder != "" {
 		resource = fmt.Sprintf("%s/%s/*", resource, strings.Trim(folder, "/"))
 	} else {
@@ -222,4 +222,49 @@ func buildBucketPolicyJSON(bucketName, folder, uploaderArn string) (string, erro
 		return "", err
 	}
 	return string(encoded), nil
+}
+
+// knownAWSPartitions is the set of partitions AWS accepts in Resource ARNs.
+// Unknown values are rejected so we never emit MalformedPolicy documents.
+var knownAWSPartitions = map[string]struct{}{
+	"aws":        {},
+	"aws-cn":     {},
+	"aws-us-gov": {},
+	"aws-iso":    {},
+	"aws-iso-b":  {},
+	"aws-iso-e":  {},
+	"aws-iso-f":  {},
+}
+
+// policyPartition picks the AWS partition for the rendered bucket Resource ARN
+// from the Orca tenant: settings.resource_partition first, then the partition
+// of report_uploader_arn, then commercial "aws".
+func policyPartition(resourcePartition, uploaderArn string) string {
+	if p := knownPartition(resourcePartition); p != "" {
+		return p
+	}
+	if p := partitionFromARN(uploaderArn); p != "" {
+		return p
+	}
+	return "aws"
+}
+
+func knownPartition(value string) string {
+	p := strings.ToLower(strings.TrimSpace(value))
+	if _, ok := knownAWSPartitions[p]; ok {
+		return p
+	}
+	return ""
+}
+
+func partitionFromARN(arn string) string {
+	arn = strings.TrimSpace(arn)
+	if !strings.HasPrefix(arn, "arn:") {
+		return ""
+	}
+	parts := strings.Split(arn, ":")
+	if len(parts) < 2 {
+		return ""
+	}
+	return knownPartition(parts[1])
 }
