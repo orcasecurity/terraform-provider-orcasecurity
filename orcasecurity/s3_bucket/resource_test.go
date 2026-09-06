@@ -2,6 +2,7 @@ package s3_bucket
 
 import (
 	"encoding/json"
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
 )
 
@@ -224,7 +225,10 @@ func TestBuildBucketPolicyJSON_UsesOrcaTenantPartition(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := buildBucketPolicyJSON(tc.bucket, tc.folder, tc.uploader, tc.resourcePartition)
+			got, err := buildBucketPolicyJSON(tc.bucket, tc.folder, &api_client.OrcaSettings{
+				ReportUploaderArn: tc.uploader,
+				ResourcePartition: tc.resourcePartition,
+			})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -233,6 +237,16 @@ func TestBuildBucketPolicyJSON_UsesOrcaTenantPartition(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("nil settings defaults to commercial partition", func(t *testing.T) {
+		got, err := buildBucketPolicyJSON("my-bucket", "", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resource := policyResourceARN(t, got); resource != "arn:aws:s3:::my-bucket/*" {
+			t.Errorf("Resource = %q, want commercial aws ARN", resource)
+		}
+	})
 }
 
 func policyResourceARN(t *testing.T, policyJSON string) string {

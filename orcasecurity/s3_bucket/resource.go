@@ -130,7 +130,7 @@ func populateComputed(client *api_client.APIClient, st cc.State, diags *diag.Dia
 		diags.AddError(errRenderingPolicy, fmt.Sprintf("could not fetch Orca settings to build bucket policy: %s", err.Error()))
 		return
 	}
-	policy, err := buildBucketPolicyJSON(bucket, s.Folder.ValueString(), settings.ReportUploaderArn, settings.ResourcePartition)
+	policy, err := buildBucketPolicyJSON(bucket, s.Folder.ValueString(), settings)
 	if err != nil {
 		diags.AddError(errRenderingPolicy, err.Error())
 		return
@@ -193,8 +193,11 @@ func bucketFromURL(rawURL string) (string, error) {
 // buildBucketPolicyJSON renders the policy document the customer must attach to the bucket so
 // Orca's uploader role can write into “folder/*“. The Resource ARN matches what Orca's
 // connectivity check exercises (PutObject with bucket-owner-full-control ACL).
-func buildBucketPolicyJSON(bucketName, folder, uploaderArn, resourcePartition string) (string, error) {
-	resource := fmt.Sprintf("arn:%s:s3:::%s", policyPartition(resourcePartition, uploaderArn), bucketName)
+func buildBucketPolicyJSON(bucketName, folder string, settings *api_client.OrcaSettings) (string, error) {
+	if settings == nil {
+		settings = &api_client.OrcaSettings{}
+	}
+	resource := fmt.Sprintf("arn:%s:s3:::%s", policyPartition(settings.ResourcePartition, settings.ReportUploaderArn), bucketName)
 	if folder != "" {
 		resource = fmt.Sprintf("%s/%s/*", resource, strings.Trim(folder, "/"))
 	} else {
@@ -206,7 +209,7 @@ func buildBucketPolicyJSON(bucketName, folder, uploaderArn, resourcePartition st
 		"Statement": []map[string]interface{}{
 			{
 				"Effect":    "Allow",
-				"Principal": map[string]interface{}{"AWS": uploaderArn},
+				"Principal": map[string]interface{}{"AWS": settings.ReportUploaderArn},
 				"Action":    []string{"s3:PutObject", "s3:PutObjectAcl"},
 				"Resource":  resource,
 				"Condition": map[string]interface{}{

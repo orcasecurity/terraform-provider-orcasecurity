@@ -103,7 +103,7 @@ func (ds *s3BucketPolicyDataSource) Read(ctx context.Context, req datasource.Rea
 		return
 	}
 
-	policy, err := buildBucketPolicyJSON(bucket, state.Folder.ValueString(), settings.ReportUploaderArn, settings.ResourcePartition)
+	policy, err := buildBucketPolicyJSON(bucket, state.Folder.ValueString(), settings)
 	if err != nil {
 		resp.Diagnostics.AddError("Error rendering bucket policy", err.Error())
 		return
