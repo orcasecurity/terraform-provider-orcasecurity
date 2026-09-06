@@ -238,13 +238,13 @@ func TestBuildBucketPolicyJSON_UsesOrcaTenantPartition(t *testing.T) {
 		})
 	}
 
-	t.Run("nil settings defaults to commercial partition", func(t *testing.T) {
+	t.Run("nil settings is an error", func(t *testing.T) {
 		got, err := buildBucketPolicyJSON("my-bucket", "", nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if err == nil {
+			t.Fatalf("expected error, got policy %q", got)
 		}
-		if resource := policyResourceARN(t, got); resource != "arn:aws:s3:::my-bucket/*" {
-			t.Errorf("Resource = %q, want commercial aws ARN", resource)
+		if got != "" {
+			t.Errorf("expected empty policy on error, got %q", got)
 		}
 	})
 }

@@ -52,4 +52,4 @@ docs/superpowers/
 
 # Local lab harness (tokens, tenant fixtures) — never commit
 /tests/lab/
-/tests/*.md
+/tests/shift_left_acc_require.md

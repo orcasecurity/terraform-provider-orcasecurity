@@ -195,7 +195,7 @@ func bucketFromURL(rawURL string) (string, error) {
 // connectivity check exercises (PutObject with bucket-owner-full-control ACL).
 func buildBucketPolicyJSON(bucketName, folder string, settings *api_client.OrcaSettings) (string, error) {
 	if settings == nil {
-		settings = &api_client.OrcaSettings{}
+		return "", fmt.Errorf("orca settings unavailable")
 	}
 	resource := fmt.Sprintf("arn:%s:s3:::%s", policyPartition(settings.ResourcePartition, settings.ReportUploaderArn), bucketName)
 	if folder != "" {
