@@ -35,6 +35,8 @@ type s3BucketListResponse struct {
 
 // OrcaSettings is the public app-settings document exposed by Orca. The provider uses it to
 // surface the report_uploader_arn that customers paste into their bucket policy.
+// resource_partition is optional; when empty, the S3 policy builder takes the
+// partition from report_uploader_arn.
 type OrcaSettings struct {
 	AWSAccountID                             string `json:"aws_account_id"`
 	IntegrationCloudformationTemplatesFolder string `json:"integration_cloudformation_templates_folder"`

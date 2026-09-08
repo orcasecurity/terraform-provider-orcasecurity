@@ -53,7 +53,9 @@ different one, or never.
 
 * `arn_or_url` — (Required, String) S3 bucket reference. Must start with
   `arn:`, `https://`, `http://`, or `s3://`. The rendered policy always uses
-  the bucket-name-only ARN form (`arn:aws:s3:::<bucket>/...`).
+  the bucket-name-only ARN form (`arn:<partition>:s3:::<bucket>/...`).
+  The partition comes from the Orca tenant (`GET /api/settings`), not from
+  this value.
 * `folder` — (Optional, String) Sub-folder inside the bucket. Leave unset for
   the bucket root.
 

@@ -47,5 +47,9 @@ demo
 # Local superpowers plan/spec docs — never commit
 docs/superpowers/
 
+# Local Cursor rules
+.cursor/
+
 # Local lab harness (tokens, tenant fixtures) — never commit
 /tests/lab/
+/tests/shift_left_acc_require.md
