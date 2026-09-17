@@ -216,7 +216,7 @@ func (r *customComplianceFrameworkResource) Schema(_ context.Context, _ resource
 			},
 			"sections": schema.ListNestedAttribute{
 				Required:    true,
-				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). Every leaf section must have at least one test.",
+				Description: "Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). Every leaf section must have at least one test. Controls that custom alerts (or the Orca UI) link into this framework are left alone: they are neither reported here nor removed on apply. Detach such a control from the alert that owns it, through its `compliance_frameworks` attribute.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: sectionAttributes(schemaSectionDepth - 1),
 				},
@@ -373,8 +373,19 @@ func (r *customComplianceFrameworkResource) Update(ctx context.Context, req reso
 		return
 	}
 
+	var state customComplianceFrameworkResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	updateReq, diags := requestFromPlan(ctx, plan)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.keepForeignControls(&updateReq, plan, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -408,6 +419,30 @@ func (r *customComplianceFrameworkResource) Delete(ctx context.Context, req reso
 			"Could not delete custom compliance framework, unexpected error: "+err.Error(),
 		)
 	}
+}
+
+// keepForeignControls adds the controls alerts and the UI linked into this
+// framework to a write request. The API replaces the whole section tree, so a
+// request built from the config alone deletes them — and deleting a control here
+// also clears the compliance framework link on the alert that owns it.
+func (r *customComplianceFrameworkResource) keepForeignControls(
+	request *api_client.CustomComplianceFrameworkRequest,
+	plan, state customComplianceFrameworkResourceModel,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	catalog, err := r.apiClient.GetComplianceCatalogFramework(plan.ID.ValueString())
+	if err != nil {
+		diags.AddError(errReadingFramework, err.Error())
+		return diags
+	}
+	if catalog == nil {
+		return diags
+	}
+
+	foreign := foreignSections(catalog.Sections, indexOwned(sectionsToAPI(state.Sections)))
+	request.Sections = mergeForeignSections(request.Sections, foreign)
+	return diags
 }
 
 func (r *customComplianceFrameworkResource) refresh(ctx context.Context, model *customComplianceFrameworkResourceModel) diag.Diagnostics {
@@ -459,7 +494,15 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 	if catalog == nil {
 		return false, catalogMissingDiag(id)
 	}
-	sections, d := sectionsFromCatalog(catalog.Sections, schemaSectionDepth-1)
+	remote := catalog.Sections
+	// On import there is no prior state, so every control in the catalog is
+	// adopted. Otherwise controls this resource never wrote belong to an alert
+	// or to the UI, and reporting them would plan them away.
+	if !model.Sections.IsNull() && !model.Sections.IsUnknown() {
+		remote = retainOwnedCatalog(remote, indexOwned(sectionsToAPI(model.Sections)))
+	}
+
+	sections, d := sectionsFromCatalog(remote, schemaSectionDepth-1)
 	if d.HasError() {
 		return false, d
 	}

@@ -2,6 +2,7 @@ package custom_compliance_framework
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -192,6 +193,10 @@ func TestCreate_RefreshMapsCatalog(t *testing.T) {
 
 func TestUpdate_APIErrorSurfaces(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
+		// Update reads the catalog first, to keep controls it does not declare.
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887" {
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		}
 		if req.Method == "PUT" {
 			return testutils.JSONResponse(req, 500, `{"error":"boom"}`)
 		}
@@ -224,6 +229,80 @@ func TestUpdate_RefreshMapsCatalog(t *testing.T) {
 	}
 	if out.Name.ValueString() != "Lab" {
 		t.Errorf("name: %q", out.Name.ValueString())
+	}
+}
+
+// WASP-1672: the API replaces the whole section tree, so an update that sends
+// only the declared controls deletes the ones alerts linked in — and that also
+// clears the link on the alert.
+func TestUpdate_SendsControlsItDoesNotDeclare(t *testing.T) {
+	const catalogWithLinkedControl = `{"data":{"frameworks":[{"framework_id":"3887","name":"Lab","display_name":"Lab","custom":true,"sections":[{"id":"1","name":"Flat","tests":[{"rule_id":"r1","reference_id":"1.1","priority":"Medium"},{"rule_id":"ur99","reference_id":"1.2","priority":"High"}]}]}]}}`
+
+	var body string
+	r := stubResource(func(req *http.Request) *http.Response {
+		switch {
+		case req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887":
+			return testutils.JSONResponse(req, 200, catalogWithLinkedControl)
+		case req.Method == "PUT":
+			raw, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("read request body: %s", err)
+			}
+			body = string(raw)
+			return testutils.JSONResponse(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
+		case req.Method == "GET" && req.URL.Path == "/api/compliance/frameworks/3887":
+			return testutils.JSONResponse(req, 200, fwJSON)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
+	sch := resourceSchema(t)
+	m := stateModel(t)
+	req := resource.UpdateRequest{Plan: planWith(t, sch, m), State: stateWith(t, sch, m)}
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, m)}
+	r.Update(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("update: %v", resp.Diagnostics)
+	}
+	if !strings.Contains(body, `"ur99"`) {
+		t.Fatalf("the update must send back the control it does not declare: %s", body)
+	}
+}
+
+// A control the config dropped was owned, so the merge must not restore it.
+func TestUpdate_DoesNotResurrectRemovedControls(t *testing.T) {
+	var body string
+	r := stubResource(func(req *http.Request) *http.Response {
+		switch {
+		case req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887":
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		case req.Method == "PUT":
+			raw, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("read request body: %s", err)
+			}
+			body = string(raw)
+			return testutils.JSONResponse(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
+		case req.Method == "GET" && req.URL.Path == "/api/compliance/frameworks/3887":
+			return testutils.JSONResponse(req, 200, fwJSON)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
+	sch := resourceSchema(t)
+	state := stateModel(t)
+	plan := stateModel(t)
+	plan.Sections = otherSection(t)
+	req := resource.UpdateRequest{Plan: planWith(t, sch, plan), State: stateWith(t, sch, state)}
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, plan)}
+	r.Update(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("update: %v", resp.Diagnostics)
+	}
+	if strings.Contains(body, `"r1"`) {
+		t.Fatalf("a control removed from the config must stay removed: %s", body)
 	}
 }
 
