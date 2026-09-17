@@ -9,9 +9,12 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -30,12 +33,6 @@ type customSonarAlertResource struct {
 	apiClient *api_client.APIClient
 }
 
-type frameworkStateModel struct {
-	Name     types.String `tfsdk:"name"`
-	Section  types.String `tfsdk:"section"`
-	Priority types.String `tfsdk:"priority"`
-}
-
 type remediationTextStateModel struct {
 	Enable types.Bool   `tfsdk:"enable"`
 	Text   types.String `tfsdk:"text"`
@@ -52,7 +49,7 @@ type stateModel struct {
 	OrcaScore       types.Float64              `tfsdk:"orca_score"`
 	ContextScore    types.Bool                 `tfsdk:"context_score"`
 	Enabled         types.Bool                 `tfsdk:"enabled"`
-	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
+	Frameworks      types.List                 `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
 
@@ -135,6 +132,9 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				Description: "Whether the alert is enabled. Defaults to true.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"remediation_text": schema.SingleNestedAttribute{
 				Description: "A container for the remediation instructions that will appear on the 'Remediation' tab for the alert.",
@@ -151,8 +151,12 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				},
 			},
 			"compliance_frameworks": schema.ListNestedAttribute{
-				Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls.",
+				Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. Omit the attribute to leave the existing links untouched - they may be owned by the Orca UI or by a custom compliance framework resource. Set it to `[]` to detach the alert from every framework.",
 				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
@@ -193,6 +197,12 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		enabled = plan.Enabled.ValueBool()
 	}
 
+	createFrameworks, frameworkDiags := generateRequestFrameworks(ctx, plan.Frameworks)
+	resp.Diagnostics.Append(frameworkDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	createReq := api_client.CustomAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
@@ -202,7 +212,7 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),
 		Enabled:              enabled,
-		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
+		ComplianceFrameworks: createFrameworks,
 	}
 	if plan.RemediationText != nil {
 		createReq.RemediationText = &api_client.CustomSonarAlertRemediationText{
@@ -234,6 +244,15 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 	plan.RuleType = types.StringValue(instance.RuleType)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
 	plan.Enabled = types.BoolValue(instance.Enabled)
+
+	if plan.Frameworks.IsUnknown() {
+		frameworks, diags := frameworksToList(ctx, instance.ComplianceFrameworks)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Frameworks = frameworks
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -292,14 +311,10 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 		}
 	}
 
-	var frameworks []frameworkStateModel
-	for _, frameworkData := range instance.ComplianceFrameworks {
-		frameworks = append(frameworks, frameworkStateModel{
-			Name: types.StringValue(frameworkData.Name),
-			Section: types.StringValue(api_client.JoinComplianceSection(
-				frameworkData.Category, frameworkData.SubCategory, frameworkData.SubSubCategory)),
-			Priority: types.StringValue(frameworkData.Priority),
-		})
+	frameworks, diags := frameworksToList(ctx, instance.ComplianceFrameworks)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 	state.Frameworks = frameworks
 
@@ -344,6 +359,12 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		enabled = plan.Enabled.ValueBool()
 	}
 
+	updateFrameworks, frameworkDiags := generateRequestFrameworks(ctx, plan.Frameworks)
+	resp.Diagnostics.Append(frameworkDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	updateReq := api_client.CustomAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
@@ -354,7 +375,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		Enabled:              enabled,
 		Category:             plan.Category.ValueString(),
 		OrganizationID:       plan.OrganizationID.ValueString(),
-		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
+		ComplianceFrameworks: updateFrameworks,
 	}
 
 	if plan.RemediationText != nil {
@@ -365,7 +386,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		}
 	}
 
-	clearedButFailed, err := alert_common.ReplaceFrameworks(len(state.Frameworks) > 0, len(plan.Frameworks) > 0,
+	clearedButFailed, err := alert_common.ReplaceFrameworks(alert_common.FrameworksCount(state.Frameworks) > 0, alert_common.FrameworksCount(plan.Frameworks) > 0,
 		func() error {
 			clearReq := updateReq
 			clearReq.ComplianceFrameworks = nil
@@ -380,7 +401,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 	if err != nil {
 		if clearedButFailed {
 			// Clear succeeded remotely; persist empty frameworks on apply failure.
-			plan.Frameworks = nil
+			plan.Frameworks = types.ListValueMust(alert_common.FrameworkObjectType(), nil)
 			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		}
 		resp.Diagnostics.AddError("Error updating Alert", err.Error())
@@ -431,17 +452,35 @@ func validateCategory(client *api_client.APIClient, category string) error {
 	return fmt.Errorf("invalid category. Please choose from: %s", categoryValues)
 }
 
-func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomSonarAlertComplianceFramework {
+func generateRequestFrameworks(ctx context.Context, list types.List) ([]api_client.CustomSonarAlertComplianceFramework, diag.Diagnostics) {
+	frameworks, diags := alert_common.FrameworksFromList(ctx, list)
+	if diags.HasError() {
+		return nil, diags
+	}
+
 	var frameworksReq []api_client.CustomSonarAlertComplianceFramework
-	for _, frameworkState := range frameworks {
-		category, subCategory, subSubCategory := api_client.SplitComplianceSection(frameworkState.Section.ValueString())
+	for _, framework := range frameworks {
+		category, subCategory, subSubCategory := api_client.SplitComplianceSection(framework.Section.ValueString())
 		frameworksReq = append(frameworksReq, api_client.CustomSonarAlertComplianceFramework{
-			Name:           frameworkState.Name.ValueString(),
+			Name:           framework.Name.ValueString(),
 			Category:       category,
 			SubCategory:    subCategory,
 			SubSubCategory: subSubCategory,
-			Priority:       frameworkState.Priority.ValueString(),
+			Priority:       framework.Priority.ValueString(),
 		})
 	}
-	return frameworksReq
+	return frameworksReq, diags
+}
+
+func frameworksToList(ctx context.Context, frameworks []api_client.CustomSonarAlertComplianceFramework) (types.List, diag.Diagnostics) {
+	values := make([]alert_common.Framework, 0, len(frameworks))
+	for _, framework := range frameworks {
+		values = append(values, alert_common.Framework{
+			Name: types.StringValue(framework.Name),
+			Section: types.StringValue(api_client.JoinComplianceSection(
+				framework.Category, framework.SubCategory, framework.SubSubCategory)),
+			Priority: types.StringValue(framework.Priority),
+		})
+	}
+	return alert_common.FrameworksToList(ctx, values)
 }

@@ -3,9 +3,11 @@ package custom_sonar_alert_test
 import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 const (
@@ -17,23 +19,8 @@ const (
 // Per-package name; acceptance tests run concurrently.
 const frameworkName = "tf-acc-sonar-framework"
 
-// Inline framework fixture; alert API resolves frameworks by name and section.
-var frameworkConfig = fmt.Sprintf(`
-resource "orcasecurity_custom_compliance_framework" "test_framework" {
-    name        = %q
-    description = "Framework fixture for custom sonar alert acceptance tests"
-    sections = [
-        {
-            name  = "section_1"
-            tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "1" }]
-        },
-        {
-            name  = "section_2"
-            tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "2" }]
-        }
-    ]
-}
-`, frameworkName)
+// The framework fixture lives on the API, not in these configs: see
+// acctest.CreateDisposableComplianceFramework.
 
 func TestAccCustomSonarAlertResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -242,12 +229,14 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 }
 
 func TestAccCustomSonarAlertResource_AddComplianceFramework(t *testing.T) {
+	acctest.CreateDisposableComplianceFramework(t, frameworkName, "section_1", "section_2")
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + frameworkConfig + `
+				Config: orcasecurity.TestProviderConfig + `
 resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
@@ -258,7 +247,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckNoResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.#", "0"),
 				),
 			},
 			// import
@@ -269,7 +258,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 			},
 			// update
 			{
-				Config: orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 				resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
@@ -280,7 +269,6 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 					compliance_frameworks = [
 						{ name = %q, section = "section_2", priority = "medium" }
 					 ]
-					depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 				  }
 			`, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -294,8 +282,10 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 }
 
 func TestAccCustomSonarAlertResource_UpdateComplianceFramework(t *testing.T) {
+	acctest.CreateDisposableComplianceFramework(t, frameworkName, "section_1", "section_2")
+
 	alertConfig := func(section, priority string) string {
-		return orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
+		return orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
@@ -306,7 +296,6 @@ resource "orcasecurity_custom_sonar_alert" "test" {
   compliance_frameworks = [
 	{ name = %q, section = %q, priority = %q }
  ]
-  depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 }
 `, frameworkName, section, priority)
 	}
@@ -343,12 +332,14 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 }
 
 func TestAccCustomSonarAlertResource_DeleteComplianceFramework(t *testing.T) {
+	acctest.CreateDisposableComplianceFramework(t, frameworkName, "section_1", "section_2")
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
 			{
-				Config: orcasecurity.TestProviderConfig + frameworkConfig + fmt.Sprintf(`
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_custom_sonar_alert" "test" {
   name = "test name2"
   description = "test description"
@@ -359,14 +350,13 @@ resource "orcasecurity_custom_sonar_alert" "test" {
   compliance_frameworks = [
 	{ name = %q, section = "section_2", priority = "medium" }
  ]
-  depends_on = [orcasecurity_custom_compliance_framework.test_framework]
 }
 `, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(),
 			},
-			// update
+			// WASP-1672: a config that stops declaring the attribute keeps the link
 			{
-				Config: orcasecurity.TestProviderConfig + frameworkConfig + `
+				Config: orcasecurity.TestProviderConfig + `
 				resource "orcasecurity_custom_sonar_alert" "test" {
 					name = "test name2"
 					description = "test description"
@@ -377,8 +367,31 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 
 				  }
 			`,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckNoResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.#", "1"),
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.0.name", frameworkName),
+				),
+			},
+			// an empty list is the way to detach on purpose
+			{
+				Config: orcasecurity.TestProviderConfig + `
+resource "orcasecurity_custom_sonar_alert" "test" {
+  name = "test name2"
+  description = "test description"
+  rule = "ActivityLogDetection"
+  orca_score = 5.5
+  category = "Best practices"
+  context_score = true
+  compliance_frameworks = []
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("orcasecurity_custom_sonar_alert.test", "compliance_frameworks.#", "0"),
 				),
 			},
 		},
