@@ -102,6 +102,21 @@ func (client *APIClient) CreateCustomDiscoveryAlert(data CustomDiscoveryAlert) (
 }
 
 func (client *APIClient) UpdateCustomDiscoveryAlert(id string, data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {
+	instance, err := client.UpdateCustomDiscoveryAlertRule(id, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := client.UpdateCustomDiscoveryAlertRemediation(data); err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
+// UpdateCustomDiscoveryAlertRule writes the rule alone. Remediation text lives behind its own
+// endpoint, and a rule write is repeated when compliance framework links are
+// replaced, so the two are separate: a remediation failure must not be reported
+// as a failed rule write, and remediation must not be written twice.
+func (client *APIClient) UpdateCustomDiscoveryAlertRule(id string, data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {
 	resp, err := client.Put(fmt.Sprintf("/api/sonar/rules/%s", id), data)
 	if err != nil {
 		return nil, err
@@ -111,21 +126,21 @@ func (client *APIClient) UpdateCustomDiscoveryAlert(id string, data CustomDiscov
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
+	return &response.Data, nil
+}
 
-	// update remediation
+// UpdateCustomDiscoveryAlertRemediation brings the alert's remediation text in line with the plan.
+func (client *APIClient) UpdateCustomDiscoveryAlertRemediation(data CustomDiscoveryAlert) error {
 	if data.RemediationText == nil {
-		if err = client.DeleteCustomRemediationText(CustomDiscoveryAlertRemediationText{
-			AlertType: data.RuleType,
-		}); err != nil {
-			return nil, fmt.Errorf("remediation text delete failed: %s", err.Error())
+		if err := client.DeleteCustomRemediationText(CustomDiscoveryAlertRemediationText{AlertType: data.RuleType}); err != nil {
+			return fmt.Errorf("remediation text delete failed: %s", err.Error())
 		}
-	} else {
-		if err = client.SetCustomRemediationText(*data.RemediationText); err != nil {
-			return nil, fmt.Errorf("remediation text update failed: %s", err.Error())
-		}
+		return nil
 	}
-
-	return &response.Data, err
+	if err := client.SetCustomRemediationText(*data.RemediationText); err != nil {
+		return fmt.Errorf("remediation text update failed: %s", err.Error())
+	}
+	return nil
 }
 func (client *APIClient) DeleteCustomDiscoveryAlert(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/sonar/rules/%s", id))

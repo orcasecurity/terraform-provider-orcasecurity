@@ -279,13 +279,79 @@ func TestUpdate_SendsControlsItDoesNotDeclare(t *testing.T) {
 }
 
 // A control the config dropped was owned, so the merge must not restore it.
-func TestUpdate_DoesNotResurrectRemovedControls(t *testing.T) {
+// Private state cannot be built outside the framework, so ownership is passed
+// to keepForeignControls directly.
+func TestKeepForeignControls_DoesNotResurrectRemovedControls(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887" {
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
 	plan := stateModel(t)
 	plan.Sections = otherSection(t)
+	request, diags := requestFromPlan(context.Background(), plan)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
 
-	body := updateCapturingRequest(t, catalogJSON, plan)
-	if strings.Contains(body, `"r1"`) {
-		t.Fatalf("a control removed from the config must stay removed: %s", body)
+	resp := &resource.UpdateResponse{}
+	owned := ownership{"1": {Rules: []string{"r1"}}}
+	if d := r.keepForeignControls(context.Background(), resp, &request, plan, owned, true); d.HasError() {
+		t.Fatal(d)
+	}
+
+	for _, section := range request.Sections {
+		for _, test := range section.Tests {
+			if test.RuleID == "r1" {
+				t.Fatal("a control removed from the config must stay removed")
+			}
+		}
+	}
+	if len(resp.Diagnostics) != 0 {
+		t.Errorf("recorded ownership needs no warning, got %v", resp.Diagnostics)
+	}
+}
+
+// State written before the provider recorded ownership cannot tell a control it
+// once wrote from one an alert linked in, so the write keeps both and says so.
+func TestKeepForeignControls_WithoutOwnershipKeepsEverythingAndWarns(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887" {
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
+	plan := stateModel(t)
+	plan.Sections = otherSection(t)
+	request, diags := requestFromPlan(context.Background(), plan)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+
+	resp := &resource.UpdateResponse{}
+	if d := r.keepForeignControls(context.Background(), resp, &request, plan, nil, false); d.HasError() {
+		t.Fatal(d)
+	}
+
+	var kept bool
+	for _, section := range request.Sections {
+		for _, test := range section.Tests {
+			if test.RuleID == "r1" {
+				kept = true
+			}
+		}
+	}
+	if !kept {
+		t.Fatalf("without ownership the write must keep the undeclared control: %+v", request.Sections)
+	}
+	if len(resp.Diagnostics.Warnings()) != 1 ||
+		!strings.Contains(resp.Diagnostics.Warnings()[0].Detail(), "r1") {
+		t.Fatalf("the apply must say which controls it kept, got %v", resp.Diagnostics)
 	}
 }
 
@@ -326,7 +392,7 @@ func TestPopulate_CatalogMissing(t *testing.T) {
 		return testutils.JSONResponse(req, 200, fwJSON)
 	})
 	m := stateModel(t)
-	ok, d := r.populate(context.Background(), &m)
+	ok, d := r.populate(context.Background(), &m, ownershipFromSections(m.Sections), true)
 	if ok {
 		t.Fatal("empty catalog must not succeed")
 	}
@@ -346,7 +412,7 @@ func TestPopulate_CatalogFetchError(t *testing.T) {
 		return testutils.JSONResponse(req, 200, fwJSON)
 	})
 	m := stateModel(t)
-	ok, d := r.populate(context.Background(), &m)
+	ok, d := r.populate(context.Background(), &m, ownershipFromSections(m.Sections), true)
 	if ok || !d.HasError() {
 		t.Fatalf("catalog fetch error must fail, ok=%v d=%v", ok, d)
 	}
@@ -360,7 +426,7 @@ func TestRefresh_DisappearedAfterWrite(t *testing.T) {
 		return testutils.JSONResponse(req, 404, `{"error":"Framework 3887 not found."}`)
 	})
 	m := stateModel(t)
-	d := r.refresh(context.Background(), &m)
+	d := r.refresh(context.Background(), &m, ownershipFromSections(m.Sections))
 	if !d.HasError() {
 		t.Fatal("404 after write must be an error, not RemoveResource")
 	}

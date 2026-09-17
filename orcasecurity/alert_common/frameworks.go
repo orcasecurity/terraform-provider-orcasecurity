@@ -16,7 +16,7 @@ import (
 // clearedButFailed reports that the clear landed remotely but the write after it
 // did not, so the caller must persist empty frameworks.
 func ReplaceFrameworks[T any](state, plan types.List, request T, clearLinks func(*T), write func(T) error) (clearedButFailed bool, err error) {
-	if FrameworksCount(state) > 0 && FrameworksCount(plan) > 0 {
+	if needsClearingWrite(state, plan) {
 		cleared := request
 		clearLinks(&cleared)
 		if err := write(cleared); err != nil {
@@ -31,6 +31,18 @@ func ReplaceFrameworks[T any](state, plan types.List, request T, clearLinks func
 		return false, fmt.Errorf("could not update alert, unexpected error: %w", err)
 	}
 	return false, nil
+}
+
+// needsClearingWrite reports whether the links have to be cleared before they
+// are written. Only a real replacement needs it: when the links are unchanged, a
+// clearing write would delete them for the duration of a second request, and
+// lose them for good if that request failed — an unrelated edit, say to the
+// alert's description, must not put them at risk.
+func needsClearingWrite(state, plan types.List) bool {
+	if FrameworksCount(state) == 0 || FrameworksCount(plan) == 0 {
+		return false
+	}
+	return !state.Equal(plan)
 }
 
 // FrameworksAfterFailedReplace reports the value state must hold when the clear

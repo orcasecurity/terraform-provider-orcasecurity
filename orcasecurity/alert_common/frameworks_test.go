@@ -30,6 +30,21 @@ func withLinks(t *testing.T) types.List {
 	return list
 }
 
+// withOtherLinks differs from withLinks, so the pair describes a real
+// replacement rather than an unrelated edit.
+func withOtherLinks(t *testing.T) types.List {
+	t.Helper()
+	list, diags := FrameworksToList(context.Background(), []Framework{{
+		Name:     types.StringValue("framework"),
+		Section:  types.StringValue("other section"),
+		Priority: types.StringValue("high"),
+	}})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	return list
+}
+
 func withoutLinks() types.List { return types.ListNull(FrameworkObjectType()) }
 
 func TestReplaceFrameworks_NotReplacing_WritesOnce(t *testing.T) {
@@ -53,7 +68,7 @@ func TestReplaceFrameworks_NotReplacing_WritesOnce(t *testing.T) {
 // clearing write first.
 func TestReplaceFrameworks_Replacing_ClearsThenWrites(t *testing.T) {
 	var writes []request
-	clearedButFailed, err := ReplaceFrameworks(withLinks(t), withLinks(t),
+	clearedButFailed, err := ReplaceFrameworks(withLinks(t), withOtherLinks(t),
 		request{Name: "alert", Frameworks: []string{"f1"}}, clearLinks,
 		func(r request) error { writes = append(writes, r); return nil },
 	)
@@ -77,7 +92,7 @@ func TestReplaceFrameworks_Replacing_ClearsThenWrites(t *testing.T) {
 func TestReplaceFrameworks_Replacing_ClearFails(t *testing.T) {
 	wantErr := errors.New("boom")
 	var writes int
-	clearedButFailed, err := ReplaceFrameworks(withLinks(t), withLinks(t),
+	clearedButFailed, err := ReplaceFrameworks(withLinks(t), withOtherLinks(t),
 		request{Name: "alert"}, clearLinks,
 		func(request) error { writes++; return wantErr },
 	)
@@ -95,7 +110,7 @@ func TestReplaceFrameworks_Replacing_ClearFails(t *testing.T) {
 func TestReplaceFrameworks_Replacing_WriteFailsAfterClear(t *testing.T) {
 	wantErr := errors.New("boom")
 	var writes int
-	clearedButFailed, err := ReplaceFrameworks(withLinks(t), withLinks(t),
+	clearedButFailed, err := ReplaceFrameworks(withLinks(t), withOtherLinks(t),
 		request{Name: "alert"}, clearLinks,
 		func(r request) error {
 			writes++
@@ -130,5 +145,29 @@ func TestReplaceFrameworks_NoLinksEitherSide_WritesOnce(t *testing.T) {
 	}
 	if _, persist := FrameworksAfterFailedReplace(false); persist {
 		t.Fatal("nothing to persist when no clear happened")
+	}
+}
+
+// An unrelated edit — a new description, say — must not clear links it is not
+// changing: the clearing write would delete them until the second request lands,
+// and lose them if it failed.
+func TestReplaceFrameworks_UnchangedLinks_WritesOnce(t *testing.T) {
+	links := withLinks(t)
+	var writes []request
+	clearedButFailed, err := ReplaceFrameworks(links, links,
+		request{Name: "renamed", Frameworks: []string{"f1"}}, clearLinks,
+		func(r request) error { writes = append(writes, r); return nil },
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(writes) != 1 {
+		t.Fatalf("unchanged links must not be cleared first, got %d writes: %+v", len(writes), writes)
+	}
+	if len(writes[0].Frameworks) != 1 {
+		t.Errorf("the single write must carry the links, got %+v", writes[0])
+	}
+	if clearedButFailed {
+		t.Error("nothing was cleared")
 	}
 }

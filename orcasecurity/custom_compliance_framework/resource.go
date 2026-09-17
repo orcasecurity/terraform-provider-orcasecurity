@@ -3,6 +3,8 @@ package custom_compliance_framework
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
@@ -339,9 +341,15 @@ func (r *customComplianceFrameworkResource) Create(ctx context.Context, req reso
 	}
 
 	plan.ID = types.StringValue(instance.ID.String())
-	resp.Diagnostics.Append(r.refresh(ctx, &plan)...)
+	resp.Diagnostics.Append(r.refresh(ctx, &plan, ownershipFromSections(plan.Sections))...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	if resp.Private != nil {
+		resp.Diagnostics.Append(writeOwnership(ctx, resp.Private, plan.Sections)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -353,7 +361,13 @@ func (r *customComplianceFrameworkResource) Read(ctx context.Context, req resour
 		return
 	}
 
-	ok, d := r.populate(ctx, &state)
+	owned, knownOwnership, d := readOwnership(ctx, req.Private)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ok, d := r.populate(ctx, &state, owned, knownOwnership)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -373,19 +387,19 @@ func (r *customComplianceFrameworkResource) Update(ctx context.Context, req reso
 		return
 	}
 
-	var state customComplianceFrameworkResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	updateReq, diags := requestFromPlan(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(r.keepForeignControls(&updateReq, plan, state)...)
+	owned, knownOwnership, d := readOwnership(ctx, req.Private)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.keepForeignControls(ctx, resp, &updateReq, plan, owned, knownOwnership)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -399,9 +413,15 @@ func (r *customComplianceFrameworkResource) Update(ctx context.Context, req reso
 		return
 	}
 
-	resp.Diagnostics.Append(r.refresh(ctx, &plan)...)
+	resp.Diagnostics.Append(r.refresh(ctx, &plan, ownershipFromSections(plan.Sections))...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	if resp.Private != nil {
+		resp.Diagnostics.Append(writeOwnership(ctx, resp.Private, plan.Sections)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -425,9 +445,19 @@ func (r *customComplianceFrameworkResource) Delete(ctx context.Context, req reso
 // framework to a write request. The API replaces the whole section tree, so a
 // request built from the config alone deletes them — and deleting a control here
 // also clears the compliance framework link on the alert that owns it.
+//
+// Without recorded ownership (an import, or state from a provider version that
+// did not track it) there is no way to tell a control this resource once wrote
+// from one an alert linked in. The write then keeps everything the config does
+// not declare and says so, rather than deleting a control on a guess. The next
+// write has ownership and removes controls normally.
 func (r *customComplianceFrameworkResource) keepForeignControls(
+	ctx context.Context,
+	resp *resource.UpdateResponse,
 	request *api_client.CustomComplianceFrameworkRequest,
-	plan, state customComplianceFrameworkResourceModel,
+	plan customComplianceFrameworkResourceModel,
+	owned ownership,
+	knownOwnership bool,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -440,13 +470,30 @@ func (r *customComplianceFrameworkResource) keepForeignControls(
 		return diags
 	}
 
-	foreign := foreignSections(catalog.Sections, indexOwned(sectionsToAPI(state.Sections)))
-	request.Sections = mergeForeignSections(request.Sections, foreign)
+	if !knownOwnership {
+		owned = ownershipFromSections(plan.Sections)
+	}
+
+	foreign := foreignSections(catalog.Sections, owned)
+	request.Sections = mergeForeignSections(request.Sections, identifySections(plan.Sections), foreign)
+
+	if !knownOwnership {
+		if kept := foreignRuleIDs(foreign); len(kept) > 0 {
+			resp.Diagnostics.AddWarning(
+				"Controls kept without recorded ownership",
+				fmt.Sprintf("This framework has no record of which controls Terraform manages, so this apply kept every "+
+					"control the configuration does not declare instead of deleting it: %s. Controls linked by custom "+
+					"alerts stay that way. If you meant to remove one of these, run terraform apply again - ownership is "+
+					"recorded from this apply on.", strings.Join(kept, ", ")),
+			)
+		}
+	}
+
 	return diags
 }
 
-func (r *customComplianceFrameworkResource) refresh(ctx context.Context, model *customComplianceFrameworkResourceModel) diag.Diagnostics {
-	ok, d := r.populate(ctx, model)
+func (r *customComplianceFrameworkResource) refresh(ctx context.Context, model *customComplianceFrameworkResourceModel, owned ownership) diag.Diagnostics {
+	ok, d := r.populate(ctx, model, owned, true)
 	if d.HasError() {
 		return d
 	}
@@ -459,7 +506,10 @@ func (r *customComplianceFrameworkResource) refresh(ctx context.Context, model *
 }
 
 // populate reads metadata + catalog into model. ok=false means 404/gone.
-func (r *customComplianceFrameworkResource) populate(ctx context.Context, model *customComplianceFrameworkResourceModel) (bool, diag.Diagnostics) {
+// knownOwnership=false means this resource has never recorded what it wrote —
+// an import, or state from a provider version that did not track it — and the
+// whole catalog is adopted rather than filtered.
+func (r *customComplianceFrameworkResource) populate(ctx context.Context, model *customComplianceFrameworkResourceModel, owned ownership, knownOwnership bool) (bool, diag.Diagnostics) {
 	id := model.ID.ValueString()
 	fw, err := r.apiClient.GetCustomComplianceFramework(id)
 	if err != nil {
@@ -495,11 +545,8 @@ func (r *customComplianceFrameworkResource) populate(ctx context.Context, model 
 		return false, catalogMissingDiag(id)
 	}
 	remote := catalog.Sections
-	// On import there is no prior state, so every control in the catalog is
-	// adopted. Otherwise controls this resource never wrote belong to an alert
-	// or to the UI, and reporting them would plan them away.
-	if !model.Sections.IsNull() && !model.Sections.IsUnknown() {
-		remote = retainOwnedCatalog(remote, indexOwned(sectionsToAPI(model.Sections)))
+	if knownOwnership {
+		remote = retainOwnedCatalog(remote, owned)
 	}
 
 	sections, d := sectionsFromCatalog(remote, schemaSectionDepth-1)

@@ -340,12 +340,20 @@ func (r *customDiscoveryAlertResource) Update(ctx context.Context, req resource.
 	clearedButFailed, err := alert_common.ReplaceFrameworks(state.Frameworks, plan.Frameworks, updateReq,
 		func(request *api_client.CustomDiscoveryAlert) { request.ComplianceFrameworks = nil },
 		func(request api_client.CustomDiscoveryAlert) error {
-			_, err := r.apiClient.UpdateCustomDiscoveryAlert(plan.ID.ValueString(), request)
+			_, err := r.apiClient.UpdateCustomDiscoveryAlertRule(plan.ID.ValueString(), request)
 			return err
 		},
 	)
 	if err != nil {
 		alert_common.ReportFrameworkWriteFailure(ctx, resp, &plan, &plan.Frameworks, clearedButFailed, err)
+		return
+	}
+
+	// Remediation text is written once, after the links are settled. Folding it
+	// into the rule write would run it twice during a replace and would report a
+	// remediation failure as links that were never written.
+	if err := r.apiClient.UpdateCustomDiscoveryAlertRemediation(updateReq); err != nil {
+		resp.Diagnostics.AddError("Error updating Alert", err.Error())
 		return
 	}
 
