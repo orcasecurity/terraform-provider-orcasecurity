@@ -26,14 +26,6 @@ type CustomDiscoveryAlert struct {
 	RemediationText      *CustomDiscoveryAlertRemediationText      // managed in a separate API call
 }
 
-type CustomDiscoveryAlertComplianceFramework struct {
-	Name           string `json:"compliance_framework"`
-	Category       string `json:"category"`
-	SubCategory    string `json:"sub_category,omitempty"`
-	SubSubCategory string `json:"sub_sub_category,omitempty"`
-	Priority       string `json:"priority"`
-}
-
 type CustomDiscoveryAlertRemediationText struct {
 	AlertType string `json:"alert_type"`
 	Enable    bool   `json:"enabled"`

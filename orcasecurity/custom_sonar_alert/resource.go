@@ -8,16 +8,12 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alert_common"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -79,32 +75,7 @@ func (r *customSonarAlertResource) ImportState(ctx context.Context, req resource
 func (r *customSonarAlertResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
 		Description: "Provides a custom sonar-based alert.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Custom alert ID.",
-			},
-			"organization_id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Orca organization ID.",
-			},
-			"name": schema.StringAttribute{
-				Description: "Custom alert name.",
-				Required:    true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"description": schema.StringAttribute{
-				Description: "Custom alert description.",
-				Optional:    true,
-			},
+		Attributes: alert_common.MergeAttributes(map[string]schema.Attribute{
 			"rule": schema.StringAttribute{
 				Description: "Sonar query that defines the rule.",
 				Required:    true,
@@ -115,10 +86,6 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"category": schema.StringAttribute{
-				Description: "Alert category. Valid values are `Access control`, `Authentication`, `Best practices`, `Data at risk`, `Data protection`, `IAM misconfigurations`, `Lateral movement`, `Logging and monitoring`, `Malicious activity`, `Malware`, `Neglected assets`, `Network misconfigurations`, `Source code vulnerabilities`, `Suspicious activity`, `System integrity`, `Vendor services misconfigurations`, `Vulnerabilities`, and `Workload misconfigurations`.",
-				Required:    true,
 			},
 			"orca_score": schema.Float64Attribute{
 				Description: "Alert score.",
@@ -136,45 +103,9 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"remediation_text": schema.SingleNestedAttribute{
-				Description: "A container for the remediation instructions that will appear on the 'Remediation' tab for the alert.",
-				Optional:    true,
-				Attributes: map[string]schema.Attribute{
-					"enable": schema.BoolAttribute{
-						Description: "Whether or not all users are able to see the remediation instructions for this alert. To enable all users to see them, set this to `true`.",
-						Optional:    true,
-					},
-					"text": schema.StringAttribute{
-						Description: "Remediation description.",
-						Required:    true,
-					},
-				},
-			},
-			"compliance_frameworks": schema.ListNestedAttribute{
-				Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. Omit the attribute to leave the existing links untouched - they may be owned by the Orca UI or by a custom compliance framework resource. Set it to `[]` to detach the alert from every framework.",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
-				},
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Required:    true,
-							Description: "Custom framework name.",
-						},
-						"section": schema.StringAttribute{
-							Required:    true,
-							Description: "Custom framework section. For nested sections, join the levels with `/` (e.g. `Identify/Risk Assessment/Vulnerabilities in assets are identified`); up to three levels are supported.",
-						},
-						"priority": schema.StringAttribute{
-							Required:    true,
-							Description: "Custom framework control priority. Valid values are `high`, `medium`, and `low`.",
-						},
-					},
-				},
-			},
-		},
+			"remediation_text":      alert_common.RemediationTextAttribute(),
+			"compliance_frameworks": alert_common.ComplianceFrameworksAttribute(),
+		}),
 	}
 }
 
@@ -197,7 +128,7 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		enabled = plan.Enabled.ValueBool()
 	}
 
-	createFrameworks, frameworkDiags := generateRequestFrameworks(ctx, plan.Frameworks)
+	createFrameworks, frameworkDiags := alert_common.FrameworksRequest(ctx, plan.Frameworks)
 	resp.Diagnostics.Append(frameworkDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -245,14 +176,12 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
 	plan.Enabled = types.BoolValue(instance.Enabled)
 
-	if plan.Frameworks.IsUnknown() {
-		frameworks, diags := frameworksToList(ctx, instance.ComplianceFrameworks)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		plan.Frameworks = frameworks
+	frameworks, frameworkDiags := alert_common.FrameworksAfterCreate(ctx, plan.Frameworks, instance.ComplianceFrameworks)
+	resp.Diagnostics.Append(frameworkDiags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+	plan.Frameworks = frameworks
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -311,7 +240,7 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 		}
 	}
 
-	frameworks, diags := frameworksToList(ctx, instance.ComplianceFrameworks)
+	frameworks, diags := alert_common.FrameworksState(ctx, instance.ComplianceFrameworks)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -359,7 +288,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		enabled = plan.Enabled.ValueBool()
 	}
 
-	updateFrameworks, frameworkDiags := generateRequestFrameworks(ctx, plan.Frameworks)
+	updateFrameworks, frameworkDiags := alert_common.FrameworksRequest(ctx, plan.Frameworks)
 	resp.Diagnostics.Append(frameworkDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -386,25 +315,15 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		}
 	}
 
-	clearedButFailed, err := alert_common.ReplaceFrameworks(alert_common.FrameworksCount(state.Frameworks) > 0, alert_common.FrameworksCount(plan.Frameworks) > 0,
-		func() error {
-			clearReq := updateReq
-			clearReq.ComplianceFrameworks = nil
-			_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), clearReq)
-			return err
-		},
-		func() error {
-			_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), updateReq)
+	clearedButFailed, err := alert_common.ReplaceFrameworks(state.Frameworks, plan.Frameworks, updateReq,
+		func(request *api_client.CustomAlert) { request.ComplianceFrameworks = nil },
+		func(request api_client.CustomAlert) error {
+			_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), request)
 			return err
 		},
 	)
 	if err != nil {
-		if clearedButFailed {
-			// Clear succeeded remotely; persist empty frameworks on apply failure.
-			plan.Frameworks = types.ListValueMust(alert_common.FrameworkObjectType(), nil)
-			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-		}
-		resp.Diagnostics.AddError("Error updating Alert", err.Error())
+		alert_common.ReportFrameworkWriteFailure(ctx, resp, &plan, &plan.Frameworks, clearedButFailed, err)
 		return
 	}
 
@@ -450,37 +369,4 @@ func validateCategory(client *api_client.APIClient, category string) error {
 	sort.Strings(categories)
 	categoryValues := strings.Join(categories, ", ")
 	return fmt.Errorf("invalid category. Please choose from: %s", categoryValues)
-}
-
-func generateRequestFrameworks(ctx context.Context, list types.List) ([]api_client.CustomSonarAlertComplianceFramework, diag.Diagnostics) {
-	frameworks, diags := alert_common.FrameworksFromList(ctx, list)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	var frameworksReq []api_client.CustomSonarAlertComplianceFramework
-	for _, framework := range frameworks {
-		category, subCategory, subSubCategory := api_client.SplitComplianceSection(framework.Section.ValueString())
-		frameworksReq = append(frameworksReq, api_client.CustomSonarAlertComplianceFramework{
-			Name:           framework.Name.ValueString(),
-			Category:       category,
-			SubCategory:    subCategory,
-			SubSubCategory: subSubCategory,
-			Priority:       framework.Priority.ValueString(),
-		})
-	}
-	return frameworksReq, diags
-}
-
-func frameworksToList(ctx context.Context, frameworks []api_client.CustomSonarAlertComplianceFramework) (types.List, diag.Diagnostics) {
-	values := make([]alert_common.Framework, 0, len(frameworks))
-	for _, framework := range frameworks {
-		values = append(values, alert_common.Framework{
-			Name: types.StringValue(framework.Name),
-			Section: types.StringValue(api_client.JoinComplianceSection(
-				framework.Category, framework.SubCategory, framework.SubSubCategory)),
-			Priority: types.StringValue(framework.Priority),
-		})
-	}
-	return alert_common.FrameworksToList(ctx, values)
 }
