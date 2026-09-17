@@ -266,7 +266,7 @@ func updateCapturingRequest(t *testing.T, catalog string, plan customComplianceF
 	return body
 }
 
-// WASP-1672: the API replaces the whole section tree, so an update that sends
+// The API replaces the whole section tree, so an update that sends
 // only the declared controls deletes the ones alerts linked in — and that also
 // clears the link on the alert.
 func TestUpdate_SendsControlsItDoesNotDeclare(t *testing.T) {

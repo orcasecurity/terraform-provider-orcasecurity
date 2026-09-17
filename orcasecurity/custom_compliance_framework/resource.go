@@ -367,6 +367,15 @@ func (r *customComplianceFrameworkResource) Read(ctx context.Context, req resour
 		return
 	}
 
+	// Import writes nothing but the id, so a read with no sections in state and
+	// no ownership on record is the read that follows one. It adopts the whole
+	// catalog, and has to record that: otherwise the first update would treat
+	// every adopted control as someone else's and could never remove one.
+	// State written by a provider version that did not track ownership is a
+	// different case - it has sections - and is left unrecorded on purpose, so
+	// that the first update keeps the controls it cannot account for.
+	adoptedByImport := !knownOwnership && state.Sections.IsNull()
+
 	ok, d := r.populate(ctx, &state, owned, knownOwnership)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
@@ -377,6 +386,13 @@ func (r *customComplianceFrameworkResource) Read(ctx context.Context, req resour
 		resp.State.RemoveResource(ctx)
 		return
 	}
+	if adoptedByImport && resp.Private != nil {
+		resp.Diagnostics.Append(writeOwnership(ctx, resp.Private, state.Sections)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -482,9 +498,11 @@ func (r *customComplianceFrameworkResource) keepForeignControls(
 			resp.Diagnostics.AddWarning(
 				"Controls kept without recorded ownership",
 				fmt.Sprintf("This framework has no record of which controls Terraform manages, so this apply kept every "+
-					"control the configuration does not declare instead of deleting it: %s. Controls linked by custom "+
-					"alerts stay that way. If you meant to remove one of these, run terraform apply again - ownership is "+
-					"recorded from this apply on.", strings.Join(kept, ", ")),
+					"control the configuration does not declare instead of deleting it: %s. Controls that custom alerts "+
+					"link in are meant to stay, and are now left alone for good. To remove one of the others, either "+
+					"detach it from the alert that links it, through that alert's compliance_frameworks attribute, or "+
+					"add it to this framework's sections, apply, and then remove it - a control this resource has "+
+					"written is a control it can delete.", strings.Join(kept, ", ")),
 			)
 		}
 	}

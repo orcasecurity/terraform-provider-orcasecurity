@@ -354,7 +354,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 `, frameworkName),
 				Check: resource.ComposeAggregateTestCheckFunc(),
 			},
-			// WASP-1672: a config that stops declaring the attribute keeps the link
+			// a config that stops declaring the attribute keeps the link
 			{
 				Config: orcasecurity.TestProviderConfig + `
 				resource "orcasecurity_custom_sonar_alert" "test" {

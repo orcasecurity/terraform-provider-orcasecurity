@@ -15,7 +15,7 @@ import (
 // ComplianceFrameworksAttribute is Optional+Computed on purpose: the links are
 // also written by the Orca UI and by the custom compliance framework resource,
 // and an Optional-only attribute makes Terraform delete what the config does not
-// declare (WASP-1672).
+// declare.
 func ComplianceFrameworksAttribute() schema.ListNestedAttribute {
 	return schema.ListNestedAttribute{
 		Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. Omit the attribute to leave the existing links untouched - they may be owned by the Orca UI or by a custom compliance framework resource. Set it to `[]` to detach the alert from every framework.",

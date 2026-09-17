@@ -47,7 +47,7 @@ func TestFrameworksRoundTrip(t *testing.T) {
 }
 
 // A null or unknown plan value means the config says nothing about the links.
-// Turning either into frameworks would send a clearing PUT (WASP-1672).
+// Turning either into frameworks would send a clearing PUT.
 func TestFrameworksFromListIgnoresNullAndUnknown(t *testing.T) {
 	ctx := context.Background()
 	for name, list := range map[string]types.List{
