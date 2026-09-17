@@ -8,13 +8,12 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/alert_common"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -28,12 +27,6 @@ var (
 
 type customSonarAlertResource struct {
 	apiClient *api_client.APIClient
-}
-
-type frameworkStateModel struct {
-	Name     types.String `tfsdk:"name"`
-	Section  types.String `tfsdk:"section"`
-	Priority types.String `tfsdk:"priority"`
 }
 
 type remediationTextStateModel struct {
@@ -52,7 +45,7 @@ type stateModel struct {
 	OrcaScore       types.Float64              `tfsdk:"orca_score"`
 	ContextScore    types.Bool                 `tfsdk:"context_score"`
 	Enabled         types.Bool                 `tfsdk:"enabled"`
-	Frameworks      []frameworkStateModel      `tfsdk:"compliance_frameworks"`
+	Frameworks      types.List                 `tfsdk:"compliance_frameworks"`
 	RemediationText *remediationTextStateModel `tfsdk:"remediation_text"`
 }
 
@@ -82,32 +75,7 @@ func (r *customSonarAlertResource) ImportState(ctx context.Context, req resource
 func (r *customSonarAlertResource) Schema(_ context.Context, req resource.SchemaRequest, res *resource.SchemaResponse) {
 	res.Schema = schema.Schema{
 		Description: "Provides a custom sonar-based alert.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Custom alert ID.",
-			},
-			"organization_id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Description: "Orca organization ID.",
-			},
-			"name": schema.StringAttribute{
-				Description: "Custom alert name.",
-				Required:    true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"description": schema.StringAttribute{
-				Description: "Custom alert description.",
-				Optional:    true,
-			},
+		Attributes: alert_common.MergeAttributes(map[string]schema.Attribute{
 			"rule": schema.StringAttribute{
 				Description: "Sonar query that defines the rule.",
 				Required:    true,
@@ -118,10 +86,6 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"category": schema.StringAttribute{
-				Description: "Alert category. Valid values are `Access control`, `Authentication`, `Best practices`, `Data at risk`, `Data protection`, `IAM misconfigurations`, `Lateral movement`, `Logging and monitoring`, `Malicious activity`, `Malware`, `Neglected assets`, `Network misconfigurations`, `Source code vulnerabilities`, `Suspicious activity`, `System integrity`, `Vendor services misconfigurations`, `Vulnerabilities`, and `Workload misconfigurations`.",
-				Required:    true,
 			},
 			"orca_score": schema.Float64Attribute{
 				Description: "Alert score.",
@@ -135,42 +99,13 @@ func (r *customSonarAlertResource) Schema(_ context.Context, req resource.Schema
 				Description: "Whether the alert is enabled. Defaults to true.",
 				Optional:    true,
 				Computed:    true,
-			},
-			"remediation_text": schema.SingleNestedAttribute{
-				Description: "A container for the remediation instructions that will appear on the 'Remediation' tab for the alert.",
-				Optional:    true,
-				Attributes: map[string]schema.Attribute{
-					"enable": schema.BoolAttribute{
-						Description: "Whether or not all users are able to see the remediation instructions for this alert. To enable all users to see them, set this to `true`.",
-						Optional:    true,
-					},
-					"text": schema.StringAttribute{
-						Description: "Remediation description.",
-						Required:    true,
-					},
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"compliance_frameworks": schema.ListNestedAttribute{
-				Description: "The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls.",
-				Optional:    true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Required:    true,
-							Description: "Custom framework name.",
-						},
-						"section": schema.StringAttribute{
-							Required:    true,
-							Description: "Custom framework section. For nested sections, join the levels with `/` (e.g. `Identify/Risk Assessment/Vulnerabilities in assets are identified`); up to three levels are supported.",
-						},
-						"priority": schema.StringAttribute{
-							Required:    true,
-							Description: "Custom framework control priority. Valid values are `high`, `medium`, and `low`.",
-						},
-					},
-				},
-			},
-		},
+			"remediation_text":      alert_common.RemediationTextAttribute(),
+			"compliance_frameworks": alert_common.ComplianceFrameworksAttribute(),
+		}),
 	}
 }
 
@@ -193,6 +128,12 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		enabled = plan.Enabled.ValueBool()
 	}
 
+	createFrameworks, frameworkDiags := alert_common.FrameworksRequest(ctx, plan.Frameworks)
+	resp.Diagnostics.Append(frameworkDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	createReq := api_client.CustomAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
@@ -202,7 +143,7 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		OrcaScore:            plan.OrcaScore.ValueFloat64(),
 		ContextScore:         plan.ContextScore.ValueBool(),
 		Enabled:              enabled,
-		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
+		ComplianceFrameworks: createFrameworks,
 	}
 	if plan.RemediationText != nil {
 		createReq.RemediationText = &api_client.CustomSonarAlertRemediationText{
@@ -234,6 +175,13 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 	plan.RuleType = types.StringValue(instance.RuleType)
 	plan.OrganizationID = types.StringValue(instance.OrganizationID)
 	plan.Enabled = types.BoolValue(instance.Enabled)
+
+	frameworks, frameworkDiags := alert_common.FrameworksAfterCreate(ctx, plan.Frameworks, instance.ComplianceFrameworks)
+	resp.Diagnostics.Append(frameworkDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Frameworks = frameworks
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -292,14 +240,10 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 		}
 	}
 
-	var frameworks []frameworkStateModel
-	for _, frameworkData := range instance.ComplianceFrameworks {
-		frameworks = append(frameworks, frameworkStateModel{
-			Name: types.StringValue(frameworkData.Name),
-			Section: types.StringValue(api_client.JoinComplianceSection(
-				frameworkData.Category, frameworkData.SubCategory, frameworkData.SubSubCategory)),
-			Priority: types.StringValue(frameworkData.Priority),
-		})
+	frameworks, diags := alert_common.FrameworksState(ctx, instance.ComplianceFrameworks)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 	state.Frameworks = frameworks
 
@@ -344,6 +288,12 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		enabled = plan.Enabled.ValueBool()
 	}
 
+	updateFrameworks, frameworkDiags := alert_common.FrameworksRequest(ctx, plan.Frameworks)
+	resp.Diagnostics.Append(frameworkDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	updateReq := api_client.CustomAlert{
 		Name:                 plan.Name.ValueString(),
 		Description:          plan.Description.ValueString(),
@@ -354,7 +304,7 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		Enabled:              enabled,
 		Category:             plan.Category.ValueString(),
 		OrganizationID:       plan.OrganizationID.ValueString(),
-		ComplianceFrameworks: generateRequestFrameworks(plan.Frameworks),
+		ComplianceFrameworks: updateFrameworks,
 	}
 
 	if plan.RemediationText != nil {
@@ -365,24 +315,22 @@ func (r *customSonarAlertResource) Update(ctx context.Context, req resource.Upda
 		}
 	}
 
-	clearedButFailed, err := alert_common.ReplaceFrameworks(len(state.Frameworks) > 0, len(plan.Frameworks) > 0,
-		func() error {
-			clearReq := updateReq
-			clearReq.ComplianceFrameworks = nil
-			_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), clearReq)
-			return err
-		},
-		func() error {
-			_, err := r.apiClient.UpdateCustomSonarAlert(plan.ID.ValueString(), updateReq)
+	clearedButFailed, err := alert_common.ReplaceFrameworks(state.Frameworks, plan.Frameworks, updateReq,
+		func(request *api_client.CustomAlert) { request.ComplianceFrameworks = nil },
+		func(request api_client.CustomAlert) error {
+			_, err := r.apiClient.UpdateCustomSonarAlertRule(plan.ID.ValueString(), request)
 			return err
 		},
 	)
 	if err != nil {
-		if clearedButFailed {
-			// Clear succeeded remotely; persist empty frameworks on apply failure.
-			plan.Frameworks = nil
-			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-		}
+		alert_common.ReportFrameworkWriteFailure(ctx, resp, &plan, &plan.Frameworks, clearedButFailed, err)
+		return
+	}
+
+	// Remediation text is written once, after the links are settled. Folding it
+	// into the rule write would run it twice during a replace and would report a
+	// remediation failure as links that were never written.
+	if err := r.apiClient.UpdateCustomSonarAlertRemediation(updateReq); err != nil {
 		resp.Diagnostics.AddError("Error updating Alert", err.Error())
 		return
 	}
@@ -429,19 +377,4 @@ func validateCategory(client *api_client.APIClient, category string) error {
 	sort.Strings(categories)
 	categoryValues := strings.Join(categories, ", ")
 	return fmt.Errorf("invalid category. Please choose from: %s", categoryValues)
-}
-
-func generateRequestFrameworks(frameworks []frameworkStateModel) []api_client.CustomSonarAlertComplianceFramework {
-	var frameworksReq []api_client.CustomSonarAlertComplianceFramework
-	for _, frameworkState := range frameworks {
-		category, subCategory, subSubCategory := api_client.SplitComplianceSection(frameworkState.Section.ValueString())
-		frameworksReq = append(frameworksReq, api_client.CustomSonarAlertComplianceFramework{
-			Name:           frameworkState.Name.ValueString(),
-			Category:       category,
-			SubCategory:    subCategory,
-			SubSubCategory: subSubCategory,
-			Priority:       frameworkState.Priority.ValueString(),
-		})
-	}
-	return frameworksReq
 }
