@@ -7,14 +7,6 @@ import (
 	"strings"
 )
 
-type CustomSonarAlertComplianceFramework struct {
-	Name           string `json:"compliance_framework"`
-	Category       string `json:"category"`
-	SubCategory    string `json:"sub_category,omitempty"`
-	SubSubCategory string `json:"sub_sub_category,omitempty"`
-	Priority       string `json:"priority"`
-}
-
 type CustomSonarAlertRemediationText struct {
 	AlertType string `json:"alert_type"`
 	Enable    bool   `json:"enabled"`
@@ -110,33 +102,49 @@ func (client *APIClient) CreateCustomSonarAlert(data CustomAlert) (*CustomAlert,
 }
 
 func (client *APIClient) UpdateCustomSonarAlert(id string, data CustomAlert) (*CustomAlert, error) {
-	type responseType struct {
-		Data CustomAlert `json:"data"`
+	instance, err := client.UpdateCustomSonarAlertRule(id, data)
+	if err != nil {
+		return nil, err
 	}
+	if err := client.UpdateCustomSonarAlertRemediation(data); err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
+// UpdateCustomSonarAlertRule writes the rule alone. Remediation text lives behind its own
+// endpoint, and a rule write is repeated when compliance framework links are
+// replaced, so the two are separate: a remediation failure must not be reported
+// as a failed rule write, and remediation must not be written twice.
+func (client *APIClient) UpdateCustomSonarAlertRule(id string, data CustomAlert) (*CustomAlert, error) {
 	resp, err := client.Put(fmt.Sprintf("/api/sonar/rules/%s", id), data)
 	if err != nil {
 		return nil, err
+	}
+
+	type responseType struct {
+		Data CustomAlert `json:"data"`
 	}
 
 	response := responseType{}
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
+	return &response.Data, nil
+}
 
-	// update remediation
+// UpdateCustomSonarAlertRemediation brings the alert's remediation text in line with the plan.
+func (client *APIClient) UpdateCustomSonarAlertRemediation(data CustomAlert) error {
 	if data.RemediationText == nil {
-		if err = client.DeleteCustomSonarAlertRemediationText(CustomSonarAlertRemediationText{
-			AlertType: data.RuleType,
-		}); err != nil {
-			return nil, fmt.Errorf("remediation text delete failed: %s", err.Error())
+		if err := client.DeleteCustomSonarAlertRemediationText(CustomSonarAlertRemediationText{AlertType: data.RuleType}); err != nil {
+			return fmt.Errorf("remediation text delete failed: %s", err.Error())
 		}
-	} else {
-		if err = client.SetCustomSonarAlertRemediationText(*data.RemediationText); err != nil {
-			return nil, fmt.Errorf("remediation text update failed: %s", err.Error())
-		}
+		return nil
 	}
-
-	return &response.Data, err
+	if err := client.SetCustomSonarAlertRemediationText(*data.RemediationText); err != nil {
+		return fmt.Errorf("remediation text update failed: %s", err.Error())
+	}
+	return nil
 }
 func (client *APIClient) DeleteCustomSonarAlert(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/sonar/rules/%s", id))

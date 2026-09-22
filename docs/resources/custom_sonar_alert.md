@@ -77,7 +77,7 @@ resource "orcasecurity_custom_sonar_alert" "example" {
 
 ### Optional
 
-- `compliance_frameworks` (Attributes List) The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. (see [below for nested schema](#nestedatt--compliance_frameworks))
+- `compliance_frameworks` (Attributes List) The custom compliance framework(s) that this alert relates to. In the context of a compliance framework, alerts correspond to controls. Omit the attribute to leave the existing links untouched - they may be owned by the Orca UI or by a custom compliance framework resource. Set it to `[]` to detach the alert from every framework. (see [below for nested schema](#nestedatt--compliance_frameworks))
 - `description` (String) Custom alert description.
 - `enabled` (Boolean) Whether the alert is enabled. Defaults to true.
 - `remediation_text` (Attributes) A container for the remediation instructions that will appear on the 'Remediation' tab for the alert. (see [below for nested schema](#nestedatt--remediation_text))
