@@ -22,6 +22,7 @@ func pathStubClient(handler func(req *http.Request) (int, string)) *APIClient {
 }
 
 func TestGetCustomDiscoveryAlert_MissingReturnsNil(t *testing.T) {
+	stubRetrySleep(t)
 	for _, code := range []int{http.StatusBadRequest, http.StatusInternalServerError} {
 		c := pathStubClient(func(*http.Request) (int, string) { return code, `{"error":"Internal error"}` })
 		alert, err := c.GetCustomDiscoveryAlert("r0000000000")

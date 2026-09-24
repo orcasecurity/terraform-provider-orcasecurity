@@ -36,9 +36,8 @@ func (client *APIClient) GetCustomDiscoveryAlert(id string) (*CustomDiscoveryAle
 	type responseType struct {
 		Data CustomDiscoveryAlert `json:"data"`
 	}
-	resp, err := client.Get(fmt.Sprintf("/api/sonar/rules/%s", id))
-	// The API has no 404 here: unknown ids return 400 and deleted rules 500.
-	if resp != nil && (resp.StatusCode() == 400 || resp.StatusCode() == 500) {
+	resp, missing, err := client.getSonarRule(id)
+	if missing {
 		return nil, nil
 	}
 	if err != nil {
