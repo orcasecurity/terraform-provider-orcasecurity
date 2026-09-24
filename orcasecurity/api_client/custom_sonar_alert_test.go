@@ -23,7 +23,12 @@ func sonarAlertStubClient(handler func(req *http.Request) (int, string)) *api_cl
 
 func TestGetCustomSonarAlert_MissingReturnsNil(t *testing.T) {
 	for _, code := range []int{http.StatusBadRequest, http.StatusInternalServerError} {
-		c := sonarAlertStubClient(func(*http.Request) (int, string) { return code, `{"error":"Internal error"}` })
+		c := sonarAlertStubClient(func(req *http.Request) (int, string) {
+			if req.URL.Path == "/api/sonar/rules/custom" {
+				return http.StatusOK, `{"status":"success","data":[],"limit":1000,"total_items":0}`
+			}
+			return code, `{"error":"Internal error"}`
+		})
 		alert, err := c.GetCustomSonarAlert("1")
 		if err != nil {
 			t.Fatalf("status %d: unexpected error %v", code, err)
