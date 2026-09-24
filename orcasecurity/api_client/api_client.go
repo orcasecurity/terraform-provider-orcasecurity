@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,13 +37,21 @@ type APIClient struct {
 	// set this: the server may have already committed the upsert before the
 	// client times out, and replaying POST/DELETE re-runs expensive rescoring.
 	disableTimeoutRetry bool
+	// alertCategories is a pointer so clones share one per-run cache.
+	alertCategories *alertCategoryCache
+}
+
+type alertCategoryCache struct {
+	mu   sync.Mutex
+	data []string
 }
 
 func NewAPIClient(endpoint, token *string) (*APIClient, error) {
 	apiclient := APIClient{
-		APIEndpoint: *endpoint,
-		APIToken:    *token,
-		HTTPClient:  &http.Client{Timeout: defaultHTTPTimeout},
+		APIEndpoint:     *endpoint,
+		APIToken:        *token,
+		HTTPClient:      &http.Client{Timeout: defaultHTTPTimeout},
+		alertCategories: &alertCategoryCache{},
 	}
 	return &apiclient, nil
 }
