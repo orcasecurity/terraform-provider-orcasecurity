@@ -162,7 +162,11 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	instance, err = r.apiClient.GetCustomSonarAlert(instance.ID)
+	createdID := instance.ID
+	instance, err = r.apiClient.GetCustomSonarAlert(createdID)
+	if err == nil && instance == nil {
+		err = fmt.Errorf("alert %s not found right after creation", createdID)
+	}
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error refreshing Alert",
@@ -198,27 +202,18 @@ func (r *customSonarAlertResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	exists, err := r.apiClient.DoesCustomSonarAlertExist(state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading Alert",
-			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
-		)
-		return
-	}
-
-	if !exists {
-		tflog.Warn(ctx, fmt.Sprintf("Alert %s is missing on the remote side.", state.ID.ValueString()))
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
 	instance, err := r.apiClient.GetCustomSonarAlert(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Alert",
 			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
+		return
+	}
+
+	if instance == nil {
+		tflog.Warn(ctx, fmt.Sprintf("Alert %s is missing on the remote side.", state.ID.ValueString()))
+		resp.State.RemoveResource(ctx)
 		return
 	}
 

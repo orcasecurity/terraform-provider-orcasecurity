@@ -162,7 +162,11 @@ func (r *customDiscoveryAlertResource) Create(ctx context.Context, req resource.
 		return
 	}
 
-	instance, err = r.apiClient.GetCustomDiscoveryAlert(instance.ID)
+	createdID := instance.ID
+	instance, err = r.apiClient.GetCustomDiscoveryAlert(createdID)
+	if err == nil && instance == nil {
+		err = fmt.Errorf("alert %s not found right after creation", createdID)
+	}
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error refreshing Alert",
@@ -197,27 +201,18 @@ func (r *customDiscoveryAlertResource) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	exists, err := r.apiClient.DoesCustomDiscoveryAlertExist(state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			errReadingAlert,
-			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
-		)
-		return
-	}
-
-	if !exists {
-		tflog.Warn(ctx, fmt.Sprintf("Alert %s is missing on the remote side.", state.ID.ValueString()))
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
 	instance, err := r.apiClient.GetCustomDiscoveryAlert(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			errReadingAlert,
 			fmt.Sprintf("Could not read Alert ID %s: %s", state.ID.ValueString(), err.Error()),
 		)
+		return
+	}
+
+	if instance == nil {
+		tflog.Warn(ctx, fmt.Sprintf("Alert %s is missing on the remote side.", state.ID.ValueString()))
+		resp.State.RemoveResource(ctx)
 		return
 	}
 

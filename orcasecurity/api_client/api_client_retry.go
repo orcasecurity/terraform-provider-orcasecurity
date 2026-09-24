@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"strconv"
@@ -17,6 +18,23 @@ const (
 	retryBaseDelay       = 250 * time.Millisecond
 	retryMaxDelay        = 16 * time.Second
 	retryAfterCap        = 2 * time.Minute
+
+	// The Orca API throttles per second (50/s per token and per user on EU) and
+	// sends 429 without Retry-After, so throttled requests get their own, longer
+	// budget and a backoff that starts at the 1s window.
+	maxThrottleRetryAttempts = 10
+	throttleBaseDelay        = 1 * time.Second
+	throttleMaxDelay         = 8 * time.Second
+)
+
+var (
+	retrySleep  = sleepCtx
+	retryJitter = func(n time.Duration) time.Duration {
+		if n <= 0 {
+			return 0
+		}
+		return rand.N(n)
+	}
 )
 
 func slurpRequestBody(req *http.Request) ([]byte, error) {
@@ -57,7 +75,7 @@ func (c *APIClient) sleepIfRetriableTransportError(ctx context.Context, attempt 
 	if attempt >= maxHTTPRetryAttempts-1 || !c.isRetriableRoundTripError(errOut) {
 		return false, nil
 	}
-	if err := sleepCtx(ctx, retryDelay(attempt, nil)); err != nil {
+	if err := retrySleep(ctx, retryDelay(attempt, nil)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -71,10 +89,10 @@ func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, r
 	if apiResp.IsOk() {
 		return apiResp, false, nil
 	}
-	if !isRetriableHTTPStatus(res.StatusCode) || attempt == maxHTTPRetryAttempts-1 {
+	if !isRetriableHTTPStatus(res.StatusCode) || attempt >= maxAttemptsForStatus(res.StatusCode)-1 {
 		return apiResp, false, nil
 	}
-	if err := sleepCtx(ctx, retryDelay(attempt, res)); err != nil {
+	if err := retrySleep(ctx, retryDelay(attempt, res)); err != nil {
 		return nil, false, err
 	}
 	return nil, true, nil
@@ -115,6 +133,13 @@ func isRetriableHTTPStatus(status int) bool {
 	}
 }
 
+func maxAttemptsForStatus(status int) int {
+	if status == http.StatusTooManyRequests {
+		return maxThrottleRetryAttempts
+	}
+	return maxHTTPRetryAttempts
+}
+
 func (c *APIClient) isRetriableRoundTripError(err error) bool {
 	if err == nil {
 		return false
@@ -142,19 +167,26 @@ func retryDelay(attempt int, resp *http.Response) time.Duration {
 				if d > retryAfterCap {
 					d = retryAfterCap
 				}
-				return d
+				return d + retryJitter(time.Second)
 			}
 		}
+		return backoffWithJitter(attempt, throttleBaseDelay, throttleMaxDelay)
 	}
+	return backoffWithJitter(attempt, retryBaseDelay, retryMaxDelay)
+}
+
+// backoffWithJitter doubles base per attempt up to maxDelay, then adds up to 50%
+// random jitter so parallel Terraform workers don't retry in lockstep.
+func backoffWithJitter(attempt int, base, maxDelay time.Duration) time.Duration {
 	shift := attempt
 	if shift > 6 {
 		shift = 6
 	}
-	d := retryBaseDelay * time.Duration(1<<uint(shift))
-	if d > retryMaxDelay {
-		return retryMaxDelay
+	d := base * time.Duration(1<<uint(shift))
+	if d > maxDelay {
+		d = maxDelay
 	}
-	return d
+	return d + retryJitter(d/2)
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) error {
@@ -206,6 +238,7 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 
 // roundTripWithRetry performs the HTTP round trip with retries for transient
 // transport failures and selected HTTP status codes (408, 429, 502, 503, 504).
+// 429 gets maxThrottleRetryAttempts; everything else maxHTTPRetryAttempts.
 // On success (any HTTP status), returns a fully read APIResponse; err is only
 // for request body read failures, transport failures after retries, or context
 // cancellation during backoff.
@@ -216,7 +249,7 @@ func (c *APIClient) roundTripWithRetry(req http.Request) (*APIResponse, error) {
 		return nil, err
 	}
 
-	for attempt := 0; attempt < maxHTTPRetryAttempts; attempt++ {
+	for attempt := 0; attempt < maxThrottleRetryAttempts; attempt++ {
 		resp, tryAgain, iterErr := c.roundTripIteration(ctx, attempt, &req, reqBody)
 		if iterErr != nil {
 			return nil, iterErr

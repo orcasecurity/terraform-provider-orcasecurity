@@ -28,25 +28,12 @@ type CustomAlert struct {
 	RemediationText      *CustomSonarAlertRemediationText      // managed in a separate API call
 }
 
-func (client *APIClient) DoesCustomSonarAlertExist(id string) (bool, error) {
-	resp, err := client.Head(fmt.Sprintf("/api/sonar/rules/%s", id))
-	if resp.StatusCode() == 404 || resp.StatusCode() == 500 {
-		return false, nil
-	}
-
-	// some other error
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 func (client *APIClient) GetCustomSonarAlert(id string) (*CustomAlert, error) {
 	type responseType struct {
 		Data CustomAlert `json:"data"`
 	}
-	resp, err := client.Get(fmt.Sprintf("/api/sonar/rules/%s", id))
-	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
+	resp, missing, err := client.getSonarRule(id)
+	if missing {
 		return nil, nil
 	}
 	if err != nil {
@@ -153,7 +140,7 @@ func (client *APIClient) DeleteCustomSonarAlert(id string) error {
 
 func (client *APIClient) GetCustomSonarAlertRemediationText(ruleType string) (*CustomSonarAlertRemediationText, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/alerts/custom_remediation_text?alert_type=%s", ruleType))
-	if resp.StatusCode() == 404 {
+	if resp != nil && resp.StatusCode() == 404 {
 		return &CustomSonarAlertRemediationText{}, nil
 	}
 
@@ -170,7 +157,7 @@ func (client *APIClient) GetCustomSonarAlertRemediationText(ruleType string) (*C
 
 func (client *APIClient) SetCustomSonarAlertRemediationText(data CustomSonarAlertRemediationText) error {
 	resp, err := client.Put("/api/alerts/custom_remediation_text", data)
-	if resp.StatusCode() == 404 {
+	if resp != nil && resp.StatusCode() == 404 {
 		_, err = client.Post("/api/alerts/custom_remediation_text", data)
 	}
 	return err
