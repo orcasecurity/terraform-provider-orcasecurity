@@ -17,6 +17,26 @@ func customRulesPage(total int, ids ...string) string {
 	return fmt.Sprintf(`{"status":"success","data":[%s],"limit":%d,"total_items":%d}`, strings.Join(rules, ","), customRulesPageSize, total)
 }
 
+type sonarRuleStub struct {
+	ruleCodes []int
+	listed    []string
+	gets      int
+	lists     int
+}
+
+func (s *sonarRuleStub) handle(req *http.Request) (int, string) {
+	if req.URL.Path == customRulesPath {
+		s.lists++
+		return http.StatusOK, customRulesPage(len(s.listed), s.listed...)
+	}
+	code := s.ruleCodes[s.gets]
+	s.gets++
+	if code == http.StatusOK {
+		return code, `{"data":{"rule_id":"r1","rule_type":"t1"}}`
+	}
+	return code, `<h1>Server Error (500)</h1>`
+}
+
 func TestGetSonarRule_ConfirmsMissingAgainstList(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -38,26 +58,12 @@ func TestGetSonarRule_ConfirmsMissingAgainstList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			slept := stubRetrySleep(t)
-			gets, lists := 0, 0
-			c := pathStubClient(func(req *http.Request) (int, string) {
-				if req.URL.Path == customRulesPath {
-					lists++
-					return http.StatusOK, customRulesPage(len(tt.listed), tt.listed...)
-				}
-				code := tt.ruleCodes[gets]
-				gets++
-				if code == http.StatusOK {
-					return code, `{"data":{"rule_id":"r1","rule_type":"t1"}}`
-				}
-				return code, `<h1>Server Error (500)</h1>`
-			})
-			_, missing, err := c.getSonarRule("r1")
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
-			}
-			if missing != tt.wantMissing || gets != tt.wantGets || lists != tt.wantLists || len(*slept) != tt.wantSleeps {
-				t.Fatalf("missing=%v gets=%d lists=%d sleeps=%d, want %v/%d/%d/%d",
-					missing, gets, lists, len(*slept), tt.wantMissing, tt.wantGets, tt.wantLists, tt.wantSleeps)
+			stub := &sonarRuleStub{ruleCodes: tt.ruleCodes, listed: tt.listed}
+			_, missing, err := pathStubClient(stub.handle).getSonarRule("r1")
+			got := fmt.Sprintf("err=%v missing=%v gets=%d lists=%d sleeps=%d", err != nil, missing, stub.gets, stub.lists, len(*slept))
+			want := fmt.Sprintf("err=%v missing=%v gets=%d lists=%d sleeps=%d", tt.wantErr, tt.wantMissing, tt.wantGets, tt.wantLists, tt.wantSleeps)
+			if got != want {
+				t.Fatalf("got %s, want %s (err: %v)", got, want, err)
 			}
 		})
 	}
