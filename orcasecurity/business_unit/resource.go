@@ -2,10 +2,12 @@ package business_unit
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -49,6 +51,7 @@ type businessUnitResourceModel struct {
 	Name                types.String                      `tfsdk:"name"`
 	Filter              *businessUnitFilterModel          `tfsdk:"filter_data"`
 	ShiftLeftFilter     *businessUnitShiftLeftFilterModel `tfsdk:"shiftleft_filter_data"`
+	Config              jsontypes.Normalized              `tfsdk:"config"`
 	GlobalFilter        types.Bool                        `tfsdk:"global_filter"`
 	BusinessCriticality types.String                      `tfsdk:"business_criticality"`
 	OwnerTeam           types.String                      `tfsdk:"owner_team"`
@@ -98,13 +101,6 @@ func (r *businessUnitResource) Configure(_ context.Context, req resource.Configu
 
 func (r *businessUnitResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	businessUnitId := req.ID
-	/*if err != nil {
-		resp.Diagnostics.AddError(
-			"Error importing business unit",
-			"Could not convert ID to int64: "+err.Error(),
-		)
-		return
-	}*/
 
 	businessUnit, err := r.apiClient.GetBusinessUnit(businessUnitId)
 	if err != nil {
@@ -114,28 +110,28 @@ func (r *businessUnitResource) ImportState(ctx context.Context, req resource.Imp
 		)
 		return
 	}
-
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), businessUnitId)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), businessUnit.Name)...)
-
-	// Create a new state model
-	state := businessUnitResourceModel{
-		ID:   types.StringValue(businessUnitId),
-		Name: types.StringValue(businessUnit.Name),
+	if businessUnit == nil {
+		resp.Diagnostics.AddError(
+			"Error importing business unit",
+			fmt.Sprintf("Business unit with ID %s does not exist", businessUnitId),
+		)
+		return
 	}
 
-	state.ShiftLeftFilter = apiShiftLeftFilterToModel(businessUnit.ShiftLeftFilter)
-	state.Filter = apiFilterToModel(businessUnit.Filter)
+	state := businessUnitResourceModel{
+		ID:     types.StringValue(businessUnitId),
+		Name:   types.StringValue(businessUnit.Name),
+		Config: jsontypes.NewNormalizedNull(),
+	}
+	resp.Diagnostics.Append(setScopeInState(&state, businessUnit.Config, true)...)
 	setMetadataInState(&state, businessUnit)
 
-	// Set the entire state at once
-	diags := resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).\n\nPlease note that a business unit cannot be composed of multiple, different filter types. You cannot compose 1 business unit that uses both cloud tags and custom tags, for example.",
+		Description: "Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).\n\nValues set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -152,7 +148,7 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				},
 			},
 			"global_filter": schema.BoolAttribute{
-				Description: "Org-wide when true. Omitted on create defaults to global; provider re-reads the value after create.",
+				Description: "Org-wide when true. Omitted on create defaults to global.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
@@ -188,6 +184,19 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:    true,
 				Validators: []validator.List{
 					listvalidator.SizeAtMost(2),
+				},
+			},
+			"config": schema.StringAttribute{
+				Description: "The business unit rule as JSON in the Orca business unit config format, for example " +
+					"`jsonencode({ and = [{ some = { CloudProviders = [\"aws\"] } }, { all = { CustomTags = [\"env|prod\"] } }] })`. " +
+					"Use it for rules that `filter_data` and `shiftleft_filter_data` cannot express. Conflicts with both.",
+				CustomType: jsontypes.NormalizedType{},
+				Optional:   true,
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(
+						path.MatchRoot("filter_data"),
+						path.MatchRoot("shiftleft_filter_data"),
+					),
 				},
 			},
 			"shiftleft_filter_data": schema.SingleNestedAttribute{
@@ -245,50 +254,6 @@ func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRe
 	}
 }
 
-func generateCloudProviderFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
-	var filter api_client.BusinessUnitFilter
-	var cpFilter = filter.CloudProviders
-	var finalDiags diag.Diagnostics
-
-	for _, item := range plan.CloudProviders {
-		cpFilter = append(cpFilter, item.ValueString())
-	}
-	return api_client.BusinessUnitFilter{CloudProviders: cpFilter}, finalDiags
-}
-
-func generateCustomTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
-	var filter api_client.BusinessUnitFilter
-	var ctFilter = filter.CustomTags
-	var finalDiags diag.Diagnostics
-
-	for _, item := range plan.CustomTags {
-		ctFilter = append(ctFilter, item.ValueString())
-	}
-	return api_client.BusinessUnitFilter{CustomTags: ctFilter}, finalDiags
-}
-
-func generateInventoryTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
-	var filter api_client.BusinessUnitFilter
-	var itFilter = filter.CloudTags
-	var finalDiags diag.Diagnostics
-
-	for _, item := range plan.CloudTags {
-		itFilter = append(itFilter, item.ValueString())
-	}
-	return api_client.BusinessUnitFilter{CloudTags: itFilter}, finalDiags
-}
-
-func generateAccountTagsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
-	var filter api_client.BusinessUnitFilter
-	var atFilter = filter.AccountTags
-	var finalDiags diag.Diagnostics
-
-	for _, item := range plan.AccountTags {
-		atFilter = append(atFilter, item.ValueString())
-	}
-	return api_client.BusinessUnitFilter{AccountTags: atFilter}, finalDiags
-}
-
 func getCloudVendorIds(plan *businessUnitFilterModel) []types.String {
 	if plan == nil {
 		return nil
@@ -297,71 +262,6 @@ func getCloudVendorIds(plan *businessUnitFilterModel) []types.String {
 		return plan.CloudAccounts
 	}
 	return plan.CloudAccountIds
-}
-
-func generateCloudAccountsFilter(plan *businessUnitFilterModel) (api_client.BusinessUnitFilter, diag.Diagnostics) {
-	var filter api_client.BusinessUnitFilter
-	var aiFilter = filter.CloudAccounts
-	var finalDiags diag.Diagnostics
-
-	for _, item := range getCloudVendorIds(plan) {
-		aiFilter = append(aiFilter, item.ValueString())
-	}
-	return api_client.BusinessUnitFilter{CloudAccounts: aiFilter}, finalDiags
-}
-
-func generateShiftLeftProjectFilter(plan *businessUnitShiftLeftFilterModel) (api_client.BusinessUnitShiftLeftFilter, diag.Diagnostics) {
-	var filter api_client.BusinessUnitShiftLeftFilter
-	var slFilter = filter.ShiftLeftProjects
-	var finalDiags diag.Diagnostics
-
-	for _, item := range plan.ShiftLeftProjects {
-		slFilter = append(slFilter, item.ValueString())
-	}
-	return api_client.BusinessUnitShiftLeftFilter{ShiftLeftProjects: slFilter}, finalDiags
-}
-
-func apiShiftLeftFilterToModel(sl *api_client.BusinessUnitShiftLeftFilter) *businessUnitShiftLeftFilterModel {
-	if sl == nil || len(sl.ShiftLeftProjects) == 0 {
-		return nil
-	}
-	projects := make([]types.String, len(sl.ShiftLeftProjects))
-	for i, p := range sl.ShiftLeftProjects {
-		projects[i] = types.StringValue(p)
-	}
-	return &businessUnitShiftLeftFilterModel{ShiftLeftProjects: projects}
-}
-
-func apiFilterToModel(f *api_client.BusinessUnitFilter) *businessUnitFilterModel {
-	if f == nil {
-		return nil
-	}
-	filter := &businessUnitFilterModel{}
-	hasData := false
-	if len(f.CloudProviders) > 0 {
-		filter.CloudProviders = stringSliceToTypes(f.CloudProviders)
-		hasData = true
-	}
-	if len(f.CloudAccounts) > 0 {
-		filter.CloudAccounts = stringSliceToTypes(f.CloudAccounts)
-		hasData = true
-	}
-	if len(f.AccountTags) > 0 {
-		filter.AccountTags = stringSliceToTypes(f.AccountTags)
-		hasData = true
-	}
-	if len(f.CloudTags) > 0 {
-		filter.CloudTags = stringSliceToTypes(f.CloudTags)
-		hasData = true
-	}
-	if len(f.CustomTags) > 0 {
-		filter.CustomTags = stringSliceToTypes(f.CustomTags)
-		hasData = true
-	}
-	if !hasData {
-		return nil
-	}
-	return filter
 }
 
 func stringSliceToTypes(s []string) []types.String {
@@ -425,90 +325,92 @@ func setMetadataInState(state *businessUnitResourceModel, instance *api_client.B
 	}
 }
 
-// POST /api/filters returns only filter_id; re-read global_filter when unset (backend defaults to global).
-func resolveCreatedGlobalFilter(client *api_client.APIClient, plan *businessUnitResourceModel, instance *api_client.BusinessUnit) diag.Diagnostics {
+func businessUnitRequest(plan *businessUnitResourceModel) (api_client.BusinessUnit, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	req := api_client.BusinessUnit{
+		Name:   plan.Name.ValueString(),
+		BUType: api_client.BusinessUnitTypeCombinedFilter,
+	}
+	if !plan.Config.IsNull() && !plan.Config.IsUnknown() {
+		req.Config = json.RawMessage(plan.Config.ValueString())
+	} else {
+		config, err := configFromModel(plan.Filter, plan.ShiftLeftFilter)
+		if err != nil {
+			diags.AddError("Error building business unit config", err.Error())
+			return req, diags
+		}
+		req.Config = config
+	}
+	if req.Config == nil {
+		diags.AddError(
+			"Business unit has no scope",
+			"Set at least one value in filter_data or shiftleft_filter_data, or set config.",
+		)
+		return req, diags
+	}
+	applyMetadataToRequest(&req, plan)
+	return req, diags
+}
 
+// setScopeInState writes the API config into whichever representation the
+// state already uses. keepUnrepresentable (import) stores a config that the
+// filter blocks cannot express in the config attribute instead of dropping it.
+func setScopeInState(state *businessUnitResourceModel, config json.RawMessage, keepUnrepresentable bool) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if len(config) == 0 {
+		config = json.RawMessage("{}")
+	}
+	if !state.Config.IsNull() {
+		state.Config = jsontypes.NewNormalizedValue(string(config))
+		state.Filter, state.ShiftLeftFilter = nil, nil
+		return diags
+	}
+
+	filter, shiftLeft, ok := modelFromConfig(config)
+	if !ok && keepUnrepresentable {
+		state.Config = jsontypes.NewNormalizedValue(string(config))
+		state.Filter, state.ShiftLeftFilter = nil, nil
+		return diags
+	}
+	if !ok {
+		diags.AddWarning(
+			"Business unit rule cannot be shown as filter_data",
+			fmt.Sprintf("Business unit %s has a rule that filter_data and shiftleft_filter_data cannot express "+
+				"(for example and, all or a hierarchy path), most likely edited outside Terraform. "+
+				"The next apply replaces it with the rule in your configuration. "+
+				"Use the config attribute to manage the full rule.", state.ID.ValueString()),
+		)
+	}
+	state.Filter, state.ShiftLeftFilter = filter, shiftLeft
+	return diags
+}
+
+func setGlobalFilterFromResponse(plan *businessUnitResourceModel, instance *api_client.BusinessUnit) diag.Diagnostics {
+	var diags diag.Diagnostics
 	if instance.GlobalFilter != nil {
 		plan.GlobalFilter = types.BoolValue(*instance.GlobalFilter)
-		return diags
-	}
-	if !plan.GlobalFilter.IsNull() && !plan.GlobalFilter.IsUnknown() {
-		return diags
-	}
-
-	created, err := client.GetBusinessUnit(instance.ID)
-	if err != nil {
+	} else if plan.GlobalFilter.IsUnknown() {
 		diags.AddError(
 			"Error reading business unit",
-			fmt.Sprintf("Could not read back business unit ID %s after create: %s", instance.ID, err.Error()),
+			fmt.Sprintf("Business unit ID %s did not report global_filter", instance.ID),
 		)
-		return diags
 	}
-	if created == nil || created.GlobalFilter == nil {
-		diags.AddError(
-			"Error reading business unit",
-			fmt.Sprintf("Business unit ID %s did not report global_filter after create", instance.ID),
-		)
-		return diags
-	}
-	plan.GlobalFilter = types.BoolValue(*created.GlobalFilter)
 	return diags
 }
 
 func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan businessUnitResourceModel
-	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	createReq, diags := businessUnitRequest(&plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Default to empty filters if not provided
-	var businessUnitFilter *api_client.BusinessUnitFilter = nil
-	var businessUnitShiftLeftFilter *api_client.BusinessUnitShiftLeftFilter = nil
-
-	// Process regular filters
-	if plan.Filter != nil {
-		if len(plan.Filter.CloudProviders) > 0 {
-			filter, filterDiags := generateCloudProviderFilter(plan.Filter)
-			diags.Append(filterDiags...)
-			businessUnitFilter = &filter
-		} else if len(getCloudVendorIds(plan.Filter)) > 0 {
-			filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
-			diags.Append(filterDiags...)
-			businessUnitFilter = &filter
-		} else if len(plan.Filter.CustomTags) > 0 {
-			filter, filterDiags := generateCustomTagsFilter(plan.Filter)
-			diags.Append(filterDiags...)
-			businessUnitFilter = &filter
-		} else if len(plan.Filter.AccountTags) > 0 {
-			filter, filterDiags := generateAccountTagsFilter(plan.Filter)
-			diags.Append(filterDiags...)
-			businessUnitFilter = &filter
-		} else if len(plan.Filter.CloudTags) > 0 {
-			filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
-			diags.Append(filterDiags...)
-			businessUnitFilter = &filter
-		}
-	}
-
-	// Process ShiftLeft filters
-	if plan.ShiftLeftFilter != nil && len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 {
-		slFilter, slFilterDiags := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-		diags.Append(slFilterDiags...)
-		businessUnitShiftLeftFilter = &slFilter
-	}
-
-	// Create the request with appropriate filters
-	createReq := api_client.BusinessUnit{
-		Name:            plan.Name.ValueString(),
-		Filter:          businessUnitFilter,
-		ShiftLeftFilter: businessUnitShiftLeftFilter,
-	}
-	applyMetadataToRequest(&createReq, &plan)
-
-	// Make the API call to create the business unit
 	instance, err := r.apiClient.CreateBusinessUnit(createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -518,45 +420,22 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	// Always set the ID from the API response
 	plan.ID = types.StringValue(instance.ID)
-
-	// Sync computed metadata back from the API response so any attribute
-	// the framework marked as unknown after planning becomes known.
-	resp.Diagnostics.Append(resolveCreatedGlobalFilter(r.apiClient, &plan, instance)...)
+	resp.Diagnostics.Append(setGlobalFilterFromResponse(&plan, instance)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Set the state
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state businessUnitResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	// Preserve whether previous state used deprecated cloud_account_ids (for backward compat)
 	hadDeprecatedCloudAccountIds := state.Filter != nil && len(state.Filter.CloudAccountIds) > 0
-
-	exists, err := r.apiClient.DoesBusinessUnitExist(state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading business unit",
-			fmt.Sprintf("Could not read business unit ID %s: %s", state.ID.ValueString(), err.Error()),
-		)
-		return
-	}
-	if !exists {
-		tflog.Warn(ctx, fmt.Sprintf("Business unit %s is missing on the remote side.", state.ID.ValueString()))
-		resp.State.RemoveResource(ctx)
-		return
-	}
 
 	instance, err := r.apiClient.GetBusinessUnit(state.ID.ValueString())
 	if err != nil {
@@ -566,15 +445,14 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 		)
 		return
 	}
-
-	idValue := instance.ID
-	if idValue == "" {
-		idValue = state.ID.ValueString()
+	if instance == nil {
+		tflog.Warn(ctx, fmt.Sprintf("Business unit %s is missing on the remote side.", state.ID.ValueString()))
+		resp.State.RemoveResource(ctx)
+		return
 	}
-	state.ID = types.StringValue(idValue)
+
 	state.Name = types.StringValue(instance.Name)
-	state.ShiftLeftFilter = apiShiftLeftFilterToModel(instance.ShiftLeftFilter)
-	state.Filter = apiFilterToModel(instance.Filter)
+	resp.Diagnostics.Append(setScopeInState(&state, instance.Config, false)...)
 	// When user used deprecated cloud_account_ids: populate only CloudAccountIds and leave
 	// CloudAccounts empty so state matches config (avoids planned update to remove cloud_vendor_id).
 	if hadDeprecatedCloudAccountIds && state.Filter != nil && len(state.Filter.CloudAccounts) > 0 {
@@ -583,17 +461,12 @@ func (r *businessUnitResource) Read(ctx context.Context, req resource.ReadReques
 	}
 	setMetadataInState(&state, instance)
 
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan businessUnitResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -606,262 +479,32 @@ func (r *businessUnitResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	if plan.Filter != nil &&
-		len(plan.Filter.CloudProviders) > 0 {
-		filter, filterDiags := generateCloudProviderFilter(plan.Filter)
-		diags.Append(filterDiags...)
-
-		updateReq := api_client.BusinessUnit{
-			Name:   plan.Name.ValueString(),
-			Filter: &filter,
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-
-		_, err = r.apiClient.GetBusinessUnit(plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading business unit",
-				"Could not read Business Unit ID: "+plan.ID.ValueString()+": "+err.Error(),
-			)
-			return
-		}
-
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.ShiftLeftFilter != nil &&
-		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
-		(plan.Filter == nil || len(getCloudVendorIds(plan.Filter)) == 0) {
-		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-		updateReq := api_client.BusinessUnit{
-			ID:              plan.ID.ValueString(),
-			Name:            plan.Name.ValueString(),
-			ShiftLeftFilter: &slFilter,
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-		if instance.ID != "" {
-			plan.ID = types.StringValue(instance.ID)
-		}
-
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.ShiftLeftFilter != nil &&
-		plan.Filter != nil &&
-		len(plan.ShiftLeftFilter.ShiftLeftProjects) > 0 &&
-		len(getCloudVendorIds(plan.Filter)) > 0 {
-		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-		slFilter, _ := generateShiftLeftProjectFilter(plan.ShiftLeftFilter)
-
-		updateReq := api_client.BusinessUnit{
-			ID:              plan.ID.ValueString(),
-			Name:            plan.Name.ValueString(),
-			ShiftLeftFilter: &slFilter,
-			Filter:          &filter,
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		instance, err := r.apiClient.UpdateBusinessUnit(updateReq.ID, updateReq)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-		if instance.ID != "" {
-			plan.ID = types.StringValue(instance.ID)
-		}
-
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.Filter != nil && len(plan.Filter.CustomTags) > 0 {
-		filter, filterDiags := generateCustomTagsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-
-		updateReq := api_client.BusinessUnit{
-			Filter: &filter,
-			Name:   plan.Name.ValueString(),
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-
-		_, err = r.apiClient.GetBusinessUnit(plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading business unit",
-				"Could not read Business Unit ID: "+plan.ID.ValueString()+": "+err.Error(),
-			)
-			return
-		}
-
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.Filter != nil && len(plan.Filter.CloudTags) > 0 {
-		filter, filterDiags := generateInventoryTagsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-
-		updateReq := api_client.BusinessUnit{
-			Filter: &filter,
-			Name:   plan.Name.ValueString(),
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-
-		_, err = r.apiClient.GetBusinessUnit(plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading business unit",
-				"Could not read Business Unit ID: "+plan.ID.ValueString()+": "+err.Error(),
-			)
-			return
-		}
-
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.Filter != nil && len(plan.Filter.AccountTags) > 0 {
-		filter, filterDiags := generateAccountTagsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-
-		updateReq := api_client.BusinessUnit{
-			Filter: &filter,
-			Name:   plan.Name.ValueString(),
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-
-		_, err = r.apiClient.GetBusinessUnit(plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading business unit",
-				"Could not read Business Unit ID: "+plan.ID.ValueString()+": "+err.Error(),
-			)
-			return
-		}
-
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else if plan.Filter != nil && len(getCloudVendorIds(plan.Filter)) > 0 {
-		filter, filterDiags := generateCloudAccountsFilter(plan.Filter)
-		diags.Append(filterDiags...)
-
-		updateReq := api_client.BusinessUnit{
-			Filter: &filter,
-			Name:   plan.Name.ValueString(),
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-
-		_, err = r.apiClient.GetBusinessUnit(plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading business unit",
-				"Could not read Business Unit ID: "+plan.ID.ValueString()+": "+err.Error(),
-			)
-			return
-		}
-
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else {
-		updateReq := api_client.BusinessUnit{
-			Name: plan.Name.ValueString(),
-		}
-		applyMetadataToRequest(&updateReq, &plan)
-
-		_, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating business unit",
-				"Could not update business unit, unexpected error: "+err.Error(),
-			)
-			return
-		}
-
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	updateReq, diags := businessUnitRequest(&plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	// bu_type=combined_filter also converts a legacy filter BU in place.
+	instance, err := r.apiClient.UpdateBusinessUnit(plan.ID.ValueString(), updateReq)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating business unit",
+			"Could not update business unit, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(setGlobalFilterFromResponse(&plan, instance)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *businessUnitResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state businessUnitResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
