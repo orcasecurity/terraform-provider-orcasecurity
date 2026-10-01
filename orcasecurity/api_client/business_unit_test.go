@@ -116,6 +116,19 @@ func TestUpdateBusinessUnit(t *testing.T) {
 		if req.Method != "PUT" || req.URL.Path != "/api/business_units/8f0c5e1a-1111-4222-8333-444455556666" {
 			t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
 		}
+		body, _ := io.ReadAll(req.Body)
+		var payload map[string]json.RawMessage
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("payload not JSON: %v", err)
+		}
+		if string(payload["bu_type"]) != `"combined_filter"` {
+			t.Errorf("unexpected bu_type: %s", payload["bu_type"])
+		}
+		for _, legacy := range []string{"filter_data", "shiftleft_filter_data", "filter_id"} {
+			if _, found := payload[legacy]; found {
+				t.Errorf("payload must not carry legacy field %s: %s", legacy, body)
+			}
+		}
 		return jsonResponse(200, businessUnitResponse)
 	})
 

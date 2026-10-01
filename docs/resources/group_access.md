@@ -3,12 +3,12 @@
 page_title: "orcasecurity_group_access Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from /api/filters). Backed by POST /api/rbac/access/group.
+  Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.
 ---
 
 # orcasecurity_group_access (Resource)
 
-Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from /api/filters). Backed by POST /api/rbac/access/group.
+Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.
 
 ## Example Usage
 
@@ -55,7 +55,7 @@ resource "orcasecurity_group" "example" {
 
 - `cloud_accounts` (List of String) Scoped cloud account ids when not using all_cloud_accounts.
 - `shiftleft_projects` (List of String) Scoped Shift Left project ids.
-- `user_filters` (List of String) User filter ids (business units use filter ids from orcasecurity_business_unit / /api/filters).
+- `user_filters` (List of String) User filter ids (business unit IDs from orcasecurity_business_unit).
 
 ### Read-Only
 

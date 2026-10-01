@@ -4,7 +4,7 @@ page_title: "orcasecurity_business_unit Resource - orcasecurity"
 subcategory: ""
 description: |-
   Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on Business Units https://docs.orcasecurity.io/docs/business-unit-feature.
-  Please note that a business unit cannot be composed of multiple, different filter types. You cannot compose 1 business unit that uses both cloud tags and custom tags, for example.
+  Values set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.
 ---
 
 {{/* This template serves as a starting point for documentation generation, and can be customized with hardcoded values and/or doc gen templates.
@@ -15,7 +15,7 @@ For example, the {{ .SchemaMarkdown }} template can be used to replace manual sc
 
 Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).
 
-Please note that a business unit cannot be composed of multiple, different filter types. You cannot compose 1 business unit that uses both cloud tags and custom tags, for example.
+Values set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.
 
 ## Example Usage
 
@@ -33,10 +33,11 @@ Please note that a business unit cannot be composed of multiple, different filte
 
 - `application` (String) Application or product line the business unit represents.
 - `business_criticality` (String) Business criticality. Valid values: `low`, `medium`, `high`, `critical`.
+- `config` (String) The business unit rule as JSON in the Orca business unit config format, for example `jsonencode({ and = [{ some = { CloudProviders = ["aws"] } }, { all = { CustomTags = ["env|prod"] } }] })`. Use it for rules that `filter_data` and `shiftleft_filter_data` cannot express. Conflicts with both.
 - `contact_emails` (List of String) Contact emails associated with the business unit. Up to 2 values.
 - `deployment_stages` (List of String) Deployment stages associated with the business unit. Up to 2 values.
 - `filter_data` (Attributes) The filter to select the resources of the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded. (see [below for nested schema](#nestedatt--filter_data))
-- `global_filter` (Boolean) Org-wide when true. Omitted on create defaults to global; provider re-reads the value after create.
+- `global_filter` (Boolean) Org-wide when true. Omitted on create defaults to global.
 - `owner_team` (String) Owning team or department for the business unit.
 - `shiftleft_filter_data` (Attributes) The filter to select Shift Left resources for the business unit. If you are creating a BU that only includes Shift Left resources (projects), this can be safely excluded. (see [below for nested schema](#nestedatt--shiftleft_filter_data))
 

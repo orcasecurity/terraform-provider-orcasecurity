@@ -126,7 +126,7 @@ func (r *addUsersResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 			"user_filters": schema.ListAttribute{
-				Description: "User filter ids (business units use filter ids from orcasecurity_business_unit / /api/filters).",
+				Description: "User filter ids (business unit IDs from orcasecurity_business_unit).",
 				ElementType: types.StringType,
 				Optional:    true,
 				PlanModifiers: []planmodifier.List{
