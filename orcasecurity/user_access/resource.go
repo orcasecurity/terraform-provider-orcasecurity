@@ -57,7 +57,7 @@ func (r *userAccessResource) ImportState(ctx context.Context, req resource.Impor
 func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a single user's permissions by assigning an RBAC role to a user with optional scope: " +
-			"all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from /api/filters). " +
+			"all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). " +
 			"Backed by /api/rbac/access/user. This is the per-user counterpart of `orcasecurity_group_access`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -96,7 +96,7 @@ func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional:    true,
 			},
 			"user_filters": schema.ListAttribute{
-				Description: "User filter ids (business units use filter ids from orcasecurity_business_unit / /api/filters).",
+				Description: "User filter ids (business unit IDs from orcasecurity_business_unit).",
 				ElementType: types.StringType,
 				Optional:    true,
 			},

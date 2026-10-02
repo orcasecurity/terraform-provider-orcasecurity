@@ -56,7 +56,7 @@ func (r *groupAccessResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from /api/filters). Backed by POST /api/rbac/access/group.",
+		Description: "Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -94,7 +94,7 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"user_filters": schema.ListAttribute{
-				Description: "User filter ids (business units use filter ids from orcasecurity_business_unit / /api/filters).",
+				Description: "User filter ids (business unit IDs from orcasecurity_business_unit).",
 				ElementType: types.StringType,
 				Optional:    true,
 			},

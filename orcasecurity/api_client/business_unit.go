@@ -5,91 +5,55 @@ import (
 	"fmt"
 )
 
-/*type BusinessUnitFilterRule struct {
-	Strang string `json:"account_number"`
-}*/
+const BusinessUnitTypeCombinedFilter = "combined_filter"
 
-type BusinessUnitFilter struct {
-	CloudProviders []string `json:"cloud_provider,omitempty"`
-	CustomTags     []string `json:"custom_tags,omitempty"`
-	CloudTags      []string `json:"inventory_tags,omitempty"`
-	AccountTags    []string `json:"account_tags_info_list,omitempty"`
-	CloudAccounts  []string `json:"cloud_vendor_id,omitempty"`
-}
-
-type BusinessUnitShiftLeftFilter struct {
-	ShiftLeftProjects []string `json:"shiftleft_project_id,omitempty"`
-}
-
+// BusinessUnit is the /api/business_units representation. Config holds the
+// intermediate rule tree ({"or": [{"some": {"CloudProviders": ["aws"]}}]}).
 type BusinessUnit struct {
-	ID                  string                       `json:"filter_id,omitempty"`
-	Name                string                       `json:"name"`
-	Filter              *BusinessUnitFilter          `json:"filter_data,omitempty"`
-	ShiftLeftFilter     *BusinessUnitShiftLeftFilter `json:"shiftleft_filter_data,omitempty"`
-	GlobalFilter        *bool                        `json:"global_filter,omitempty"`
-	BusinessCriticality string                       `json:"business_criticality"`
-	OwnerTeam           string                       `json:"owner_team"`
-	Application         string                       `json:"application"`
-	ContactEmails       []string                     `json:"contact_emails"`
-	DeploymentStages    []string                     `json:"deployment_stages"`
+	ID                  string          `json:"id,omitempty"`
+	Name                string          `json:"name"`
+	BUType              string          `json:"bu_type,omitempty"`
+	Config              json.RawMessage `json:"config,omitempty"`
+	GlobalFilter        *bool           `json:"global_filter,omitempty"`
+	BusinessCriticality string          `json:"business_criticality"`
+	OwnerTeam           string          `json:"owner_team"`
+	Application         string          `json:"application"`
+	ContactEmails       []string        `json:"contact_emails"`
+	DeploymentStages    []string        `json:"deployment_stages"`
 }
 
-type businessUnitAPIResponseType struct {
-	Data BusinessUnit `json:"data"`
-}
-
+// GetBusinessUnit returns nil, nil when the business unit does not exist.
 func (client *APIClient) GetBusinessUnit(businessUnitID string) (*BusinessUnit, error) {
-	resp, err := client.Get(fmt.Sprintf("/api/filters/%s", businessUnitID))
-	if err != nil {
-		return nil, err
-	}
-
-	if !resp.IsOk() {
+	resp, err := client.Get(fmt.Sprintf("/api/business_units/%s", businessUnitID))
+	if resp != nil && resp.StatusCode() == 404 {
 		return nil, nil
 	}
-
-	response := businessUnitAPIResponseType{}
-	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return readData[BusinessUnit](resp)
 }
 
-func (client *APIClient) DoesBusinessUnitExist(id string) (bool, error) {
-	resp, _ := client.Head(fmt.Sprintf("/api/filters/%s", id))
-	return resp.StatusCode() == 200, nil
-}
-
-func (client *APIClient) CreateBusinessUnit(business_units BusinessUnit) (*BusinessUnit, error) {
-	resp, err := client.Post("/api/filters", business_units)
+func (client *APIClient) CreateBusinessUnit(data BusinessUnit) (*BusinessUnit, error) {
+	resp, err := client.Post("/api/business_units", data)
 	if err != nil {
 		return nil, err
 	}
-
-	response := businessUnitAPIResponseType{}
-	err = resp.ReadJSON(&response)
-	if err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readData[BusinessUnit](resp)
 }
 
 func (client *APIClient) UpdateBusinessUnit(ID string, data BusinessUnit) (*BusinessUnit, error) {
-	resp, err := client.Put(fmt.Sprintf("/api/filters/%s", ID), data)
+	resp, err := client.Put(fmt.Sprintf("/api/business_units/%s", ID), data)
 	if err != nil {
 		return nil, err
 	}
-
-	response := businessUnitAPIResponseType{}
-	err = json.Unmarshal(resp.Body(), &response)
-	if err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
+	return readData[BusinessUnit](resp)
 }
 
 func (client *APIClient) DeleteBusinessUnit(ID string) error {
-	_, err := client.Delete(fmt.Sprintf("/api/filters/%s", ID))
+	resp, err := client.Delete(fmt.Sprintf("/api/business_units/%s", ID))
+	if resp != nil && resp.StatusCode() == 404 {
+		return nil
+	}
 	return err
 }

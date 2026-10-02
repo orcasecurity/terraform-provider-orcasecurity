@@ -214,3 +214,88 @@ resource "%s" "%s" {
 		},
 	})
 }
+
+func TestAccBusinessUnitResource_Config(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+    name   = "%s"
+    config = jsonencode({
+        and = [
+            { some = { CloudProviders = ["aws"] } },
+            { all = { CustomTags = ["env|prod"] } },
+        ]
+    })
+}`, ResourceType, Resource, OrcaObject1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("%s.%s", ResourceType, Resource), "config"),
+					resource.TestCheckNoResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+			{
+				ResourceName:      fmt.Sprintf("%s.%s", ResourceType, Resource),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccBusinessUnitResource_MultipleFilterFieldsNoDrift(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+    name = "%s"
+    filter_data = {
+        cloud_providers = ["aws"]
+        custom_tags     = ["env|Prod"]
+    }
+}`, ResourceType, Resource, OrcaObject1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.cloud_providers.0", "aws"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("%s.%s", ResourceType, Resource), "filter_data.custom_tags.0", "env|Prod"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+			{
+				ResourceName:      fmt.Sprintf("%s.%s", ResourceType, Resource),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccBusinessUnitResource_ConfigConflictsWithFilterData(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
+resource "%s" "%s" {
+    name   = "%s"
+    config = jsonencode({ some = { CloudProviders = ["aws"] } })
+    filter_data = {
+        cloud_providers = ["aws"]
+    }
+}`, ResourceType, Resource, OrcaObject1),
+				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+			},
+		},
+	})
+}

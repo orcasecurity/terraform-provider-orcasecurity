@@ -65,7 +65,7 @@ resource "orcasecurity_group" "example" {
 - `role_id` (String) RBAC role id to grant on registration. Mutually exclusive with `groups`.
 - `shiftleft_projects` (List of String) Shift Left project ids the role applies to.
 - `should_send_email` (Boolean) Send an invitation email to the user. Defaults to true.
-- `user_filters` (List of String) User filter ids (business units use filter ids from orcasecurity_business_unit / /api/filters).
+- `user_filters` (List of String) User filter ids (business unit IDs from orcasecurity_business_unit).
 
 ### Read-Only
 
