@@ -131,7 +131,7 @@ func (r *businessUnitResource) ImportState(ctx context.Context, req resource.Imp
 
 func (r *businessUnitResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).\n\nValues set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.",
+		Description: "Provides a business unit. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).\n\nValues set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,

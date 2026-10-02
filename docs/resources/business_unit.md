@@ -3,13 +3,13 @@
 page_title: "orcasecurity_business_unit Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on Business Units https://docs.orcasecurity.io/docs/business-unit-feature.
+  Provides a business unit. For more information, see the docs on Business Units https://docs.orcasecurity.io/docs/business-unit-feature.
   Values set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.
 ---
 
 # orcasecurity_business_unit (Resource)
 
-Provides a business unit. Please note that Shift Left business units are not yet supported in this Terraform provider. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).
+Provides a business unit. For more information, see the docs on [Business Units](https://docs.orcasecurity.io/docs/business-unit-feature).
 
 Values set across `filter_data` and `shiftleft_filter_data` are combined with OR: the business unit covers resources that match any of them. For AND or ALL rules, use `config` instead.
 
