@@ -49,6 +49,8 @@ func NewAzureDevopsInstallationResource() resource.Resource {
 				},
 				Delete:   apiClient.DeleteAzureDevopsInstallation,
 				ID:       func(m *azureInstallationModel) string { return m.ID.ValueString() },
+				Name:     func(m *azureInstallationModel) string { return m.Name.ValueString() },
+				IDsNamed: installationIDsNamed(apiClient.ListAzureDevopsInstallations, func(i *api_client.AzureDevopsInstallation) (string, string) { return i.ID, i.Name }),
 				SetState: azureSetState,
 			}
 		},

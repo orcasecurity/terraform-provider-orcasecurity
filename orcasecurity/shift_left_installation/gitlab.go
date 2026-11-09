@@ -49,6 +49,8 @@ func NewGitlabInstallationResource() resource.Resource {
 				},
 				Delete:   apiClient.DeleteGitlabInstallation,
 				ID:       func(m *gitlabInstallationModel) string { return m.ID.ValueString() },
+				Name:     func(m *gitlabInstallationModel) string { return m.Name.ValueString() },
+				IDsNamed: installationIDsNamed(apiClient.ListGitlabInstallations, func(i *api_client.GitlabInstallation) (string, string) { return i.ID, i.Name }),
 				SetState: gitlabSetState,
 			}
 		},

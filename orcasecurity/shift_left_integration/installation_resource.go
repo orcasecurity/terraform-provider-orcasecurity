@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -45,6 +46,10 @@ type InstallationLifecycle[M any, A any] struct {
 	Delete   func(id string) error
 	ID       func(m *M) string
 	SetState func(m *M, a *A)
+	// Name and IDsNamed let Create recover an installation whose POST was ambiguous (timeout/502/504):
+	// Orca validates the token against the SCM server on create, so a slow SCM can time out after commit.
+	Name     func(m *M) string
+	IDsNamed func(name string) (map[string]bool, error)
 }
 
 func (l InstallationLifecycle[M, A]) DoCreate(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -53,10 +58,22 @@ func (l InstallationLifecycle[M, A]) DoCreate(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	title := fmt.Sprintf("Error creating %s installation", l.SCMName)
+	name := l.Name(&plan)
+	list := func() (map[string]bool, error) { return l.IDsNamed(name) }
+	before := createrecovery.Snapshot(list)
 	created, err := l.Create(&plan)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Error creating %s installation", l.SCMName), err.Error())
-		return
+		id, warning, recErr := createrecovery.Recover(ctx, err, fmt.Sprintf("%s installation named %q", l.SCMName, name), before, list)
+		if recErr != nil {
+			resp.Diagnostics.AddError(title, recErr.Error())
+			return
+		}
+		if created, err = l.Get(id); err != nil || created == nil {
+			resp.Diagnostics.AddError(title, fmt.Sprintf("recovered installation %s could not be read back (%v); import it", id, err))
+			return
+		}
+		resp.Diagnostics.AddWarning(fmt.Sprintf("Recovered %s installation after an ambiguous create", l.SCMName), warning)
 	}
 	l.SetState(&plan, created)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)

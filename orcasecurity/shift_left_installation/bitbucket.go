@@ -50,6 +50,8 @@ func NewBitbucketInstallationResource() resource.Resource {
 				},
 				Delete:   apiClient.DeleteBitbucketInstallation,
 				ID:       func(m *bitbucketInstallationModel) string { return m.ID.ValueString() },
+				Name:     func(m *bitbucketInstallationModel) string { return m.Name.ValueString() },
+				IDsNamed: installationIDsNamed(apiClient.ListBitbucketInstallations, func(i *api_client.BitbucketInstallation) (string, string) { return i.ID, i.Name }),
 				SetState: bitbucketSetState,
 			}
 		},

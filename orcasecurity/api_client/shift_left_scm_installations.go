@@ -33,7 +33,7 @@ func createScmInstallation[T any](client *APIClient, listPath string, body any) 
 		return nil, err
 	}
 	if len(resp.Body()) == 0 {
-		return nil, fmt.Errorf("create at %s returned an empty body; installation may exist in Orca but is untracked, run terraform refresh", listPath)
+		return nil, fmt.Errorf("%w: create at %s returned an empty body", ErrAmbiguousWrite, listPath)
 	}
 	created := new(T)
 	if err := resp.ReadJSON(created); err != nil {
