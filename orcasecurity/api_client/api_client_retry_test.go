@@ -2,6 +2,7 @@ package api_client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -114,7 +115,7 @@ func TestRoundTripWithRetry_POSTBodyPreservedAcrossRetries(t *testing.T) {
 		n++
 		if n == 1 {
 			return &http.Response{
-				StatusCode: http.StatusBadGateway,
+				StatusCode: http.StatusServiceUnavailable,
 				Body:       io.NopCloser(strings.NewReader(`err`)),
 				Header:     make(http.Header),
 				Request:    req,
@@ -301,5 +302,106 @@ func TestRetryDelay_JitterIsBounded(t *testing.T) {
 		if got < throttleBaseDelay || got >= throttleBaseDelay+throttleBaseDelay/2 {
 			t.Fatalf("delay = %v, want in [1s, 1.5s)", got)
 		}
+	}
+}
+
+// A POST replayed after an ambiguous failure duplicates (or fails on) a create the server already
+// committed, orphaning it outside Terraform state — seen live on scm_posture policy create.
+func TestRoundTripWithRetry_POSTNotReplayedOnAmbiguousStatus(t *testing.T) {
+	for _, code := range []int{http.StatusBadGateway, http.StatusGatewayTimeout} {
+		stubRetrySleep(t)
+		c, n := statusSequenceClient(func(int) int { return code })
+		req, _ := http.NewRequest(http.MethodPost, retryTestAPIEndpoint+"/api/x", strings.NewReader(`{}`))
+		resp, err := c.roundTripWithRetry(*req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if *n != 1 || resp.StatusCode() != code {
+			t.Errorf("status %d: attempts = %d, final = %d; want 1 attempt", code, *n, resp.StatusCode())
+		}
+	}
+}
+
+func TestRoundTripWithRetry_POSTRetriesWhenServerRejectedBeforeProcessing(t *testing.T) {
+	for _, code := range []int{http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		stubRetrySleep(t)
+		c, n := statusSequenceClient(func(n int) int {
+			if n == 1 {
+				return code
+			}
+			return http.StatusOK
+		})
+		req, _ := http.NewRequest(http.MethodPost, retryTestAPIEndpoint+"/api/x", strings.NewReader(`{}`))
+		if _, err := c.roundTripWithRetry(*req); err != nil {
+			t.Fatal(err)
+		}
+		if *n != 2 {
+			t.Errorf("status %d: attempts = %d, want 2", code, *n)
+		}
+	}
+}
+
+func TestRoundTripWithRetry_POSTTimeoutIsAmbiguousAndNotReplayed(t *testing.T) {
+	stubRetrySleep(t)
+	var n int
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		n++
+		return nil, timeoutError{}
+	})}
+	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	_, err := c.Post("/api/x", map[string]string{"a": "b"})
+	if !errors.Is(err, ErrAmbiguousWrite) {
+		t.Fatalf("err = %v, want ErrAmbiguousWrite through Post", err)
+	}
+	if n != 1 {
+		t.Fatalf("attempts = %d, want 1", n)
+	}
+}
+
+func TestPost_GatewayErrorIsAmbiguous(t *testing.T) {
+	stubRetrySleep(t)
+	c, _ := statusSequenceClient(func(int) int { return http.StatusGatewayTimeout })
+	if _, err := c.Post("/api/x", map[string]string{}); !errors.Is(err, ErrAmbiguousWrite) {
+		t.Fatalf("err = %v, want ErrAmbiguousWrite", err)
+	}
+	c, _ = statusSequenceClient(func(int) int { return http.StatusBadRequest })
+	if _, err := c.Post("/api/x", map[string]string{}); errors.Is(err, ErrAmbiguousWrite) {
+		t.Fatal("a 400 is a definite rejection, not ambiguous")
+	}
+}
+
+func TestRoundTripWithRetry_GETTimeoutStillRetried(t *testing.T) {
+	stubRetrySleep(t)
+	var n int
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		n++
+		if n == 1 {
+			return nil, timeoutError{}
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header), Request: req}, nil
+	})}
+	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	req, _ := http.NewRequest(http.MethodGet, retryTestAPIEndpoint+"/api/x", nil)
+	if _, err := c.roundTripWithRetry(*req); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("attempts = %d, want 2", n)
+	}
+}
+
+func TestPostIdempotent_KeepsFullRetryPolicy(t *testing.T) {
+	stubRetrySleep(t)
+	c, n := statusSequenceClient(func(n int) int {
+		if n == 1 {
+			return http.StatusBadGateway
+		}
+		return http.StatusOK
+	})
+	if _, err := c.PostIdempotent("/api/x", map[string]string{}); err != nil {
+		t.Fatal(err)
+	}
+	if *n != 2 {
+		t.Fatalf("attempts = %d, want 2", *n)
 	}
 }

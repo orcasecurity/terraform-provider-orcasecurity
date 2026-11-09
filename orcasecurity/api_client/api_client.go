@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,7 +132,7 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 
 	resp, err := c.roundTripWithRetry(req)
 	if err != nil {
-		return nil, fmt.Errorf("request execution failed: %v", err)
+		return nil, fmt.Errorf("request execution failed: %w", err)
 	}
 
 	c.debugf("Response Status: %d", resp.StatusCode())
@@ -139,8 +140,12 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 
 	if !resp.IsOk() {
 		apiErr := resp.Error()
-		return resp, fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
+		err := fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
 			resp.StatusCode(), string(resp.Body()), apiErr)
+		if isNonIdempotent(&req) && isAmbiguousWriteStatus(resp.StatusCode()) {
+			err = fmt.Errorf("%w: %w", ErrAmbiguousWrite, err)
+		}
+		return resp, err
 	}
 
 	return resp, nil
@@ -164,8 +169,17 @@ func (c *APIClient) Head(path string) (*APIResponse, error) {
 	return c.doRequest(*req)
 }
 
-// Execute POST HTTP request.
+// Execute POST HTTP request. Not replayed after an ambiguous failure (see ErrAmbiguousWrite).
 func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
+	return c.post(context.Background(), path, data)
+}
+
+// PostIdempotent is Post for requests safe to replay (queries, set-to-value writes): full retry policy.
+func (c *APIClient) PostIdempotent(path string, data interface{}) (*APIResponse, error) {
+	return c.post(context.WithValue(context.Background(), idempotentPostKey{}, true), path, data)
+}
+
+func (c *APIClient) post(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %v", err)
@@ -174,7 +188,8 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	fullURL := fmt.Sprintf("%s%s", c.APIEndpoint, path)
 	c.debugf("Making POST request to: %s", fullURL)
 
-	req, err := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		ctx,
 		"POST",
 		fullURL,
 		strings.NewReader(string(payload)),
@@ -188,7 +203,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	response, err := c.doRequest(*req)
 	if err != nil {
 		// Never append the payload — it carries secrets and surfaces in diagnostics.
-		return nil, fmt.Errorf("request failed: %v, URL: %s", err, fullURL)
+		return nil, fmt.Errorf("request failed: %w, URL: %s", err, fullURL)
 	}
 
 	return response, nil

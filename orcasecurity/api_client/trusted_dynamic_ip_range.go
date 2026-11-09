@@ -32,7 +32,7 @@ func (client *APIClient) GetTrustedDynamicIpRangeStatus(orgId string) (bool, err
 		Query:     "query ($orgId: String!) {isDynamicTrustedIpsEnabled(orgId: $orgId)}",
 		Variables: TDIRVariablesType{OrgID: orgId},
 	}
-	resp, err := client.Post("/api/gql", data)
+	resp, err := client.PostIdempotent("/api/gql", data)
 	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
 		return false, nil
 	}
@@ -53,7 +53,7 @@ func (client *APIClient) SetTrustedDynamicIpRange(orgId string) (bool, error) {
 		Query:     "mutation ($orgId: String!, $value: Boolean!) {setDynamicTrustedIpsEnabled(orgId: $orgId, value: $value) {ok}}",
 		Variables: TDIRVariablesType{OrgID: orgId, Value: true},
 	}
-	resp, err := client.Post("/api/gql", data)
+	resp, err := client.PostIdempotent("/api/gql", data)
 	if err != nil {
 		return false, err
 	}
@@ -86,7 +86,7 @@ func (client *APIClient) UnsetTrustedDynamicIpRange(orgId string) error {
 	debugJson, _ := json.Marshal(data)
 	client.debugf("JSON that would be sent: %s", string(debugJson))
 
-	resp, err := client.Post("/api/gql", data)
+	resp, err := client.PostIdempotent("/api/gql", data)
 	if err != nil {
 		return fmt.Errorf("API post error: %v", err)
 	}

@@ -29,7 +29,7 @@ type servingLayerQueryResponse struct {
 // Serving-layer rows are nested; existence is len(data) > 0. Select keeps the
 // payload to GroupUniqueId instead of a full inventory row.
 func (client *APIClient) InventoryGroupExists(groupUniqueID string) (bool, error) {
-	resp, err := client.Post(servingLayerQueryPath, servingLayerQueryRequest{
+	resp, err := client.PostIdempotent(servingLayerQueryPath, servingLayerQueryRequest{
 		Query: servingLayerObjectSet{
 			Models: []string{"Inventory"},
 			Type:   "object_set",
