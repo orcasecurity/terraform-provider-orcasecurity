@@ -71,6 +71,18 @@ func oneSection(t *testing.T) types.List {
 	}))
 }
 
+// otherSection declares a different control from oneSection, so a test can drop
+// the first one on purpose.
+func otherSection(t *testing.T) types.List {
+	t.Helper()
+	rootType := sectionObjectType(maxSectionDepth)
+	return mustList(t, rootType, mustObject(t, rootType, map[string]attr.Value{
+		"name":     types.StringValue("Flat"),
+		"tests":    mustList(t, testObjectType(), testObj(t, "r2", "1.1")),
+		"sections": types.ListNull(sectionObjectType(maxSectionDepth - 1)),
+	}))
+}
+
 func hasDetail(resp *resource.ValidateConfigResponse, want string) bool {
 	for _, d := range resp.Diagnostics {
 		if strings.Contains(d.Detail(), want) {

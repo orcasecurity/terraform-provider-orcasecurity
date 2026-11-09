@@ -52,7 +52,7 @@ resource "orcasecurity_business_unit" "example" {
 
 - `cloud_accounts` (List of String) Scoped cloud account ids when not using all_cloud_accounts.
 - `shiftleft_projects` (List of String) Scoped Shift Left project ids.
-- `user_filters` (List of String) User filter ids (business units use filter ids from orcasecurity_business_unit / /api/filters).
+- `user_filters` (List of String) User filter ids (business unit IDs from orcasecurity_business_unit).
 
 ### Read-Only
 

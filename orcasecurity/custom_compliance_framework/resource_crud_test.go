@@ -2,6 +2,7 @@ package custom_compliance_framework
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -192,6 +193,10 @@ func TestCreate_RefreshMapsCatalog(t *testing.T) {
 
 func TestUpdate_APIErrorSurfaces(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
+		// Update reads the catalog first, to keep controls it does not declare.
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887" {
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		}
 		if req.Method == "PUT" {
 			return testutils.JSONResponse(req, 500, `{"error":"boom"}`)
 		}
@@ -224,6 +229,129 @@ func TestUpdate_RefreshMapsCatalog(t *testing.T) {
 	}
 	if out.Name.ValueString() != "Lab" {
 		t.Errorf("name: %q", out.Name.ValueString())
+	}
+}
+
+// updateCapturingRequest runs Update against a stub that serves the given
+// catalog and records the body of the PUT the resource sends.
+func updateCapturingRequest(t *testing.T, catalog string, plan customComplianceFrameworkResourceModel) string {
+	t.Helper()
+	var body string
+	r := stubResource(func(req *http.Request) *http.Response {
+		switch {
+		case req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887":
+			return testutils.JSONResponse(req, 200, catalog)
+		case req.Method == "GET" && req.URL.Path == "/api/compliance/frameworks/3887":
+			return testutils.JSONResponse(req, 200, fwJSON)
+		case req.Method == "PUT":
+			raw, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("read request body: %s", err)
+			}
+			body = string(raw)
+			return testutils.JSONResponse(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
+	sch := resourceSchema(t)
+	state := stateModel(t)
+	req := resource.UpdateRequest{Plan: planWith(t, sch, plan), State: stateWith(t, sch, state)}
+	resp := &resource.UpdateResponse{State: stateWith(t, sch, plan)}
+	r.Update(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("update: %v", resp.Diagnostics)
+	}
+	return body
+}
+
+// The API replaces the whole section tree, so an update that sends
+// only the declared controls deletes the ones alerts linked in — and that also
+// clears the link on the alert.
+func TestUpdate_SendsControlsItDoesNotDeclare(t *testing.T) {
+	const catalogWithLinkedControl = `{"data":{"frameworks":[{"framework_id":"3887","name":"Lab","display_name":"Lab","custom":true,"sections":[{"id":"1","name":"Flat","tests":[{"rule_id":"r1","reference_id":"1.1","priority":"Medium"},{"rule_id":"ur99","reference_id":"1.2","priority":"High"}]}]}]}}`
+
+	body := updateCapturingRequest(t, catalogWithLinkedControl, stateModel(t))
+	if !strings.Contains(body, `"ur99"`) {
+		t.Fatalf("the update must send back the control it does not declare: %s", body)
+	}
+}
+
+// A control the config dropped was owned, so the merge must not restore it.
+// Private state cannot be built outside the framework, so ownership is passed
+// to keepForeignControls directly.
+func TestKeepForeignControls_DoesNotResurrectRemovedControls(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887" {
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
+	plan := stateModel(t)
+	plan.Sections = otherSection(t)
+	request, diags := requestFromPlan(context.Background(), plan)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+
+	resp := &resource.UpdateResponse{}
+	owned := ownership{"1": {Rules: []string{"r1"}}}
+	if d := r.keepForeignControls(context.Background(), resp, &request, plan, owned, true); d.HasError() {
+		t.Fatal(d)
+	}
+
+	for _, section := range request.Sections {
+		for _, test := range section.Tests {
+			if test.RuleID == "r1" {
+				t.Fatal("a control removed from the config must stay removed")
+			}
+		}
+	}
+	if len(resp.Diagnostics) != 0 {
+		t.Errorf("recorded ownership needs no warning, got %v", resp.Diagnostics)
+	}
+}
+
+// State written before the provider recorded ownership cannot tell a control it
+// once wrote from one an alert linked in, so the write keeps both and says so.
+func TestKeepForeignControls_WithoutOwnershipKeepsEverythingAndWarns(t *testing.T) {
+	r := stubResource(func(req *http.Request) *http.Response {
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/catalog/3887" {
+			return testutils.JSONResponse(req, 200, catalogJSON)
+		}
+		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+		return nil
+	})
+
+	plan := stateModel(t)
+	plan.Sections = otherSection(t)
+	request, diags := requestFromPlan(context.Background(), plan)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+
+	resp := &resource.UpdateResponse{}
+	if d := r.keepForeignControls(context.Background(), resp, &request, plan, nil, false); d.HasError() {
+		t.Fatal(d)
+	}
+
+	var kept bool
+	for _, section := range request.Sections {
+		for _, test := range section.Tests {
+			if test.RuleID == "r1" {
+				kept = true
+			}
+		}
+	}
+	if !kept {
+		t.Fatalf("without ownership the write must keep the undeclared control: %+v", request.Sections)
+	}
+	if len(resp.Diagnostics.Warnings()) != 1 ||
+		!strings.Contains(resp.Diagnostics.Warnings()[0].Detail(), "r1") {
+		t.Fatalf("the apply must say which controls it kept, got %v", resp.Diagnostics)
 	}
 }
 
@@ -264,7 +392,7 @@ func TestPopulate_CatalogMissing(t *testing.T) {
 		return testutils.JSONResponse(req, 200, fwJSON)
 	})
 	m := stateModel(t)
-	ok, d := r.populate(context.Background(), &m)
+	ok, d := r.populate(context.Background(), &m, ownershipFromSections(m.Sections), true)
 	if ok {
 		t.Fatal("empty catalog must not succeed")
 	}
@@ -284,7 +412,7 @@ func TestPopulate_CatalogFetchError(t *testing.T) {
 		return testutils.JSONResponse(req, 200, fwJSON)
 	})
 	m := stateModel(t)
-	ok, d := r.populate(context.Background(), &m)
+	ok, d := r.populate(context.Background(), &m, ownershipFromSections(m.Sections), true)
 	if ok || !d.HasError() {
 		t.Fatalf("catalog fetch error must fail, ok=%v d=%v", ok, d)
 	}
@@ -298,7 +426,7 @@ func TestRefresh_DisappearedAfterWrite(t *testing.T) {
 		return testutils.JSONResponse(req, 404, `{"error":"Framework 3887 not found."}`)
 	})
 	m := stateModel(t)
-	d := r.refresh(context.Background(), &m)
+	d := r.refresh(context.Background(), &m, ownershipFromSections(m.Sections))
 	if !d.HasError() {
 		t.Fatal("404 after write must be an error, not RemoveResource")
 	}

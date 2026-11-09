@@ -75,7 +75,7 @@ resource "orcasecurity_compliance_framework_selection" "subset" {
 ### Required
 
 - `name` (String) Framework name.
-- `sections` (Attributes List) Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). Every leaf section must have at least one test. (see [below for nested schema](#nestedatt--sections))
+- `sections` (Attributes List) Framework sections containing tests/controls. Read from the catalog; order is preserved. Nested at most three levels (an API limit). Every leaf section must have at least one test. Controls that custom alerts (or the Orca UI) link into this framework are left alone: they are neither reported here nor removed on apply. Detach such a control from the alert that owns it, through its `compliance_frameworks` attribute. (see [below for nested schema](#nestedatt--sections))
 
 ### Optional
 

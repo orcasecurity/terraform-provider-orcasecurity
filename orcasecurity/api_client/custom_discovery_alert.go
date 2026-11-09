@@ -26,39 +26,18 @@ type CustomDiscoveryAlert struct {
 	RemediationText      *CustomDiscoveryAlertRemediationText      // managed in a separate API call
 }
 
-type CustomDiscoveryAlertComplianceFramework struct {
-	Name           string `json:"compliance_framework"`
-	Category       string `json:"category"`
-	SubCategory    string `json:"sub_category,omitempty"`
-	SubSubCategory string `json:"sub_sub_category,omitempty"`
-	Priority       string `json:"priority"`
-}
-
 type CustomDiscoveryAlertRemediationText struct {
 	AlertType string `json:"alert_type"`
 	Enable    bool   `json:"enabled"`
 	Text      string `json:"custom_text"`
 }
 
-func (client *APIClient) DoesCustomDiscoveryAlertExist(id string) (bool, error) {
-	resp, err := client.Head(fmt.Sprintf("/api/sonar/rules/%s", id))
-	if resp.StatusCode() == 404 || resp.StatusCode() == 500 {
-		return false, nil
-	}
-
-	// some other error
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 func (client *APIClient) GetCustomDiscoveryAlert(id string) (*CustomDiscoveryAlert, error) {
 	type responseType struct {
 		Data CustomDiscoveryAlert `json:"data"`
 	}
-	resp, err := client.Get(fmt.Sprintf("/api/sonar/rules/%s", id))
-	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
+	resp, missing, err := client.getSonarRule(id)
+	if missing {
 		return nil, nil
 	}
 	if err != nil {
@@ -110,6 +89,21 @@ func (client *APIClient) CreateCustomDiscoveryAlert(data CustomDiscoveryAlert) (
 }
 
 func (client *APIClient) UpdateCustomDiscoveryAlert(id string, data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {
+	instance, err := client.UpdateCustomDiscoveryAlertRule(id, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := client.UpdateCustomDiscoveryAlertRemediation(data); err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
+// UpdateCustomDiscoveryAlertRule writes the rule alone. Remediation text lives behind its own
+// endpoint, and a rule write is repeated when compliance framework links are
+// replaced, so the two are separate: a remediation failure must not be reported
+// as a failed rule write, and remediation must not be written twice.
+func (client *APIClient) UpdateCustomDiscoveryAlertRule(id string, data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {
 	resp, err := client.Put(fmt.Sprintf("/api/sonar/rules/%s", id), data)
 	if err != nil {
 		return nil, err
@@ -119,21 +113,21 @@ func (client *APIClient) UpdateCustomDiscoveryAlert(id string, data CustomDiscov
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
+	return &response.Data, nil
+}
 
-	// update remediation
+// UpdateCustomDiscoveryAlertRemediation brings the alert's remediation text in line with the plan.
+func (client *APIClient) UpdateCustomDiscoveryAlertRemediation(data CustomDiscoveryAlert) error {
 	if data.RemediationText == nil {
-		if err = client.DeleteCustomRemediationText(CustomDiscoveryAlertRemediationText{
-			AlertType: data.RuleType,
-		}); err != nil {
-			return nil, fmt.Errorf("remediation text delete failed: %s", err.Error())
+		if err := client.DeleteCustomRemediationText(CustomDiscoveryAlertRemediationText{AlertType: data.RuleType}); err != nil {
+			return fmt.Errorf("remediation text delete failed: %s", err.Error())
 		}
-	} else {
-		if err = client.SetCustomRemediationText(*data.RemediationText); err != nil {
-			return nil, fmt.Errorf("remediation text update failed: %s", err.Error())
-		}
+		return nil
 	}
-
-	return &response.Data, err
+	if err := client.SetCustomRemediationText(*data.RemediationText); err != nil {
+		return fmt.Errorf("remediation text update failed: %s", err.Error())
+	}
+	return nil
 }
 func (client *APIClient) DeleteCustomDiscoveryAlert(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/sonar/rules/%s", id))
@@ -142,7 +136,7 @@ func (client *APIClient) DeleteCustomDiscoveryAlert(id string) error {
 
 func (client *APIClient) GetCustomDiscoveryAlertRemediationText(ruleType string) (*CustomDiscoveryAlertRemediationText, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/alerts/custom_remediation_text?alert_type=%s", ruleType))
-	if resp.StatusCode() == 404 {
+	if resp != nil && resp.StatusCode() == 404 {
 		return &CustomDiscoveryAlertRemediationText{}, nil
 	}
 
@@ -159,7 +153,7 @@ func (client *APIClient) GetCustomDiscoveryAlertRemediationText(ruleType string)
 
 func (client *APIClient) SetCustomRemediationText(data CustomDiscoveryAlertRemediationText) error {
 	resp, err := client.Put("/api/alerts/custom_remediation_text", data)
-	if resp.StatusCode() == 404 {
+	if resp != nil && resp.StatusCode() == 404 {
 		_, err = client.Post("/api/alerts/custom_remediation_text", data)
 	}
 	return err
@@ -196,6 +190,23 @@ func (client *APIClient) DeleteCustomRemediationText(data CustomDiscoveryAlertRe
 }
 
 func (client *APIClient) GetAlertCategories() ([]string, error) {
+	cache := client.alertCategories
+	if cache == nil {
+		return client.fetchAlertCategories()
+	}
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if cache.data == nil {
+		categories, err := client.fetchAlertCategories()
+		if err != nil {
+			return nil, err
+		}
+		cache.data = categories
+	}
+	return append([]string(nil), cache.data...), nil
+}
+
+func (client *APIClient) fetchAlertCategories() ([]string, error) {
 	type responseType struct {
 		Data []string `json:"data"`
 	}

@@ -1,0 +1,116 @@
+package alert_common
+
+import (
+	"context"
+	"testing"
+
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+func TestFrameworksToListUsesEmptyListForNoLinks(t *testing.T) {
+	list, diags := FrameworksToList(context.Background(), nil)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if list.IsNull() || list.IsUnknown() {
+		t.Fatalf("no links must read back as a known empty list, got %v", list)
+	}
+	if got := len(list.Elements()); got != 0 {
+		t.Fatalf("expected 0 elements, got %d", got)
+	}
+}
+
+func TestFrameworksRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	want := []Framework{{
+		Name:     types.StringValue("GCP CSR"),
+		Section:  types.StringValue("1. AM - Asset Management"),
+		Priority: types.StringValue("medium"),
+	}}
+
+	list, diags := FrameworksToList(ctx, want)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	got, diags := FrameworksFromList(ctx, list)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("round trip changed the value: %v", got)
+	}
+	if FrameworksCount(list) != 1 {
+		t.Fatalf("expected count 1, got %d", FrameworksCount(list))
+	}
+}
+
+// A null or unknown plan value means the config says nothing about the links.
+// Turning either into frameworks would send a clearing PUT.
+func TestFrameworksFromListIgnoresNullAndUnknown(t *testing.T) {
+	ctx := context.Background()
+	for name, list := range map[string]types.List{
+		"null":    types.ListNull(FrameworkObjectType()),
+		"unknown": types.ListUnknown(FrameworkObjectType()),
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, diags := FrameworksFromList(ctx, list)
+			if diags.HasError() {
+				t.Fatal(diags)
+			}
+			if got != nil {
+				t.Fatalf("expected no frameworks, got %v", got)
+			}
+			if FrameworksCount(list) != 0 {
+				t.Fatalf("expected count 0, got %d", FrameworksCount(list))
+			}
+		})
+	}
+}
+
+func TestFrameworksRequestSplitsSectionLevels(t *testing.T) {
+	ctx := context.Background()
+	list, diags := FrameworksState(ctx, []api_client.AlertComplianceFramework{{
+		Name:           "GCP CSR",
+		Category:       "Identify",
+		SubCategory:    "Risk Assessment",
+		SubSubCategory: "Vulnerabilities in assets are identified",
+		Priority:       "medium",
+	}})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+
+	request, diags := FrameworksRequest(ctx, list)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	if len(request) != 1 {
+		t.Fatalf("expected 1 framework, got %d", len(request))
+	}
+	got := request[0]
+	if got.Category != "Identify" || got.SubCategory != "Risk Assessment" ||
+		got.SubSubCategory != "Vulnerabilities in assets are identified" {
+		t.Fatalf("section levels did not survive the round trip: %+v", got)
+	}
+}
+
+// The request must stay empty for a silent config: Terraform hands the provider
+// an unknown value on create and a null one on update.
+func TestFrameworksRequestSkipsSilentConfig(t *testing.T) {
+	for name, list := range map[string]types.List{
+		"null":    types.ListNull(FrameworkObjectType()),
+		"unknown": types.ListUnknown(FrameworkObjectType()),
+	} {
+		t.Run(name, func(t *testing.T) {
+			request, diags := FrameworksRequest(context.Background(), list)
+			if diags.HasError() {
+				t.Fatal(diags)
+			}
+			if request != nil {
+				t.Fatalf("expected no frameworks in the request, got %v", request)
+			}
+		})
+	}
+}

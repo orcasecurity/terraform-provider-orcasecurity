@@ -28,3 +28,15 @@ resource "orcasecurity_business_unit" "BU-OrcaTags" {
     ]
   }
 }
+
+// Config-based Business Unit for AWS resources that carry every listed custom tag
+resource "orcasecurity_business_unit" "BU-Config" {
+  name = "BU-Config"
+
+  config = jsonencode({
+    and = [
+      { some = { CloudProviders = ["aws"] } },
+      { all = { CustomTags = ["env|prod", "team|security"] } },
+    ]
+  })
+}

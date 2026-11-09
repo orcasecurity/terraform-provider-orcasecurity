@@ -1,10 +1,12 @@
 package api_client
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -186,5 +188,118 @@ func TestRoundTripWithRetry_TimeoutNotRetriedWhenDisabled(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("expected 1 attempt when timeout retry is disabled, got %d", n)
+	}
+}
+
+func stubRetrySleep(t *testing.T) *[]time.Duration {
+	t.Helper()
+	var slept []time.Duration
+	origSleep, origJitter := retrySleep, retryJitter
+	retrySleep = func(_ context.Context, d time.Duration) error {
+		slept = append(slept, d)
+		return nil
+	}
+	retryJitter = func(time.Duration) time.Duration { return 0 }
+	t.Cleanup(func() { retrySleep, retryJitter = origSleep, origJitter })
+	return &slept
+}
+
+func statusSequenceClient(codes func(n int) int) (*APIClient, *int) {
+	n := 0
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		n++
+		code := codes(n)
+		body := `{}`
+		if code == http.StatusTooManyRequests {
+			body = `{"status":"failure","error_code":"throttled","message":"Request was throttled. Expected available in 1 second.","errors":{}}`
+		}
+		return &http.Response{
+			StatusCode: code,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+			Request:    req,
+		}
+	})}
+	return &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}, &n
+}
+
+func TestRoundTripWithRetry_429RetriesBeyondDefaultBudget(t *testing.T) {
+	stubRetrySleep(t)
+	c, n := statusSequenceClient(func(n int) int {
+		if n <= 7 {
+			return http.StatusTooManyRequests
+		}
+		return http.StatusOK
+	})
+	req, _ := http.NewRequest(http.MethodGet, retryTestAPIEndpoint+"/api/sonar/rules/x", nil)
+	resp, err := c.roundTripWithRetry(*req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *n != 8 {
+		t.Fatalf("attempts = %d, want 8", *n)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())
+	}
+}
+
+func TestRoundTripWithRetry_429GivesUpAfterThrottleBudget(t *testing.T) {
+	slept := stubRetrySleep(t)
+	c, n := statusSequenceClient(func(int) int { return http.StatusTooManyRequests })
+	req, _ := http.NewRequest(http.MethodGet, retryTestAPIEndpoint+"/api/sonar/rules/x", nil)
+	resp, err := c.roundTripWithRetry(*req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *n != maxThrottleRetryAttempts {
+		t.Fatalf("attempts = %d, want %d", *n, maxThrottleRetryAttempts)
+	}
+	if len(*slept) != maxThrottleRetryAttempts-1 {
+		t.Fatalf("sleeps = %d, want %d", len(*slept), maxThrottleRetryAttempts-1)
+	}
+	if resp.StatusCode() != http.StatusTooManyRequests {
+		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())
+	}
+}
+
+func TestRoundTripWithRetry_502KeepsDefaultBudget(t *testing.T) {
+	stubRetrySleep(t)
+	c, n := statusSequenceClient(func(int) int { return http.StatusBadGateway })
+	req, _ := http.NewRequest(http.MethodGet, retryTestAPIEndpoint+"/api/x", nil)
+	if _, err := c.roundTripWithRetry(*req); err != nil {
+		t.Fatal(err)
+	}
+	if *n != maxHTTPRetryAttempts {
+		t.Fatalf("attempts = %d, want %d", *n, maxHTTPRetryAttempts)
+	}
+}
+
+func TestRetryDelay_ThrottleWithoutRetryAfter(t *testing.T) {
+	stubRetrySleep(t)
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: make(http.Header)}
+	want := []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 8 * time.Second}
+	for attempt, w := range want {
+		if got := retryDelay(attempt, resp); got != w {
+			t.Errorf("attempt %d: delay = %v, want %v", attempt, got, w)
+		}
+	}
+}
+
+func TestRetryDelay_HonorsRetryAfter(t *testing.T) {
+	stubRetrySleep(t)
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"Retry-After": []string{"3"}}}
+	if got := retryDelay(0, resp); got != 3*time.Second {
+		t.Fatalf("delay = %v, want 3s", got)
+	}
+}
+
+func TestRetryDelay_JitterIsBounded(t *testing.T) {
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: make(http.Header)}
+	for i := 0; i < 200; i++ {
+		got := retryDelay(0, resp)
+		if got < throttleBaseDelay || got >= throttleBaseDelay+throttleBaseDelay/2 {
+			t.Fatalf("delay = %v, want in [1s, 1.5s)", got)
+		}
 	}
 }
