@@ -51,9 +51,10 @@ resource "orcasecurity_shift_left_gitlab_group" "t" {
 				),
 			},
 			{
-				ResourceName:      "orcasecurity_shift_left_gitlab_group.t",
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            "orcasecurity_shift_left_gitlab_group.t",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"adopt_existing"},
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					return fmt.Sprintf("%s/%d", installationID, gitlabGroupID), nil
 				},

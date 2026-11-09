@@ -74,9 +74,10 @@ resource "orcasecurity_shift_left_azure_devops_account" "t" {
 				),
 			},
 			{
-				ResourceName:      "orcasecurity_shift_left_azure_devops_account.t",
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            "orcasecurity_shift_left_azure_devops_account.t",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"adopt_existing"},
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					return fmt.Sprintf("%s/%s", installationID, accountName), nil
 				},

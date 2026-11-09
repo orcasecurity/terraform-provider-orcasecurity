@@ -67,9 +67,10 @@ resource "orcasecurity_shift_left_github_account" "t" {
 				),
 			},
 			{
-				ResourceName:      "orcasecurity_shift_left_github_account.t",
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            "orcasecurity_shift_left_github_account.t",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"adopt_existing"},
 			},
 		},
 	})

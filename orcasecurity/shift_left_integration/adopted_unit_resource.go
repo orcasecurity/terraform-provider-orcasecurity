@@ -109,7 +109,7 @@ func guardAdopt(hasIntegratePath bool, existing api_client.ScmUnitCommonFields, 
 	if hasIntegratePath {
 		return true
 	}
-	return hasAdoptableState(existing)
+	return hasTakeoverRisk(existing)
 }
 
 // DefaultPolicies is deliberately not part of this check: per the API, it is derived as true
@@ -117,7 +117,7 @@ func guardAdopt(hasIntegratePath bool, existing api_client.ScmUnitCommonFields, 
 // attribute doc in scm_schema.go) — it is not an independent stored value, so it never adds a
 // risk signal beyond what Policies/Project already cover, and checking it would make this guard
 // fire on every existing unit, blank or not.
-func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
+func hasTakeoverRisk(existing api_client.ScmUnitCommonFields) bool {
 	return existing.HasBeenSetup ||
 		existing.IntegratedRepositoriesCount > 0 ||
 		len(existing.Policies) > 0 ||
@@ -126,7 +126,7 @@ func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
 
 func adoptGuardDetail(describe string, existing api_client.ScmUnitCommonFields) string {
 	detail := "already integrated in Orca"
-	if state := adoptableStateSummary(existing); state != "" {
+	if state := takeoverRiskSummary(existing); state != "" {
 		detail += " with " + state
 	}
 	return fmt.Sprintf(
@@ -137,8 +137,8 @@ func adoptGuardDetail(describe string, existing api_client.ScmUnitCommonFields) 
 		describe, detail)
 }
 
-// adoptableStateSummary describes what hasAdoptableState found, for the error message.
-func adoptableStateSummary(existing api_client.ScmUnitCommonFields) string {
+// takeoverRiskSummary describes what hasTakeoverRisk found, for the error message.
+func takeoverRiskSummary(existing api_client.ScmUnitCommonFields) string {
 	var parts []string
 	if n := existing.IntegratedRepositoriesCount; n > 0 {
 		parts = append(parts, fmt.Sprintf("%d integrated repositor%s", n, repositoryPlural(n)))
