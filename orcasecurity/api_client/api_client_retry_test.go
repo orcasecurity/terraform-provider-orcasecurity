@@ -405,3 +405,45 @@ func TestPostIdempotent_KeepsFullRetryPolicy(t *testing.T) {
 		t.Fatalf("attempts = %d, want 2", *n)
 	}
 }
+
+// Crown jewel upserts: idempotent, so gateway errors replay, but its client opts out of timeout
+// replay (expensive rescoring) — the combination must keep both behaviours.
+func TestPostIdempotent_WithoutTimeoutRetryStillSkipsTimeouts(t *testing.T) {
+	stubRetrySleep(t)
+	var n int
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		n++
+		return nil, timeoutError{}
+	})}
+	c := (&APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}).withoutTimeoutRetry()
+	if _, err := c.PostIdempotent("/api/x", map[string]string{}); err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if n != 1 {
+		t.Fatalf("attempts = %d, want 1", n)
+	}
+
+	c2, n2 := statusSequenceClient(func(n int) int {
+		if n == 1 {
+			return http.StatusBadGateway
+		}
+		return http.StatusOK
+	})
+	if _, err := c2.withoutTimeoutRetry().PostIdempotent("/api/x", map[string]string{}); err != nil {
+		t.Fatal(err)
+	}
+	if *n2 != 2 {
+		t.Fatalf("502 attempts = %d, want 2", *n2)
+	}
+}
+
+func TestGetTrustedDynamicIpRangeStatus_TransportErrorDoesNotPanic(t *testing.T) {
+	stubRetrySleep(t)
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("connection refused")
+	})}
+	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	if _, err := c.GetTrustedDynamicIpRangeStatus("org"); err == nil {
+		t.Fatal("expected the transport error to be returned")
+	}
+}

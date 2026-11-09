@@ -111,7 +111,7 @@ func (client *APIClient) UpdateDataDetectionRule(data DataDetectionRule) error {
 		RulesToUpdate []DataDetectionRule `json:"rules_to_update"`
 	}{RulesToUpdate: []DataDetectionRule{data}}
 
-	_, err := client.Post(scanConfigBulkRulesPath, payload)
+	_, err := client.PostIdempotent(scanConfigBulkRulesPath, payload)
 	return err
 }
 

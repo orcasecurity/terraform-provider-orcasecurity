@@ -42,11 +42,14 @@ func TestValidateConfig_ScmPostureWarnsOnProjectsIds(t *testing.T) {
 func TestScmPostureProjectsIds_NoWriteAndKeptInState(t *testing.T) {
 	configured := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("proj-1")})
 	plan := &shiftLeftPolicyResourceModel{Type: types.StringValue("scm_posture"), ProjectsIds: configured}
-	if projectsIdsChanged(plan, &shiftLeftPolicyResourceModel{Type: plan.Type, ProjectsIds: types.ListNull(types.StringType)}) {
-		t.Error("scm_posture projects_ids must never trigger a projects write")
-	}
+	// syncProjects is the single projects write path; a nil apiClient would panic on any call.
 	if err := (&shiftLeftPolicyResource{}).syncProjects(plan, "scm_posture", "p1"); err != nil {
 		t.Errorf("syncProjects must be a no-op for scm_posture: %v", err)
+	}
+	attachAll := *plan
+	attachAll.AttachAllProjects = types.BoolValue(true)
+	if err := (&shiftLeftPolicyResource{}).syncProjects(&attachAll, "scm_posture", "p1"); err != nil {
+		t.Errorf("syncProjects must be a no-op for scm_posture even with attach_all_projects: %v", err)
 	}
 	got := apiToState(&api_client.ShiftLeftPolicy{ID: "p1", Type: "scm_posture"}, plan)
 	if !got.ProjectsIds.Equal(configured) {

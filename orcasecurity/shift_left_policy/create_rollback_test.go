@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/shift_left_policy"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -33,6 +34,14 @@ type policyStub struct {
 	created     bool
 	// preexisting are same-name policies that existed before this create.
 	preexisting []string
+	// extraCreated: more same-name policies the ambiguous POST produced (duplicate commit).
+	extraCreated []string
+	// visibleAfterLists: the committed policy shows in lists only from this post-POST list call on.
+	visibleAfterLists int
+	listsAfterPost    int
+	// listStatusBeforePost / listStatusAfterPost answer the list route with an error when set.
+	listStatusBeforePost int
+	listStatusAfterPost  int
 }
 
 func (s *policyStub) record(method, path string) {
@@ -67,8 +76,9 @@ func (s *policyStub) listPage(startAt string) []map[string]any {
 	}
 	s.mu.Lock()
 	ids := append([]string(nil), s.preexisting...)
-	if s.created {
+	if s.created && s.listsAfterPost > s.visibleAfterLists {
 		ids = append(ids, stubPolicyID)
+		ids = append(ids, s.extraCreated...)
 	}
 	s.mu.Unlock()
 	rows := make([]map[string]any, 0, len(ids))
@@ -80,12 +90,18 @@ func (s *policyStub) listPage(startAt string) []map[string]any {
 
 func (s *policyStub) posts() int {
 	count := 0
-	for _, req := range s.recorded() {
+	for _, req := range s.requests {
 		if strings.HasPrefix(req, "POST ") {
 			count++
 		}
 	}
 	return count
+}
+
+func (s *policyStub) postCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.posts()
 }
 
 func (s *policyStub) recorded() []string {
@@ -121,7 +137,7 @@ func (s *policyStub) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/shiftleft/policies/":
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": s.listPage(r.URL.Query().Get("start_at_index"))})
+		s.serveList(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == stubPolicyBase:
 		s.serveCreate(w)
 	case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/projects/"):
@@ -133,6 +149,25 @@ func (s *policyStub) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "unexpected request "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
 	}
+}
+
+func (s *policyStub) serveList(w http.ResponseWriter, r *http.Request) {
+	firstPage := r.URL.Query().Get("start_at_index") == "" || r.URL.Query().Get("start_at_index") == "0"
+	s.mu.Lock()
+	posted := s.posts() > 0
+	status := s.listStatusBeforePost
+	if posted {
+		status = s.listStatusAfterPost
+		if firstPage {
+			s.listsAfterPost++
+		}
+	}
+	s.mu.Unlock()
+	if status != 0 {
+		http.Error(w, `{"detail":"list failed"}`, status)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": s.listPage(r.URL.Query().Get("start_at_index"))})
 }
 
 func (s *policyStub) serveCreate(w http.ResponseWriter) {
@@ -244,6 +279,7 @@ func TestShiftLeftPolicyCreate_SuccessKeepsPolicy(t *testing.T) {
 // A 504 on create can still have committed the policy. The client must not replay the POST, and
 // Create must adopt the new policy instead of leaving it untracked (seen live on the lab).
 func TestShiftLeftPolicyCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
+	shift_left_policy.FastAmbiguousCreatePoll(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
 		preexisting: []string{"11111111-1111-1111-1111-111111111111"}}
 	stub.start(t)
@@ -256,12 +292,13 @@ func TestShiftLeftPolicyCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T)
 		}},
 	})
 
-	if got := stub.posts(); got != 1 {
+	if got := stub.postCount(); got != 1 {
 		t.Errorf("an ambiguous create must not be replayed, got %d POSTs in %v", got, stub.recorded())
 	}
 }
 
-func TestShiftLeftPolicyCreate_AmbiguousPostThatDidNotCommitSaysSafeToRetry(t *testing.T) {
+func TestShiftLeftPolicyCreate_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
+	shift_left_policy.FastAmbiguousCreatePoll(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout,
 		preexisting: []string{"11111111-1111-1111-1111-111111111111"}}
 	stub.start(t)
@@ -270,11 +307,72 @@ func TestShiftLeftPolicyCreate_AmbiguousPostThatDidNotCommitSaysSafeToRetry(t *t
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{{
 			Config:      stubPolicyConfig,
-			ExpectError: regexp.MustCompile(`was\s+not\s+created\s+and\s+re-applying\s+is\s+safe`),
+			ExpectError: regexp.MustCompile(`no\s+new\s+malicious_packages\s+policy\s+named\s+"tf-stub-policy"\s+appeared\s+after[\s\S]*check\s+the\s+Orca\s+UI\s+before\s+re-applying`),
 		}},
 	})
 
-	if got := stub.posts(); got != 1 {
+	if got := stub.postCount(); got != 1 {
 		t.Errorf("an ambiguous create must not be replayed, got %d POSTs in %v", got, stub.recorded())
 	}
+}
+
+// The backend can still be saving after a 504; the lookup must keep polling, not give up at once.
+func TestShiftLeftPolicyCreate_AmbiguousPostVisibleOnLaterPollIsAdopted(t *testing.T) {
+	shift_left_policy.FastAmbiguousCreatePoll(t)
+	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true, visibleAfterLists: 2}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: stubPolicyConfig,
+			Check:  resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.stub", "id", stubPolicyID),
+		}},
+	})
+}
+
+func TestShiftLeftPolicyCreate_AmbiguousPostWithSeveralNewPoliciesErrors(t *testing.T) {
+	shift_left_policy.FastAmbiguousCreatePoll(t)
+	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
+		extraCreated: []string{"22222222-2222-2222-2222-222222222222"}}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config:      stubPolicyConfig,
+			ExpectError: regexp.MustCompile(`2\s+new\s+malicious_packages\s+policies[\s\S]*22222222-2222-2222-2222-222222222222[\s\S]*` + stubPolicyID),
+		}},
+	})
+}
+
+// Without a pre-create snapshot a same-name policy cannot be told apart, so nothing is adopted.
+func TestShiftLeftPolicyCreate_AmbiguousPostWithoutSnapshotDoesNotAdopt(t *testing.T) {
+	shift_left_policy.FastAmbiguousCreatePoll(t)
+	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
+		listStatusBeforePost: http.StatusInternalServerError}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config:      stubPolicyConfig,
+			ExpectError: regexp.MustCompile(`look\s+for\s+a\s+malicious_packages\s+policy\s+named[\s\S]*import\s+it`),
+		}},
+	})
+}
+
+func TestShiftLeftPolicyCreate_AmbiguousPostWithFailingLookupErrors(t *testing.T) {
+	shift_left_policy.FastAmbiguousCreatePoll(t)
+	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
+		listStatusAfterPost: http.StatusInternalServerError}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config:      stubPolicyConfig,
+			ExpectError: regexp.MustCompile(`checking\s+whether\s+it\s+was\s+created\s+also\s+failed`),
+		}},
+	})
 }

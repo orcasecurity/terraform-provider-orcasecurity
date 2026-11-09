@@ -77,6 +77,9 @@ func (c *APIClient) withoutTimeoutRetry() *APIClient {
 type APIResponse struct {
 	_body    []byte
 	response *http.Response
+	// ambiguousWrite is set by the retry layer for a non-idempotent request whose status (502/504)
+	// leaves it unknown whether the server applied it.
+	ambiguousWrite bool
 }
 
 func (resp *APIResponse) StatusCode() int {
@@ -142,7 +145,7 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 		apiErr := resp.Error()
 		err := fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
 			resp.StatusCode(), string(resp.Body()), apiErr)
-		if isNonIdempotent(&req) && isAmbiguousWriteStatus(resp.StatusCode()) {
+		if resp.ambiguousWrite {
 			err = fmt.Errorf("%w: %w", ErrAmbiguousWrite, err)
 		}
 		return resp, err

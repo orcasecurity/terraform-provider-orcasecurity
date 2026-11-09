@@ -8,6 +8,7 @@ import (
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -74,7 +75,8 @@ func (r *shiftLeftPolicyResource) ValidateConfig(ctx context.Context, req resour
 	if config.Type.IsUnknown() {
 		return
 	}
-	if config.Type.ValueString() == "scm_posture" && attachAll {
+	unsupported := projectsUnsupported(config.Type.ValueString())
+	if unsupported && attachAll {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("attach_all_projects"),
 			"Unsupported attribute for scm_posture",
@@ -85,7 +87,7 @@ func (r *shiftLeftPolicyResource) ValidateConfig(ctx context.Context, req resour
 	if config.ProjectsIds.IsUnknown() {
 		return
 	}
-	if config.Type.ValueString() == "scm_posture" && !config.ProjectsIds.IsNull() {
+	if unsupported && !config.ProjectsIds.IsNull() {
 		resp.Diagnostics.AddAttributeWarning(
 			path.Root("projects_ids"),
 			"projects_ids is ignored for scm_posture",
@@ -220,7 +222,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 		tflog.Warn(ctx, "could not snapshot same-name policies before create; an ambiguous create will not be auto-recovered: "+snapshotErr.Error())
 		preexisting = nil
 	}
-	policyID, err := r.createPolicy(policyType, apiPolicy, preexisting, &resp.Diagnostics)
+	policyID, err := r.createPolicy(ctx, policyType, apiPolicy, preexisting, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating AppSec policy", "Could not create policy: "+err.Error())
 		return
@@ -257,10 +259,56 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
+// After a 504/timeout the backend may still be saving the policy, so the lookup is retried.
+var ambiguousCreatePollDelays = []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
+
+var ambiguousCreateSleep = func(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+// newSameNamePolicies polls until a policy absent from preexisting appears or the delays run out.
+func (r *shiftLeftPolicyResource) newSameNamePolicies(ctx context.Context, policyType, name string, preexisting map[string]bool) ([]string, time.Duration, error) {
+	var waited time.Duration
+	var lastErr error
+	for _, d := range ambiguousCreatePollDelays {
+		if err := ambiguousCreateSleep(ctx, d); err != nil {
+			return nil, waited, err
+		}
+		waited += d
+		after, err := r.apiClient.ListShiftLeftPolicyIDsByName(policyType, name)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		lastErr = nil
+		var created []string
+		for id := range after {
+			if !preexisting[id] {
+				created = append(created, id)
+			}
+		}
+		if len(created) > 0 {
+			sort.Strings(created)
+			return created, waited, nil
+		}
+	}
+	return nil, waited, lastErr
+}
+
 // createPolicy POSTs the policy. A POST with an ambiguous outcome (timeout / gateway error) may still
 // have been committed; the client never replays it, so recover the id by diffing the same-name
 // policies against the pre-create snapshot instead of leaving an untracked policy behind.
-func (r *shiftLeftPolicyResource) createPolicy(policyType string, apiPolicy api_client.ShiftLeftPolicy, preexisting map[string]bool, diags *diag.Diagnostics) (string, error) {
+func (r *shiftLeftPolicyResource) createPolicy(ctx context.Context, policyType string, apiPolicy api_client.ShiftLeftPolicy, preexisting map[string]bool, diags *diag.Diagnostics) (string, error) {
 	instance, err := r.apiClient.CreateShiftLeftPolicy(policyType, apiPolicy)
 	if err == nil {
 		return instance.ID, nil
@@ -271,27 +319,21 @@ func (r *shiftLeftPolicyResource) createPolicy(policyType string, apiPolicy api_
 	if preexisting == nil {
 		return "", fmt.Errorf("%w; look for a %s policy named %q and import it before re-applying", err, policyType, apiPolicy.Name)
 	}
-	after, listErr := r.apiClient.ListShiftLeftPolicyIDsByName(policyType, apiPolicy.Name)
+	created, waited, listErr := r.newSameNamePolicies(ctx, policyType, apiPolicy.Name, preexisting)
 	if listErr != nil {
 		return "", fmt.Errorf("%w; checking whether it was created also failed (%v) — look for a %s policy named %q and import it before re-applying",
 			err, listErr, policyType, apiPolicy.Name)
 	}
-	var created []string
-	for id := range after {
-		if !preexisting[id] {
-			created = append(created, id)
-		}
-	}
 	switch len(created) {
 	case 0:
-		return "", fmt.Errorf("%w; no new %s policy named %q exists, so it was not created and re-applying is safe", err, policyType, apiPolicy.Name)
+		return "", fmt.Errorf("%w; no new %s policy named %q appeared after %s — check the Orca UI before re-applying, and import it if it shows up",
+			err, policyType, apiPolicy.Name, waited)
 	case 1:
 		diags.AddWarning("Recovered AppSec policy after an ambiguous create",
 			fmt.Sprintf("The create request for %s policy %q failed without a definite answer (%v), but the policy was created as %s; it is now tracked in state.",
 				policyType, apiPolicy.Name, err, created[0]))
 		return created[0], nil
 	default:
-		sort.Strings(created)
 		return "", fmt.Errorf("%w; %d new %s policies named %q appeared (%s) — import the intended one and delete the rest",
 			err, len(created), policyType, apiPolicy.Name, strings.Join(created, ", "))
 	}
@@ -352,7 +394,9 @@ func (r *shiftLeftPolicyResource) restorePriorPolicy(ctx context.Context, prior 
 		return
 	}
 	if restoreProjects && tfconv.Known(prior.ProjectsIds) {
-		if err := r.apiClient.SetShiftLeftPolicyProjects(policyType, policyID, tfconv.ListToStringSlice(prior.ProjectsIds)); err != nil {
+		restore := *prior
+		restore.AttachAllProjects = types.BoolNull()
+		if err := r.syncProjects(&restore, policyType, policyID); err != nil {
 			diags.AddWarning(
 				"Failed to restore AppSec policy projects after a partial update",
 				fmt.Sprintf("Restoring projects on %s/%s failed: %s. The remote policy may not match Terraform state — run terraform refresh and reconcile manually.",
@@ -389,8 +433,9 @@ func (r *shiftLeftPolicyResource) Read(ctx context.Context, req resource.ReadReq
 
 // syncProjects applies the plan's project attachment. attach_all_projects delegates the set to the
 // API; otherwise a known list is sent verbatim and null/unknown leaves the attachment untouched.
+// syncProjects is the only projects write (create, update and rollback all go through it).
 func (r *shiftLeftPolicyResource) syncProjects(plan *shiftLeftPolicyResourceModel, policyType, policyID string) error {
-	if policyType == "scm_posture" {
+	if projectsUnsupported(policyType) {
 		return nil
 	}
 	if tfconv.BoolIsTrue(plan.AttachAllProjects) {
@@ -406,9 +451,6 @@ func (r *shiftLeftPolicyResource) syncProjects(plan *shiftLeftPolicyResourceMode
 // set server-side on every apply that reaches Update (ModifyPlan only plans one when it is stale),
 // otherwise a known projects list that differs from state.
 func projectsIdsChanged(plan, state *shiftLeftPolicyResourceModel) bool {
-	if plan.Type.ValueString() == "scm_posture" {
-		return false
-	}
 	if tfconv.BoolIsTrue(plan.AttachAllProjects) {
 		return true
 	}

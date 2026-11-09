@@ -81,7 +81,7 @@ func (client *APIClient) AddGroupUsers(groupID string, userIDs []string) error {
 	if len(userIDs) == 0 {
 		return nil
 	}
-	_, err := client.Post(
+	_, err := client.PostIdempotent(
 		fmt.Sprintf("/api/rbac/group/%s/users", groupID),
 		map[string][]string{"user_ids": userIDs},
 	)

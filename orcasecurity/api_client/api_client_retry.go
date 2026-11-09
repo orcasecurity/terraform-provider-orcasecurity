@@ -100,12 +100,13 @@ func (c *APIClient) sleepIfRetriableTransportError(ctx context.Context, attempt 
 // httpResponseFinalOrBackoff returns the API response when the caller should stop (success,
 // non-retriable HTTP status, or last attempt). If retry is true, backoff was applied and
 // another attempt should run.
-func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, res *http.Response, isPost bool) (apiResp *APIResponse, retry bool, err error) {
+func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, res *http.Response, nonIdempotent bool) (apiResp *APIResponse, retry bool, err error) {
 	apiResp = &APIResponse{_body: body, response: res}
 	if apiResp.IsOk() {
 		return apiResp, false, nil
 	}
-	if isPost && isAmbiguousWriteStatus(res.StatusCode) {
+	if nonIdempotent && isAmbiguousWriteStatus(res.StatusCode) {
+		apiResp.ambiguousWrite = true
 		return apiResp, false, nil
 	}
 	if !isRetriableHTTPStatus(res.StatusCode) || attempt >= maxAttemptsForStatus(res.StatusCode)-1 {
@@ -119,8 +120,8 @@ func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, r
 
 // transportPhaseOutcome maps Execute / body-read errors to either another attempt
 // (continueLoop) or a terminal error for the caller to return.
-func (c *APIClient) transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error, isPost bool) (continueLoop bool, err error) {
-	if isPost && c.isRetriableRoundTripError(phaseErr) {
+func (c *APIClient) transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error, nonIdempotent bool) (continueLoop bool, err error) {
+	if nonIdempotent && c.isRetriableRoundTripError(phaseErr) {
 		return false, fmt.Errorf("%w: %w", ErrAmbiguousWrite, phaseErr)
 	}
 	retry, sleepErr := c.sleepIfRetriableTransportError(ctx, attempt, phaseErr)
@@ -134,8 +135,8 @@ func (c *APIClient) transportPhaseOutcome(ctx context.Context, attempt int, phas
 }
 
 // httpResponsePhaseOutcome maps HTTP status handling to continue, terminal error, or success.
-func httpResponsePhaseOutcome(ctx context.Context, attempt int, body []byte, res *http.Response, isPost bool) (apiResp *APIResponse, continueLoop bool, err error) {
-	apiResp, retry, sleepErr := httpResponseFinalOrBackoff(ctx, attempt, body, res, isPost)
+func httpResponsePhaseOutcome(ctx context.Context, attempt int, body []byte, res *http.Response, nonIdempotent bool) (apiResp *APIResponse, continueLoop bool, err error) {
+	apiResp, retry, sleepErr := httpResponseFinalOrBackoff(ctx, attempt, body, res, nonIdempotent)
 	if sleepErr != nil {
 		return nil, false, sleepErr
 	}
@@ -229,11 +230,11 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 // If tryAgain is true, the caller should run another attempt. If tryAgain is false and err is nil,
 // resp is the final APIResponse. If err is non-nil, the caller must return that error.
 func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *http.Request, reqBody []byte) (resp *APIResponse, tryAgain bool, err error) {
-	isPost := isNonIdempotent(proto)
+	nonIdempotent := isNonIdempotent(proto)
 	r := cloneRequestWithBody(ctx, proto, reqBody)
 	res, execErr := c.Execute(r)
 	if execErr != nil {
-		cont, out := c.transportPhaseOutcome(ctx, attempt, execErr, isPost)
+		cont, out := c.transportPhaseOutcome(ctx, attempt, execErr, nonIdempotent)
 		if cont {
 			return nil, true, nil
 		}
@@ -242,14 +243,14 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 
 	body, readErr := readResponseBody(res)
 	if readErr != nil {
-		cont, out := c.transportPhaseOutcome(ctx, attempt, readErr, isPost)
+		cont, out := c.transportPhaseOutcome(ctx, attempt, readErr, nonIdempotent)
 		if cont {
 			return nil, true, nil
 		}
 		return nil, false, out
 	}
 
-	apiResp, cont, out := httpResponsePhaseOutcome(ctx, attempt, body, res, isPost)
+	apiResp, cont, out := httpResponsePhaseOutcome(ctx, attempt, body, res, nonIdempotent)
 	if out != nil {
 		return nil, false, out
 	}

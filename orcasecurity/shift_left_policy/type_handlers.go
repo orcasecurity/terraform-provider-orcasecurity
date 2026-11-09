@@ -48,6 +48,13 @@ type policyTypeHandler struct {
 	buildWrite        func(m *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics)
 	applyRead         func(m *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy, policyData map[string]interface{}, controls []map[string]interface{})
 	mergePlan         func(state, plan *shiftLeftPolicyResourceModel)
+	// projectsUnsupported: the API cannot attach this type to projects (no projects endpoint, and
+	// the create/update serializer drops projects_ids), so projects_ids is a no-op kept from config.
+	projectsUnsupported bool
+}
+
+func projectsUnsupported(policyType string) bool {
+	return policyTypeHandlers[policyType].projectsUnsupported
 }
 
 func controlsWrite(toMaps func(m *shiftLeftPolicyResourceModel) []map[string]interface{}) func(*shiftLeftPolicyResourceModel, *api_client.ShiftLeftPolicy, map[string]interface{}) ([]map[string]interface{}, diag.Diagnostics) {
@@ -152,8 +159,9 @@ var policyTypeHandlers = map[string]policyTypeHandler{
 		},
 	},
 	"scm_posture": {
-		catalogType: "scm_posture",
-		present:     func(m *shiftLeftPolicyResourceModel) bool { return m.ScmPosture != nil },
+		catalogType:         "scm_posture",
+		projectsUnsupported: true,
+		present:             func(m *shiftLeftPolicyResourceModel) bool { return m.ScmPosture != nil },
 		// Only custom scm_posture policies reach this write: the org-wide built-in
 		// one is owned exclusively by shift_left_scm_posture_default_policy
 		// (import of it is rejected in ImportState, and Create can never yield it).
