@@ -6,7 +6,6 @@ var groupAccessEndpoint = rbacAccessEndpoint{
 	path:      apiRBACGroupAccessPath,
 	ownerKey:  "group",
 	paginated: true,
-	// Not createUpserts: a duplicate binding is rejected with 400 "already assigned".
 }
 
 // GroupAccess is the public DTO for a group–role assignment. The shared engine

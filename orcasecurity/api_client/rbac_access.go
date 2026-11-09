@@ -37,9 +37,6 @@ type rbacAccessEndpoint struct {
 	path      string
 	ownerKey  string // nested list-row object + payload field stem: "group" | "user"
 	paginated bool
-	// createUpserts: the server merges a create into the owner's existing role+scope-type row
-	// (scope set union), so replaying an ambiguous create is safe.
-	createUpserts bool
 }
 
 // rbacAccessRecord is the endpoint-agnostic canonical shape the engine operates
@@ -284,11 +281,7 @@ func (client *APIClient) findAccess(ep rbacAccessEndpoint, assignmentID string, 
 }
 
 func (client *APIClient) createAccess(ep rbacAccessEndpoint, rec rbacAccessRecord) (string, error) {
-	post := client.Post
-	if ep.createUpserts {
-		post = client.PostIdempotent
-	}
-	resp, err := post(ep.path, rec.toWire(ep))
+	resp, err := client.Post(ep.path, rec.toWire(ep))
 	if err != nil {
 		return "", err
 	}

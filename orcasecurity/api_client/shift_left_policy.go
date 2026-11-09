@@ -124,7 +124,7 @@ func (client *APIClient) ListShiftLeftPolicyIDsByName(policyType, name string) (
 }
 
 func (client *APIClient) CreateShiftLeftPolicy(policyType string, policy ShiftLeftPolicy) (*ShiftLeftPolicy, error) {
-	resp, err := client.Post(shiftLeftPolicyBasePath(policyType), policy)
+	resp, err := client.PostCreate(shiftLeftPolicyBasePath(policyType), policy)
 	if err != nil {
 		return nil, err
 	}

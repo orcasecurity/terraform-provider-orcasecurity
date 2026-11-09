@@ -27,20 +27,26 @@ const (
 	throttleMaxDelay         = 8 * time.Second
 )
 
-// ErrAmbiguousWrite marks a POST whose outcome is unknown: the client timed out, the connection
+// ErrAmbiguousWrite marks a PostCreate whose outcome is unknown: the client timed out, the connection
 // dropped after send, or a gateway answered 502/504. The server may already have committed it, so
-// it is never replayed (a replay creates a duplicate or fails on the first copy, orphaning it).
+// it is not replayed (a replay creates a duplicate or fails on the first copy, orphaning it); the
+// caller recovers the outcome instead (see internal/createrecovery).
 var ErrAmbiguousWrite = errors.New("the request may have been applied by the server")
 
 func isAmbiguousWriteStatus(status int) bool {
 	return status == http.StatusBadGateway || status == http.StatusGatewayTimeout
 }
 
-type idempotentPostKey struct{}
+type noReplayPostKey struct{}
 
-// isNonIdempotent reports whether replaying req could apply it twice: POST, unless sent via PostIdempotent.
+func noReplayContext() context.Context {
+	return context.WithValue(context.Background(), noReplayPostKey{}, true)
+}
+
+// isNonIdempotent reports whether req must not be replayed after an ambiguous failure: a POST sent
+// via PostCreate. Plain Post keeps the full retry policy.
 func isNonIdempotent(req *http.Request) bool {
-	return req.Method == http.MethodPost && req.Context().Value(idempotentPostKey{}) == nil
+	return req.Method == http.MethodPost && req.Context().Value(noReplayPostKey{}) != nil
 }
 
 var (

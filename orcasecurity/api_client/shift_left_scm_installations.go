@@ -28,7 +28,7 @@ func findScmInstallation[T any, PT interface {
 }
 
 func createScmInstallation[T any](client *APIClient, listPath string, body any) (*T, error) {
-	resp, err := client.Post(listPath, body)
+	resp, err := client.PostCreate(listPath, body)
 	if err != nil {
 		return nil, err
 	}

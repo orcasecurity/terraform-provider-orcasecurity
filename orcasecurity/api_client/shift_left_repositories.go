@@ -108,7 +108,7 @@ func (client *APIClient) MoveRepositoryContexts(targetProjectID string, reposito
 		TargetProjectID      string   `json:"target_project_id"`
 		RepositoryContextIDs []string `json:"repository_context_ids"`
 	}{targetProjectID, repositoryContextIDs}
-	_, err := client.PostIdempotent("/api/shiftleft/repository_contexts/move_project/", body)
+	_, err := client.Post("/api/shiftleft/repository_contexts/move_project/", body)
 	return err
 }
 

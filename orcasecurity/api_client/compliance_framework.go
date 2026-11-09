@@ -124,7 +124,7 @@ func (client *APIClient) GetComplianceFrameworkSelections() (map[string]Complian
 // SelectComplianceFrameworks POSTs framework_ids onto the given scope
 // (`user` or `organization`). The call is idempotent for a scope already held.
 func (client *APIClient) SelectComplianceFrameworks(ids []string, scope string) error {
-	_, err := client.PostIdempotent(complianceFrameworkSelectPath, complianceFrameworkSelectRequest{
+	_, err := client.Post(complianceFrameworkSelectPath, complianceFrameworkSelectRequest{
 		FrameworkIDs: ids,
 		Scope:        scope,
 	})

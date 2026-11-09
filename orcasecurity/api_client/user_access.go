@@ -7,8 +7,7 @@ var userAccessEndpoint = rbacAccessEndpoint{
 	ownerKey: "user",
 	// The user endpoint is a single unpaginated GET that returns every row and
 	// ignores query params — do not send limit/start_at_index.
-	paginated:     false,
-	createUpserts: true,
+	paginated: false,
 }
 
 // UserAccess is the public DTO for a user–role assignment. The shared engine in

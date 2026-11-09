@@ -305,13 +305,13 @@ func TestRetryDelay_JitterIsBounded(t *testing.T) {
 	}
 }
 
-// A POST replayed after an ambiguous failure duplicates (or fails on) a create the server already
+// A create replayed after an ambiguous failure duplicates (or fails on) what the server already
 // committed, orphaning it outside Terraform state — seen live on scm_posture policy create.
 func TestRoundTripWithRetry_POSTNotReplayedOnAmbiguousStatus(t *testing.T) {
 	for _, code := range []int{http.StatusBadGateway, http.StatusGatewayTimeout} {
 		stubRetrySleep(t)
 		c, n := statusSequenceClient(func(int) int { return code })
-		req, _ := http.NewRequest(http.MethodPost, retryTestAPIEndpoint+"/api/x", strings.NewReader(`{}`))
+		req, _ := http.NewRequestWithContext(noReplayContext(), http.MethodPost, retryTestAPIEndpoint+"/api/x", strings.NewReader(`{}`))
 		resp, err := c.roundTripWithRetry(*req)
 		if err != nil {
 			t.Fatal(err)
@@ -331,7 +331,7 @@ func TestRoundTripWithRetry_POSTRetriesWhenServerRejectedBeforeProcessing(t *tes
 			}
 			return http.StatusOK
 		})
-		req, _ := http.NewRequest(http.MethodPost, retryTestAPIEndpoint+"/api/x", strings.NewReader(`{}`))
+		req, _ := http.NewRequestWithContext(noReplayContext(), http.MethodPost, retryTestAPIEndpoint+"/api/x", strings.NewReader(`{}`))
 		if _, err := c.roundTripWithRetry(*req); err != nil {
 			t.Fatal(err)
 		}
@@ -349,23 +349,23 @@ func TestRoundTripWithRetry_POSTTimeoutIsAmbiguousAndNotReplayed(t *testing.T) {
 		return nil, timeoutError{}
 	})}
 	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
-	_, err := c.Post("/api/x", map[string]string{"a": "b"})
+	_, err := c.PostCreate("/api/x", map[string]string{"a": "b"})
 	if !errors.Is(err, ErrAmbiguousWrite) {
-		t.Fatalf("err = %v, want ErrAmbiguousWrite through Post", err)
+		t.Fatalf("err = %v, want ErrAmbiguousWrite through PostCreate", err)
 	}
 	if n != 1 {
 		t.Fatalf("attempts = %d, want 1", n)
 	}
 }
 
-func TestPost_GatewayErrorIsAmbiguous(t *testing.T) {
+func TestPostCreate_GatewayErrorIsAmbiguous(t *testing.T) {
 	stubRetrySleep(t)
 	c, _ := statusSequenceClient(func(int) int { return http.StatusGatewayTimeout })
-	if _, err := c.Post("/api/x", map[string]string{}); !errors.Is(err, ErrAmbiguousWrite) {
+	if _, err := c.PostCreate("/api/x", map[string]string{}); !errors.Is(err, ErrAmbiguousWrite) {
 		t.Fatalf("err = %v, want ErrAmbiguousWrite", err)
 	}
 	c, _ = statusSequenceClient(func(int) int { return http.StatusBadRequest })
-	if _, err := c.Post("/api/x", map[string]string{}); errors.Is(err, ErrAmbiguousWrite) {
+	if _, err := c.PostCreate("/api/x", map[string]string{}); errors.Is(err, ErrAmbiguousWrite) {
 		t.Fatal("a 400 is a definite rejection, not ambiguous")
 	}
 }
@@ -390,7 +390,8 @@ func TestRoundTripWithRetry_GETTimeoutStillRetried(t *testing.T) {
 	}
 }
 
-func TestPostIdempotent_KeepsFullRetryPolicy(t *testing.T) {
+// Plain Post keeps master's retry policy: gateway errors and timeouts are replayed.
+func TestPost_KeepsFullRetryPolicy(t *testing.T) {
 	stubRetrySleep(t)
 	c, n := statusSequenceClient(func(n int) int {
 		if n == 1 {
@@ -398,17 +399,33 @@ func TestPostIdempotent_KeepsFullRetryPolicy(t *testing.T) {
 		}
 		return http.StatusOK
 	})
-	if _, err := c.PostIdempotent("/api/x", map[string]string{}); err != nil {
+	if _, err := c.Post("/api/x", map[string]string{}); err != nil {
 		t.Fatal(err)
 	}
 	if *n != 2 {
 		t.Fatalf("attempts = %d, want 2", *n)
 	}
+
+	var tries int
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		tries++
+		if tries == 1 {
+			return nil, timeoutError{}
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header), Request: req}, nil
+	})}
+	c = &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	if _, err := c.Post("/api/x", map[string]string{}); err != nil {
+		t.Fatal(err)
+	}
+	if tries != 2 {
+		t.Fatalf("timeout attempts = %d, want 2", tries)
+	}
 }
 
-// Crown jewel upserts: idempotent, so gateway errors replay, but its client opts out of timeout
-// replay (expensive rescoring) — the combination must keep both behaviours.
-func TestPostIdempotent_WithoutTimeoutRetryStillSkipsTimeouts(t *testing.T) {
+// Crown jewel upserts: gateway errors replay, but its client opts out of timeout replay
+// (expensive rescoring) — the combination must keep both behaviours.
+func TestPost_WithoutTimeoutRetryStillSkipsTimeouts(t *testing.T) {
 	stubRetrySleep(t)
 	var n int
 	httpClient := &http.Client{Transport: errRoundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -416,7 +433,7 @@ func TestPostIdempotent_WithoutTimeoutRetryStillSkipsTimeouts(t *testing.T) {
 		return nil, timeoutError{}
 	})}
 	c := (&APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}).withoutTimeoutRetry()
-	if _, err := c.PostIdempotent("/api/x", map[string]string{}); err == nil {
+	if _, err := c.Post("/api/x", map[string]string{}); err == nil {
 		t.Fatal("expected timeout error")
 	}
 	if n != 1 {
@@ -429,7 +446,7 @@ func TestPostIdempotent_WithoutTimeoutRetryStillSkipsTimeouts(t *testing.T) {
 		}
 		return http.StatusOK
 	})
-	if _, err := c2.withoutTimeoutRetry().PostIdempotent("/api/x", map[string]string{}); err != nil {
+	if _, err := c2.withoutTimeoutRetry().Post("/api/x", map[string]string{}); err != nil {
 		t.Fatal(err)
 	}
 	if *n2 != 2 {

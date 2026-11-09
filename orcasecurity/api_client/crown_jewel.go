@@ -69,7 +69,7 @@ func (client *APIClient) SetCrownJewel(groupUniqueID, description string, timeou
 	}
 
 	c := client.crownJewelWriteClient(timeout)
-	if _, err := c.PostIdempotent(crownJewelsAPIPath, crownJewelWriteRequest{
+	if _, err := c.Post(crownJewelsAPIPath, crownJewelWriteRequest{
 		GroupUniqueIDs: []string{groupUniqueID},
 		Description:    description,
 	}); err != nil {

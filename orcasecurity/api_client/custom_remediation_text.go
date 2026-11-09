@@ -1,7 +1,6 @@
 package api_client
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,7 +20,7 @@ func (client *APIClient) setCustomRemediationText(data any) error {
 		if resp == nil || resp.StatusCode() != http.StatusNotFound {
 			return putErr
 		}
-		resp, err = client.postWithResponse(context.Background(), customRemediationTextPath, data)
+		resp, err = client.postWithResponse(noReplayContext(), customRemediationTextPath, data)
 		switch {
 		case errors.Is(err, ErrAmbiguousWrite):
 			ambiguous = true

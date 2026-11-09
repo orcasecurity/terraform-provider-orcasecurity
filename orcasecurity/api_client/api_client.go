@@ -172,14 +172,15 @@ func (c *APIClient) Head(path string) (*APIResponse, error) {
 	return c.doRequest(*req)
 }
 
-// Execute POST HTTP request. Not replayed after an ambiguous failure (see ErrAmbiguousWrite).
+// Execute POST HTTP request.
 func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	return c.post(context.Background(), path, data)
 }
 
-// PostIdempotent is Post for requests safe to replay (queries, set-to-value writes): full retry policy.
-func (c *APIClient) PostIdempotent(path string, data interface{}) (*APIResponse, error) {
-	return c.post(context.WithValue(context.Background(), idempotentPostKey{}, true), path, data)
+// PostCreate is Post for a create whose caller recovers an ambiguous outcome: after a timeout,
+// dropped connection or 502/504 it returns ErrAmbiguousWrite instead of replaying the request.
+func (c *APIClient) PostCreate(path string, data interface{}) (*APIResponse, error) {
+	return c.post(noReplayContext(), path, data)
 }
 
 func (c *APIClient) post(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
