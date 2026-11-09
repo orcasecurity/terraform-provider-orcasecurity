@@ -81,7 +81,7 @@ func (client *APIClient) CreateCustomSonarAlert(data CustomAlert) (*CustomAlert,
 	if data.RemediationText != nil {
 		data.RemediationText.AlertType = alert.RuleType
 		if err = client.SetCustomSonarAlertRemediationText(*data.RemediationText); err != nil {
-			return nil, fmt.Errorf("remediation text create failed: %s", err.Error())
+			return nil, rollbackCreatedRule(err, alert.ID, client.DeleteCustomSonarAlert)
 		}
 	}
 

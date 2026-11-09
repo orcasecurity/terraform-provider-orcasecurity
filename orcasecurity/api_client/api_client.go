@@ -183,6 +183,15 @@ func (c *APIClient) PostIdempotent(path string, data interface{}) (*APIResponse,
 }
 
 func (c *APIClient) post(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
+	resp, err := c.postWithResponse(ctx, path, data)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// postWithResponse keeps the response on an API error so the caller can branch on its status.
+func (c *APIClient) postWithResponse(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %v", err)
@@ -206,7 +215,7 @@ func (c *APIClient) post(ctx context.Context, path string, data interface{}) (*A
 	response, err := c.doRequest(*req)
 	if err != nil {
 		// Never append the payload — it carries secrets and surfaces in diagnostics.
-		return nil, fmt.Errorf("request failed: %w, URL: %s", err, fullURL)
+		return response, fmt.Errorf("request failed: %w, URL: %s", err, fullURL)
 	}
 
 	return response, nil
