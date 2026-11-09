@@ -2,6 +2,12 @@
 
 Notable changes in each release of the Orca Security Terraform provider. The same notes are published on [GitHub Releases](https://github.com/orcasecurity/terraform-provider-orcasecurity/releases).
 
+## 0.0.63 (November 9, 2026)
+
+### Changes
+
+* WASP-1872: Generate release notes and keep CHANGELOG.md current ([#279](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/279))
+
 ## 0.0.62 (October 7, 2026)
 
 ### Changes
