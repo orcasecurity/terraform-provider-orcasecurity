@@ -65,9 +65,11 @@ base_version() {
 	printf '%s\n%s\n' "${tag#v}" "$section" | sed '/^$/d' | sort -V | tail -1
 }
 
+# The newest commit that added or removed the heading is the one that added
+# the heading present now; a later edit (e.g. the date) keeps the count.
 section_commit() {
 	local ref=$1 version=$2 since=$3
-	git log --reverse --format=%H -G "^## ${version//./\\.} " "$since..$ref" -- CHANGELOG.md | sed -n 1p
+	git log --format=%H -S "## $version (" "$since..$ref" -- CHANGELOG.md | sed -n 1p
 }
 
 # When the newest merged section is not tagged yet, its commit starts the range.
@@ -234,23 +236,30 @@ check() {
 	summary "$body"
 }
 
+merged_pr_labels() {
+	local sha=$1
+	gh api "repos/{owner}/{repo}/commits/$sha/pulls" --jq 'if length == 0 then error("no PR") else [.[0].labels[].name] | join(",") end'
+}
+
 # Every merged section without a tag is released, oldest first: when several
 # PRs merge before a run starts, GitHub replaces the queued runs with one.
+# Each version must be exactly what its PR's labels allow, as the PR check
+# requires, because that check is not a required status check.
 release_plan() {
-	local last v sha previous releases="[]"
+	local last v sha previous labels expected releases="[]"
 	last=$(latest_tag HEAD)
 	[[ -n $last ]] || die "no v* tag found"
 	previous=${last#v}
 	for v in $(section_versions CHANGELOG.md | sort -V); do
 		tag_exists "$v" && continue
 		[[ $v != "${last#v}" && $(printf '%s\n%s\n' "${last#v}" "$v" | sort -V | tail -1) == "$v" ]] || continue
-		case "$v" in
-		"$(next_version "$previous" "")" | "$(next_version "$previous" release:minor)" | "$(next_version "$previous" release:major)") ;;
-		*) die "CHANGELOG.md section $v is not the next patch, minor or major version after $previous; nothing was released" ;;
-		esac
-		previous=$v
 		sha=$(section_commit HEAD "$v" "$last")
 		[[ -n $sha ]] || die "cannot find the commit that added the $v section"
+		labels=$(merged_pr_labels "$sha") || die "cannot read the PR labels for ${sha:0:7}; nothing was released"
+		expected=$(next_version "$previous" "$labels")
+		[[ $v == "$expected" ]] ||
+			die "CHANGELOG.md section $v (${sha:0:7}) should be $expected after $previous (PR labels: ${labels:-none}); nothing was released"
+		previous=$v
 		echo "release v$v at ${sha:0:7}"
 		releases=$(jq -c --arg v "$v" --arg sha "$sha" '. + [{version: $v, sha: $sha}]' <<<"$releases")
 	done

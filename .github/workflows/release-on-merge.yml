@@ -19,6 +19,7 @@ jobs:
         runs-on: ubuntu-24.04
         permissions:
             contents: read
+            pull-requests: read
         outputs:
             releases: ${{ steps.plan.outputs.releases }}
         steps:
@@ -30,6 +31,8 @@ jobs:
             - name: Find unreleased CHANGELOG.md sections
               id: plan
               run: scripts/changelog.sh release-plan
+              env:
+                  GH_TOKEN: ${{ github.token }}
 
     release:
         needs: plan
