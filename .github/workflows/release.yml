@@ -21,6 +21,11 @@ on:
                 description: "Tag to release, e.g. v0.0.63"
                 required: true
                 type: string
+            commit:
+                description: "Commit to tag first (release on merge); empty when the tag already exists"
+                required: false
+                type: string
+                default: ""
 
 permissions:
     contents: write
@@ -34,9 +39,15 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v7
               with:
-                  ref: ${{ inputs.tag || github.ref }}
+                  ref: ${{ inputs.commit || inputs.tag || github.ref }}
                   # Allow goreleaser to acce`ss older tag information.
                   fetch-depth: 0
+
+            - name: Tag the release commit
+              if: inputs.commit != ''
+              run: scripts/changelog.sh tag "$RELEASE_TAG" "$COMMIT"
+              env:
+                  COMMIT: ${{ inputs.commit }}
 
             - name: Set up Go
               uses: actions/setup-go@v7
@@ -57,7 +68,7 @@ jobs:
                   if scripts/release-notes.sh extract "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"; then
                       echo "args=--release-notes=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
                   else
-                      echo "::warning::CHANGELOG.md has no section for $RELEASE_TAG; GoReleaser generated the notes from commits instead. Release by merging the Release PR to keep CHANGELOG.md current."
+                      echo "::warning::CHANGELOG.md has no section for $RELEASE_TAG; GoReleaser generated the notes from commits instead. The next \`make changelog\` backfills this version into CHANGELOG.md."
                   fi
 
             - name: Run GoReleaser

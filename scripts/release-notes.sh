@@ -4,8 +4,14 @@ set -euo pipefail
 usage() {
 	cat >&2 <<'EOF'
 usage:
-  scripts/release-notes.sh generate <version> [date]   add a <version> section to the top of CHANGELOG.md
-  scripts/release-notes.sh extract <version>           print the <version> section body (for the GitHub release)
+  scripts/release-notes.sh notes <version>             print the generated notes for <version>
+  scripts/release-notes.sh generate <version> [date]   add a generated <version> section to the top of CHANGELOG.md
+  scripts/release-notes.sh extract <version>           print the <version> section body from CHANGELOG.md
+
+env:
+  BASE_REF  commit to generate from when <version> is not tagged (default: HEAD)
+  ENTRY     extra commit subject appended on top of BASE_REF, e.g. "feat(x): y (#280)"
+  PREVIOUS_TAG, PREVIOUS_REF  start the range at PREVIOUS_REF (a merged release not tagged yet)
 EOF
 	exit 2
 }
@@ -63,28 +69,29 @@ render() {
 	'
 }
 
-generate() {
-	local version=$1 date=${2:-$(date '+%B %-d, %Y')}
-	local tag="v$version"
-	local goreleaser=${GORELEASER:-goreleaser}
-
-	command -v "$goreleaser" >/dev/null || die "goreleaser not found; run via 'make release-notes VERSION=$version'"
-	[[ -f $changelog ]] || die "CHANGELOG.md not found"
-	if extract "$version" >/dev/null 2>&1; then
-		die "CHANGELOG.md already has a section for $version"
-	fi
+notes() {
+	local version=$1
+	local tag="v$version" goreleaser=${GORELEASER:-goreleaser} base=${BASE_REF:-HEAD} entry=${ENTRY:-}
+	command -v "$goreleaser" >/dev/null || die "goreleaser not found; run via 'make changelog'"
 
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT
 
-	# The tag must exist for GoReleaser to compute the range, so an unreleased
-	# version is tagged only inside this throwaway clone, never in the real repo.
+	# GoReleaser needs a real tag to compute the range, so an unreleased version
+	# (and the PR's own squash commit) exists only inside this throwaway clone.
 	git clone -q --shared --no-checkout "$repo_root" "$tmp/src"
-	if git -C "$repo_root" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+	if [[ -z $entry ]] && git -C "$repo_root" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
 		git -C "$tmp/src" checkout -q --detach "$tag"
 	else
-		git -C "$tmp/src" checkout -q --detach "$(git -C "$repo_root" rev-parse HEAD)"
-		git -C "$tmp/src" tag "$tag"
+		git -C "$tmp/src" checkout -q --detach "$(git -C "$repo_root" rev-parse "$base^{commit}")"
+		if [[ -n $entry ]]; then
+			git -C "$tmp/src" -c user.name=changelog -c user.email=changelog@localhost \
+				commit -q --allow-empty --no-verify -m "$entry"
+		fi
+		git -C "$tmp/src" tag -f "$tag" >/dev/null
+	fi
+	if [[ -n ${PREVIOUS_TAG:-} && -n ${PREVIOUS_REF:-} ]]; then
+		git -C "$tmp/src" tag -f "$PREVIOUS_TAG" "$(git -C "$repo_root" rev-parse "$PREVIOUS_REF^{commit}")" >/dev/null
 	fi
 
 	{
@@ -96,29 +103,41 @@ generate() {
 	} >"$tmp/goreleaser.yml"
 
 	(cd "$tmp/src" && GITHUB_TOKEN=${GITHUB_TOKEN:-unused} "$goreleaser" release \
-		--clean --skip=publish --config "$tmp/goreleaser.yml" >"$tmp/goreleaser.log" 2>&1) ||
+		--clean --skip=publish,validate --config "$tmp/goreleaser.yml" >"$tmp/goreleaser.log" 2>&1) ||
 		{ cat "$tmp/goreleaser.log" >&2; die "goreleaser failed"; }
 
+	echo "release-notes: $version $(grep -o 'previous_tag=[^ ]*' "$tmp/goreleaser.log" | head -1)" >&2
 	local body
 	body=$(render "$(repo_url)" <"$tmp/dist/CHANGELOG.md")
-	[[ -n $body ]] || body="No user-facing changes."
+	echo "${body:-No user-facing changes.}"
+}
 
-	local section="$tmp/section.md"
+generate() {
+	local version=$1 date=${2:-$(date '+%B %-d, %Y')}
+	[[ -f $changelog ]] || die "CHANGELOG.md not found"
+	if extract "$version" >/dev/null 2>&1; then
+		die "CHANGELOG.md already has a section for $version"
+	fi
+
+	local body section out
+	body=$(notes "$version")
+	section=$(mktemp)
+	out=$(mktemp)
 	printf '## %s (%s)\n\n%s\n\n' "$version" "$date" "$body" >"$section"
-
 	awk -v section="$section" '
 		!done && /^## / { while ((getline line < section) > 0) print line; done = 1 }
 		{ print }
 		END { if (!done) while ((getline line < section) > 0) print line }
-	' "$changelog" >"$tmp/CHANGELOG.md"
-	cp "$tmp/CHANGELOG.md" "$changelog"
-
-	echo "CHANGELOG.md: added $version ($(grep -o 'previous_tag=[^ ]*' "$tmp/goreleaser.log" | head -1))"
+	' "$changelog" >"$out"
+	cp "$out" "$changelog"
+	rm -f "$section" "$out"
+	echo "CHANGELOG.md: added $version"
 }
 
 [[ $# -ge 2 ]] || usage
 cmd=$1 version=${2#v}
 case "$cmd" in
+notes) notes "$version" ;;
 generate) generate "$version" "${3:-}" ;;
 extract) extract "$version" || die "CHANGELOG.md has no section for $version" ;;
 *) usage ;;

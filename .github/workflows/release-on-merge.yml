@@ -1,0 +1,47 @@
+# Releases every CHANGELOG.md section merged to master that has no tag yet.
+# The tag is pushed with GITHUB_TOKEN, which does not trigger other workflows,
+# so release.yml is called directly.
+name: Release on merge
+on:
+    push:
+        branches:
+            - master
+    workflow_dispatch:
+
+concurrency:
+    group: release
+    cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+    plan:
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        outputs:
+            releases: ${{ steps.plan.outputs.releases }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Find unreleased CHANGELOG.md sections
+              id: plan
+              run: scripts/changelog.sh release-plan
+
+    release:
+        needs: plan
+        if: needs.plan.outputs.releases != '[]'
+        strategy:
+            max-parallel: 1
+            matrix:
+                include: ${{ fromJSON(needs.plan.outputs.releases) }}
+        permissions:
+            contents: write
+        uses: ./.github/workflows/release.yml
+        with:
+            tag: v${{ matrix.version }}
+            commit: ${{ matrix.sha }}
+        secrets: inherit

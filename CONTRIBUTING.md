@@ -72,14 +72,21 @@ For information about writing acceptance tests, see the main Terraform [contribu
 Releasing
 ---------------------------
 
-Release notes live in [CHANGELOG.md](./CHANGELOG.md) and are copied into the GitHub release, which is where Dependabot and similar tools read them.
+Every merged PR is released automatically. Its release notes are the `CHANGELOG.md` section that the PR itself adds, and the same text is published as the GitHub release, which is where Dependabot and similar tools read it.
 
-Releases are driven by the **Release PR** workflow (`.github/workflows/release-pr.yml`):
+1. Open your PR (a draft is fine), then run `make changelog` on the branch. It adds a `## X.Y.Z (date)` section to the top of `CHANGELOG.md` for the version your merge will release. The section lists your PR (from its title) and anything merged since the last release, such as Dependabot bumps, grouped into Features, Bug fixes, Changes and Dependencies (rules in `.goreleaser.yml` under `changelog`). The first run builds a pinned GoReleaser into `bin/`.
+2. Reword entries if you like, then commit `CHANGELOG.md` and push. The **CHANGELOG.md** check fails the PR if the section is missing, has the wrong version, or leaves out your PR or an unreleased change.
+3. When the PR merges, the **Release on merge** workflow tags the merge commit and publishes the release with that section as its notes.
 
-1. On every push to `master`, it opens or refreshes a PR titled `Release vX.Y.Z` (next patch version) whose only change is the new `CHANGELOG.md` section, built from the commits since the last tag and grouped into Features, Bug fixes, Changes and Dependencies (rules in `.goreleaser.yml` under `changelog`).
-2. To release, approve and squash-merge that PR. The workflow tags the merge commit and runs `release.yml`, which publishes the `CHANGELOG.md` section as the release notes.
-3. For a non-patch version, run the workflow manually with the `version` input (e.g. `0.1.0`); the open release PR is retitled.
+Labels change what a merge releases (rerun `make changelog` after changing them):
 
-To reword an entry, edit `CHANGELOG.md` on the `release/next` branch right before merging; the workflow rebuilds the branch whenever `master` changes. To preview the next section locally, run `make release-notes VERSION=X.Y.Z` (do not commit the result).
+| Label | Effect |
+| --- | --- |
+| *(none)* | patch release, e.g. 0.0.63 → 0.0.64 |
+| `release:minor` | minor release, e.g. 0.0.63 → 0.1.0 |
+| `release:major` | major release, e.g. 0.1.0 → 1.0.0 |
+| `no-release` | no section, no release; the change ships with the next release |
 
-Pushing a `v*` tag by hand still releases, with notes generated from the commits; the next release PR then backfills that version into `CHANGELOG.md`.
+If another PR is released first, your branch conflicts in `CHANGELOG.md`: update the branch from `master` and rerun `make changelog`. Rerunning rebuilds the section from scratch, so reword entries after the last run. Dependabot PRs need no section; their bumps are listed in the next release.
+
+Pushing a `v*` tag by hand still releases, with notes generated from the commits; the next `make changelog` backfills that version into `CHANGELOG.md`.

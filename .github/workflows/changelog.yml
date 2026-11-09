@@ -1,0 +1,37 @@
+# Every PR must add the CHANGELOG.md section that its merge will release
+# (run `make changelog`). Labels: no-release, release:minor, release:major.
+name: Changelog
+on:
+    pull_request:
+        branches:
+            - master
+        types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+permissions: {}
+
+jobs:
+    changelog:
+        name: CHANGELOG.md
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Install GoReleaser
+              uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+              with:
+                  distribution: goreleaser
+                  version: "v1.25.1"
+                  install-only: true
+
+            - name: Check CHANGELOG.md
+              run: scripts/changelog.sh check
+              env:
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+                  PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+                  PR_AUTHOR: ${{ github.event.pull_request.user.login }}
