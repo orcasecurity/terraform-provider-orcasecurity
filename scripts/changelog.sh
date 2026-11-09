@@ -237,12 +237,18 @@ check() {
 # Every merged section without a tag is released, oldest first: when several
 # PRs merge before a run starts, GitHub replaces the queued runs with one.
 release_plan() {
-	local last v sha releases="[]"
+	local last v sha previous releases="[]"
 	last=$(latest_tag HEAD)
 	[[ -n $last ]] || die "no v* tag found"
+	previous=${last#v}
 	for v in $(section_versions CHANGELOG.md | sort -V); do
 		tag_exists "$v" && continue
 		[[ $v != "${last#v}" && $(printf '%s\n%s\n' "${last#v}" "$v" | sort -V | tail -1) == "$v" ]] || continue
+		case "$v" in
+		"$(next_version "$previous" "")" | "$(next_version "$previous" release:minor)" | "$(next_version "$previous" release:major)") ;;
+		*) die "CHANGELOG.md section $v is not the next patch, minor or major version after $previous; nothing was released" ;;
+		esac
+		previous=$v
 		sha=$(section_commit HEAD "$v" "$last")
 		[[ -n $sha ]] || die "cannot find the commit that added the $v section"
 		echo "release v$v at ${sha:0:7}"
@@ -257,7 +263,11 @@ tag() {
 	[[ $version =~ $semver ]] || die "invalid version '$version'"
 	[[ $commit =~ ^[0-9a-f]{40}$ ]] || die "invalid commit '$commit'"
 	if tag_exists "$version"; then
-		die "v$version already exists"
+		local existing
+		existing=$(git rev-parse "v$version^{commit}")
+		[[ $existing == "$commit" ]] || die "v$version already exists at ${existing:0:7}, not ${commit:0:7}"
+		echo "tag v$version already points at ${commit:0:7}"
+		return
 	fi
 	git tag "v$version" "$commit"
 	git push -q origin "v$version"
