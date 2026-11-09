@@ -115,6 +115,7 @@ func (client *APIClient) ListShiftLeftPolicyIDsByName(policyType, name string) (
 	}
 	ids := map[string]bool{}
 	for _, p := range all {
+		// Same rule as createrecovery.SameName, inlined: createrecovery imports api_client (import cycle).
 		if strings.TrimSpace(p.Name) == strings.TrimSpace(name) && !p.Builtin && (p.Type == "" || p.Type == policyType) {
 			ids[p.ID] = true
 		}

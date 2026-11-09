@@ -2,7 +2,7 @@ package shift_left_installation
 
 import "terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
-// installationIDsNamed adapts an installation list to the id set createrecovery diffs .
+// installationIDsNamed adapts an installation list to the id set createrecovery diffs.
 func installationIDsNamed[T any](list func() ([]T, error), idName func(*T) (string, string)) func(string) (map[string]bool, error) {
 	return func(name string) (map[string]bool, error) {
 		all, err := list()
