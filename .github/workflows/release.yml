@@ -62,12 +62,7 @@ jobs:
                   passphrase: ${{ secrets.PASSPHRASE }}
 
             - name: Release notes from CHANGELOG.md
-              run: |
-                  if ! scripts/changelog.sh extract "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"; then
-                      previous=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname --merged "$RELEASE_TAG^" | sed -n 1p)
-                      scripts/changelog.sh notes "$previous" "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
-                      echo "::warning::CHANGELOG.md has no section for $RELEASE_TAG; the notes were generated from the commits since $previous. The next \`make changelog\` backfills this version into CHANGELOG.md."
-                  fi
+              run: scripts/changelog.sh release-notes "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
 
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0

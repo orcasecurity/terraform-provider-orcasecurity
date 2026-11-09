@@ -10,6 +10,7 @@ usage:
   scripts/changelog.sh tag <version> <commit>       CI: tag <commit> as v<version> and push the tag
   scripts/changelog.sh notes <from> <to> [entry]    print the release notes for <from>..<to>, plus an extra entry
   scripts/changelog.sh extract <version>            print the <version> section body from CHANGELOG.md
+  scripts/changelog.sh release-notes <tag>          CI: print the GitHub release body for <tag> (section, or generated notes)
 
 labels: no-release (no section, no release), release:minor, release:major (default: patch)
 EOF
@@ -75,10 +76,11 @@ versions_in() {
 }
 
 release_date() {
-	if [[ $# -eq 0 ]]; then
+	local rev=${1:-}
+	if [[ -z $rev ]]; then
 		LC_ALL=C date '+%B %-d, %Y'
 	else
-		LC_ALL=C git log -1 --format=%cd --date=format:'%B %-d, %Y' "$1"
+		LC_ALL=C git log -1 --format=%cd --date=format:'%B %-d, %Y' "$rev"
 	fi
 }
 
@@ -177,6 +179,20 @@ extract() {
 		found { print }
 		END { if (!found) exit 1 }
 	' CHANGELOG.md | perl -0777 -pe 's/\A\s+//; s/\s+\z/\n/'
+}
+
+release_notes() {
+	local tag=$1 version=${1#v} previous
+	if ! [[ $version =~ $semver ]] || ! tag_exists "$version"; then
+		die "release-notes: $tag is not a release tag; run release.yml on a v* tag ref"
+	fi
+	if extract "$version"; then
+		return
+	fi
+	previous=$(latest_tag "v$version^")
+	[[ -n $previous ]] || die "release-notes: no v* tag before v$version to generate the notes from"
+	echo "::warning::CHANGELOG.md has no section for v$version; the notes were generated from the commits since $previous. The next \`make changelog\` backfills this version into CHANGELOG.md." >&2
+	notes "$previous" "v$version"
 }
 
 generate() {
@@ -322,8 +338,9 @@ merged_pr_labels() {
 # tag before GoReleaser publishes, so a tag alone may be a failed release.
 # Every pending merged section is released, oldest first: when several PRs
 # merge before a run starts, GitHub replaces the queued runs with one.
-# Each version must be exactly what its PR's labels allow, as the PR check
-# requires, because that check is not a required status check.
+# An untagged version must be exactly what its PR's labels allow, as the PR
+# check requires, because that check is not a required status check. An
+# existing tag already fixes the version and the commit.
 release_plan() {
 	local published last="" t v sha previous labels expected releases="[]"
 	published=$(gh release list --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName') ||
@@ -339,12 +356,16 @@ release_plan() {
 	for v in $(versions_in <CHANGELOG.md | sort -V); do
 		version_gt "$v" "${last#v}" || continue
 		grep -qxF "v$v" <<<"$published" && continue
-		sha=$(section_commit HEAD "$v" "$last")
-		[[ -n $sha ]] || die "cannot find the commit that added the $v section"
-		labels=$(merged_pr_labels "$sha") || die "cannot read the PR labels for ${sha:0:7}; nothing was released"
-		expected=$(next_version "$previous" "$labels")
-		[[ $v == "$expected" ]] ||
-			die "CHANGELOG.md section $v (${sha:0:7}) should be $expected after $previous (PR labels: ${labels:-none}); nothing was released"
+		if tag_exists "$v"; then
+			sha=$(git rev-parse "v$v^{commit}")
+		else
+			sha=$(section_commit HEAD "$v" "$last")
+			[[ -n $sha ]] || die "cannot find the commit that added the $v section"
+			labels=$(merged_pr_labels "$sha") || die "cannot read the PR labels for ${sha:0:7}; nothing was released"
+			expected=$(next_version "$previous" "$labels")
+			[[ $v == "$expected" ]] ||
+				die "CHANGELOG.md section $v (${sha:0:7}) should be $expected after $previous (PR labels: ${labels:-none}); nothing was released"
+		fi
 		previous=$v
 		echo "release v$v at ${sha:0:7}"
 		releases=$(jq -c --arg v "$v" --arg sha "$sha" '. + [{version: $v, sha: $sha}]' <<<"$releases")
@@ -385,6 +406,10 @@ notes)
 extract)
 	[[ $# -eq 2 ]] || usage
 	extract "${2#v}" || die "CHANGELOG.md has no section for ${2#v}"
+	;;
+release-notes)
+	[[ $# -eq 2 ]] || usage
+	release_notes "$2"
 	;;
 *) usage ;;
 esac
