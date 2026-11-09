@@ -26,6 +26,13 @@ type policyStub struct {
 	readBackMissing bool
 	requests        []string
 	projects        []string
+	// postStatus, when set, answers the create POST with this status; postCommits says whether the
+	// policy was created anyway (an ambiguous gateway/timeout failure).
+	postStatus  int
+	postCommits bool
+	created     bool
+	// preexisting are same-name policies that existed before this create.
+	preexisting []string
 }
 
 func (s *policyStub) record(method, path string) {
@@ -54,6 +61,33 @@ func (s *policyStub) policyBody() map[string]any {
 	}
 }
 
+func (s *policyStub) listPage(startAt string) []map[string]any {
+	if startAt != "" && startAt != "0" {
+		return []map[string]any{}
+	}
+	s.mu.Lock()
+	ids := append([]string(nil), s.preexisting...)
+	if s.created {
+		ids = append(ids, stubPolicyID)
+	}
+	s.mu.Unlock()
+	rows := make([]map[string]any, 0, len(ids))
+	for _, id := range ids {
+		rows = append(rows, map[string]any{"id": id, "name": "tf-stub-policy", "type": "malicious_packages", "builtin": false})
+	}
+	return rows
+}
+
+func (s *policyStub) posts() int {
+	count := 0
+	for _, req := range s.recorded() {
+		if strings.HasPrefix(req, "POST ") {
+			count++
+		}
+	}
+	return count
+}
+
 func (s *policyStub) recorded() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -78,7 +112,17 @@ func (s *policyStub) start(t *testing.T) {
 		s.record(r.Method, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/shiftleft/policies/":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": s.listPage(r.URL.Query().Get("start_at_index"))})
 		case r.Method == http.MethodPost && r.URL.Path == base:
+			s.mu.Lock()
+			s.created = s.postStatus == 0 || s.postCommits
+			status := s.postStatus
+			s.mu.Unlock()
+			if status != 0 {
+				http.Error(w, `<html>gateway timeout</html>`, status)
+				return
+			}
 			_ = json.NewEncoder(w).Encode(s.policyBody())
 		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/projects/"):
 			if s.attachStatus != http.StatusOK {
@@ -180,5 +224,43 @@ func TestShiftLeftPolicyCreate_SuccessKeepsPolicy(t *testing.T) {
 	// Only resource.Test teardown DELETE is expected.
 	if got := stub.deletes(); got != 1 {
 		t.Errorf("expected only the final destroy DELETE, got %d in %v", got, stub.recorded())
+	}
+}
+
+// A 504 on create can still have committed the policy. The client must not replay the POST, and
+// Create must adopt the new policy instead of leaving it untracked (seen live on the lab).
+func TestShiftLeftPolicyCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
+	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
+		preexisting: []string{"11111111-1111-1111-1111-111111111111"}}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: stubPolicyConfig,
+			Check:  resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.stub", "id", stubPolicyID),
+		}},
+	})
+
+	if got := stub.posts(); got != 1 {
+		t.Errorf("an ambiguous create must not be replayed, got %d POSTs in %v", got, stub.recorded())
+	}
+}
+
+func TestShiftLeftPolicyCreate_AmbiguousPostThatDidNotCommitSaysSafeToRetry(t *testing.T) {
+	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout,
+		preexisting: []string{"11111111-1111-1111-1111-111111111111"}}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config:      stubPolicyConfig,
+			ExpectError: regexp.MustCompile(`was\s+not\s+created\s+and\s+re-applying\s+is\s+safe`),
+		}},
+	})
+
+	if got := stub.posts(); got != 1 {
+		t.Errorf("an ambiguous create must not be replayed, got %d POSTs in %v", got, stub.recorded())
 	}
 }

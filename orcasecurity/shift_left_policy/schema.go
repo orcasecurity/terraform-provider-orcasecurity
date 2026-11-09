@@ -275,7 +275,7 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 			Computed:    true,
 			Description: "Project IDs to attach this policy to. Reflects the API on read (reordered to match prior state so an unstable API order doesn't drift); " +
 				"omit to leave the current attachment unchanged, or set to `[]` to detach from all projects. " +
-				"Not supported for `scm_posture` (scope those policies with `scm_posture.scope` instead).",
+				"Ignored for `scm_posture` (the API cannot attach those policies to projects; scope them with `scm_posture.scope` instead) — setting it plans with a warning.",
 			PlanModifiers: []planmodifier.List{
 				listplanmodifier.UseStateForUnknown(),
 			},

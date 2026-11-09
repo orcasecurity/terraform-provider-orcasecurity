@@ -105,6 +105,24 @@ func (client *APIClient) GetShiftLeftPolicy(policyType, id string) (*ShiftLeftPo
 	return &response, nil
 }
 
+// Names are not unique, so callers match by id set, not by name alone. search is a server-side
+// partial-match hint; the exact name/type match is done here.
+func (client *APIClient) ListShiftLeftPolicyIDsByName(policyType, name string) (map[string]bool, error) {
+	all, err := getAllScmPages[ShiftLeftPolicy](client, "/api/shiftleft/policies/", listFilters{
+		"type": policyType, "search": name, "search_fields": "policy_name",
+	})
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]bool{}
+	for _, p := range all {
+		if p.Name == name && !p.Builtin && (p.Type == "" || p.Type == policyType) {
+			ids[p.ID] = true
+		}
+	}
+	return ids, nil
+}
+
 func (client *APIClient) CreateShiftLeftPolicy(policyType string, policy ShiftLeftPolicy) (*ShiftLeftPolicy, error) {
 	resp, err := client.Post(shiftLeftPolicyBasePath(policyType), policy)
 	if err != nil {

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	fwschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -12,7 +14,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestValidateConfig_ScmPostureRejectsProjectsIds(t *testing.T) {
+// Older providers sent projects_ids in the scm_posture body; the API silently drops it, so those
+// configs applied cleanly. It must keep planning (warning, no-op) rather than fail.
+func TestValidateConfig_ScmPostureWarnsOnProjectsIds(t *testing.T) {
 	resp := validateConfig(t, shiftLeftPolicyResourceModel{
 		Type:                     types.StringValue("scm_posture"),
 		Name:                     types.StringValue("scm"),
@@ -23,12 +27,30 @@ func TestValidateConfig_ScmPostureRejectsProjectsIds(t *testing.T) {
 			types.StringValue("proj-1"),
 		}),
 	})
-	if !resp.Diagnostics.HasError() {
-		t.Fatal("expected error for scm_posture + projects_ids")
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("scm_posture + projects_ids must not error: %v", resp.Diagnostics)
 	}
-	detail := resp.Diagnostics.Errors()[0].Detail()
+	if resp.Diagnostics.WarningsCount() != 1 {
+		t.Fatalf("expected one warning, got %v", resp.Diagnostics)
+	}
+	detail := resp.Diagnostics.Warnings()[0].Detail()
 	if !strings.Contains(detail, "projects_ids") || !strings.Contains(detail, "scm_posture") {
 		t.Fatalf("unexpected detail: %s", detail)
+	}
+}
+
+func TestScmPostureProjectsIds_NoWriteAndKeptInState(t *testing.T) {
+	configured := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("proj-1")})
+	plan := &shiftLeftPolicyResourceModel{Type: types.StringValue("scm_posture"), ProjectsIds: configured}
+	if projectsIdsChanged(plan, &shiftLeftPolicyResourceModel{Type: plan.Type, ProjectsIds: types.ListNull(types.StringType)}) {
+		t.Error("scm_posture projects_ids must never trigger a projects write")
+	}
+	if err := (&shiftLeftPolicyResource{}).syncProjects(plan, "scm_posture", "p1"); err != nil {
+		t.Errorf("syncProjects must be a no-op for scm_posture: %v", err)
+	}
+	got := apiToState(&api_client.ShiftLeftPolicy{ID: "p1", Type: "scm_posture"}, plan)
+	if !got.ProjectsIds.Equal(configured) {
+		t.Errorf("projects_ids = %v, want the configured %v (API never reports projects for scm_posture)", got.ProjectsIds, configured)
 	}
 }
 

@@ -282,7 +282,7 @@ After importing, run `terraform plan` and copy the populated control blocks into
 - `file_system_vulnerabilities` (Block, Optional) (see [below for nested schema](#nestedblock--file_system_vulnerabilities))
 - `iac` (Block, Optional) (see [below for nested schema](#nestedblock--iac))
 - `licenses` (Block, Optional) (see [below for nested schema](#nestedblock--licenses))
-- `projects_ids` (List of String) Project IDs to attach this policy to. Reflects the API on read (reordered to match prior state so an unstable API order doesn't drift); omit to leave the current attachment unchanged, or set to `[]` to detach from all projects. Not supported for `scm_posture` (scope those policies with `scm_posture.scope` instead).
+- `projects_ids` (List of String) Project IDs to attach this policy to. Reflects the API on read (reordered to match prior state so an unstable API order doesn't drift); omit to leave the current attachment unchanged, or set to `[]` to detach from all projects. Ignored for `scm_posture` (the API cannot attach those policies to projects; scope them with `scm_posture.scope` instead) — setting it plans with a warning.
 - `sast` (Block, Optional) (see [below for nested schema](#nestedblock--sast))
 - `sca` (Block, Optional) (see [below for nested schema](#nestedblock--sca))
 - `scm_posture` (Block, Optional) (see [below for nested schema](#nestedblock--scm_posture))

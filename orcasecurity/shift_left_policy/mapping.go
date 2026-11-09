@@ -105,6 +105,10 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 		priorProjects = existing.ProjectsIds
 	}
 	orderedProjects := reorderToMatchPrior(tfconv.ListToStringSlice(priorProjects), apiPolicy.ProjectsIds)
+	// scm_posture never reports projects (the API ignores projects_ids for it); keep what was configured.
+	if apiPolicy.Type == "scm_posture" || (existing != nil && existing.Type.ValueString() == "scm_posture") {
+		orderedProjects = tfconv.ListToStringSlice(priorProjects)
+	}
 	model := &shiftLeftPolicyResourceModel{
 		ID:                       types.StringValue(apiPolicy.ID),
 		Type:                     types.StringValue(apiPolicy.Type),
