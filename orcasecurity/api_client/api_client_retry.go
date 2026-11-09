@@ -269,7 +269,8 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 // roundTripWithRetry performs the HTTP round trip with retries for transient
 // transport failures and selected HTTP status codes (408, 429, 502, 503, 504).
 // 429 gets maxThrottleRetryAttempts; everything else maxHTTPRetryAttempts.
-// POST is not idempotent: it retries only 408/429/503 and fails with ErrAmbiguousWrite otherwise.
+// A POST sent via PostCreate is not idempotent: it retries only 408/429/503 and fails with
+// ErrAmbiguousWrite otherwise. Plain Post keeps the full policy.
 // On success (any HTTP status), returns a fully read APIResponse; err is only
 // for request body read failures, transport failures after retries, or context
 // cancellation during backoff.
