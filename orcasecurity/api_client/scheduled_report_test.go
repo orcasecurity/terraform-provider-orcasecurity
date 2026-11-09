@@ -193,7 +193,7 @@ func TestUpdateScheduledReport(t *testing.T) {
 	})}
 
 	apiClient := newTestAPIClient(httpClient)
-	report, err := apiClient.UpdateScheduledReport(testScheduledReportID, ScheduledReport{
+	report, err := apiClient.UpdateScheduledReport(testScheduledReportID, ScheduledReport{}, ScheduledReport{
 		Name:       "Weekly open alerts",
 		Type:       "alerts_svl",
 		Format:     "csv",
@@ -208,46 +208,114 @@ func TestUpdateScheduledReport(t *testing.T) {
 	}
 }
 
-// PATCH omits = unchanged: optional clears must send ""/{} (never null objects — API 500).
-func TestScheduledReportPayload_SendsClearableZeroValuesForEveryOptionalField(t *testing.T) {
-	cleared := ScheduledReport{
+var scheduledReportClearableStrings = []string{
+	"sonar_query", "s3_path", "custom_email_subject", "custom_email_content",
+	"bucket", "azure_blob_container", "google_cloud_storage_template", "snowflake_template",
+}
+
+var scheduledReportClearableObjects = []string{
+	"dsl_filter", "sonar_query_params", "query_filters", "config", "slack_channel",
+}
+
+func clearedScheduledReport() ScheduledReport {
+	return ScheduledReport{
 		Name:       "Weekly open alerts",
 		Type:       "alerts_svl",
 		Format:     "csv",
 		Recurrence: "weekly",
 		Columns:    []string{},
 	}
-	create := func(c APIClient) error { _, err := c.CreateScheduledReport(cleared); return err }
-	update := func(c APIClient) error {
-		_, err := c.UpdateScheduledReport(testScheduledReportID, cleared)
+}
+
+func heldScheduledReport() ScheduledReport {
+	r := clearedScheduledReport()
+	r.DSLFilter = jsonObject{"filter": []interface{}{}}
+	r.SonarQuery = `{"models":["Alert"]}`
+	r.SonarQueryParams = jsonObject{"max_tier": 5}
+	r.QueryFilters = jsonObject{"show_informational_alerts": true}
+	r.Config = jsonObject{"compression_type": ".zip"}
+	r.S3Path = "p"
+	r.CustomEmailSubject = "s"
+	r.CustomEmailContent = "c"
+	r.SlackChannel = jsonObject{"workspace": "w", "channel": "c"}
+	r.Bucket = "b"
+	r.AzureBlobContainer = "a"
+	r.GoogleCloudStorageTemplate = "g"
+	r.SnowflakeTemplate = "sf"
+	return r
+}
+
+// PATCH omits = unchanged: clearing a held optional must send ""/{} (never null objects — API 500).
+func TestScheduledReportUpdatePayload_ClearsEveryHeldOptional(t *testing.T) {
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.UpdateScheduledReport(testScheduledReportID, heldScheduledReport(), clearedScheduledReport())
 		return err
+	})
+	for _, field := range scheduledReportClearableStrings {
+		assertSentAs(t, payload, field, `""`)
 	}
-
-	for _, write := range []struct {
-		name string
-		send func(APIClient) error
-	}{{"create", create}, {"update", update}} {
-		t.Run(write.name, func(t *testing.T) {
-			payload := captureScheduledReportBody(t, write.send)
-
-			for _, field := range []string{
-				"sonar_query", "s3_path", "custom_email_subject", "custom_email_content",
-				"bucket", "azure_blob_container", "google_cloud_storage_template", "snowflake_template",
-			} {
-				assertSentAs(t, payload, field, `""`)
-			}
-			for _, field := range []string{
-				"dsl_filter", "sonar_query_params", "query_filters", "config", "slack_channel",
-			} {
-				assertSentAsEmptyObject(t, payload, field)
-			}
-			// id and status are the two fields that keep omitempty: neither is ever
-			// cleared, so sending their zero value would be wrong rather than useful.
-			for _, field := range []string{"id", "status"} {
-				assertOmitted(t, payload, field)
-			}
-		})
+	for _, field := range scheduledReportClearableObjects {
+		assertSentAsEmptyObject(t, payload, field)
 	}
+	for _, field := range []string{"id", "status"} {
+		assertOmitted(t, payload, field)
+	}
+}
+
+// Live lab: sending "" turns a stored null into "", so an optional with nothing to clear is omitted.
+func TestScheduledReportUpdatePayload_OmitsOptionalsWithNothingToClear(t *testing.T) {
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.UpdateScheduledReport(testScheduledReportID, clearedScheduledReport(), clearedScheduledReport())
+		return err
+	})
+	for _, field := range append(append([]string{}, scheduledReportClearableStrings...), scheduledReportClearableObjects...) {
+		assertOmitted(t, payload, field)
+	}
+	for _, field := range []string{"columns", "recipients_emails"} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("%s missing from update body", field)
+		}
+	}
+}
+
+func TestScheduledReportUpdatePayload_SendsChangedValues(t *testing.T) {
+	next := clearedScheduledReport()
+	next.Bucket = "new"
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.UpdateScheduledReport(testScheduledReportID, heldScheduledReport(), next)
+		return err
+	})
+	assertSentAs(t, payload, "bucket", `"new"`)
+}
+
+// Live lab: a create that sends "" stores "" where an omitted field stores null.
+func TestScheduledReportCreatePayload_OmitsUnsetOptionals(t *testing.T) {
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.CreateScheduledReport(clearedScheduledReport())
+		return err
+	})
+	for _, field := range append(append([]string{"id", "status"}, scheduledReportClearableStrings...), scheduledReportClearableObjects...) {
+		assertOmitted(t, payload, field)
+	}
+	for _, field := range []string{"name", "type", "format", "recurrence", "columns", "recipients_emails"} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("%s missing from create body", field)
+		}
+	}
+}
+
+func TestScheduledReportCreatePayload_KeepsSetOptionals(t *testing.T) {
+	report := clearedScheduledReport()
+	report.SonarQuery = `{"models":["Alert"]}`
+	report.Bucket = "b"
+	report.Config = jsonObject{"compression_type": ".zip"}
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.CreateScheduledReport(report)
+		return err
+	})
+	assertSentAs(t, payload, "sonar_query", `"{\"models\":[\"Alert\"]}"`)
+	assertSentAs(t, payload, "bucket", `"b"`)
+	assertSentAs(t, payload, "config", `{"compression_type":".zip"}`)
 }
 
 func captureScheduledReportBody(t *testing.T, send func(APIClient) error) map[string]json.RawMessage {

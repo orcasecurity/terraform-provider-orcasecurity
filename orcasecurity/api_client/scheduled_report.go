@@ -43,6 +43,7 @@ type ScheduledReport struct {
 	Status *int `json:"status,omitempty"`
 
 	// No omitempty: PATCH omits keys → unchanged. Zero values clear ("" / {}); only id and status keep omitempty.
+	// Writes go through scheduledReportBody, which omits unset optionals that hold nothing to clear.
 	Columns          []string   `json:"columns"`
 	DSLFilter        jsonObject `json:"dsl_filter"`
 	SonarQuery       string     `json:"sonar_query"`
@@ -101,8 +102,54 @@ func (client *APIClient) GetScheduledReport(id string) (*ScheduledReport, error)
 	return &report, nil
 }
 
+var scheduledReportClearableFields = []string{
+	"dsl_filter", "sonar_query", "sonar_query_params", "query_filters", "config", "s3_path",
+	"custom_email_subject", "custom_email_content", "slack_channel", "bucket",
+	"azure_blob_container", "google_cloud_storage_template", "snowflake_template",
+}
+
+func scheduledReportFields(data ScheduledReport) (map[string]json.RawMessage, error) {
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	body := map[string]json.RawMessage{}
+	err = json.Unmarshal(raw, &body)
+	return body, err
+}
+
+func isScheduledReportZero(v json.RawMessage) bool {
+	return len(v) == 0 || string(v) == `""` || string(v) == "{}"
+}
+
+// The API stores a sent "" as "" but an omitted string as null, and PATCH treats an omitted key
+// as unchanged. So an unset optional is sent as its zero value only to clear a value prior held;
+// otherwise it is omitted (create has no prior, so it omits every unset optional).
+func scheduledReportBody(prior *ScheduledReport, next ScheduledReport) (map[string]json.RawMessage, error) {
+	body, err := scheduledReportFields(next)
+	if err != nil {
+		return nil, err
+	}
+	held := map[string]json.RawMessage{}
+	if prior != nil {
+		if held, err = scheduledReportFields(*prior); err != nil {
+			return nil, err
+		}
+	}
+	for _, field := range scheduledReportClearableFields {
+		if isScheduledReportZero(body[field]) && isScheduledReportZero(held[field]) {
+			delete(body, field)
+		}
+	}
+	return body, nil
+}
+
 func (client *APIClient) CreateScheduledReport(data ScheduledReport) (*ScheduledReport, error) {
-	resp, err := client.Post(scheduledReportAPIPath, data)
+	body, err := scheduledReportBody(nil, data)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Post(scheduledReportAPIPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +161,12 @@ func (client *APIClient) CreateScheduledReport(data ScheduledReport) (*Scheduled
 	return &response.Data, nil
 }
 
-func (client *APIClient) UpdateScheduledReport(id string, data ScheduledReport) (*ScheduledReport, error) {
-	resp, err := client.Patch(fmt.Sprintf("%s/%s", scheduledReportAPIPath, id), data)
+func (client *APIClient) UpdateScheduledReport(id string, prior, next ScheduledReport) (*ScheduledReport, error) {
+	body, err := scheduledReportBody(&prior, next)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Patch(fmt.Sprintf("%s/%s", scheduledReportAPIPath, id), body)
 	if err != nil {
 		return nil, err
 	}

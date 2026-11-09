@@ -593,12 +593,13 @@ func (r *scheduledReportResource) Read(ctx context.Context, req resource.ReadReq
 }
 
 func (r *scheduledReportResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan scheduledReportResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	var plan, state scheduledReportResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	prior, _ := r.buildAPIPayload(ctx, &state)
 
 	payload, jsonErrors := r.buildAPIPayload(ctx, &plan)
 	for _, message := range jsonErrors {
@@ -608,7 +609,7 @@ func (r *scheduledReportResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	instance, err := r.apiClient.UpdateScheduledReport(plan.ID.ValueString(), *payload)
+	instance, err := r.apiClient.UpdateScheduledReport(plan.ID.ValueString(), *prior, *payload)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating scheduled report",
@@ -619,8 +620,7 @@ func (r *scheduledReportResource) Update(ctx context.Context, req resource.Updat
 
 	plan.Status = types.StringValue(reportStatusToString(instance.Status))
 
-	diags = resp.State.Set(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *scheduledReportResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
