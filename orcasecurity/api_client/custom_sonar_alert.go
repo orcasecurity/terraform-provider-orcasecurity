@@ -156,11 +156,7 @@ func (client *APIClient) GetCustomSonarAlertRemediationText(ruleType string) (*C
 }
 
 func (client *APIClient) SetCustomSonarAlertRemediationText(data CustomSonarAlertRemediationText) error {
-	resp, err := client.Put("/api/alerts/custom_remediation_text", data)
-	if resp != nil && resp.StatusCode() == 404 {
-		_, err = client.Post("/api/alerts/custom_remediation_text", data)
-	}
-	return err
+	return client.setCustomRemediationText(data)
 }
 func (client *APIClient) DeleteCustomSonarAlertRemediationText(data CustomSonarAlertRemediationText) error {
 	payload, err := json.Marshal(&data)
