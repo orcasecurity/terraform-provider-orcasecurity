@@ -2,6 +2,7 @@ package api_client
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -304,5 +305,41 @@ func TestDeleteGroupAccess_404Ignored(t *testing.T) {
 	}
 	if err := c.DeleteGroupAccess("gone"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCreateAccess_GatewayErrorReplayOnlyForUserUpsert(t *testing.T) {
+	stubRetrySleep(t)
+	create := map[string]func(c *APIClient) error{
+		"user": func(c *APIClient) error {
+			_, err := c.CreateUserAccess(UserAccess{UserID: "u1", RoleID: "r1"})
+			return err
+		},
+		"group": func(c *APIClient) error {
+			_, err := c.CreateGroupAccess(GroupAccess{GroupID: "g1", RoleID: "r1"})
+			return err
+		},
+	}
+	for owner, fn := range create {
+		posts := 0
+		c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "tok", HTTPClient: &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+			posts++
+			code, body := http.StatusBadGateway, `{}`
+			if posts > 1 {
+				code, body = http.StatusOK, `{"data":{"id":"asg-1"}}`
+			}
+			return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header), Request: req}
+		})}}
+		err := fn(c)
+		switch owner {
+		case "user":
+			if err != nil || posts != 2 {
+				t.Errorf("user access create (server-side upsert) should be retried: err=%v posts=%d", err, posts)
+			}
+		case "group":
+			if !errors.Is(err, ErrAmbiguousWrite) || posts != 1 {
+				t.Errorf("group access create rejects duplicates, so it must not be replayed: err=%v posts=%d", err, posts)
+			}
+		}
 	}
 }
