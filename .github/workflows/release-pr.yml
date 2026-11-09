@@ -1,0 +1,88 @@
+# Keeps a "Release vX.Y.Z" PR open with the next CHANGELOG.md section. Merging
+# that PR tags the release and publishes it through release.yml. The tag is
+# pushed with GITHUB_TOKEN, which does not trigger other workflows, so the
+# release is run here as a reusable workflow call.
+name: Release PR
+on:
+    push:
+        branches:
+            - master
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version for the release PR, e.g. 0.1.0 (default: next patch, or the open PR's version)"
+                required: false
+                type: string
+
+concurrency:
+    group: release-pr
+    cancel-in-progress: false
+
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    plan:
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-24.04
+        outputs:
+            action: ${{ steps.plan.outputs.action }}
+            version: ${{ steps.plan.outputs.version }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Plan
+              id: plan
+              run: scripts/release-pr.sh plan
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REQUESTED_VERSION: ${{ inputs.version }}
+
+    prepare:
+        needs: plan
+        if: needs.plan.outputs.action == 'prepare'
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Install GoReleaser
+              uses: goreleaser/goreleaser-action@v7
+              with:
+                  distribution: goreleaser
+                  version: "v1.25.1"
+                  install-only: true
+
+            - name: Open or refresh the release PR
+              run: scripts/release-pr.sh prepare "$VERSION"
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  VERSION: ${{ needs.plan.outputs.version }}
+
+    tag:
+        needs: plan
+        if: needs.plan.outputs.action == 'release'
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Tag the release commit
+              run: scripts/release-pr.sh tag "$VERSION"
+              env:
+                  VERSION: ${{ needs.plan.outputs.version }}
+
+    release:
+        needs: [plan, tag]
+        uses: ./.github/workflows/release.yml
+        with:
+            tag: v${{ needs.plan.outputs.version }}
+        secrets: inherit

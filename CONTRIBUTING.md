@@ -68,3 +68,18 @@ provider_installation {
 ```
 
 For information about writing acceptance tests, see the main Terraform [contributing guide](https://github.com/hashicorp/terraform/blob/master/.github/CONTRIBUTING.md#writing-acceptance-tests).
+
+Releasing
+---------------------------
+
+Release notes live in [CHANGELOG.md](./CHANGELOG.md) and are copied into the GitHub release, which is where Dependabot and similar tools read them.
+
+Releases are driven by the **Release PR** workflow (`.github/workflows/release-pr.yml`):
+
+1. On every push to `master`, it opens or refreshes a PR titled `Release vX.Y.Z` (next patch version) whose only change is the new `CHANGELOG.md` section, built from the commits since the last tag and grouped into Features, Bug fixes, Changes and Dependencies (rules in `.goreleaser.yml` under `changelog`).
+2. To release, approve and squash-merge that PR. The workflow tags the merge commit and runs `release.yml`, which publishes the `CHANGELOG.md` section as the release notes.
+3. For a non-patch version, run the workflow manually with the `version` input (e.g. `0.1.0`); the open release PR is retitled.
+
+To reword an entry, edit `CHANGELOG.md` on the `release/next` branch right before merging; the workflow rebuilds the branch whenever `master` changes. To preview the next section locally, run `make release-notes VERSION=X.Y.Z` (do not commit the result).
+
+Pushing a `v*` tag by hand still releases, with notes generated from the commits; the next release PR then backfills that version into `CHANGELOG.md`.

@@ -15,6 +15,12 @@ on:
     push:
         tags:
             - "v*"
+    workflow_call:
+        inputs:
+            tag:
+                description: "Tag to release, e.g. v0.0.63"
+                required: true
+                type: string
 
 permissions:
     contents: write
@@ -22,10 +28,13 @@ permissions:
 jobs:
     goreleaser:
         runs-on: ubuntu-24.04
+        env:
+            RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         steps:
             - name: Checkout
               uses: actions/checkout@v7
               with:
+                  ref: ${{ inputs.tag || github.ref }}
                   # Allow goreleaser to acce`ss older tag information.
                   fetch-depth: 0
 
@@ -42,12 +51,22 @@ jobs:
                   gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
                   passphrase: ${{ secrets.PASSPHRASE }}
 
+            - name: Release notes from CHANGELOG.md
+              id: notes
+              run: |
+                  if scripts/release-notes.sh extract "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"; then
+                      echo "args=--release-notes=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "::warning::CHANGELOG.md has no section for $RELEASE_TAG; GoReleaser generated the notes from commits instead. Release by merging the Release PR to keep CHANGELOG.md current."
+                  fi
+
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v7
               with:
                 distribution: goreleaser
                 version: "v1.25.1"
-                args: release --clean
+                args: release --clean ${{ steps.notes.outputs.args }}
               env:
+                GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
                 GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
