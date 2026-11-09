@@ -45,7 +45,8 @@ changelog_config() {
 }
 
 render() {
-	REPO_URL=$1 perl -ne '
+	local url=$1
+	REPO_URL=$url perl -ne '
 		my $u = $ENV{REPO_URL};
 		next if /^## Changelog$/ || /^\s*$/;
 		if (/^### /) { print "\n" if $seen++; print "$_\n"; next }
@@ -68,7 +69,7 @@ generate() {
 	local goreleaser=${GORELEASER:-goreleaser}
 
 	command -v "$goreleaser" >/dev/null || die "goreleaser not found; run via 'make release-notes VERSION=$version'"
-	[ -f "$changelog" ] || die "CHANGELOG.md not found"
+	[[ -f $changelog ]] || die "CHANGELOG.md not found"
 	if extract "$version" >/dev/null 2>&1; then
 		die "CHANGELOG.md already has a section for $version"
 	fi
@@ -100,7 +101,7 @@ generate() {
 
 	local body
 	body=$(render "$(repo_url)" <"$tmp/dist/CHANGELOG.md")
-	[ -n "$body" ] || body="No user-facing changes."
+	[[ -n $body ]] || body="No user-facing changes."
 
 	local section="$tmp/section.md"
 	printf '## %s (%s)\n\n%s\n\n' "$version" "$date" "$body" >"$section"
@@ -115,7 +116,7 @@ generate() {
 	echo "CHANGELOG.md: added $version ($(grep -o 'previous_tag=[^ ]*' "$tmp/goreleaser.log" | head -1))"
 }
 
-[ $# -ge 2 ] || usage
+[[ $# -ge 2 ]] || usage
 cmd=$1 version=${2#v}
 case "$cmd" in
 generate) generate "$version" "${3:-}" ;;

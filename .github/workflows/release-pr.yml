@@ -18,17 +18,19 @@ concurrency:
     group: release-pr
     cancel-in-progress: false
 
-permissions:
-    contents: write
-    pull-requests: write
+permissions: {}
 
 jobs:
     plan:
         if: github.ref == 'refs/heads/master'
         runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+            pull-requests: read
         outputs:
-            action: ${{ steps.plan.outputs.action }}
-            version: ${{ steps.plan.outputs.version }}
+            release_version: ${{ steps.plan.outputs.release_version }}
+            release_sha: ${{ steps.plan.outputs.release_sha }}
+            prepare_version: ${{ steps.plan.outputs.prepare_version }}
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -42,10 +44,40 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   REQUESTED_VERSION: ${{ inputs.version }}
 
-    prepare:
+    tag:
         needs: plan
-        if: needs.plan.outputs.action == 'prepare'
+        if: needs.plan.outputs.release_version != ''
         runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Tag the release commit
+              run: scripts/release-pr.sh tag "$VERSION" "$SHA"
+              env:
+                  VERSION: ${{ needs.plan.outputs.release_version }}
+                  SHA: ${{ needs.plan.outputs.release_sha }}
+
+    release:
+        needs: [plan, tag]
+        permissions:
+            contents: write
+        uses: ./.github/workflows/release.yml
+        with:
+            tag: v${{ needs.plan.outputs.release_version }}
+        secrets: inherit
+
+    prepare:
+        needs: [plan, tag]
+        if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.prepare_version != '' && needs.tag.result != 'failure' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+            pull-requests: write
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -53,7 +85,7 @@ jobs:
                   fetch-depth: 0
 
             - name: Install GoReleaser
-              uses: goreleaser/goreleaser-action@v7
+              uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
               with:
                   distribution: goreleaser
                   version: "v1.25.1"
@@ -63,26 +95,4 @@ jobs:
               run: scripts/release-pr.sh prepare "$VERSION"
               env:
                   GH_TOKEN: ${{ github.token }}
-                  VERSION: ${{ needs.plan.outputs.version }}
-
-    tag:
-        needs: plan
-        if: needs.plan.outputs.action == 'release'
-        runs-on: ubuntu-24.04
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v7
-              with:
-                  fetch-depth: 0
-
-            - name: Tag the release commit
-              run: scripts/release-pr.sh tag "$VERSION"
-              env:
-                  VERSION: ${{ needs.plan.outputs.version }}
-
-    release:
-        needs: [plan, tag]
-        uses: ./.github/workflows/release.yml
-        with:
-            tag: v${{ needs.plan.outputs.version }}
-        secrets: inherit
+                  VERSION: ${{ needs.plan.outputs.prepare_version }}

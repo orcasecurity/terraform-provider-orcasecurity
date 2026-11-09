@@ -62,7 +62,7 @@ changelog:
     filters:
         exclude:
             - '^.*?Merge (pull request|branch|remote-tracking branch)'
-            - '^.*?Release v?\d+\.\d+\.\d+'
+            - '^Release v\d+\.\d+\.\d+( \(#\d+\))?$'
     groups:
         - title: Features
           regexp: '^.*?feat(\([^)]+\))?!?:.+$'
