@@ -16,7 +16,7 @@ Configures an existing Orca GitHub shift-left account/organization (default poli
 
 -> **Destroy:** `terraform destroy` DELETEs the integration; reinstall the Orca GitHub App to recover.
 
-!> **Adopt semantics:** Always adopts a pre-existing account — GitHub has no fresh-integrate path, so the account already exists (from the App install callback) before Terraform ever touches it. Since that's true of every apply, existence alone can't gate the guard here: refuses only when the account already has integrated repositories, attached policies, or a bound project, unless `adopt_existing = true`. `destroy` de-integrates regardless of what it currently holds. Prefer `terraform import` to avoid a takeover write.
+!> **Adopt semantics:** Always adopts a pre-existing account — GitHub has no fresh-integrate path, so the account already exists (from the App install callback) before Terraform ever touches it. Since that's true of every apply, existence alone can't gate the guard here: refuses when the account has been set up before (the API's `has_been_setup` flag — true for every installation created before June 2025) or already has integrated repositories, attached policies, or a bound project, unless `adopt_existing = true`. In practice, set `adopt_existing = true` or use `terraform import` for any GitHub account already configured in the Orca UI. `destroy` de-integrates regardless of what it currently holds. Prefer `terraform import` to avoid a takeover write.
 
 -> **Coverage:** App install URL, GHES, browse repos, `check_availability`, and scan-now are not managed here.
 

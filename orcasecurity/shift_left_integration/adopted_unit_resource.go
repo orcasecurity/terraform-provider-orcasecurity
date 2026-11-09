@@ -99,7 +99,9 @@ func (o AdoptedUnitOps[A, M]) integrateBody(ctx context.Context, plan, config *M
 //   - GitHub has no Integrate path (Integrate == nil): the App install callback is itself the
 //     unit, so Get() finds it on every valid usage of this resource, always. Existence carries
 //     no signal there — gating on it would force adopt_existing=true onto every plain apply.
-//     Fall back to whether the unit actually holds state a destroy would drop.
+//     Gate on has_been_setup (configured at least once, CICD-6263) or on state a destroy would
+//     drop. has_been_setup can read false on internally-configured installs, so it supplements
+//     the state check rather than replacing it.
 func guardAdopt(hasIntegratePath bool, existing api_client.ScmUnitCommonFields, adoptExisting types.Bool) bool {
 	if adoptExisting.ValueBool() {
 		return false
@@ -116,7 +118,8 @@ func guardAdopt(hasIntegratePath bool, existing api_client.ScmUnitCommonFields, 
 // risk signal beyond what Policies/Project already cover, and checking it would make this guard
 // fire on every existing unit, blank or not.
 func hasAdoptableState(existing api_client.ScmUnitCommonFields) bool {
-	return existing.IntegratedRepositoriesCount > 0 ||
+	return existing.HasBeenSetup ||
+		existing.IntegratedRepositoriesCount > 0 ||
 		len(existing.Policies) > 0 ||
 		existing.Project != nil
 }
@@ -145,6 +148,9 @@ func adoptableStateSummary(existing api_client.ScmUnitCommonFields) string {
 	}
 	if existing.Project != nil {
 		parts = append(parts, "a bound project")
+	}
+	if len(parts) == 0 && existing.HasBeenSetup {
+		parts = append(parts, "configuration applied previously")
 	}
 	return strings.Join(parts, ", ")
 }

@@ -40,6 +40,9 @@ func TestGuardAdopt(t *testing.T) {
 		{"no integrate path, bound project, flag unset: block", false, api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolNull(), true},
 		{"no integrate path, bound project, flag true: allow", false, api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}, types.BoolValue(true), false},
 
+		{"no integrate path, has_been_setup only, flag unset: block", false, api_client.ScmUnitCommonFields{HasBeenSetup: true}, types.BoolNull(), true},
+		{"no integrate path, has_been_setup only, flag true: allow", false, api_client.ScmUnitCommonFields{HasBeenSetup: true}, types.BoolValue(true), false},
+
 		// default_policies alone is never a signal: the API derives it as true whenever there are
 		// no policies and no project (scm_schema.go's default_policies doc), for every SCM — so a
 		// unit with nothing else attached must stay adoptable under the no-integrate-path fallback,
@@ -67,6 +70,12 @@ func TestAdoptGuardDetail(t *testing.T) {
 	}
 	if withProject := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{Project: &api_client.ScmProjectRef{ID: "proj-1"}}); !strings.Contains(withProject, "a bound project") {
 		t.Errorf("project reason not rendered: %s", withProject)
+	}
+	if setupOnly := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{HasBeenSetup: true}); !strings.Contains(setupOnly, "configuration applied previously") {
+		t.Errorf("has_been_setup reason not rendered: %s", setupOnly)
+	}
+	if withRepos := adoptGuardDetail("unit", api_client.ScmUnitCommonFields{HasBeenSetup: true, IntegratedRepositoriesCount: 2}); strings.Contains(withRepos, "configuration applied previously") {
+		t.Errorf("has_been_setup reason should yield to concrete state: %s", withRepos)
 	}
 }
 

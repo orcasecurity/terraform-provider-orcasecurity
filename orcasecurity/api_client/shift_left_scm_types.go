@@ -50,6 +50,10 @@ type ScmUnitCommonFields struct {
 	ScanAllState                string `json:"scan_all_state,omitempty"`
 	IntegratedRepositoriesCount int64  `json:"integrated_repositories_count,omitempty"`
 	ScmPosturePolicyID          string `json:"scm_posture_policy_id,omitempty"`
+
+	// GitHub only (CICD-6263): one-way latch. Every installation predating June 2025 reads true;
+	// installations configured purely via internal flows can read false.
+	HasBeenSetup bool `json:"has_been_setup"`
 }
 
 func (c ScmUnitCommonFields) Common() ScmUnitCommonFields { return c }
