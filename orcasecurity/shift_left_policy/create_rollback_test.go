@@ -104,57 +104,71 @@ func (s *policyStub) deletes() int {
 	return count
 }
 
+const stubPolicyBase = "/api/shiftleft/malicious_packages/policies/"
+
 func (s *policyStub) start(t *testing.T) {
 	t.Helper()
-	const base = "/api/shiftleft/malicious_packages/policies/"
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.record(r.Method, r.URL.Path)
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/shiftleft/policies/":
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": s.listPage(r.URL.Query().Get("start_at_index"))})
-		case r.Method == http.MethodPost && r.URL.Path == base:
-			s.mu.Lock()
-			s.created = s.postStatus == 0 || s.postCommits
-			status := s.postStatus
-			s.mu.Unlock()
-			if status != 0 {
-				http.Error(w, `<html>gateway timeout</html>`, status)
-				return
-			}
-			_ = json.NewEncoder(w).Encode(s.policyBody())
-		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/projects/"):
-			if s.attachStatus != http.StatusOK {
-				http.Error(w, `{"detail":"project attach rejected"}`, s.attachStatus)
-				return
-			}
-			var body struct {
-				ProjectsIds []string `json:"projects_ids"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			s.attach(body.ProjectsIds)
-			_ = json.NewEncoder(w).Encode(s.policyBody())
-		case r.Method == http.MethodGet && r.URL.Path == base+stubPolicyID+"/":
-			if s.readBackMissing {
-				http.Error(w, `{"detail":"not found"}`, http.StatusNotFound)
-				return
-			}
-			_ = json.NewEncoder(w).Encode(s.policyBody())
-		case r.Method == http.MethodDelete:
-			w.WriteHeader(http.StatusNoContent)
-		default:
-			http.Error(w, "unexpected request "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
-		}
-	}))
+	srv := httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(srv.Close)
 
 	t.Setenv("TF_ACC", "1")
 	t.Setenv("ORCASECURITY_API_ENDPOINT", srv.URL)
 	t.Setenv("ORCASECURITY_API_TOKEN", "stub-token")
+}
+
+func (s *policyStub) serve(w http.ResponseWriter, r *http.Request) {
+	s.record(r.Method, r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/shiftleft/policies/":
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": s.listPage(r.URL.Query().Get("start_at_index"))})
+	case r.Method == http.MethodPost && r.URL.Path == stubPolicyBase:
+		s.serveCreate(w)
+	case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/projects/"):
+		s.serveAttach(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == stubPolicyBase+stubPolicyID+"/":
+		s.serveGet(w)
+	case r.Method == http.MethodDelete:
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		http.Error(w, "unexpected request "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
+	}
+}
+
+func (s *policyStub) serveCreate(w http.ResponseWriter) {
+	s.mu.Lock()
+	s.created = s.postStatus == 0 || s.postCommits
+	status := s.postStatus
+	s.mu.Unlock()
+	if status != 0 {
+		http.Error(w, `<html>gateway timeout</html>`, status)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(s.policyBody())
+}
+
+func (s *policyStub) serveAttach(w http.ResponseWriter, r *http.Request) {
+	if s.attachStatus != http.StatusOK {
+		http.Error(w, `{"detail":"project attach rejected"}`, s.attachStatus)
+		return
+	}
+	var body struct {
+		ProjectsIds []string `json:"projects_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.attach(body.ProjectsIds)
+	_ = json.NewEncoder(w).Encode(s.policyBody())
+}
+
+func (s *policyStub) serveGet(w http.ResponseWriter) {
+	if s.readBackMissing {
+		http.Error(w, `{"detail":"not found"}`, http.StatusNotFound)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(s.policyBody())
 }
 
 const stubPolicyConfig = orcasecurity.TestProviderConfig + `
