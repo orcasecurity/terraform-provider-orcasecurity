@@ -315,12 +315,12 @@ check() {
 	[[ $version == "$expected" ]] || fail "The new section is \`## $version\`, but merging this PR releases **v$expected** (latest version on $base_branch: $last, labels: ${labels:-none})."
 
 	body=$(extract "$version")
-	[[ $body == *"#$number"* ]] || fail "The \`## $version\` section has no entry for this PR (#$number)."
+	[[ $body == *"[#$number]("* ]] || fail "The \`## $version\` section has no entry for this PR (#$number)."
 
 	from=$(range_start "$base" "$last")
 	missing=""
 	for ref in $(notes "$from" "$base" "$title (#$number)" | grep -oE '\[#[0-9]+\]' | tr -d '[]' | sort -u); do
-		[[ $body == *"$ref"* ]] || missing+=" $ref"
+		[[ $body == *"[$ref]("* ]] || missing+=" $ref"
 	done
 	[[ -z $missing ]] || fail "The \`## $version\` section is missing changes merged since $last:$missing. Rerun \`make changelog\` to regenerate it."
 
