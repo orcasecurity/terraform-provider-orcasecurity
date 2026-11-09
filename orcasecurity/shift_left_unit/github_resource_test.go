@@ -55,7 +55,8 @@ func TestAccGithubAccount_import(t *testing.T) {
 			{
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_shift_left_github_account" "t" {
-  account_id = %q
+  account_id     = %q
+  adopt_existing = true
   configuration_settings = {
     pr_summary_comment = "ONLY_ON_FAILED_ISSUES"
   }
