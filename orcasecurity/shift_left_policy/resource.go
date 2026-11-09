@@ -215,7 +215,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	preexisting := createrecovery.Snapshot(func() (map[string]bool, error) {
+	preexisting := createrecovery.Snapshot(ctx, fmt.Sprintf("%s policies named %q", policyType, apiPolicy.Name), func() (map[string]bool, error) {
 		return r.apiClient.ListShiftLeftPolicyIDsByName(policyType, apiPolicy.Name)
 	})
 	policyID, err := r.createPolicy(ctx, policyType, apiPolicy, preexisting, &resp.Diagnostics)

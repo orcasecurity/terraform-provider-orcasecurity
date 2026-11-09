@@ -83,7 +83,7 @@ func TestRecover_LookupFailureErrors(t *testing.T) {
 }
 
 func TestSnapshot_FailureDisablesAdoption(t *testing.T) {
-	if got := Snapshot(func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
+	if got := Snapshot(context.Background(), "x", func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
 		t.Fatalf("snapshot = %v, want nil", got)
 	}
 }

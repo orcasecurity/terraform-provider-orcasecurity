@@ -16,15 +16,34 @@ import (
 )
 
 const (
-	stubInstallationsPath = "/api/shiftleft/gitlab/installations/"
-	stubInstallationID    = "33333333-3333-3333-3333-333333333333"
-	stubInstallationName  = "tf-stub-gitlab"
+	stubInstallationID   = "33333333-3333-3333-3333-333333333333"
+	stubInstallationName = "tf-stub-installation"
 )
 
-// installationStub: GitLab installations list/create/delete. postStatus answers the create; postCommits
+type stubSCM struct {
+	name, path, resource string
+}
+
+var stubSCMs = []stubSCM{
+	{"GitLab", "/api/shiftleft/gitlab/installations/", "orcasecurity_shift_left_gitlab_installation"},
+	{"Azure DevOps", "/api/shiftleft/azure_devops/installations/", "orcasecurity_shift_left_azure_devops_installation"},
+	{"Bitbucket", "/api/shiftleft/bitbucket/installations/", "orcasecurity_shift_left_bitbucket_installation"},
+}
+
+func (c stubSCM) config() string {
+	return orcasecurity.TestProviderConfig + `
+resource "` + c.resource + `" "stub" {
+  name         = "` + stubInstallationName + `"
+  access_token = "stub-token"
+}
+`
+}
+
+// installationStub: installations list/create/delete for one SCM. postStatus answers the create; postCommits
 // says whether the installation was created anyway (Orca validates the token against a slow SCM).
 type installationStub struct {
 	mu          sync.Mutex
+	path        string
 	postStatus  int
 	postCommits bool
 	created     bool
@@ -41,7 +60,7 @@ func (s *installationStub) rows() []map[string]any {
 	}
 	rows := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
-		rows = append(rows, map[string]any{"id": id, "name": stubInstallationName, "server_url": "https://gitlab.com",
+		rows = append(rows, map[string]any{"id": id, "name": stubInstallationName, "server_url": "https://scm.example.com",
 			"read_only": false, "cloud_integration": true})
 	}
 	return rows
@@ -50,13 +69,13 @@ func (s *installationStub) rows() []map[string]any {
 func (s *installationStub) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == stubInstallationsPath:
+	case r.Method == http.MethodGet && r.URL.Path == s.path:
 		if q := r.URL.Query().Get("start_at_index"); q != "" && q != "0" {
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": s.rows()})
-	case r.Method == http.MethodPost && r.URL.Path == stubInstallationsPath:
+	case r.Method == http.MethodPost && r.URL.Path == s.path:
 		s.mu.Lock()
 		s.posts++
 		s.created = s.postStatus == 0 || s.postCommits
@@ -67,7 +86,7 @@ func (s *installationStub) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(s.rows()[len(s.rows())-1])
-	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, stubInstallationsPath):
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, s.path):
 		s.mu.Lock()
 		s.created = false
 		s.mu.Unlock()
@@ -92,41 +111,43 @@ func (s *installationStub) postCount() int {
 	return s.posts
 }
 
-const stubInstallationConfig = orcasecurity.TestProviderConfig + `
-resource "orcasecurity_shift_left_gitlab_installation" "stub" {
-  name         = "tf-stub-gitlab"
-  access_token = "glpat-stub"
-}
-`
+func TestInstallationCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
+	for _, scm := range stubSCMs {
+		t.Run(scm.name, func(t *testing.T) {
+			createrecovery.FastForTest(t)
+			stub := &installationStub{path: scm.path, postStatus: http.StatusGatewayTimeout, postCommits: true,
+				preexisting: []string{"44444444-4444-4444-4444-444444444444"}}
+			stub.start(t)
 
-func TestGitlabInstallationCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
-	createrecovery.FastForTest(t)
-	stub := &installationStub{postStatus: http.StatusGatewayTimeout, postCommits: true,
-		preexisting: []string{"44444444-4444-4444-4444-444444444444"}}
-	stub.start(t)
-
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{{
-			Config: stubInstallationConfig,
-			Check:  resource.TestCheckResourceAttr("orcasecurity_shift_left_gitlab_installation.stub", "id", stubInstallationID),
-		}},
-	})
-	if got := stub.postCount(); got != 1 {
-		t.Errorf("an ambiguous create must not be replayed, got %d POSTs", got)
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{{
+					Config: scm.config(),
+					Check:  resource.TestCheckResourceAttr(scm.resource+".stub", "id", stubInstallationID),
+				}},
+			})
+			if got := stub.postCount(); got != 1 {
+				t.Errorf("an ambiguous create must not be replayed, got %d POSTs", got)
+			}
+		})
 	}
 }
 
-func TestGitlabInstallationCreate_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
-	createrecovery.FastForTest(t)
-	stub := &installationStub{postStatus: http.StatusGatewayTimeout}
-	stub.start(t)
+func TestInstallationCreate_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
+	for _, scm := range stubSCMs {
+		t.Run(scm.name, func(t *testing.T) {
+			createrecovery.FastForTest(t)
+			stub := &installationStub{path: scm.path, postStatus: http.StatusGatewayTimeout}
+			stub.start(t)
 
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{{
-			Config:      stubInstallationConfig,
-			ExpectError: regexp.MustCompile(`no\s+new\s+GitLab\s+installation\s+named\s+"tf-stub-gitlab"\s+appeared[\s\S]*check\s+the\s+Orca\s+UI`),
-		}},
-	})
+			what := regexp.QuoteMeta(scm.name) + `\s+installation\s+named\s+"` + stubInstallationName + `"`
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{{
+					Config:      scm.config(),
+					ExpectError: regexp.MustCompile(`no\s+new\s+` + strings.ReplaceAll(what, " ", `\s+`) + `\s+appeared[\s\S]*check\s+the\s+Orca\s+UI`),
+				}},
+			})
+		})
+	}
 }

@@ -11,9 +11,12 @@ import (
 	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // After a 504/timeout the backend may still be saving, so the lookup is retried (about 30s total).
+// FastForTest swaps these package vars, so tests that call it must not use t.Parallel.
 var (
 	PollDelays = []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
 	Sleep      = sleepCtx
@@ -24,12 +27,19 @@ var (
 type Lister func() (map[string]bool, error)
 
 // Snapshot takes the pre-create id set. A failed snapshot returns nil, which disables adoption.
-func Snapshot(list Lister) map[string]bool {
+func Snapshot(ctx context.Context, what string, list Lister) map[string]bool {
 	ids, err := list()
 	if err != nil {
+		tflog.Warn(ctx, fmt.Sprintf("Could not list existing %s before create; an ambiguous create will not be recovered: %v", what, err))
 		return nil
 	}
 	return ids
+}
+
+// SameName compares names the way the server may store them (surrounding whitespace trimmed).
+// A looser match is safe: adoption still requires exactly one id absent from the snapshot.
+func SameName(a, b string) bool {
+	return strings.TrimSpace(a) == strings.TrimSpace(b)
 }
 
 // Recover returns the created id when createErr is ambiguous and exactly one new match appeared.

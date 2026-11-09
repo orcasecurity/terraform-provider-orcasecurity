@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type ShiftLeftPolicy struct {
@@ -114,7 +115,7 @@ func (client *APIClient) ListShiftLeftPolicyIDsByName(policyType, name string) (
 	}
 	ids := map[string]bool{}
 	for _, p := range all {
-		if p.Name == name && !p.Builtin && (p.Type == "" || p.Type == policyType) {
+		if strings.TrimSpace(p.Name) == strings.TrimSpace(name) && !p.Builtin && (p.Type == "" || p.Type == policyType) {
 			ids[p.ID] = true
 		}
 	}

@@ -60,11 +60,12 @@ func (l InstallationLifecycle[M, A]) DoCreate(ctx context.Context, req resource.
 	}
 	title := fmt.Sprintf("Error creating %s installation", l.SCMName)
 	name := l.Name(&plan)
+	what := fmt.Sprintf("%s installation named %q", l.SCMName, name)
 	list := func() (map[string]bool, error) { return l.IDsNamed(name) }
-	before := createrecovery.Snapshot(list)
+	before := createrecovery.Snapshot(ctx, what, list)
 	created, err := l.Create(&plan)
 	if err != nil {
-		id, warning, recErr := createrecovery.Recover(ctx, err, fmt.Sprintf("%s installation named %q", l.SCMName, name), before, list)
+		id, warning, recErr := createrecovery.Recover(ctx, err, what, before, list)
 		if recErr != nil {
 			resp.Diagnostics.AddError(title, recErr.Error())
 			return

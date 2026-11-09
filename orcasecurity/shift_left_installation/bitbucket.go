@@ -104,16 +104,21 @@ func bitbucketSetState(m *bitbucketInstallationModel, api *api_client.BitbucketI
 	// wiped to "" (which then fails the next apply for PAT tokens).
 	td := api.AccessTokenDetails
 	if td == nil {
-		return
+		td = &api_client.BitbucketAccessTokenDetails{}
 	}
-	if td.AccessTokenType != "" {
-		m.AccessTokenType = types.StringValue(td.AccessTokenType)
-	}
-	if td.Username != "" {
-		m.Username = types.StringValue(td.Username)
-	}
-	if td.AccountID != "" {
-		m.AccountID = types.StringValue(td.AccountID)
+	keepOrSet(&m.AccessTokenType, td.AccessTokenType)
+	keepOrSet(&m.Username, td.Username)
+	keepOrSet(&m.AccountID, td.AccountID)
+}
+
+// keepOrSet takes the API value when present; otherwise keeps prior state, resolving an unknown
+// (unset Optional+Computed on create) to null so the apply result is fully known.
+func keepOrSet(v *types.String, api string) {
+	switch {
+	case api != "":
+		*v = types.StringValue(api)
+	case v.IsUnknown():
+		*v = types.StringNull()
 	}
 }
 
