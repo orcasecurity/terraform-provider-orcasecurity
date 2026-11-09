@@ -4,10 +4,12 @@ set -euo pipefail
 usage() {
 	cat >&2 <<'EOF'
 usage:
-  scripts/changelog.sh update                  write this PR's section into CHANGELOG.md (run via 'make changelog')
-  scripts/changelog.sh check                   CI: fail unless the PR adds the expected CHANGELOG.md section
-  scripts/changelog.sh release-plan            CI: find a merged, untagged CHANGELOG.md section to release
-  scripts/changelog.sh tag <version> <commit>  CI: tag <commit> as v<version> and push the tag
+  scripts/changelog.sh update                       write this PR's section into CHANGELOG.md (run via 'make changelog')
+  scripts/changelog.sh check                        CI: fail unless the PR adds the expected CHANGELOG.md section
+  scripts/changelog.sh release-plan                 CI: find merged CHANGELOG.md sections with no GitHub release
+  scripts/changelog.sh tag <version> <commit>       CI: tag <commit> as v<version> and push the tag
+  scripts/changelog.sh notes <from> <to> [entry]    print the release notes for <from>..<to>, plus an extra entry
+  scripts/changelog.sh extract <version>            print the <version> section body from CHANGELOG.md
 
 labels: no-release (no section, no release), release:minor, release:major (default: patch)
 EOF
@@ -51,14 +53,38 @@ tag_exists() {
 	git rev-parse -q --verify "refs/tags/v$version" >/dev/null
 }
 
-latest_tag() {
+release_tags() {
 	local ref=$1
-	git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname --merged "$ref" | sed -n 1p
+	git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname --merged "$ref"
 }
 
-# The newest version on the base branch: its latest tag, or a merged section
-# that is not tagged yet because its release is still running.
-base_version() {
+latest_tag() {
+	local ref=$1
+	release_tags "$ref" | sed -n 1p
+}
+
+version_gt() {
+	local a=$1 b=$2
+	[[ $a != "$b" && $(printf '%s\n%s\n' "$a" "$b" | sort -V | tail -1) == "$a" ]]
+}
+
+# A release heading ends with a year, which skips master's old
+# "## 0.1.0 (Unreleased)" stub and "## 0.0.54 and earlier".
+versions_in() {
+	sed -nE 's/^## ([0-9]+\.[0-9]+\.[0-9]+) \(.*[0-9]{4}\)$/\1/p'
+}
+
+release_date() {
+	if [[ $# -eq 0 ]]; then
+		LC_ALL=C date '+%B %-d, %Y'
+	else
+		LC_ALL=C git log -1 --format=%cd --date=format:'%B %-d, %Y' "$1"
+	fi
+}
+
+# The newest version on ref: its latest tag, or a merged section that is not
+# tagged yet because its release is still running.
+current_version() {
 	local ref=$1 tag section
 	tag=$(latest_tag "$ref")
 	section=$(git show "$ref:CHANGELOG.md" | versions_in | sort -V | tail -1)
@@ -72,15 +98,16 @@ section_commit() {
 	git log --format=%H -S "## $version (" "$since..$ref" -- CHANGELOG.md | sed -n 1p
 }
 
-# When the newest merged section is not tagged yet, its commit starts the range.
-previous_release_env() {
-	local ref=$1 version=$2 tag
+range_start() {
+	local ref=$1 version=$2 tag sha
 	tag=$(latest_tag "$ref")
-	if [[ $version != "${tag#v}" ]]; then
-		PREVIOUS_TAG="v$version"
-		PREVIOUS_REF=$(section_commit "$ref" "$version" "$tag")
-		export PREVIOUS_TAG PREVIOUS_REF
+	if [[ $version == "${tag#v}" ]]; then
+		echo "$tag"
+		return
 	fi
+	sha=$(section_commit "$ref" "$version" "$tag")
+	[[ -n $sha ]] || die "cannot find the commit that added the $version section"
+	echo "$sha"
 }
 
 has_label() {
@@ -100,15 +127,75 @@ next_version() {
 	fi
 }
 
-# Only "## X.Y.Z (Month D, YYYY)" headings are releases; this skips the old
-# "## 0.1.0 (Unreleased)" stub and "## 0.0.54 and earlier".
-versions_in() {
-	sed -nE 's/^## ([0-9]+\.[0-9]+\.[0-9]+) \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$/\1/p'
+repo_url() {
+	local url
+	url=$(git remote get-url origin)
+	url=${url%.git}
+	url=${url/#git@github.com:/https://github.com/}
+	echo "$url"
 }
 
-section_versions() {
-	local file=$1
-	versions_in <"$file"
+notes() {
+	local from=$1 to=$2 entry=${3:-} body
+	body=$(
+		{
+			[[ -z $entry ]] || printf -- '- %s\n' "$entry"
+			git log --format='%h %s' --abbrev=7 "$from..$to"
+		} | REPO_URL=$(repo_url) perl -ne '
+			chomp;
+			my ($sha, $msg) = /^(\S+) (.*)$/ or next;
+			next if $msg =~ /Merge (pull request|branch|remote-tracking branch)/;
+			my $g = $msg =~ /^.*?feat(\([^)]+\))?!?:.+$/ ? 0
+				: $msg =~ /(?i)^.*?fix(\([^)]+\))?!?:.+$/ ? 1
+				: $msg =~ /(?i)^.*?(chore\(deps\)|bump \S+ from \S+ to \S+)/ ? 3
+				: 2;
+			if ($msg =~ /\(#\d+\)/) {
+				$msg =~ s{\(#(\d+)\)}{([#$1]($ENV{REPO_URL}/pull/$1))}g;
+			} elsif ($sha ne "-") {
+				$msg .= " ([$sha]($ENV{REPO_URL}/commit/$sha))";
+			}
+			push @{ $groups{$g} }, "* $msg";
+			END {
+				my @titles = ("Features", "Bug fixes", "Changes", "Dependencies");
+				my $n = 0;
+				for my $i (0 .. 3) {
+					next unless $groups{$i};
+					print "\n" if $n++;
+					print "### $titles[$i]\n\n", map { "$_\n" } @{ $groups{$i} };
+				}
+			}
+		'
+	)
+	echo "${body:-No user-facing changes.}"
+}
+
+extract() {
+	local version=$1
+	awk -v v="$version" '
+		index($0, "## " v " ") == 1 || $0 == "## " v { found = 1; next }
+		found && /^## / { exit }
+		found { print }
+		END { if (!found) exit 1 }
+	' CHANGELOG.md | perl -0777 -pe 's/\A\s+//; s/\s+\z/\n/'
+}
+
+generate() {
+	local version=$1 date=$2 from=$3 to=$4 entry=${5:-} body section out
+	if extract "$version" >/dev/null 2>&1; then
+		die "CHANGELOG.md already has a section for $version"
+	fi
+	body=$(notes "$from" "$to" "$entry")
+	section=$(mktemp)
+	out=$(mktemp)
+	printf '## %s (%s)\n\n%s\n\n' "$version" "$date" "$body" >"$section"
+	awk -v section="$section" '
+		!done && /^## / { while ((getline line < section) > 0) print line; done = 1 }
+		{ print }
+		END { if (!done) while ((getline line < section) > 0) print line }
+	' CHANGELOG.md >"$out"
+	cp "$out" CHANGELOG.md
+	rm -f "$section" "$out"
+	echo "CHANGELOG.md: added $version"
 }
 
 remove_section() {
@@ -125,35 +212,27 @@ remove_section() {
 
 untagged_new_versions() {
 	local head_file=$1 base_file=$2 v
-	for v in $(section_versions "$head_file"); do
-		if ! tag_exists "$v" && ! grep -qx "$v" <(section_versions "$base_file"); then
+	for v in $(versions_in <"$head_file"); do
+		if ! tag_exists "$v" && ! grep -qx "$v" <(versions_in <"$base_file"); then
 			echo "$v"
 		fi
 	done
 }
 
-section_body() {
-	local file=$1 version=$2
-	awk -v v="$version" '
-		index($0, "## " v " ") == 1 { found = 1; next }
-		found && /^## / { exit }
-		found { print }
-	' "$file"
-}
-
 backfill_missing_releases() {
-	local base=$1 newest t v
-	newest=$(section_versions CHANGELOG.md | sort -V | tail -1)
+	local base=$1 newest previous="" t
+	newest=$(versions_in <CHANGELOG.md | sort -V | tail -1)
 	[[ -n $newest ]] || return 0
-	for t in $(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=v:refname --merged "$base"); do
-		v=${t#v}
-		[[ $v != "$newest" && $(printf '%s\n%s\n' "$newest" "$v" | sort -V | tail -1) == "$v" ]] || continue
-		BASE_REF="" ENTRY="" scripts/release-notes.sh generate "$v" "$(git log -1 --format=%cd --date=format:'%B %-d, %Y' "$t")"
+	for t in $(release_tags "$base" | sort -V); do
+		if [[ -n $previous ]] && version_gt "${t#v}" "$newest"; then
+			generate "${t#v}" "$(release_date "$t")" "$previous" "$t"
+		fi
+		previous=$t
 	done
 }
 
 update() {
-	local pr number title labels base last version
+	local pr number title labels base base_file last version from v
 	local -a selector=()
 	command -v gh >/dev/null || die "gh CLI is required to read the PR title and labels"
 	[[ -z ${PR_NUMBER:-} ]] || selector=("$PR_NUMBER")
@@ -163,16 +242,13 @@ update() {
 
 	git fetch -q origin "$base_branch" --tags
 	base=origin/$base_branch
-	local base_file v
 	if ! git diff --quiet "$(git merge-base HEAD "$base")" "$base" -- CHANGELOG.md; then
 		die "CHANGELOG.md changed on $base_branch since this branch started (another PR was released); merge or rebase on $base_branch, then rerun 'make changelog'"
 	fi
 	base_file=$(mktemp)
 	git show "$base:CHANGELOG.md" >"$base_file"
-	for v in $(section_versions CHANGELOG.md); do
-		if ! tag_exists "$v" && ! grep -qx "$v" <(section_versions "$base_file"); then
-			remove_section CHANGELOG.md "$v"
-		fi
+	for v in $(untagged_new_versions CHANGELOG.md "$base_file"); do
+		remove_section CHANGELOG.md "$v"
 	done
 	rm -f "$base_file"
 	backfill_missing_releases "$base"
@@ -182,18 +258,18 @@ update() {
 		return
 	fi
 
-	last=$(base_version "$base")
+	last=$(current_version "$base")
 	[[ -n $last ]] || die "no v* tag found on $base"
 	version=$(next_version "$last" "$labels")
-	previous_release_env "$base" "$last"
-	BASE_REF=$base ENTRY="$title (#$number)" scripts/release-notes.sh generate "$version"
+	from=$(range_start "$base" "$last")
+	generate "$version" "$(release_date)" "$from" "$base" "$title (#$number)"
 	echo "PR #$number releases v$version on merge. Review the section, then commit CHANGELOG.md."
 }
 
 check() {
 	local number=${PR_NUMBER:?} title=${PR_TITLE:?} labels=${PR_LABELS:-} author=${PR_AUTHOR:-}
-	local base=${BASE_REF:-HEAD^1} base_file head_file last expected version body missing ref
-	local -a new
+	local base=${BASE_REF:-HEAD^1} base_file last expected version body missing ref from v
+	local -a new=()
 	[[ $number =~ ^[0-9]+$ ]] || die "invalid PR number '$number'"
 
 	if [[ $author == "dependabot[bot]" ]]; then
@@ -202,10 +278,11 @@ check() {
 	fi
 
 	base_file=$(mktemp)
-	head_file=$(mktemp)
 	git show "$base:CHANGELOG.md" >"$base_file"
-	cp CHANGELOG.md "$head_file"
-	mapfile -t new < <(untagged_new_versions "$head_file" "$base_file")
+	while IFS= read -r v; do
+		new+=("$v")
+	done < <(untagged_new_versions CHANGELOG.md "$base_file")
+	rm -f "$base_file"
 
 	if has_label "$labels" no-release; then
 		((${#new[@]} == 0)) || fail "This PR has the \`no-release\` label but adds a section for ${new[*]}. Remove the section or the label."
@@ -213,20 +290,20 @@ check() {
 		return
 	fi
 
-	last=$(base_version "$base")
+	last=$(current_version "$base")
 	[[ -n $last ]] || die "no v* tag found on $base"
 	expected=$(next_version "$last" "$labels")
-	previous_release_env "$base" "$last"
 	((${#new[@]} > 0)) || fail "This PR does not add a CHANGELOG.md section. Merging it releases **v$expected**, so it needs a \`## $expected (...)\` section."
 	((${#new[@]} == 1)) || fail "This PR adds more than one new section (${new[*]}); it should add only \`## $expected\`."
 	version=${new[0]}
 	[[ $version == "$expected" ]] || fail "The new section is \`## $version\`, but merging this PR releases **v$expected** (latest version on $base_branch: $last, labels: ${labels:-none})."
 
-	body=$(section_body "$head_file" "$version")
+	body=$(extract "$version")
 	[[ $body == *"#$number"* ]] || fail "The \`## $version\` section has no entry for this PR (#$number)."
 
+	from=$(range_start "$base" "$last")
 	missing=""
-	for ref in $(BASE_REF=$base ENTRY="$title (#$number)" scripts/release-notes.sh notes "$version" | grep -oE '\[#[0-9]+\]' | tr -d '[]' | sort -u); do
+	for ref in $(notes "$from" "$base" "$title (#$number)" | grep -oE '\[#[0-9]+\]' | tr -d '[]' | sort -u); do
 		[[ $body == *"$ref"* ]] || missing+=" $ref"
 	done
 	[[ -z $missing ]] || fail "The \`## $version\` section is missing changes merged since $last:$missing. Rerun \`make changelog\` to regenerate it."
@@ -241,18 +318,27 @@ merged_pr_labels() {
 	gh api "repos/{owner}/{repo}/commits/$sha/pulls" --jq 'if length == 0 then error("no PR") else [.[0].labels[].name] | join(",") end'
 }
 
-# Every merged section without a tag is released, oldest first: when several
-# PRs merge before a run starts, GitHub replaces the queued runs with one.
+# A version is pending until its GitHub release exists: release.yml pushes the
+# tag before GoReleaser publishes, so a tag alone may be a failed release.
+# Every pending merged section is released, oldest first: when several PRs
+# merge before a run starts, GitHub replaces the queued runs with one.
 # Each version must be exactly what its PR's labels allow, as the PR check
 # requires, because that check is not a required status check.
 release_plan() {
-	local last v sha previous labels expected releases="[]"
-	last=$(latest_tag HEAD)
-	[[ -n $last ]] || die "no v* tag found"
+	local published last="" t v sha previous labels expected releases="[]"
+	published=$(gh release list --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName') ||
+		die "cannot list GitHub releases; nothing was released"
+	for t in $(release_tags HEAD); do
+		if grep -qxF "$t" <<<"$published"; then
+			last=$t
+			break
+		fi
+	done
+	[[ -n $last ]] || die "no released v* tag found"
 	previous=${last#v}
-	for v in $(section_versions CHANGELOG.md | sort -V); do
-		tag_exists "$v" && continue
-		[[ $v != "${last#v}" && $(printf '%s\n%s\n' "${last#v}" "$v" | sort -V | tail -1) == "$v" ]] || continue
+	for v in $(versions_in <CHANGELOG.md | sort -V); do
+		version_gt "$v" "${last#v}" || continue
+		grep -qxF "v$v" <<<"$published" && continue
 		sha=$(section_commit HEAD "$v" "$last")
 		[[ -n $sha ]] || die "cannot find the commit that added the $v section"
 		labels=$(merged_pr_labels "$sha") || die "cannot read the PR labels for ${sha:0:7}; nothing was released"
@@ -291,6 +377,14 @@ release-plan) release_plan ;;
 tag)
 	[[ $# -eq 3 ]] || usage
 	tag "${2#v}" "$3"
+	;;
+notes)
+	[[ $# -eq 3 || $# -eq 4 ]] || usage
+	notes "$2" "$3" "${4:-}"
+	;;
+extract)
+	[[ $# -eq 2 ]] || usage
+	extract "${2#v}" || die "CHANGELOG.md has no section for ${2#v}"
 	;;
 *) usage ;;
 esac

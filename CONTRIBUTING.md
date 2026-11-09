@@ -74,7 +74,7 @@ Releasing
 
 Every merged PR is released automatically. Its release notes are the `CHANGELOG.md` section that the PR itself adds, and the same text is published as the GitHub release, which is where Dependabot and similar tools read it.
 
-1. Open your PR (a draft is fine), then run `make changelog` on the branch. It adds a `## X.Y.Z (date)` section to the top of `CHANGELOG.md` for the version your merge will release. The section lists your PR (from its title) and anything merged since the last release, such as Dependabot bumps, grouped into Features, Bug fixes, Changes and Dependencies (rules in `.goreleaser.yml` under `changelog`). The first run builds a pinned GoReleaser into `bin/`.
+1. Open your PR (a draft is fine), then run `make changelog` on the branch. It adds a `## X.Y.Z (date)` section to the top of `CHANGELOG.md` for the version your merge will release. The section lists your PR (from its title) and anything merged since the last release, such as Dependabot bumps, grouped into Features, Bug fixes, Changes and Dependencies (the grouping rules are in `scripts/changelog.sh`).
 2. Reword entries if you like, then commit `CHANGELOG.md` and push. The **CHANGELOG.md** check fails the PR if the section is missing, has the wrong version, or leaves out your PR or an unreleased change.
 3. When the PR merges, the **Release on merge** workflow tags the merge commit and publishes the release with that section as its notes.
 
@@ -89,4 +89,6 @@ Labels change what a merge releases (rerun `make changelog` after changing them)
 
 If another PR is released first, your branch conflicts in `CHANGELOG.md`: update the branch from `master` and rerun `make changelog`. Rerunning rebuilds the section from scratch, so reword entries after the last run. Dependabot PRs need no section; their bumps are listed in the next release.
 
-Pushing a `v*` tag by hand still releases, with notes generated from the commits; the next `make changelog` backfills that version into `CHANGELOG.md`.
+If a release fails after its tag was pushed, the next push to `master` (or a rerun of **Release on merge**) retries it.
+
+Pushing a `v*` tag by hand still releases, with notes generated from the commits since the previous tag; the next `make changelog` backfills that version into `CHANGELOG.md`.

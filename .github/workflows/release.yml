@@ -22,10 +22,9 @@ on:
                 required: true
                 type: string
             commit:
-                description: "Commit to tag first (release on merge); empty when the tag already exists"
-                required: false
+                description: "Commit to tag as the release"
+                required: true
                 type: string
-                default: ""
 
 permissions:
     contents: write
@@ -39,7 +38,7 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v7
               with:
-                  ref: ${{ inputs.commit || inputs.tag || github.ref }}
+                  ref: ${{ inputs.commit || github.ref }}
                   # Allow goreleaser to acce`ss older tag information.
                   fetch-depth: 0
 
@@ -63,12 +62,11 @@ jobs:
                   passphrase: ${{ secrets.PASSPHRASE }}
 
             - name: Release notes from CHANGELOG.md
-              id: notes
               run: |
-                  if scripts/release-notes.sh extract "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"; then
-                      echo "args=--release-notes=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
-                  else
-                      echo "::warning::CHANGELOG.md has no section for $RELEASE_TAG; GoReleaser generated the notes from commits instead. The next \`make changelog\` backfills this version into CHANGELOG.md."
+                  if ! scripts/changelog.sh extract "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"; then
+                      previous=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname --merged "$RELEASE_TAG^" | sed -n 1p)
+                      scripts/changelog.sh notes "$previous" "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
+                      echo "::warning::CHANGELOG.md has no section for $RELEASE_TAG; the notes were generated from the commits since $previous. The next \`make changelog\` backfills this version into CHANGELOG.md."
                   fi
 
             - name: Run GoReleaser
@@ -76,7 +74,7 @@ jobs:
               with:
                 distribution: goreleaser
                 version: "v1.25.1"
-                args: release --clean ${{ steps.notes.outputs.args }}
+                args: release --clean --release-notes=${{ runner.temp }}/release-notes.md
               env:
                 GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
                 GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}

@@ -1,4 +1,4 @@
-# Releases every CHANGELOG.md section merged to master that has no tag yet.
+# Releases every CHANGELOG.md section merged to master that has no GitHub release yet.
 # The tag is pushed with GITHUB_TOKEN, which does not trigger other workflows,
 # so release.yml is called directly.
 name: Release on merge
