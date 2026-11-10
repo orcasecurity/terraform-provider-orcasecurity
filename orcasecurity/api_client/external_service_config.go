@@ -114,17 +114,22 @@ func listExternalServiceConfigs[P any](client *APIClient, serviceName, templateN
 	}
 	matches := map[string]*P{}
 	for _, raw := range rows.Data {
-		var key ConfigEnvelope[struct{}]
-		row := new(P)
+		var key struct {
+			ID           string `json:"id"`
+			ServiceName  string `json:"service_name"`
+			TemplateName string `json:"template_name"`
+		}
 		if err := json.Unmarshal(raw, &key); err != nil {
 			return nil, fmt.Errorf("failed to decode %s list row: %w", serviceName, err)
 		}
+		if key.ServiceName != serviceName || !sameName(key.TemplateName, templateName) {
+			continue
+		}
+		row := new(P)
 		if err := json.Unmarshal(raw, row); err != nil {
 			return nil, fmt.Errorf("failed to decode %s list row: %w", serviceName, err)
 		}
-		if key.ServiceName == serviceName && sameName(key.TemplateName, templateName) {
-			matches[key.ID] = row
-		}
+		matches[key.ID] = row
 	}
 	return matches, nil
 }
