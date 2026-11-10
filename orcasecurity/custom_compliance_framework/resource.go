@@ -7,6 +7,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -331,7 +332,7 @@ func (r *customComplianceFrameworkResource) Create(ctx context.Context, req reso
 		return
 	}
 
-	instance, err := r.apiClient.CreateCustomComplianceFramework(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.CustomComplianceFrameworkCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating custom compliance framework",

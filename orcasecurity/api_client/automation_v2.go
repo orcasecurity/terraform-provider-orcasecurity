@@ -2,6 +2,7 @@ package api_client
 
 import (
 	"fmt"
+	"strings"
 )
 
 type AutomationV2 struct {
@@ -61,9 +62,31 @@ func (client *APIClient) GetAutomationV2(automationID string) (*AutomationV2, er
 // duplicates or gaps from legacy rows; the server order is still
 // deterministic.
 func (client *APIClient) ListAutomationsV2() ([]AutomationV2, error) {
+	return client.listAutomationsV2(nil)
+}
+
+func (client *APIClient) listAutomationsV2(filters listFilters) ([]AutomationV2, error) {
 	const pageLimit = 300
 	const maxPages = 500
-	return paginateOffset[AutomationV2](client, "/api/automations", nil, pageLimit, maxPages)
+	return paginateOffset[AutomationV2](client, "/api/automations", filters, pageLimit, maxPages)
+}
+
+// search is icontains over name and description.
+func (client *APIClient) ListAutomationV2IDsByName(name string) (map[string]bool, error) {
+	all, err := client.listAutomationsV2(listFilters{"search": strings.TrimSpace(name)})
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(a *AutomationV2) string { return a.ID }, func(a *AutomationV2) bool { return sameName(a.Name, name) }), nil
+}
+
+func (client *APIClient) AutomationV2CreateOp(automation AutomationV2, applyOnExisting bool) CreateOp[AutomationV2] {
+	return CreateOp[AutomationV2]{
+		What:   fmt.Sprintf("automation named %q", automation.Name),
+		Create: func() (*AutomationV2, error) { return client.CreateAutomationV2(automation, applyOnExisting) },
+		IDs:    func() (map[string]bool, error) { return client.ListAutomationV2IDsByName(automation.Name) },
+		Get:    client.GetAutomationV2,
+	}
 }
 
 func (client *APIClient) DoesAutomationV2Exist(id string) (bool, error) {
@@ -76,7 +99,7 @@ func (client *APIClient) CreateAutomationV2(automation AutomationV2, applyOnExis
 	if applyOnExisting {
 		path += "?apply_on_existing=true"
 	}
-	resp, err := client.Post(path, automation)
+	resp, err := client.PostCreate(path, automation)
 	if err != nil {
 		return nil, err
 	}

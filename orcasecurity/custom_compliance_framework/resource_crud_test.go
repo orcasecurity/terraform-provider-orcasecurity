@@ -53,6 +53,8 @@ const catalogJSON = `{"data":{"frameworks":[{"framework_id":"3887","name":"Lab",
 
 func happyCRUD(req *http.Request) *http.Response {
 	switch {
+	case req.Method == "GET" && req.URL.Path == "/api/compliance/frameworks/select":
+		return testutils.JSONResponse(req, 200, `{}`)
 	case req.Method == "POST" && req.URL.Path == "/api/compliance/frameworks":
 		return testutils.JSONResponse(req, 200, `{"data":{"id":3887,"name":"Lab","description":""}}`)
 	case req.Method == "PUT" && strings.HasPrefix(req.URL.Path, "/api/compliance/frameworks/"):
@@ -148,6 +150,9 @@ func TestCreate_APIErrorSurfaces(t *testing.T) {
 	r := stubResource(func(req *http.Request) *http.Response {
 		if req.Method == "POST" {
 			return testutils.JSONResponse(req, 400, `{"error":"name already exists"}`)
+		}
+		if req.Method == "GET" && req.URL.Path == "/api/compliance/frameworks/select" {
+			return testutils.JSONResponse(req, 200, `{}`)
 		}
 		t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
 		return nil

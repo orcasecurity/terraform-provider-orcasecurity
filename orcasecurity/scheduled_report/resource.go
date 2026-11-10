@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 
@@ -481,7 +482,7 @@ func (r *scheduledReportResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	instance, err := r.apiClient.CreateScheduledReport(*payload)
+	instance, err := createrecovery.Run(ctx, r.apiClient.ScheduledReportCreateOp(*payload), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating scheduled report",
