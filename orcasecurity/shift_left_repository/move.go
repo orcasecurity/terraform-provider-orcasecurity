@@ -23,7 +23,7 @@ func moveRepository(ctx context.Context, ops repoOps, ctxID, targetProjectID str
 		settled = done
 		return done, err
 	})
-	if settled || err == nil || ctx.Err() != nil {
+	if settled || ctx.Err() != nil {
 		return err
 	}
 	return fmt.Errorf("repository context %s is still not in project %s after retrying for %s: %w",
