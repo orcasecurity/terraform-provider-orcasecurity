@@ -3,6 +3,7 @@ package api_client
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 type GithubRepositoryListItem struct {
@@ -158,10 +159,24 @@ func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, err
 	if err != nil {
 		return nil, err
 	}
-	if err := client.joinAzureProjectIDs(out); err != nil {
+	warnings, err := client.joinAzureProjectIDs(out)
+	if err != nil {
 		return nil, err
 	}
+	if len(warnings) > 0 {
+		return out, &PartialListWarning{Messages: warnings}
+	}
 	return out, nil
+}
+
+// PartialListWarning: every row was listed, but a field could not be joined for some of them. List
+// data sources keep the rows and surface the messages as warnings rather than failing the fleet list.
+type PartialListWarning struct {
+	Messages []string
+}
+
+func (w *PartialListWarning) Error() string {
+	return strings.Join(w.Messages, "; ")
 }
 
 func buildAzureRepositoryListItems(rows []azureRepositoryItem, installByAccount map[string]string) ([]AzureRepositoryListItem, error) {
@@ -185,31 +200,40 @@ func buildAzureRepositoryListItems(rows []azureRepositoryItem, installByAccount 
 }
 
 // Fall back to the browse endpoint, once per account, only for rows the backend didn't already stamp.
-func (client *APIClient) joinAzureProjectIDs(out []AzureRepositoryListItem) error {
+// An account whose browse call fails (e.g. its installation token was revoked) leaves azure_project_id
+// null on its rows and yields one warning, so one broken installation does not fail the whole list.
+func (client *APIClient) joinAzureProjectIDs(out []AzureRepositoryListItem) ([]string, error) {
 	projectIDsByAccount := make(map[string]map[string]string)
+	failedAccounts := make(map[string]bool)
+	var warnings []string
 	for i := range out {
 		if out[i].AzureProjectID != "" {
 			continue
 		}
 		accountKey := out[i].InstallationID + "/" + out[i].AccountName
+		if failedAccounts[accountKey] {
+			continue
+		}
 		projectIDs, cached := projectIDsByAccount[accountKey]
 		if !cached {
 			var err error
 			projectIDs, err = client.getAzureAccountRepositoryProjectIDs(out[i].InstallationID, out[i].AccountName)
 			if err != nil {
-				return fmt.Errorf(
-					"azure devops repository %s: fetching azure_project_id from account %s failed: %w",
-					out[i].AzureRepositoryID, out[i].AccountName, err)
+				failedAccounts[accountKey] = true
+				warnings = append(warnings, fmt.Sprintf(
+					"azure_project_id is null for the repositories of account %s (installation %s): browsing the account failed: %v. "+
+						"Check the installation's token in Orca.", out[i].AccountName, out[i].InstallationID, err))
+				continue
 			}
 			projectIDsByAccount[accountKey] = projectIDs
 		}
 		projectID, ok := projectIDs[out[i].AzureRepositoryID]
 		if !ok {
-			return fmt.Errorf(
+			return nil, fmt.Errorf(
 				"azure devops repository %s (account %s) has no azure_project_id in the account browse listing; "+
 					"the repository may have been removed on the Azure DevOps side", out[i].AzureRepositoryID, out[i].AccountName)
 		}
 		out[i].AzureProjectID = projectID
 	}
-	return nil
+	return warnings, nil
 }

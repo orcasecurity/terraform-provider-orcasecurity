@@ -2,8 +2,10 @@ package api_client
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -358,5 +360,56 @@ func TestListAzureRepositoriesMissingAccountErrors(t *testing.T) {
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
 	if _, err := client.ListAzureRepositories(); err == nil {
 		t.Fatal("expected error for repository referencing a missing account, got nil")
+	}
+}
+
+// One installation with a revoked token must not fail the fleet-wide list: its rows keep a null
+// azure_project_id and the failure comes back as a warning (seen live on the lab, 401 from browse).
+func TestListAzureRepositoriesBrowseFailureIsPartialWarning(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/shiftleft/azure_devops/installations/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        firstPageRows(r, []map[string]any{{"id": "inst-1", "name": "ADO"}}),
+			})
+		case "/api/shiftleft/azure_devops/installations/inst-1/integrated_accounts/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 1,
+				"data":        firstPageRows(r, []map[string]any{{"id": "acct-orca-1", "account_name": "org-name"}}),
+			})
+		case "/api/shiftleft/azure_devops/integrated_repositories/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_items": 2,
+				"data": firstPageRows(r, []map[string]any{
+					{"id": "repo-1", "azure_repository_id": "az-1",
+						"repository":                 map[string]any{"name": "proj/repo1"},
+						"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"}},
+					{"id": "repo-2", "azure_repository_id": "az-2",
+						"repository":                 map[string]any{"name": "proj/repo2"},
+						"azure_account_installation": map[string]any{"id": "acct-orca-1", "account_name": "org-name"}},
+				}),
+			})
+		case "/api/shiftleft/azure_devops/installations/inst-1/accounts/org-name/repositories/":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"message":"Token is invalid/revoked"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
+	rows, err := client.ListAzureRepositories()
+	var partial *PartialListWarning
+	if !errors.As(err, &partial) {
+		t.Fatalf("err = %v, want *PartialListWarning", err)
+	}
+	if len(partial.Messages) != 1 || !strings.Contains(partial.Messages[0], "account org-name") {
+		t.Fatalf("want one warning naming the account, got %q", partial.Messages)
+	}
+	if len(rows) != 2 || rows[0].AzureProjectID != "" || rows[1].AzureProjectID != "" {
+		t.Fatalf("want both rows with a null azure_project_id, got %+v", rows)
 	}
 }

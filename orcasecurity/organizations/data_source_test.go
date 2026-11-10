@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
+	"terraform-provider-orcasecurity/orcasecurity/internal/acctest"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -15,7 +16,11 @@ data "orcasecurity_organization" "test" {
 }
 `
 
-func TestAccJiraTemplateDataSource(t *testing.T) {
+func TestAccOrganizationDataSource(t *testing.T) {
+	org, err := acctest.APIClient(t).GetCurrentOrganization()
+	if err != nil {
+		t.Fatalf("reading the current organization: %v", err)
+	}
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { orcasecurity.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -23,7 +28,7 @@ func TestAccJiraTemplateDataSource(t *testing.T) {
 			{
 				Config: testAccDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.orcasecurity_organization.test", "name", "OTS"),
+					resource.TestCheckResourceAttr("data.orcasecurity_organization.test", "name", org.Name),
 					resource.TestCheckResourceAttrWith("data.orcasecurity_organization.test", "id", func(value string) error {
 						_, err := uuid.Parse(value)
 						return err

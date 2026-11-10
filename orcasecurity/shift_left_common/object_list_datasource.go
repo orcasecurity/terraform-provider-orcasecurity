@@ -2,6 +2,7 @@ package shift_left_common
 
 import (
 	"context"
+	"errors"
 	"maps"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -95,6 +96,13 @@ func (ds *scmObjectListDataSource[A]) Schema(_ context.Context, _ datasource.Sch
 
 func (ds *scmObjectListDataSource[A]) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
 	rows, err := ds.spec.List(ds.apiClient)
+	var partial *api_client.PartialListWarning
+	if errors.As(err, &partial) {
+		for _, m := range partial.Messages {
+			resp.Diagnostics.AddWarning("Some list fields could not be resolved", m)
+		}
+		err = nil
+	}
 	if err != nil {
 		resp.Diagnostics.AddError(ds.spec.ListErrorTitle, err.Error())
 		return
