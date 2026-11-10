@@ -35,7 +35,7 @@ func TestCreateCustomTagRule_MissingIDIsAnErrorWithoutReadBack(t *testing.T) {
 		return testutils.JSONResponse(req, 404, `{}`)
 	})
 	rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
-	if rule != nil || err == nil || !strings.Contains(err.Error(), "missing tags_rule_id") {
+	if rule != nil || err == nil || !strings.Contains(err.Error(), "missing tags_rule_id") || !strings.Contains(err.Error(), "import the rule") {
 		t.Fatalf("rule=%v err=%v, want a missing-tags_rule_id error", rule, err)
 	}
 	if gets != 0 {
