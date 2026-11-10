@@ -70,9 +70,9 @@ func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diag
 	if err != nil {
 		return nil, err
 	}
-	created, err = op.Get(id)
-	if err != nil || created == nil {
-		return nil, api_client.CreatedButUnreadableError(op.What, id, err)
+	created, err = api_client.ReadCreated(op.What, id, op.Get)
+	if err != nil {
+		return nil, err
 	}
 	diags.AddWarning("Recovered "+op.What+" after an ambiguous create", warning)
 	return created, nil

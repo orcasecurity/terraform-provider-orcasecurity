@@ -34,8 +34,16 @@ func idsWhere[T any](rows []T, id func(*T) string, match func(*T) bool) map[stri
 	return ids
 }
 
-// CreatedButUnreadableError reports an object that was created as id but could not be read back.
-func CreatedButUnreadableError(what, id string, cause error) error {
+// ReadCreated reads back an object just created as id; a failed or empty read names the id to import.
+func ReadCreated[T any](what, id string, get func(string) (*T, error)) (*T, error) {
+	created, err := get(id)
+	if err != nil || created == nil {
+		return nil, createdButUnreadableError(what, id, err)
+	}
+	return created, nil
+}
+
+func createdButUnreadableError(what, id string, cause error) error {
 	if cause == nil {
 		cause = errors.New("not found")
 	}
