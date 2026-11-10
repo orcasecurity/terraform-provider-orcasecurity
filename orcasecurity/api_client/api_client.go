@@ -187,39 +187,41 @@ func (c *APIClient) Head(path string) (*APIResponse, error) {
 
 // Execute POST HTTP request.
 func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
-	return c.post(context.Background(), path, data)
+	return withoutResponseOnError(c.send(context.Background(), http.MethodPost, path, data))
 }
 
 // PostCreate is Post for a create whose caller recovers an ambiguous outcome: after a timeout,
 // dropped connection or 502/504 it returns ErrAmbiguousWrite instead of replaying the request.
 func (c *APIClient) PostCreate(path string, data interface{}) (*APIResponse, error) {
-	return c.post(noReplayContext(), path, data)
+	return withoutResponseOnError(c.sendOnce(http.MethodPost, path, data))
 }
 
-func (c *APIClient) post(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
-	resp, err := c.postWithResponse(ctx, path, data)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+// Execute PUT HTTP request.
+func (c *APIClient) Put(path string, data interface{}) (*APIResponse, error) {
+	return c.send(context.Background(), http.MethodPut, path, data)
 }
 
-// postWithResponse keeps the response on an API error so the caller can branch on its status.
-func (c *APIClient) postWithResponse(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
+// Execute PATCH HTTP request.
+func (c *APIClient) Patch(path string, data interface{}) (*APIResponse, error) {
+	return c.send(context.Background(), http.MethodPatch, path, data)
+}
+
+// sendOnce never replays the request after an ambiguous outcome; it returns ErrAmbiguousWrite instead.
+func (c *APIClient) sendOnce(method, path string, data interface{}) (*APIResponse, error) {
+	return c.send(noReplayContext(), method, path, data)
+}
+
+// send keeps the response on an API error so the caller can branch on its status.
+func (c *APIClient) send(ctx context.Context, method, path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %v", err)
 	}
 
 	fullURL := fmt.Sprintf("%s%s", c.APIEndpoint, path)
-	c.debugf("Making POST request to: %s", fullURL)
+	c.debugf("Making %s request to: %s", method, fullURL)
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		fullURL,
-		strings.NewReader(string(payload)),
-	)
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, strings.NewReader(string(payload)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v, URL: %s", err, fullURL)
 	}
@@ -237,42 +239,11 @@ func (c *APIClient) postWithResponse(ctx context.Context, path string, data inte
 	return response, nil
 }
 
-// Execute PUT HTTP request.
-func (c *APIClient) Put(path string, data interface{}) (*APIResponse, error) {
-	payload, err := json.Marshal(&data)
+func withoutResponseOnError(resp *APIResponse, err error) (*APIResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequest(
-		"PUT",
-		fmt.Sprintf("%s%s", c.APIEndpoint, path),
-		strings.NewReader(string(payload)),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.doRequest(*req)
-}
-
-// Execute PATCH HTTP request.
-func (c *APIClient) Patch(path string, data interface{}) (*APIResponse, error) {
-	payload, err := json.Marshal(&data)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(
-		"PATCH",
-		fmt.Sprintf("%s%s", c.APIEndpoint, path),
-		strings.NewReader(string(payload)),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.doRequest(*req)
+	return resp, nil
 }
 
 // Execute DELETE HTTP request.

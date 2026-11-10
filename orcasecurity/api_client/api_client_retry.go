@@ -39,16 +39,16 @@ func isAmbiguousWriteStatus(status int) bool {
 	return status == http.StatusBadGateway || status == http.StatusGatewayTimeout
 }
 
-type noReplayPostKey struct{}
+type noReplayKey struct{}
 
 func noReplayContext() context.Context {
-	return context.WithValue(context.Background(), noReplayPostKey{}, true)
+	return context.WithValue(context.Background(), noReplayKey{}, true)
 }
 
-// isNonIdempotent reports whether req must not be replayed after an ambiguous failure: a POST sent
-// via PostCreate. Plain Post keeps the full retry policy.
+// isNonIdempotent reports whether req must not be replayed after an ambiguous failure: one sent via
+// sendOnce (PostCreate). Plain Post keeps the full retry policy.
 func isNonIdempotent(req *http.Request) bool {
-	return req.Method == http.MethodPost && req.Context().Value(noReplayPostKey{}) != nil
+	return req.Context().Value(noReplayKey{}) != nil
 }
 
 var retryJitter = func(n time.Duration) time.Duration {
