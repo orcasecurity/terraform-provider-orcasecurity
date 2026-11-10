@@ -203,7 +203,7 @@ func (c *APIClient) Put(path string, data interface{}) (*APIResponse, error) {
 
 // PutCreate is PostCreate for an API that creates with PUT on the collection.
 func (c *APIClient) PutCreate(path string, data interface{}) (*APIResponse, error) {
-	return c.sendOnce(http.MethodPut, path, data)
+	return withoutResponseOnError(c.sendOnce(http.MethodPut, path, data))
 }
 
 // Execute PATCH HTTP request.
