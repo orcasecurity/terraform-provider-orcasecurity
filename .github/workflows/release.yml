@@ -45,9 +45,15 @@ jobs:
                       exit 1
                   fi
                   tag=$(git tag --points-at HEAD --list 'v*' --sort=-v:refname | head -n1)
-                  if [ -n "$tag" ] && gh release view "$tag" >/dev/null 2>&1; then
-                      echo "::error::$GITHUB_SHA is already released as $tag"
-                      exit 1
+                  # Published releases only: a failed run leaves a draft, which a re-run must get past.
+                  if [ -n "$tag" ]; then
+                      if out=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --silent 2>&1); then
+                          echo "::error::$GITHUB_SHA is already released as $tag"
+                          exit 1
+                      elif [[ $out != *"HTTP 404"* ]]; then
+                          echo "::error::Could not check for a $tag release: $out"
+                          exit 1
+                      fi
                   fi
                   if [ -z "$tag" ]; then
                       last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
