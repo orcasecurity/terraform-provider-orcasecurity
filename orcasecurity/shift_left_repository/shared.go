@@ -270,7 +270,7 @@ func repoUpdate[M any, PM repoModelPtr[M]](ctx context.Context, req resource.Upd
 	}
 	planFields := PM(&plan).configFields()
 	o := ops(&plan)
-	row := updateRepo(o, planFields, PM(&state).configFields(), &resp.Diagnostics)
+	row := updateRepo(ctx, o, planFields, PM(&state).configFields(), &resp.Diagnostics)
 	if row == nil {
 		return
 	}
@@ -361,7 +361,7 @@ func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
 	)
 }
 
-func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
+func updateRepo(ctx context.Context, ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	// Move project before config PATCH — move failure must not leave remote config ahead of state.
 	ctxID := state.RepositoryContextID.ValueString()
 	moved := false
@@ -371,7 +371,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 				"repository_context_id is unknown; run terraform refresh and retry")
 			return nil
 		}
-		if err := ops.client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
+		if err := moveRepository(ctx, ops, ctxID, plan.ProjectID.ValueString()); err != nil {
 			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.traits.name), err.Error())
 			return nil
 		}
@@ -380,7 +380,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
 		if err := ops.update(body); err != nil {
 			if moved {
-				rollbackProjectMove(ops, state, ctxID, diags)
+				rollbackProjectMove(ctx, ops, state, plan.ProjectID.ValueString(), ctxID, diags)
 			}
 			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.traits.name), err.Error())
 			return nil
@@ -395,27 +395,6 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 		return nil
 	}
 	return row
-}
-
-// Move then PATCH are independent; on PATCH failure move the repo back so live matches state.
-func rollbackProjectMove(ops repoOps, state *RepoConfigFields, ctxID string, diags *diag.Diagnostics) {
-	priorProjectID := state.ProjectID.ValueString()
-	const detail = "The repository was moved to the configured project but applying its configuration failed"
-	if !tfconv.Known(state.ProjectID) || priorProjectID == "" {
-		diags.AddWarning(
-			fmt.Sprintf("%s repository left in its new project", ops.traits.name),
-			detail+", and state does not record which project it came from, so the move could not be undone. "+
-				"Re-run to reconcile.",
-		)
-		return
-	}
-	if err := ops.client.MoveRepositoryContexts(priorProjectID, []string{ctxID}); err != nil {
-		diags.AddWarning(
-			fmt.Sprintf("Failed to undo the %s repository project move", ops.traits.name),
-			fmt.Sprintf("%s, and moving it back to project %s also failed: %s. Re-run to reconcile.",
-				detail, priorProjectID, err.Error()),
-		)
-	}
 }
 
 func deleteRepo(ops repoOps, state *RepoConfigFields, diags *diag.Diagnostics) {

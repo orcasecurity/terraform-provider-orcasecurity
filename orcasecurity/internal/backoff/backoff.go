@@ -4,6 +4,7 @@ package backoff
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -28,11 +29,15 @@ func Sleep(ctx context.Context, d time.Duration) error {
 }
 
 // Poll sleeps each delay in turn and then calls try, until try reports done. An error with done=false
-// is retried; if no try is done, Poll returns the last try's error. waited is the total delay slept.
+// is retried; if no try is done, Poll returns the last try's error, joined with ctx's error if ctx
+// ended the wait. waited is the total delay slept.
 func Poll(ctx context.Context, delays []time.Duration, try func() (done bool, err error)) (waited time.Duration, err error) {
 	var lastErr error
 	for _, d := range delays {
 		if err := Sleep(ctx, d); err != nil {
+			if lastErr != nil {
+				return waited, fmt.Errorf("%w (stopped waiting: %w)", lastErr, err)
+			}
 			return waited, err
 		}
 		waited += d

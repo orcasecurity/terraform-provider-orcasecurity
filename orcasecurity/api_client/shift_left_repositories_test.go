@@ -2,6 +2,8 @@ package api_client
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -484,5 +486,50 @@ func TestMoveRepositoryContexts_BodyShape(t *testing.T) {
 	ids := last.Body["repository_context_ids"].([]any)
 	if len(ids) != 1 || ids[0] != "ctx-1" {
 		t.Errorf("repository_context_ids: %v", ids)
+	}
+}
+
+func TestMoveRepositoryContexts_RefusalCodes(t *testing.T) {
+	stubRetrySleep(t)
+	cases := []struct {
+		code string
+		want error
+	}{
+		{"move_already_in_progress", ErrMoveInProgress},
+		{"repositories_contexts_already_exists_in_target_project", ErrMoveAlreadyInTarget},
+		{"move_repository_context_error", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			client := &APIClient{APIEndpoint: retryTestAPIEndpoint, HTTPClient: &http.Client{Transport: RoundTripFunc(
+				func(req *http.Request) *http.Response {
+					return &http.Response{StatusCode: http.StatusBadRequest, Request: req, Body: io.NopCloser(strings.NewReader(
+						`{"status":"failure","error_code":"` + tc.code + `","message":"refused","errors":{}}`))}
+				})}}
+			err := client.MoveRepositoryContexts("proj-1", []string{"ctx-1"})
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if !strings.Contains(err.Error(), tc.code) || !strings.Contains(err.Error(), "refused") {
+				t.Errorf("the original API error text must be kept, got %q", err.Error())
+			}
+			for _, sentinel := range []error{ErrMoveInProgress, ErrMoveAlreadyInTarget} {
+				if errors.Is(err, sentinel) != (sentinel == tc.want) {
+					t.Errorf("errors.Is(%v) = %v, want %v", sentinel, errors.Is(err, sentinel), sentinel == tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestMoveRepositoryContexts_GatewayTimeoutIsAmbiguousAndNotReplayed(t *testing.T) {
+	stubRetrySleep(t)
+	client, n := statusSequenceClient(func(int) int { return http.StatusGatewayTimeout })
+	err := client.MoveRepositoryContexts("proj-1", []string{"ctx-1"})
+	if !errors.Is(err, ErrAmbiguousWrite) {
+		t.Fatalf("err = %v, want ErrAmbiguousWrite", err)
+	}
+	if *n != 1 {
+		t.Fatalf("attempts = %d, want 1", *n)
 	}
 }
