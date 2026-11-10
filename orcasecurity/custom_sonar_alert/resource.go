@@ -7,7 +7,6 @@ import (
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/alert_common"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -154,10 +153,8 @@ func (r *customSonarAlertResource) Create(ctx context.Context, req resource.Crea
 		}
 	}
 
-	instance, err := createrecovery.Run(ctx, r.apiClient.CustomSonarAlertCreateOp(createReq), &resp.Diagnostics)
-	if err == nil {
-		err = r.apiClient.SetCreatedCustomAlertRemediation(instance.ID, instance.RuleType, createReq.RemediationText)
-	}
+	instance, err := alert_common.Create(ctx, r.apiClient, r.apiClient.CustomSonarAlertCreateOp(createReq),
+		func(a *api_client.CustomAlert) string { return a.RuleType }, createReq.RemediationText, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Alert",

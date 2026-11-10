@@ -26,11 +26,7 @@ type CustomDiscoveryAlert struct {
 	RemediationText      *CustomDiscoveryAlertRemediationText      // managed in a separate API call
 }
 
-type CustomDiscoveryAlertRemediationText struct {
-	AlertType string `json:"alert_type"`
-	Enable    bool   `json:"enabled"`
-	Text      string `json:"custom_text"`
-}
+type CustomDiscoveryAlertRemediationText = CustomSonarAlertRemediationText
 
 func (client *APIClient) GetCustomDiscoveryAlert(id string) (*CustomDiscoveryAlert, error) {
 	type responseType struct {
