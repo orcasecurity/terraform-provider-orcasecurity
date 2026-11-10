@@ -24,7 +24,7 @@ func TestCreateDataDetectionRule_UsesPUTOnCollection(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	ruleID, err := client.CreateDataDetectionRule(DataDetectionRule{
+	ruleID, err := client.createDataDetectionRule(DataDetectionRule{
 		Name:                  "tf rule",
 		Feature:               "DSPM Scanning",
 		Action:                "scan",
@@ -79,7 +79,7 @@ func TestDataDetectionRuleMutations_AreSerialized(t *testing.T) {
 			defer wg.Done()
 			switch i % 3 {
 			case 0:
-				_, _ = client.CreateDataDetectionRule(DataDetectionRule{Name: fmt.Sprintf("rule %d", i), Feature: "DSPM Scanning", Action: "scan"})
+				_, _ = client.createDataDetectionRule(DataDetectionRule{Name: fmt.Sprintf("rule %d", i), Feature: "DSPM Scanning", Action: "scan"})
 			case 1:
 				_ = client.UpdateDataDetectionRule(DataDetectionRule{ID: fmt.Sprintf("rule-%d", i), Name: fmt.Sprintf("rule %d", i), Feature: "DSPM Scanning", Action: "scan"})
 			default:
@@ -103,7 +103,7 @@ func TestCreateDataDetectionRule_MissingRuleID(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	_, err := client.CreateDataDetectionRule(DataDetectionRule{Name: "tf rule", Feature: "DSPM Scanning", Action: "scan"})
+	_, err := client.createDataDetectionRule(DataDetectionRule{Name: "tf rule", Feature: "DSPM Scanning", Action: "scan"})
 	if err == nil {
 		t.Fatal("expected error when response has no rule_id")
 	}
