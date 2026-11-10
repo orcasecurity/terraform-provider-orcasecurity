@@ -45,24 +45,19 @@ func sonarRuleCase(name string, op func(c *api_client.APIClient) runner) opCase 
 func init() {
 	opCases = append(opCases,
 		sonarRuleCase("custom_sonar_alert", func(c *api_client.APIClient) runner {
-			return runOp(c.CustomSonarAlertCreateOp(api_client.CustomAlert{Name: stubTag}),
-				func(a *api_client.CustomAlert) string { return a.ID })
+			return runOp(c.CustomSonarAlertCreateOp(api_client.CustomAlert{Name: stubTag}))
 		}),
 		sonarRuleCase("custom_discovery_alert", func(c *api_client.APIClient) runner {
-			return runOp(c.CustomDiscoveryAlertCreateOp(api_client.CustomDiscoveryAlert{Name: stubTag}),
-				func(a *api_client.CustomDiscoveryAlert) string { return a.ID })
+			return runOp(c.CustomDiscoveryAlertCreateOp(api_client.CustomDiscoveryAlert{Name: stubTag}))
 		}),
 		idNameCase("custom_tag_rule", "/api/custom_tags", stubTag, func(c *api_client.APIClient) runner {
-			return runOp(c.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: stubTag, RuleType: api_client.CustomTagRuleRuleTypeString}),
-				func(r *api_client.CustomTagRule) string { return r.ID })
+			return runOp(c.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: stubTag, RuleType: api_client.CustomTagRuleRuleTypeString}))
 		}),
 		idNameCase("automation_v2", "/api/automations", stubTag, func(c *api_client.APIClient) runner {
-			return runOp(c.AutomationV2CreateOp(api_client.AutomationV2{Name: stubTag}, true),
-				func(a *api_client.AutomationV2) string { return a.ID })
+			return runOp(c.AutomationV2CreateOp(api_client.AutomationV2{Name: stubTag}, true))
 		}),
 		idNameCase("scheduled_report", "/api/reporting/scheduled_reports", "tf:recovery", func(c *api_client.APIClient) runner {
-			return runOp(c.ScheduledReportCreateOp(api_client.ScheduledReport{Name: "tf/recovery"}),
-				func(r *api_client.ScheduledReport) string { return r.ID })
+			return runOp(c.ScheduledReportCreateOp(api_client.ScheduledReport{Name: "tf/recovery"}))
 		}),
 		opCase{
 			name: "custom_compliance_framework",
@@ -80,8 +75,7 @@ func init() {
 				},
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.CustomComplianceFrameworkCreateOp(api_client.CustomComplianceFrameworkRequest{Name: stubTag}),
-					func(f *api_client.CustomComplianceFrameworkWriteResponse) string { return f.ID.String() })
+				return runOp(c.CustomComplianceFrameworkCreateOp(api_client.CustomComplianceFrameworkRequest{Name: stubTag}))
 			},
 		},
 	)

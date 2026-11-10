@@ -25,7 +25,7 @@ var (
 
 // Lister returns the ids of every existing object that matches what is being created. Names are not
 // unique, so recovery diffs id sets rather than trusting a name match alone.
-type Lister func() (map[string]bool, error)
+type Lister = api_client.IDLister
 
 // Snapshot takes the pre-create id set. A failed snapshot returns nil, which disables adoption.
 func Snapshot(ctx context.Context, what string, list Lister) map[string]bool {
@@ -76,6 +76,9 @@ func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diag
 	before := Snapshot(ctx, op.What, op.IDs)
 	created, err := op.Create()
 	if err == nil {
+		if created == nil || op.ID(created) == "" {
+			return nil, fmt.Errorf("the create request for %s succeeded but returned no object id; check the Orca UI and import it if it was created", op.What)
+		}
 		return created, nil
 	}
 	id, warning, err := Recover(ctx, err, op.What, before, op.IDs)

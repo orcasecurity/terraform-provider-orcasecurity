@@ -72,6 +72,7 @@ func (client *APIClient) ListBusinessUnitIDsByName(name string) (map[string]bool
 func (client *APIClient) BusinessUnitCreateOp(data BusinessUnit) CreateOp[BusinessUnit] {
 	return CreateOp[BusinessUnit]{
 		What:   fmt.Sprintf("business unit named %q", data.Name),
+		ID:     func(o *BusinessUnit) string { return o.ID },
 		Create: func() (*BusinessUnit, error) { return client.createBusinessUnit(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListBusinessUnitIDsByName(data.Name) },
 		Get:    client.GetBusinessUnit,

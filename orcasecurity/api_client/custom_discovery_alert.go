@@ -66,7 +66,7 @@ func (client *APIClient) GetCustomDiscoveryAlert(id string) (*CustomDiscoveryAle
 
 // CustomDiscoveryAlertCreateOp's Create only posts the rule; call SetCreatedCustomAlertRemediation after it.
 func (client *APIClient) CustomDiscoveryAlertCreateOp(data CustomDiscoveryAlert) CreateOp[CustomDiscoveryAlert] {
-	return sonarRuleCreateOp(client, data.Name, data, client.GetCustomDiscoveryAlert)
+	return sonarRuleCreateOp(client, data.Name, data, func(a *CustomDiscoveryAlert) string { return a.ID }, client.GetCustomDiscoveryAlert)
 }
 
 func (client *APIClient) UpdateCustomDiscoveryAlert(id string, data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {

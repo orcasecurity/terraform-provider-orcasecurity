@@ -84,6 +84,7 @@ func (client *APIClient) ListCustomComplianceFrameworkIDsByName(name string) (ma
 func (client *APIClient) CustomComplianceFrameworkCreateOp(data CustomComplianceFrameworkRequest) CreateOp[CustomComplianceFrameworkWriteResponse] {
 	return CreateOp[CustomComplianceFrameworkWriteResponse]{
 		What: fmt.Sprintf("custom compliance framework named %q", data.Name),
+		ID:   func(o *CustomComplianceFrameworkWriteResponse) string { return o.ID.String() },
 		Create: func() (*CustomComplianceFrameworkWriteResponse, error) {
 			return client.createCustomComplianceFramework(data)
 		},

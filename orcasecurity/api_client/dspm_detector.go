@@ -141,6 +141,7 @@ func (client *APIClient) ListDSPMDetectorIDsByTitle(title string) (map[string]bo
 func (client *APIClient) DSPMDetectorCreateOp(data DSPMDetector) CreateOp[DSPMDetector] {
 	return CreateOp[DSPMDetector]{
 		What:   fmt.Sprintf("sensitive data identifier titled %q", data.Title),
+		ID:     func(o *DSPMDetector) string { return o.ID },
 		Create: func() (*DSPMDetector, error) { return client.createDSPMDetector(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListDSPMDetectorIDsByTitle(data.Title) },
 		Get:    client.GetDSPMDetector,

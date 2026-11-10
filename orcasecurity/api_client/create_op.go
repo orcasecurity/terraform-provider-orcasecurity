@@ -7,11 +7,14 @@ import "strings"
 type CreateOp[T any] struct {
 	What   string
 	Create func() (*T, error)
+	ID     func(*T) string
 	// IDs returns the ids of every existing object matching the create's natural key. It is taken
 	// before and after the POST; only an id absent from the first set is ever adopted.
-	IDs func() (map[string]bool, error)
+	IDs IDLister
 	Get func(id string) (*T, error)
 }
+
+type IDLister func() (map[string]bool, error)
 
 func sameName(a, b string) bool {
 	return strings.TrimSpace(a) == strings.TrimSpace(b)

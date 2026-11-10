@@ -60,6 +60,7 @@ func (client *APIClient) userPreferenceIDsByName(viewType, name string) func() (
 func (client *APIClient) CustomWidgetCreateOp(data CustomWidget) CreateOp[CustomWidget] {
 	return CreateOp[CustomWidget]{
 		What:   fmt.Sprintf("custom widget named %q", data.Name),
+		ID:     func(o *CustomWidget) string { return o.ID },
 		Create: func() (*CustomWidget, error) { return client.createCustomWidget(data) },
 		IDs:    client.userPreferenceIDsByName(data.ViewType, data.Name),
 		Get:    client.GetCustomWidget,
@@ -69,6 +70,7 @@ func (client *APIClient) CustomWidgetCreateOp(data CustomWidget) CreateOp[Custom
 func (client *APIClient) CustomDashboardCreateOp(data CustomDashboard) CreateOp[CustomDashboard] {
 	return CreateOp[CustomDashboard]{
 		What:   fmt.Sprintf("custom dashboard named %q", data.Name),
+		ID:     func(o *CustomDashboard) string { return o.ID },
 		Create: func() (*CustomDashboard, error) { return client.createCustomDashboard(data) },
 		IDs:    client.userPreferenceIDsByName(data.ViewType, data.Name),
 		Get:    client.GetCustomDashboard,
@@ -78,6 +80,7 @@ func (client *APIClient) CustomDashboardCreateOp(data CustomDashboard) CreateOp[
 func (client *APIClient) DiscoveryViewCreateOp(data DiscoveryView) CreateOp[DiscoveryView] {
 	return CreateOp[DiscoveryView]{
 		What:   fmt.Sprintf("discovery view named %q", data.Name),
+		ID:     func(o *DiscoveryView) string { return o.ID },
 		Create: func() (*DiscoveryView, error) { return client.createDiscoveryView(data) },
 		IDs:    client.userPreferenceIDsByName(data.ViewType, data.Name),
 		Get:    client.GetDiscoveryView,

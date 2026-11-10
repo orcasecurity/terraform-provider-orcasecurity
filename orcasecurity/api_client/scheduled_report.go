@@ -175,6 +175,7 @@ func (client *APIClient) ListScheduledReportIDsByName(name string) (map[string]b
 func (client *APIClient) ScheduledReportCreateOp(data ScheduledReport) CreateOp[ScheduledReport] {
 	return CreateOp[ScheduledReport]{
 		What:   fmt.Sprintf("scheduled report named %q", data.Name),
+		ID:     func(o *ScheduledReport) string { return o.ID },
 		Create: func() (*ScheduledReport, error) { return client.createScheduledReport(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListScheduledReportIDsByName(data.Name) },
 		Get:    client.GetScheduledReport,

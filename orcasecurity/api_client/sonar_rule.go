@@ -106,9 +106,10 @@ func (client *APIClient) ListCustomSonarRuleIDsByName(name string) (map[string]b
 }
 
 // Custom sonar and discovery alerts are both rules created through POST /api/sonar/rules.
-func sonarRuleCreateOp[T any](client *APIClient, name string, body any, get func(string) (*T, error)) CreateOp[T] {
+func sonarRuleCreateOp[T any](client *APIClient, name string, body any, id func(*T) string, get func(string) (*T, error)) CreateOp[T] {
 	return CreateOp[T]{
 		What: fmt.Sprintf("custom alert named %q", name),
+		ID:   id,
 		Create: func() (*T, error) {
 			resp, err := client.PostCreate(sonarRulesPath, body)
 			if err != nil {

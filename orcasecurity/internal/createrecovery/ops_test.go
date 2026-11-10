@@ -27,23 +27,24 @@ type runner func(context.Context, *diag.Diagnostics) (string, error)
 // object (oldID) must always be listed so the test proves it is never adopted. empty is the page
 // after the last one for offset-paginated lists (default {"data":[]}).
 type opCase struct {
-	name  string
-	post  string
-	get   map[string]func(created bool) string
-	empty string
-	op    func(c *api_client.APIClient) runner
+	name    string
+	post    string
+	get     map[string]func(created bool) string
+	empty   string
+	adopted string
+	op      func(c *api_client.APIClient) runner
 }
 
 // opCases is filled by each domain's *_ops_test.go init.
 var opCases []opCase
 
-func runOp[T any](op api_client.CreateOp[T], id func(*T) string) runner {
+func runOp[T any](op api_client.CreateOp[T]) runner {
 	return func(ctx context.Context, diags *diag.Diagnostics) (string, error) {
 		got, err := createrecovery.Run(ctx, op, diags)
 		if err != nil {
 			return "", err
 		}
-		return id(got), nil
+		return op.ID(got), nil
 	}
 }
 
@@ -108,9 +109,13 @@ func TestCreateOps_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stub, client := startStub(t, c, true)
 			var diags diag.Diagnostics
+			want := newID
+			if c.adopted != "" {
+				want = c.adopted
+			}
 			id, err := c.op(client)(context.Background(), &diags)
-			if err != nil || id != newID {
-				t.Fatalf("id=%q err=%v, want %s", id, err, newID)
+			if err != nil || id != want {
+				t.Fatalf("id=%q err=%v, want %s", id, err, want)
 			}
 			if diags.WarningsCount() != 1 {
 				t.Errorf("want one recovery warning, got %v", diags)

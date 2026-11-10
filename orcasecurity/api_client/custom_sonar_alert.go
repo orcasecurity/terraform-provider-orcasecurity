@@ -62,7 +62,7 @@ func (client *APIClient) GetCustomSonarAlert(id string) (*CustomAlert, error) {
 
 // CustomSonarAlertCreateOp's Create only posts the rule; call SetCreatedCustomAlertRemediation after it.
 func (client *APIClient) CustomSonarAlertCreateOp(data CustomAlert) CreateOp[CustomAlert] {
-	return sonarRuleCreateOp(client, data.Name, data, client.GetCustomSonarAlert)
+	return sonarRuleCreateOp(client, data.Name, data, func(a *CustomAlert) string { return a.ID }, client.GetCustomSonarAlert)
 }
 
 func (client *APIClient) UpdateCustomSonarAlert(id string, data CustomAlert) (*CustomAlert, error) {

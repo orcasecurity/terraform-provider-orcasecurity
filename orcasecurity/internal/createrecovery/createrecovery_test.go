@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 var errAmbiguous = fmt.Errorf("%w: 504", api_client.ErrAmbiguousWrite)
@@ -85,5 +87,30 @@ func TestRecover_LookupFailureErrors(t *testing.T) {
 func TestSnapshot_FailureDisablesAdoption(t *testing.T) {
 	if got := Snapshot(context.Background(), "x", func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
 		t.Fatalf("snapshot = %v, want nil", got)
+	}
+}
+
+func TestRun_CreateWithoutAnIDIsAnError(t *testing.T) {
+	type thing struct{ ID string }
+	for name, created := range map[string]*thing{"nil": nil, "empty id": {}} {
+		gets := 0
+		op := api_client.CreateOp[thing]{
+			What:   `thing named "x"`,
+			Create: func() (*thing, error) { return created, nil },
+			ID:     func(t *thing) string { return t.ID },
+			IDs:    func() (map[string]bool, error) { return ids(), nil },
+			Get: func(string) (*thing, error) {
+				gets++
+				return nil, nil
+			},
+		}
+		var diags diag.Diagnostics
+		got, err := Run(context.Background(), op, &diags)
+		if got != nil || err == nil || !strings.Contains(err.Error(), `thing named "x"`) || !strings.Contains(err.Error(), "returned no object id") {
+			t.Fatalf("%s: got=%v err=%v, want a returned-no-object-id error", name, got, err)
+		}
+		if gets != 0 || len(diags) != 0 {
+			t.Errorf("%s: gets=%d diags=%v, want no read-back and no diagnostics", name, gets, diags)
+		}
 	}
 }

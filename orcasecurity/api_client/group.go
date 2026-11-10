@@ -131,6 +131,7 @@ func (client *APIClient) ListGroupIDsByName(name string) (map[string]bool, error
 func (client *APIClient) GroupCreateOp(data Group) CreateOp[Group] {
 	return CreateOp[Group]{
 		What:   fmt.Sprintf("group named %q", data.Name),
+		ID:     func(o *Group) string { return o.ID },
 		Create: func() (*Group, error) { return client.createGroup(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListGroupIDsByName(data.Name) },
 		Get:    client.GetGroup,

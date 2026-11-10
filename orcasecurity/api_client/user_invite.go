@@ -128,6 +128,7 @@ func (client *APIClient) UserInviteCreateOp(req UserInviteRequest) CreateOp[User
 	email := strings.Join(req.InviteUserEmails, ",")
 	return CreateOp[UserInvite]{
 		What:   fmt.Sprintf("user invite for %q", email),
+		ID:     func(o *UserInvite) string { return o.ID },
 		Create: func() (*UserInvite, error) { return client.createUserInvite(req) },
 		IDs:    func() (map[string]bool, error) { return client.ListUserInviteIDsByEmail(email) },
 		Get:    client.GetUserInvite,

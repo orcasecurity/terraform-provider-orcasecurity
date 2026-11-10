@@ -2,7 +2,6 @@ package createrecovery_test
 
 import (
 	"fmt"
-	"strconv"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
@@ -34,8 +33,7 @@ func init() {
 				"/api/business_units/" + newID: namedData(newID),
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.BusinessUnitCreateOp(api_client.BusinessUnit{Name: stubTag}),
-					func(b *api_client.BusinessUnit) string { return b.ID })
+				return runOp(c.BusinessUnitCreateOp(api_client.BusinessUnit{Name: stubTag}))
 			},
 		},
 		opCase{
@@ -46,8 +44,7 @@ func init() {
 				"/api/rbac/roles/" + newID: namedData(newID),
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.CustomRoleCreateOp(api_client.CustomRole{Name: stubTag}),
-					func(r *api_client.CustomRole) string { return r.ID })
+				return runOp(c.CustomRoleCreateOp(api_client.CustomRole{Name: stubTag}))
 			},
 		},
 		opCase{
@@ -61,8 +58,7 @@ func init() {
 				"/api/rbac/group/" + newID: namedData(newID),
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.GroupCreateOp(api_client.Group{Name: stubTag}),
-					func(g *api_client.Group) string { return g.ID })
+				return runOp(c.GroupCreateOp(api_client.Group{Name: stubTag}))
 			},
 		},
 		opCase{
@@ -76,13 +72,13 @@ func init() {
 				},
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.UserInviteCreateOp(api_client.UserInviteRequest{InviteUserEmails: []string{"TF-Recovery@Example.com"}}),
-					func(inv *api_client.UserInvite) string { return inv.ID })
+				return runOp(c.UserInviteCreateOp(api_client.UserInviteRequest{InviteUserEmails: []string{"TF-Recovery@Example.com"}}))
 			},
 		},
 		opCase{
-			name: "trusted_cloud_account",
-			post: "/api/organization/trusted_accounts",
+			name:    "trusted_cloud_account",
+			post:    "/api/organization/trusted_accounts",
+			adopted: "1",
 			get: map[string]func(bool) string{
 				"/api/organization/trusted_accounts": func(created bool) string {
 					return rows(created, func(id string) string {
@@ -91,13 +87,7 @@ func init() {
 				},
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.TrustedCloudAccountCreateOp(api_client.TrustedCloudAccount{CloudProvider: "aws", CloudAccountID: stubCloudID}),
-					func(a *api_client.TrustedCloudAccount) string {
-						if a.ID == trustedAccountIDs[newID] {
-							return newID
-						}
-						return strconv.FormatInt(a.ID, 10)
-					})
+				return runOp(c.TrustedCloudAccountCreateOp(api_client.TrustedCloudAccount{CloudProvider: "aws", CloudAccountID: stubCloudID}))
 			},
 		},
 		opCase{
@@ -111,8 +101,7 @@ func init() {
 				},
 			},
 			op: func(c *api_client.APIClient) runner {
-				return runOp(c.GroupAccessCreateOp(api_client.GroupAccess{GroupID: stubGroupID, RoleID: stubRoleID, AllCloudAccounts: true}),
-					func(a *api_client.GroupAccess) string { return a.ID })
+				return runOp(c.GroupAccessCreateOp(api_client.GroupAccess{GroupID: stubGroupID, RoleID: stubRoleID, AllCloudAccounts: true}))
 			},
 		},
 	)

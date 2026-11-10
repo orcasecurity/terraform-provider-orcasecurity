@@ -96,14 +96,22 @@ func (client *APIClient) ListTrustedCloudAccountIDs(cloudProvider, cloudAccountI
 	if err := json.Unmarshal(resp.Body(), &response); err != nil {
 		return nil, err
 	}
-	return idsWhere(response.Data, func(a *TrustedCloudAccount) string { return strconv.FormatInt(a.ID, 10) }, func(a *TrustedCloudAccount) bool {
+	return idsWhere(response.Data, trustedCloudAccountID, func(a *TrustedCloudAccount) bool {
 		return a.CloudProvider == cloudProvider && a.CloudAccountID == cloudAccountID
 	}), nil
+}
+
+func trustedCloudAccountID(a *TrustedCloudAccount) string {
+	if a.ID == 0 {
+		return ""
+	}
+	return strconv.FormatInt(a.ID, 10)
 }
 
 func (client *APIClient) TrustedCloudAccountCreateOp(data TrustedCloudAccount) CreateOp[TrustedCloudAccount] {
 	return CreateOp[TrustedCloudAccount]{
 		What:   fmt.Sprintf("trusted %s cloud account %q", data.CloudProvider, data.CloudAccountID),
+		ID:     trustedCloudAccountID,
 		Create: func() (*TrustedCloudAccount, error) { return client.createTrustedCloudAccount(data) },
 		IDs: func() (map[string]bool, error) {
 			return client.ListTrustedCloudAccountIDs(data.CloudProvider, data.CloudAccountID)

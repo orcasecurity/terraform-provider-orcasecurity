@@ -152,6 +152,7 @@ func (client *APIClient) ListCustomTagRuleIDsByName(name string) (map[string]boo
 func (client *APIClient) CustomTagRuleCreateOp(data CustomTagRule) CreateOp[CustomTagRule] {
 	return CreateOp[CustomTagRule]{
 		What:   fmt.Sprintf("custom tag rule named %q", data.Name),
+		ID:     func(o *CustomTagRule) string { return o.ID },
 		Create: func() (*CustomTagRule, error) { return client.createCustomTagRule(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListCustomTagRuleIDsByName(data.Name) },
 		Get:    client.GetCustomTagRule,

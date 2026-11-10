@@ -37,6 +37,7 @@ func (client *APIClient) ShiftLeftProjectCreateOp(data ShiftLeftProject) CreateO
 	}
 	return CreateOp[ShiftLeftProject]{
 		What:   what,
+		ID:     func(o *ShiftLeftProject) string { return o.ID },
 		Create: func() (*ShiftLeftProject, error) { return client.createShiftLeftProject(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListShiftLeftProjectIDsByKey(data.Key, data.Name) },
 		Get:    client.GetShiftLeftProject,

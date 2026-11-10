@@ -104,6 +104,7 @@ func (client *APIClient) ListGroupAccessIDsMatching(want GroupAccess) (map[strin
 func (client *APIClient) GroupAccessCreateOp(data GroupAccess) CreateOp[GroupAccess] {
 	return CreateOp[GroupAccess]{
 		What:   fmt.Sprintf("access for group %s with role %s and the same scope", data.GroupID, data.RoleID),
+		ID:     func(o *GroupAccess) string { return o.ID },
 		Create: func() (*GroupAccess, error) { return client.createGroupAccess(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListGroupAccessIDsMatching(data) },
 		Get: func(id string) (*GroupAccess, error) {

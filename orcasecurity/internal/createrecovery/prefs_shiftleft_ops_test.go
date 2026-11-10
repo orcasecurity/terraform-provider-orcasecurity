@@ -45,28 +45,23 @@ func shiftLeftCase(name, path, row string, op func(c *api_client.APIClient) runn
 func init() {
 	opCases = append(opCases,
 		userPreferenceCase("custom_dashboard", "dashboard", func(c *api_client.APIClient) runner {
-			return runOp(c.CustomDashboardCreateOp(api_client.CustomDashboard{Name: stubTag, ViewType: "dashboard"}),
-				func(d *api_client.CustomDashboard) string { return d.ID })
+			return runOp(c.CustomDashboardCreateOp(api_client.CustomDashboard{Name: stubTag, ViewType: "dashboard"}))
 		}),
 		userPreferenceCase("custom_widget", api_client.CustomWidgetViewType, func(c *api_client.APIClient) runner {
-			return runOp(c.CustomWidgetCreateOp(api_client.CustomWidget{Name: stubTag, ViewType: api_client.CustomWidgetViewType}),
-				func(w *api_client.CustomWidget) string { return w.ID })
+			return runOp(c.CustomWidgetCreateOp(api_client.CustomWidget{Name: stubTag, ViewType: api_client.CustomWidgetViewType}))
 		}),
 		userPreferenceCase("discovery_view", "discovery", func(c *api_client.APIClient) runner {
-			return runOp(c.DiscoveryViewCreateOp(api_client.DiscoveryView{Name: stubTag, ViewType: "discovery"}),
-				func(v *api_client.DiscoveryView) string { return v.ID })
+			return runOp(c.DiscoveryViewCreateOp(api_client.DiscoveryView{Name: stubTag, ViewType: "discovery"}))
 		}),
 		shiftLeftCase("shift_left_project", "/api/shiftleft/projects/",
 			`{"id":%q,"name":"`+stubTag+`","key":"`+stubTag+`"}`,
 			func(c *api_client.APIClient) runner {
-				return runOp(c.ShiftLeftProjectCreateOp(api_client.ShiftLeftProject{Name: stubTag, Key: stubTag}),
-					func(p *api_client.ShiftLeftProject) string { return p.ID })
+				return runOp(c.ShiftLeftProjectCreateOp(api_client.ShiftLeftProject{Name: stubTag, Key: stubTag}))
 			}),
 		shiftLeftCase("shift_left_cve_exception_list", "/api/shiftleft/exceptions/",
 			`{"id":%q,"name":"`+stubTag+`"}`,
 			func(c *api_client.APIClient) runner {
-				return runOp(c.ShiftLeftCveExceptionListCreateOp(api_client.ShiftLeftCveExceptionList{Name: stubTag}),
-					func(e *api_client.ShiftLeftCveExceptionList) string { return e.ID })
+				return runOp(c.ShiftLeftCveExceptionListCreateOp(api_client.ShiftLeftCveExceptionList{Name: stubTag}))
 			}),
 	)
 }

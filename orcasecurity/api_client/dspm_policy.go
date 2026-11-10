@@ -134,6 +134,7 @@ func (client *APIClient) ListDSPMPolicyIDsByName(name, feature string) (map[stri
 func (client *APIClient) DSPMPolicyCreateOp(data DSPMPolicy) CreateOp[DSPMPolicy] {
 	return CreateOp[DSPMPolicy]{
 		What:   fmt.Sprintf("DSPM policy named %q", data.Name),
+		ID:     func(o *DSPMPolicy) string { return o.ID },
 		Create: func() (*DSPMPolicy, error) { return client.createDSPMPolicy(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListDSPMPolicyIDsByName(data.Name, data.Feature) },
 		Get:    client.GetDSPMPolicy,

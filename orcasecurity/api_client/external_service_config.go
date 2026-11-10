@@ -57,6 +57,7 @@ func ExternalServiceConfigCreateOp[C any](client *APIClient, serviceName string,
 func externalServiceConfigCreateOp[P any](client *APIClient, serviceName, templateName string, payload any, id func(*P) string) CreateOp[P] {
 	return CreateOp[P]{
 		What: fmt.Sprintf("%s integration with template_name %q", serviceName, templateName),
+		ID:   id,
 		Create: func() (*P, error) {
 			resp, err := client.PostCreate(externalServiceConfigPath, payload)
 			if err != nil {
@@ -67,9 +68,6 @@ func externalServiceConfigCreateOp[P any](client *APIClient, serviceName, templa
 			}{}
 			if err := resp.ReadJSON(&response); err != nil {
 				return nil, fmt.Errorf("failed to decode %s create response: %w", serviceName, err)
-			}
-			if id(&response.Data) == "" {
-				return nil, fmt.Errorf("%s integration was not returned by the API", serviceName)
 			}
 			return &response.Data, nil
 		},

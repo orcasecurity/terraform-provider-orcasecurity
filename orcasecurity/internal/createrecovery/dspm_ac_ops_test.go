@@ -27,32 +27,27 @@ func init() {
 		listAndGetCase("dspm_policy", "/api/scan_configuration/dspm_policies",
 			namedRow(`{"policy_id":%q,"policy_name":%q,"feature":"DSPM Scanning","tags":{},"policy_document":{"selector_detectors":[]}}`),
 			func(c *api_client.APIClient) runner {
-				return runOp(c.DSPMPolicyCreateOp(api_client.DSPMPolicy{Name: stubTag}),
-					func(p *api_client.DSPMPolicy) string { return p.ID })
+				return runOp(c.DSPMPolicyCreateOp(api_client.DSPMPolicy{Name: stubTag}))
 			}),
 		listAndGetCase("dspm_detector", "/api/scan_configuration/dspm_detector",
 			namedRow(`{"id":%q,"title":%q,"is_custom":true}`),
 			func(c *api_client.APIClient) runner {
-				return runOp(c.DSPMDetectorCreateOp(api_client.DSPMDetector{Title: stubTag}),
-					func(d *api_client.DSPMDetector) string { return d.ID })
+				return runOp(c.DSPMDetectorCreateOp(api_client.DSPMDetector{Title: stubTag}))
 			}),
 		listAndGetCase("admission_controller_control", "/api/admission_controller/controls",
 			namedRow(`{"id":%q,"name":%q,"template_id":"tpl-1"}`),
 			func(c *api_client.APIClient) runner {
-				return runOp(c.AdmissionControllerControlCreateOp(api_client.AdmissionControllerControl{Name: stubTag, TemplateID: "tpl-1"}),
-					func(ac *api_client.AdmissionControllerControl) string { return ac.ID })
+				return runOp(c.AdmissionControllerControlCreateOp(api_client.AdmissionControllerControl{Name: stubTag, TemplateID: "tpl-1"}))
 			}),
 		listAndGetCase("admission_controller_policy", "/api/admission_controller/policies",
 			namedRow(`{"id":%q,"name":%q}`),
 			func(c *api_client.APIClient) runner {
-				return runOp(c.AdmissionControllerPolicyCreateOp(api_client.AdmissionControllerPolicy{Name: stubTag}),
-					func(p *api_client.AdmissionControllerPolicy) string { return p.ID })
+				return runOp(c.AdmissionControllerPolicyCreateOp(api_client.AdmissionControllerPolicy{Name: stubTag}))
 			}),
 		listAndGetCase("admission_controller_scope", "/api/admission_controller/scopes",
 			namedRow(`{"id":%q,"name":%q}`),
 			func(c *api_client.APIClient) runner {
-				return runOp(c.AdmissionControllerScopeCreateOp(api_client.AdmissionControllerScope{Name: stubTag}),
-					func(s *api_client.AdmissionControllerScope) string { return s.ID })
+				return runOp(c.AdmissionControllerScopeCreateOp(api_client.AdmissionControllerScope{Name: stubTag}))
 			}),
 	)
 }

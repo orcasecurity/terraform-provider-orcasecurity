@@ -8,6 +8,7 @@ func externalServiceResourceCreateOp[T any](what string, create func() (*T, erro
 	return CreateOp[T]{
 		What:   what,
 		Create: create,
+		ID:     id,
 		IDs: func() (map[string]bool, error) {
 			all, err := list()
 			if err != nil {

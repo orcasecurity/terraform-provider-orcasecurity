@@ -44,24 +44,19 @@ func resourceCase(name, service string, op func(c *api_client.APIClient) runner)
 func init() {
 	opCases = append(opCases,
 		configCase("external_service_config", api_client.OpsgenieServiceName, func(c *api_client.APIClient) runner {
-			return runOp(api_client.ExternalServiceConfigCreateOp(c, api_client.OpsgenieServiceName, api_client.OpsgenieExternalServiceConfig{TemplateName: stubTag}),
-				func(o *api_client.OpsgenieExternalServiceConfig) string { return o.ID })
+			return runOp(api_client.ExternalServiceConfigCreateOp(c, api_client.OpsgenieServiceName, api_client.OpsgenieExternalServiceConfig{TemplateName: stubTag}))
 		}),
 		configCase("s3_bucket", api_client.S3BucketServiceName, func(c *api_client.APIClient) runner {
-			return runOp(api_client.S3BucketConfigCreateOp(c, api_client.S3BucketServiceName, api_client.S3BucketExternalServiceConfig{TemplateName: stubTag}),
-				func(o *api_client.S3BucketExternalServiceConfig) string { return o.ID })
+			return runOp(api_client.S3BucketConfigCreateOp(c, api_client.S3BucketServiceName, api_client.S3BucketExternalServiceConfig{TemplateName: stubTag}))
 		}),
 		configCase("jira_cloud_template", api_client.JiraCloudServiceName, func(c *api_client.APIClient) runner {
-			return runOp(api_client.JiraCloudTemplateCreateOp(c, api_client.JiraCloudServiceName, api_client.JiraCloudTemplate{TemplateName: stubTag}),
-				func(o *api_client.JiraCloudTemplate) string { return o.ID })
+			return runOp(api_client.JiraCloudTemplateCreateOp(c, api_client.JiraCloudServiceName, api_client.JiraCloudTemplate{TemplateName: stubTag}))
 		}),
 		resourceCase("monday_resource", api_client.MondayResourceServiceName, func(c *api_client.APIClient) runner {
-			return runOp(c.MondayResourceCreateOp(api_client.MondayResource{Name: stubTag}),
-				func(m *api_client.MondayResource) string { return m.ID })
+			return runOp(c.MondayResourceCreateOp(api_client.MondayResource{Name: stubTag}))
 		}),
 		resourceCase("servicenow_itsm", api_client.ServiceNowITSMServiceName, func(c *api_client.APIClient) runner {
-			return runOp(c.ServiceNowITSMResourceCreateOp(api_client.ServiceNowITSMResource{Name: stubTag}),
-				func(s *api_client.ServiceNowITSMResource) string { return s.ID })
+			return runOp(c.ServiceNowITSMResourceCreateOp(api_client.ServiceNowITSMResource{Name: stubTag}))
 		}),
 	)
 }

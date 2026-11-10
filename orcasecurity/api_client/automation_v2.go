@@ -83,6 +83,7 @@ func (client *APIClient) ListAutomationV2IDsByName(name string) (map[string]bool
 func (client *APIClient) AutomationV2CreateOp(automation AutomationV2, applyOnExisting bool) CreateOp[AutomationV2] {
 	return CreateOp[AutomationV2]{
 		What:   fmt.Sprintf("automation named %q", automation.Name),
+		ID:     func(o *AutomationV2) string { return o.ID },
 		Create: func() (*AutomationV2, error) { return client.createAutomationV2(automation, applyOnExisting) },
 		IDs:    func() (map[string]bool, error) { return client.ListAutomationV2IDsByName(automation.Name) },
 		Get:    client.GetAutomationV2,

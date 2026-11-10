@@ -116,6 +116,7 @@ func (client *APIClient) ListShiftLeftCveExceptionListIDsByName(name string) (ma
 func (client *APIClient) ShiftLeftCveExceptionListCreateOp(data ShiftLeftCveExceptionList) CreateOp[ShiftLeftCveExceptionList] {
 	return CreateOp[ShiftLeftCveExceptionList]{
 		What:   fmt.Sprintf("shift-left exception list named %q", data.Name),
+		ID:     func(o *ShiftLeftCveExceptionList) string { return o.ID },
 		Create: func() (*ShiftLeftCveExceptionList, error) { return client.createShiftLeftCveExceptionList(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListShiftLeftCveExceptionListIDsByName(data.Name) },
 		Get:    client.GetShiftLeftCveExceptionList,

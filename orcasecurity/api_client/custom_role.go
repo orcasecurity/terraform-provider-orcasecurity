@@ -91,6 +91,7 @@ func (client *APIClient) ListCustomRoleIDsByName(name string) (map[string]bool, 
 func (client *APIClient) CustomRoleCreateOp(data CustomRole) CreateOp[CustomRole] {
 	return CreateOp[CustomRole]{
 		What:   fmt.Sprintf("custom role named %q", data.Name),
+		ID:     func(o *CustomRole) string { return o.ID },
 		Create: func() (*CustomRole, error) { return client.createCustomRole(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListCustomRoleIDsByName(data.Name) },
 		Get:    client.GetCustomRole,
