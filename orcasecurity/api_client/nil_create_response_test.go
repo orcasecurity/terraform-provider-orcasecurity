@@ -26,8 +26,8 @@ func TestCreateCustomTagRule_ReadBackFailureNamesTheIDToImport(t *testing.T) {
 	}
 }
 
-func TestCreateCustomTagRule_UnusableResponseIsAmbiguousWithoutReadBack(t *testing.T) {
-	for _, body := range []string{`{"data":{},"status":"success"}`, `<html>ok</html>`} {
+func TestCreateCustomTagRule_UnusableResponseIsNotReadBack(t *testing.T) {
+	for body, ambiguous := range map[string]bool{`{"data":{},"status":"success"}`: false, `<html>ok</html>`: true} {
 		gets := 0
 		client := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
 			if req.Method == http.MethodPost {
@@ -37,8 +37,8 @@ func TestCreateCustomTagRule_UnusableResponseIsAmbiguousWithoutReadBack(t *testi
 			return testutils.JSONResponse(req, 404, `{}`)
 		})
 		rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
-		if rule != nil || !errors.Is(err, api_client.ErrAmbiguousWrite) || !strings.Contains(err.Error(), "tags_rule_id") {
-			t.Errorf("%s: rule=%v err=%v, want an ambiguous-write error so recovery looks the rule up", body, rule, err)
+		if rule != nil || errors.Is(err, api_client.ErrAmbiguousWrite) != ambiguous || (err != nil) != ambiguous {
+			t.Errorf("%s: rule=%v err=%v, want no rule and ambiguous=%v so recovery looks the rule up", body, rule, err, ambiguous)
 		}
 		if gets != 0 {
 			t.Errorf("%s: made %d read-back GETs, want none", body, gets)

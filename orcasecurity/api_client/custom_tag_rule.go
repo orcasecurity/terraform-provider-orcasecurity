@@ -129,9 +129,12 @@ func (client *APIClient) createCustomTagRule(what string, data CustomTagRule) (*
 	}
 
 	response := responseType{}
-	if err := resp.ReadJSON(&response); err != nil || response.Data.TagsRuleID == "" {
-		return nil, fmt.Errorf("%w: custom tag rule create succeeded without a usable tags_rule_id in the response: %s",
+	if err := resp.ReadJSON(&response); err != nil {
+		return nil, fmt.Errorf("%w: custom tag rule create succeeded but its response could not be decoded: %s",
 			ErrAmbiguousWrite, string(resp.Body()))
+	}
+	if response.Data.TagsRuleID == "" {
+		return nil, nil
 	}
 	return ReadCreated(what, response.Data.TagsRuleID, client.GetCustomTagRule)
 }
