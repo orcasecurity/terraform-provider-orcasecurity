@@ -26,13 +26,15 @@ type runner func(context.Context, *diag.Diagnostics) (string, error)
 // opCase is one create under test. post is the create path; get answers every GET by path (query
 // stripped) with created reporting whether the ambiguous POST committed. A preexisting same-named
 // object (oldID) must always be listed so the test proves it is never adopted. empty is the page
-// after the last one for offset-paginated lists (default {"data":[]}).
+// after the last one for offset-paginated lists (default {"data":[]}). answer, when set, is a 200 body
+// the create gets instead of a 504.
 type opCase struct {
 	name    string
 	post    string
 	get     map[string]func(created bool) string
 	empty   string
 	adopted string
+	answer  string
 	op      func(c *api_client.APIClient) runner
 }
 
@@ -64,6 +66,10 @@ func (s *ambiguousStub) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost && r.URL.Path == s.c.post {
 		s.posts++
 		s.created = s.commits
+		if s.c.answer != "" {
+			_, _ = w.Write([]byte(s.c.answer))
+			return
+		}
 		http.Error(w, "<html>gateway timeout</html>", http.StatusGatewayTimeout)
 		return
 	}
