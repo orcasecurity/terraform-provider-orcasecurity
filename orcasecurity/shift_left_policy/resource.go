@@ -236,10 +236,7 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 	// Always re-read: create responses can echo an empty scm_posture scope even when the request
 	// carried ids (backend soft-drops unknown/unlinked units). Read-back is also what surfaces a
 	// successful project attach.
-	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
-	if err == nil && instance == nil {
-		err = fmt.Errorf("policy %s/%s could not be read back after create", policyType, policyID)
-	}
+	instance, err := r.readBackAfterCreate(policyType, policyID, apiPolicy)
 	if err != nil {
 		r.rollbackCreatedPolicy(ctx, policyType, policyID, &resp.Diagnostics)
 		resp.Diagnostics.AddError("Error reading AppSec policy after create", err.Error())
@@ -253,6 +250,30 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 
 	state := stateFromPlanAfterWrite(&plan, instance)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// readBackAfterCreate re-reads the new policy. The scm_posture create endpoint ignores `disabled`
+// (only update applies it), so a created policy can come back enabled; one PUT corrects it.
+func (r *shiftLeftPolicyResource) readBackAfterCreate(policyType, policyID string, apiPolicy api_client.ShiftLeftPolicy) (*api_client.ShiftLeftPolicy, error) {
+	instance, err := r.getAfterWrite(policyType, policyID)
+	if err != nil || instance.Disabled == apiPolicy.Disabled {
+		return instance, err
+	}
+	if _, err := r.apiClient.UpdateShiftLeftPolicy(policyType, policyID, apiPolicy); err != nil {
+		return nil, fmt.Errorf("the create ignored disabled=%t and setting it failed: %w", apiPolicy.Disabled, err)
+	}
+	if instance, err = r.getAfterWrite(policyType, policyID); err == nil && instance.Disabled != apiPolicy.Disabled {
+		err = fmt.Errorf("policy %s/%s still reports disabled=%t after setting disabled=%t", policyType, policyID, instance.Disabled, apiPolicy.Disabled)
+	}
+	return instance, err
+}
+
+func (r *shiftLeftPolicyResource) getAfterWrite(policyType, policyID string) (*api_client.ShiftLeftPolicy, error) {
+	instance, err := r.apiClient.GetShiftLeftPolicy(policyType, policyID)
+	if err == nil && instance == nil {
+		err = fmt.Errorf("policy %s/%s could not be read back after create", policyType, policyID)
+	}
+	return instance, err
 }
 
 // createPolicy POSTs the policy. A POST with an ambiguous outcome (timeout / gateway error) may still

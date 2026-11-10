@@ -42,6 +42,10 @@ type policyStub struct {
 	// listStatusBeforePost / listStatusAfterPost answer the list route with an error when set.
 	listStatusBeforePost int
 	listStatusAfterPost  int
+	// disabled is the server-side value: like the real API, the create ignores it and only the
+	// item PUT sets it. updateStatus, when set, answers that PUT with an error.
+	disabled     bool
+	updateStatus int
 }
 
 func (s *policyStub) record(method, path string) {
@@ -65,7 +69,7 @@ func (s *policyStub) policyBody() map[string]any {
 	}
 	return map[string]any{
 		"id": stubPolicyID, "name": "tf-stub-policy", "type": "malicious_packages",
-		"is_builtin": false, "disabled": false, "warn_mode": false,
+		"is_builtin": false, "disabled": s.disabled, "warn_mode": false,
 		"priority_failure_threshold": "HIGH", "projects_ids": projects,
 	}
 }
@@ -144,6 +148,8 @@ func (s *policyStub) serve(w http.ResponseWriter, r *http.Request) {
 		s.serveAttach(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == stubPolicyBase+stubPolicyID+"/":
 		s.serveGet(w)
+	case r.Method == http.MethodPut && r.URL.Path == stubPolicyBase+stubPolicyID+"/":
+		s.serveUpdate(w, r)
 	case r.Method == http.MethodDelete:
 		w.WriteHeader(http.StatusNoContent)
 	default:
@@ -195,6 +201,24 @@ func (s *policyStub) serveAttach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.attach(body.ProjectsIds)
+	_ = json.NewEncoder(w).Encode(s.policyBody())
+}
+
+func (s *policyStub) serveUpdate(w http.ResponseWriter, r *http.Request) {
+	if s.updateStatus != 0 {
+		http.Error(w, `{"detail":"update rejected"}`, s.updateStatus)
+		return
+	}
+	var body struct {
+		Disabled bool `json:"disabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	s.disabled = body.Disabled
+	s.mu.Unlock()
 	_ = json.NewEncoder(w).Encode(s.policyBody())
 }
 
@@ -375,4 +399,58 @@ func TestShiftLeftPolicyCreate_AmbiguousPostWithFailingLookupErrors(t *testing.T
 			ExpectError: regexp.MustCompile(`checking\s+whether\s+it\s+was\s+created\s+also\s+failed`),
 		}},
 	})
+}
+
+var stubDisabledPolicyConfig = strings.Replace(stubPolicyConfig, "disabled                   = false", "disabled                   = true", 1)
+
+// The scm_posture create endpoint ignores `disabled` (only update applies it): a policy created
+// disabled would otherwise run enabled until a second apply.
+func TestShiftLeftPolicyCreate_DisabledIgnoredByCreateIsSetByUpdate(t *testing.T) {
+	stub := &policyStub{attachStatus: http.StatusOK}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: stubDisabledPolicyConfig,
+				Check:  resource.TestCheckResourceAttr("orcasecurity_shift_left_policy.stub", "disabled", "true"),
+			},
+			{Config: stubDisabledPolicyConfig, PlanOnly: true},
+		},
+	})
+	if puts := strings.Count(strings.Join(stub.recorded(), "\n"), "PUT "+stubPolicyBase+stubPolicyID+"/\n"); puts != 1 {
+		t.Errorf("want exactly one corrective PUT, got %d in %v", puts, stub.recorded())
+	}
+}
+
+func TestShiftLeftPolicyCreate_FailedDisabledUpdateDeletesPolicy(t *testing.T) {
+	stub := &policyStub{attachStatus: http.StatusOK, updateStatus: http.StatusBadRequest}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config:      stubDisabledPolicyConfig,
+			ExpectError: regexp.MustCompile(`create\s+ignored\s+disabled=true\s+and\s+setting\s+it\s+failed`),
+		}},
+	})
+	if got := stub.deletes(); got != 1 {
+		t.Errorf("a policy left enabled must be rolled back, got %d deletes in %v", got, stub.recorded())
+	}
+}
+
+func TestShiftLeftPolicyCreate_MatchingDisabledSendsNoUpdate(t *testing.T) {
+	stub := &policyStub{attachStatus: http.StatusOK}
+	stub.start(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
+		Steps:                    []resource.TestStep{{Config: stubPolicyConfig}},
+	})
+	for _, req := range stub.recorded() {
+		if req == "PUT "+stubPolicyBase+stubPolicyID+"/" {
+			t.Fatalf("no corrective PUT expected when the create already matches, got %v", stub.recorded())
+		}
+	}
 }
