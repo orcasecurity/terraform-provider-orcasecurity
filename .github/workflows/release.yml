@@ -1,6 +1,6 @@
 # This GitHub action can publish assets for release when a tag is created.
 # Currently its setup to run on any tag that matches the pattern "v*" (ie. v0.1.0).
-# Running it from master (Actions → Release → Run workflow) tags the next patch version first.
+# Running it from master (Actions → Release provider → Run workflow) tags the next patch version first.
 #
 # This uses an action (hashicorp/ghaction-import-gpg) that assumes you set your
 # private key in the `GPG_PRIVATE_KEY` secret and passphrase in the `PASSPHRASE`
@@ -10,7 +10,8 @@
 # You will need to pass the `--batch` flag to `gpg` in your signing step
 # in `goreleaser` to indicate this is being used in a non-interactive mode.
 #
-name: Release
+name: Release provider
+run-name: ${{ github.event_name == 'workflow_dispatch' && 'Release next patch version' || format('Release {0}', github.ref_name) }}
 on:
     workflow_dispatch:
     push:
@@ -26,6 +27,7 @@ permissions:
 
 jobs:
     goreleaser:
+        name: Tag and publish
         runs-on: ubuntu-24.04
         steps:
             - name: Checkout

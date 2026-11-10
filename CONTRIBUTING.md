@@ -72,7 +72,7 @@ For information about writing acceptance tests, see the main Terraform [contribu
 Releasing
 ---------------------------
 
-Merging a PR does not release it. To release, run the **Release** workflow from `master` (Actions → Release → Run workflow). It tags `master` with the next patch version (e.g. v0.0.63 → v0.0.64) and publishes it to GitHub Releases and the Terraform Registry. If the run fails after tagging, re-run that same run: it releases the tag it already created.
+Merging a PR does not release it. To release, run the **Release provider** workflow: Actions → **Release provider** → **Run workflow**, keep the branch set to `master`, and confirm. It tags `master` with the next patch version (e.g. v0.0.63 → v0.0.64) and publishes it to GitHub Releases and the Terraform Registry. If the run fails after tagging, re-run that same run: it releases the tag it already created.
 
 GoReleaser writes the release notes from the commits since the previous tag, grouped by PR title: titles starting with `feat` go under Features, `fix` under Bug fixes, Dependabot bumps under Dependencies, and everything else under Changes. A PR's squash-merge title is its commit message, so give it a clear title.
 
