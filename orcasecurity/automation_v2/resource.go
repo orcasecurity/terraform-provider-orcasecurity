@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfvalidate"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -453,7 +454,7 @@ func (r *automationV2Resource) Schema(_ context.Context, req resource.SchemaRequ
 				Optional:    true,
 				Description: "Email settings. Provide at least one recipient mode: `email`, `asset_tag_keys`, or `custom_tag_keys`.",
 				Validators: []validator.Object{
-					AtLeastOneChildSet("email", "asset_tag_keys", "custom_tag_keys"),
+					tfvalidate.AtLeastOneChildSet("email", "asset_tag_keys", "custom_tag_keys"),
 				},
 				Attributes: map[string]schema.Attribute{
 					"email": schema.ListAttribute{

@@ -1,0 +1,84 @@
+package shift_left_integration
+
+import (
+	"context"
+
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+type ScmConfigFields struct {
+	AccountName       types.String `tfsdk:"account_name"`
+	IntegrationStatus types.String `tfsdk:"integration_status"`
+	InstallationMode  types.String `tfsdk:"installation_mode"`
+	DefaultPolicies   types.Bool   `tfsdk:"default_policies"`
+	PoliciesIds       types.Set    `tfsdk:"policies_ids"`
+	ProjectID         types.String `tfsdk:"project_id"`
+	AdoptExisting     types.Bool   `tfsdk:"adopt_existing"`
+	// types.Object rather than *ConfigSettingsModel: the attribute is Optional+Computed and
+	// so plans as unknown on create, which a Go struct pointer cannot represent.
+	ConfigSettings types.Object `tfsdk:"configuration_settings"`
+
+	ScanAllState                types.String `tfsdk:"scan_all_state"`
+	IntegratedRepositoriesCount types.Int64  `tfsdk:"integrated_repositories_count"`
+	ScmPosturePolicyID          types.String `tfsdk:"scm_posture_policy_id"`
+}
+
+func ScmConfigFieldsFromAPI(accountName string, u api_client.ScmUnitCommonFields) ScmConfigFields {
+	cs := FlattenConfigSettings(u.ConfigSettings)
+	return ScmConfigFields{
+		AccountName:       types.StringValue(accountName),
+		IntegrationStatus: tfconv.StringOrNull(u.IntegrationStatus),
+		// Report the API value as-is. Write paths still remap legacy SCAN_ALL via
+		// normalizeInstallationMode; rewriting on read hid units that are not in
+		// SELECTED_REPOSITORIES and removed the drift signal.
+		InstallationMode: types.StringValue(installationModeFromAPI(u.InstallationMode)),
+		DefaultPolicies:  types.BoolValue(u.DefaultPolicies),
+		PoliciesIds:      readPolicyIDs(u),
+		ProjectID:        tfconv.StringOrNull(api_client.ProjectRefID(u.Project)),
+		ConfigSettings:   ConfigSettingsToObject(cs),
+
+		ScanAllState:                tfconv.StringOrNull(u.ScanAllState),
+		IntegratedRepositoriesCount: types.Int64Value(u.IntegratedRepositoriesCount),
+		ScmPosturePolicyID:          tfconv.StringOrNull(u.ScmPosturePolicyID),
+	}
+}
+
+// When default_policies=true, drop expanded policy list so import state stays plannable.
+func readPolicyIDs(u api_client.ScmUnitCommonFields) types.Set {
+	if u.DefaultPolicies {
+		return types.SetNull(types.StringType)
+	}
+	return PolicyIDsFromRefs(u.Policies)
+}
+
+// Keep configured ""/[] when the API reports absent, or apply/refresh drifts.
+func preserveKnownEmpties(ctx context.Context, next, prior *ScmConfigFields) {
+	if next.ProjectID.IsNull() && isKnownEmptyString(prior.ProjectID) {
+		next.ProjectID = types.StringValue("")
+	}
+
+	nextCfg := ConfigSettingsFromObject(ctx, next.ConfigSettings)
+	priorCfg := ConfigSettingsFromObject(ctx, prior.ConfigSettings)
+	if nextCfg == nil || priorCfg == nil {
+		return
+	}
+	if nextCfg.PrSummaryAppendix.IsNull() && isKnownEmptyString(priorCfg.PrSummaryAppendix) {
+		nextCfg.PrSummaryAppendix = types.StringValue("")
+	}
+	preserveEmptySet(&nextCfg.ArchiveConditions, priorCfg.ArchiveConditions)
+	preserveEmptySet(&nextCfg.UnavailableConditions, priorCfg.UnavailableConditions)
+	next.ConfigSettings = ConfigSettingsToObject(*nextCfg)
+}
+
+func isKnownEmptyString(v types.String) bool {
+	return tfconv.Known(v) && v.ValueString() == ""
+}
+
+func preserveEmptySet(next *types.Set, prior types.Set) {
+	if next.IsNull() && tfconv.Known(prior) && len(prior.Elements()) == 0 {
+		*next = types.SetValueMust(types.StringType, nil)
+	}
+}

@@ -33,7 +33,7 @@ func (client *APIClient) GetTrustedDynamicIpRangeStatus(orgId string) (bool, err
 		Variables: TDIRVariablesType{OrgID: orgId},
 	}
 	resp, err := client.Post("/api/gql", data)
-	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
+	if resp != nil && (resp.StatusCode() == 400 || resp.StatusCode() == 500) {
 		return false, nil
 	}
 	if err != nil {

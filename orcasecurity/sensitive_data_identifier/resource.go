@@ -218,7 +218,7 @@ func (r *sensitiveDataIdentifierResource) Schema(_ context.Context, req resource
 	}
 }
 
-func generateDetectorPayload(ctx context.Context, plan stateModel) api_client.DSPMDetector {
+func generateDetectorPayload(plan stateModel) api_client.DSPMDetector {
 	var conditions []api_client.DSPMDetectorCondition
 	for _, condition := range plan.Properties.Conditions {
 		conditions = append(conditions, api_client.DSPMDetectorCondition{
@@ -237,12 +237,12 @@ func generateDetectorPayload(ctx context.Context, plan stateModel) api_client.DS
 		IsCustom:    true,
 		Properties: api_client.DSPMDetectorProperties{
 			Conditions:      conditions,
-			DetectionTypes:  tfconv.StringListToAPI(ctx, plan.Properties.DetectionTypes),
+			DetectionTypes:  tfconv.ListToStringSlice(plan.Properties.DetectionTypes),
 			Sensitivity:     plan.Properties.Sensitivity.ValueString(),
 			Significance:    plan.Properties.Significance.ValueString(),
-			Keywords:        tfconv.StringListToAPI(ctx, plan.Properties.Keywords),
-			ExcludeKeywords: tfconv.StringListToAPI(ctx, plan.Properties.ExcludeKeywords),
-			StopWildcards:   tfconv.StringListToAPI(ctx, plan.Properties.StopWildcards),
+			Keywords:        tfconv.ListToStringSlice(plan.Properties.Keywords),
+			ExcludeKeywords: tfconv.ListToStringSlice(plan.Properties.ExcludeKeywords),
+			StopWildcards:   tfconv.ListToStringSlice(plan.Properties.StopWildcards),
 			TextThreshold:   tfconv.Int64ToAPIPtr(plan.Properties.TextThreshold),
 			DBThreshold:     tfconv.Int64ToAPIPtr(plan.Properties.DBThreshold),
 			OCRThreshold:    tfconv.Int64ToAPIPtr(plan.Properties.OCRThreshold),
@@ -275,7 +275,7 @@ func (r *sensitiveDataIdentifierResource) Create(ctx context.Context, req resour
 		return
 	}
 
-	instance, err := r.apiClient.CreateDSPMDetector(generateDetectorPayload(ctx, plan))
+	instance, err := r.apiClient.CreateDSPMDetector(generateDetectorPayload(plan))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Sensitive Data Identifier",
@@ -331,15 +331,12 @@ func (r *sensitiveDataIdentifierResource) Read(ctx context.Context, req resource
 
 	detectionTypes, d := types.ListValueFrom(ctx, types.StringType, instance.Properties.DetectionTypes)
 	resp.Diagnostics.Append(d...)
-	keywords, d := tfconv.StringListFromAPIPreserveNull(ctx, prior.Keywords, instance.Properties.Keywords)
-	resp.Diagnostics.Append(d...)
-	excludeKeywords, d := tfconv.StringListFromAPIPreserveNull(ctx, prior.ExcludeKeywords, instance.Properties.ExcludeKeywords)
-	resp.Diagnostics.Append(d...)
-	stopWildcards, d := tfconv.StringListFromAPIPreserveNull(ctx, prior.StopWildcards, instance.Properties.StopWildcards)
-	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	keywords := tfconv.StringSliceToListPreserveNull(prior.Keywords, instance.Properties.Keywords)
+	excludeKeywords := tfconv.StringSliceToListPreserveNull(prior.ExcludeKeywords, instance.Properties.ExcludeKeywords)
+	stopWildcards := tfconv.StringSliceToListPreserveNull(prior.StopWildcards, instance.Properties.StopWildcards)
 
 	state.ID = types.StringValue(instance.ID)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
@@ -382,7 +379,7 @@ func (r *sensitiveDataIdentifierResource) Update(ctx context.Context, req resour
 		return
 	}
 
-	instance, err := r.apiClient.UpdateDSPMDetector(plan.ID.ValueString(), generateDetectorPayload(ctx, plan))
+	instance, err := r.apiClient.UpdateDSPMDetector(plan.ID.ValueString(), generateDetectorPayload(plan))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Sensitive Data Identifier",

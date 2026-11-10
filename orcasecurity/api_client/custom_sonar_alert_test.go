@@ -60,3 +60,50 @@ func TestGetCustomSonarAlert_ReadsRuleAndRemediation(t *testing.T) {
 		t.Fatalf("calls = %s, want %s", got, want)
 	}
 }
+
+// remediationFailureStub creates rule r1, fails its remediation text with a definite 400, and answers
+// the rule delete with deleteStatus. It records every call.
+func remediationFailureStub(deleteStatus int, calls *[]string) func(req *http.Request) (int, string) {
+	return func(req *http.Request) (int, string) {
+		*calls = append(*calls, req.Method+" "+req.URL.Path)
+		switch {
+		case req.Method == http.MethodPost && req.URL.Path == "/api/sonar/rules":
+			return http.StatusOK, `{"data":{"rule_id":"r1","rule_type":"t1"}}`
+		case req.Method == http.MethodPut:
+			return http.StatusNotFound, `{}`
+		case req.Method == http.MethodPost:
+			return http.StatusBadRequest, `{"error":"bad text"}`
+		default:
+			return deleteStatus, `{}`
+		}
+	}
+}
+
+func TestCreateCustomAlerts_RemediationFailureDeletesRule(t *testing.T) {
+	create := map[string]func(c *api_client.APIClient) error{
+		"sonar": func(c *api_client.APIClient) error {
+			_, err := c.CreateCustomSonarAlert(api_client.CustomAlert{RemediationText: &api_client.CustomSonarAlertRemediationText{Text: "x"}})
+			return err
+		},
+		"discovery": func(c *api_client.APIClient) error {
+			_, err := c.CreateCustomDiscoveryAlert(api_client.CustomDiscoveryAlert{RemediationText: &api_client.CustomDiscoveryAlertRemediationText{Text: "x"}})
+			return err
+		},
+	}
+	wantMsg := map[int]string{
+		http.StatusOK:                  "the new rule r1 was deleted",
+		http.StatusInternalServerError: "deleting the new rule r1 also failed",
+	}
+	for deleteStatus, want := range wantMsg {
+		for name, fn := range create {
+			var calls []string
+			err := fn(sonarAlertStubClient(remediationFailureStub(deleteStatus, &calls)))
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("%s delete=%d: err = %v, want %q", name, deleteStatus, err, want)
+			}
+			if last := calls[len(calls)-1]; !strings.HasPrefix(last, "DELETE /api/sonar/rules/r1") {
+				t.Errorf("%s delete=%d: last call = %s, want the rule delete", name, deleteStatus, last)
+			}
+		}
+	}
+}

@@ -134,6 +134,7 @@ func TestGetScheduledReport(t *testing.T) {
 	}
 	if report == nil {
 		t.Fatal("expected report, got nil")
+		return
 	}
 	if report.Name != "Weekly open alerts" {
 		t.Errorf("unexpected name: %s", report.Name)
@@ -192,7 +193,7 @@ func TestUpdateScheduledReport(t *testing.T) {
 	})}
 
 	apiClient := newTestAPIClient(httpClient)
-	report, err := apiClient.UpdateScheduledReport(testScheduledReportID, ScheduledReport{
+	report, err := apiClient.UpdateScheduledReport(testScheduledReportID, ScheduledReport{}, ScheduledReport{
 		Name:       "Weekly open alerts",
 		Type:       "alerts_svl",
 		Format:     "csv",
@@ -204,6 +205,171 @@ func TestUpdateScheduledReport(t *testing.T) {
 	}
 	if report.ID != testScheduledReportID {
 		t.Errorf("unexpected id: %s", report.ID)
+	}
+}
+
+var scheduledReportClearableStrings = []string{
+	"sonar_query", "s3_path", "custom_email_subject", "custom_email_content",
+	"bucket", "azure_blob_container", "google_cloud_storage_template", "snowflake_template",
+}
+
+var scheduledReportClearableObjects = []string{
+	"dsl_filter", "sonar_query_params", "query_filters", "config", "slack_channel",
+}
+
+func clearedScheduledReport() ScheduledReport {
+	return ScheduledReport{
+		Name:       "Weekly open alerts",
+		Type:       "alerts_svl",
+		Format:     "csv",
+		Recurrence: "weekly",
+		Columns:    []string{},
+	}
+}
+
+func heldScheduledReport() ScheduledReport {
+	r := clearedScheduledReport()
+	r.DSLFilter = jsonObject{"filter": []interface{}{}}
+	r.SonarQuery = `{"models":["Alert"]}`
+	r.SonarQueryParams = jsonObject{"max_tier": 5}
+	r.QueryFilters = jsonObject{"show_informational_alerts": true}
+	r.Config = jsonObject{"compression_type": ".zip"}
+	r.S3Path = "p"
+	r.CustomEmailSubject = "s"
+	r.CustomEmailContent = "c"
+	r.SlackChannel = jsonObject{"workspace": "w", "channel": "c"}
+	r.Bucket = "b"
+	r.AzureBlobContainer = "a"
+	r.GoogleCloudStorageTemplate = "g"
+	r.SnowflakeTemplate = "sf"
+	return r
+}
+
+// PATCH omits = unchanged: clearing a held optional must send ""/{} (never null objects — API 500).
+func TestScheduledReportUpdatePayload_ClearsEveryHeldOptional(t *testing.T) {
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.UpdateScheduledReport(testScheduledReportID, heldScheduledReport(), clearedScheduledReport())
+		return err
+	})
+	for _, field := range scheduledReportClearableStrings {
+		assertSentAs(t, payload, field, `""`)
+	}
+	for _, field := range scheduledReportClearableObjects {
+		assertSentAsEmptyObject(t, payload, field)
+	}
+	for _, field := range []string{"id", "status"} {
+		assertOmitted(t, payload, field)
+	}
+}
+
+// Live lab: sending "" turns a stored null into "", so an optional with nothing to clear is omitted.
+func TestScheduledReportUpdatePayload_OmitsOptionalsWithNothingToClear(t *testing.T) {
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.UpdateScheduledReport(testScheduledReportID, clearedScheduledReport(), clearedScheduledReport())
+		return err
+	})
+	for _, field := range append(append([]string{}, scheduledReportClearableStrings...), scheduledReportClearableObjects...) {
+		assertOmitted(t, payload, field)
+	}
+	for _, field := range []string{"columns", "recipients_emails"} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("%s missing from update body", field)
+		}
+	}
+}
+
+func TestScheduledReportUpdatePayload_SendsChangedValues(t *testing.T) {
+	next := clearedScheduledReport()
+	next.Bucket = "new"
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.UpdateScheduledReport(testScheduledReportID, heldScheduledReport(), next)
+		return err
+	})
+	assertSentAs(t, payload, "bucket", `"new"`)
+}
+
+// Live lab: a create that sends "" stores "" where an omitted field stores null.
+func TestScheduledReportCreatePayload_OmitsUnsetOptionals(t *testing.T) {
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.CreateScheduledReport(clearedScheduledReport())
+		return err
+	})
+	for _, field := range append(append([]string{"id", "status"}, scheduledReportClearableStrings...), scheduledReportClearableObjects...) {
+		assertOmitted(t, payload, field)
+	}
+	for _, field := range []string{"name", "type", "format", "recurrence", "columns", "recipients_emails"} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("%s missing from create body", field)
+		}
+	}
+}
+
+func TestScheduledReportCreatePayload_KeepsSetOptionals(t *testing.T) {
+	report := clearedScheduledReport()
+	report.SonarQuery = `{"models":["Alert"]}`
+	report.Bucket = "b"
+	report.Config = jsonObject{"compression_type": ".zip"}
+	payload := captureScheduledReportBody(t, func(c APIClient) error {
+		_, err := c.CreateScheduledReport(report)
+		return err
+	})
+	assertSentAs(t, payload, "sonar_query", `"{\"models\":[\"Alert\"]}"`)
+	assertSentAs(t, payload, "bucket", `"b"`)
+	assertSentAs(t, payload, "config", `{"compression_type":".zip"}`)
+}
+
+func captureScheduledReportBody(t *testing.T, send func(APIClient) error) map[string]json.RawMessage {
+	t.Helper()
+
+	var raw []byte
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		raw, _ = io.ReadAll(req.Body)
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(testScheduledReportResponse)),
+			Request:    req,
+		}
+	})}
+	if err := send(newTestAPIClient(httpClient)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	payload := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("request body is not valid JSON: %v", err)
+	}
+	return payload
+}
+
+func assertSentAs(t *testing.T, payload map[string]json.RawMessage, field, want string) {
+	t.Helper()
+
+	got, ok := payload[field]
+	if !ok {
+		t.Errorf("%s is missing from the body; a removed attribute could never be cleared", field)
+		return
+	}
+	if string(got) != want {
+		t.Errorf("%s = %s, want %s", field, got, want)
+	}
+}
+
+// Distinguish null (API 500) from {}.
+func assertSentAsEmptyObject(t *testing.T, payload map[string]json.RawMessage, field string) {
+	t.Helper()
+
+	if string(payload[field]) == "null" {
+		t.Errorf("%s = null, which the API answers with 500; want {}", field)
+		return
+	}
+	assertSentAs(t, payload, field, "{}")
+}
+
+func assertOmitted(t *testing.T, payload map[string]json.RawMessage, field string) {
+	t.Helper()
+
+	if got, ok := payload[field]; ok {
+		t.Errorf("%s should be omitted when unset, got %s", field, got)
 	}
 }
 

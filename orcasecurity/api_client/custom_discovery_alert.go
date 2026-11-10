@@ -81,7 +81,7 @@ func (client *APIClient) CreateCustomDiscoveryAlert(data CustomDiscoveryAlert) (
 	if data.RemediationText != nil {
 		data.RemediationText.AlertType = alert.RuleType
 		if err = client.SetCustomRemediationText(*data.RemediationText); err != nil {
-			return nil, fmt.Errorf("remediation text create failed: %s", err.Error())
+			return nil, rollbackCreatedRule(err, alert.ID, client.DeleteCustomDiscoveryAlert)
 		}
 	}
 
@@ -152,11 +152,7 @@ func (client *APIClient) GetCustomDiscoveryAlertRemediationText(ruleType string)
 }
 
 func (client *APIClient) SetCustomRemediationText(data CustomDiscoveryAlertRemediationText) error {
-	resp, err := client.Put("/api/alerts/custom_remediation_text", data)
-	if resp != nil && resp.StatusCode() == 404 {
-		_, err = client.Post("/api/alerts/custom_remediation_text", data)
-	}
-	return err
+	return client.setCustomRemediationText(data)
 }
 func (client *APIClient) DeleteCustomRemediationText(data CustomDiscoveryAlertRemediationText) error {
 	payload, err := json.Marshal(&data)

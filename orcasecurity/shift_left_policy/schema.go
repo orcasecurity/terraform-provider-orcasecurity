@@ -4,6 +4,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -169,8 +170,19 @@ func scmPostureBlock() schema.Block {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"key": schema.StringAttribute{
-							Required:    true,
-							Description: "Scope key such as github_installations, github_repository_installations, gitlab_groups, gitlab_repositories.",
+							Required: true,
+							Description: "Scope key. One of: github_installations, github_repository_installations, " +
+								"gitlab_groups, gitlab_projects, azure_organizations, azure_projects.",
+							Validators: []validator.String{
+								stringvalidator.OneOf(
+									"github_installations",
+									"github_repository_installations",
+									"gitlab_groups",
+									"gitlab_projects",
+									"azure_organizations",
+									"azure_projects",
+								),
+							},
 						},
 						"ids": schema.ListAttribute{
 							ElementType: types.StringType,
@@ -263,11 +275,27 @@ func resourceSchemaAttributes() map[string]schema.Attribute {
 		"projects_ids": schema.ListAttribute{
 			ElementType: types.StringType,
 			Optional:    true,
-			Description: "Project IDs to attach this policy to.",
+			Computed:    true,
+			Description: "Project IDs to attach this policy to. Reflects the API on read (reordered to match prior state so an unstable API order doesn't drift); " +
+				"omit to leave the current attachment unchanged, or set to `[]` to detach from all projects. " +
+				"Ignored for `scm_posture` (the API cannot attach those policies to projects; scope them with `scm_posture.scope` instead) — setting it plans with a warning.",
+			PlanModifiers: []planmodifier.List{
+				listplanmodifier.UseStateForUnknown(),
+			},
+		},
+		"attach_all_projects": schema.BoolAttribute{
+			Optional: true,
+			Description: "Attach this policy to every project in the organization, resolved by the API on each apply. " +
+				"Use this instead of enumerating IDs from the `orcasecurity_shift_left_projects` data source: the set is " +
+				"computed server-side, so a project created between plan and apply cannot be missed. Mutually exclusive with " +
+				"`projects_ids`. Projects added in Orca later are attached by the next apply, which plans a change while " +
+				"`projects_ids` is out of date. Requires an unscoped API token — the API returns 403 for project-scoped callers. " +
+				"Not supported for `scm_posture`.",
 		},
 		"builtin": schema.BoolAttribute{
-			Computed:    true,
-			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be updated or deleted via Terraform.",
+			Computed: true,
+			Description: "Whether this is an Orca built-in policy. Built-in policies cannot be renamed or deleted via Terraform; other attributes remain updatable. " +
+				"The org-wide built-in SCM posture policy is managed by orcasecurity_shift_left_scm_posture_default_policy instead and cannot be imported here.",
 			PlanModifiers: []planmodifier.Bool{
 				boolplanmodifier.UseStateForUnknown(),
 			},

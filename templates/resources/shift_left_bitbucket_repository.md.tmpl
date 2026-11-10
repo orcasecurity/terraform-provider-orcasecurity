@@ -1,0 +1,25 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **Per-repository scope:** integrates one repo under a selected-repositories installation; unit-level settings live on the account/group/installation resources. Unset config inherits server defaults; once set, values cannot be reset to inherit via the API.
+
+!> **`branch` is create-only.** The API never returns it; changing it forces re-integrate. Optional on Bitbucket (leave unset to use the default branch). Import cannot read it back — if set, use the branch the repo was integrated with.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

@@ -1,0 +1,23 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+-> **Singleton semantics:** One built-in SCM posture policy per org; this resource adopts it. `destroy` removes from state only. Omitted `disabled`/`controls` keep live values; `controls = []` clears overrides.
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" .ImportFile }}

@@ -170,22 +170,22 @@ func (r *dspmPolicyResource) Schema(_ context.Context, req resource.SchemaReques
 	}
 }
 
-func generatePolicyPayload(ctx context.Context, plan stateModel) api_client.DSPMPolicy {
+func generatePolicyPayload(plan stateModel) api_client.DSPMPolicy {
 	return api_client.DSPMPolicy{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
 		Feature:     plan.Feature.ValueString(),
 		// api_client.PolicyTags serializes nil as [] — the server requires the key present.
-		Tags: tfconv.StringListToAPI(ctx, plan.Tags),
+		Tags: tfconv.ListToStringSlice(plan.Tags),
 		// advanced_settings is not exposed in the schema (MVP); the server expects {}
 		AdvancedSettings: map[string]interface{}{},
 		Document: api_client.DSPMPolicyDocument{
-			SelectorDetectors:  tfconv.StringSetToAPI(ctx, plan.Document.Detectors),
-			SelectorCategories: tfconv.StringSetToAPI(ctx, plan.Document.Categories),
-			SelectorRegions:    tfconv.StringSetToAPI(ctx, plan.Document.Regions),
-			SelectorIndustries: tfconv.StringSetToAPI(ctx, plan.Document.Industries),
-			SelectorTags:       tfconv.StringSetToAPI(ctx, plan.Document.Tags),
-			SelectorCountries:  tfconv.StringSetToAPI(ctx, plan.Document.Countries),
+			SelectorDetectors:  tfconv.SetToStringSlice(plan.Document.Detectors),
+			SelectorCategories: tfconv.SetToStringSlice(plan.Document.Categories),
+			SelectorRegions:    tfconv.SetToStringSlice(plan.Document.Regions),
+			SelectorIndustries: tfconv.SetToStringSlice(plan.Document.Industries),
+			SelectorTags:       tfconv.SetToStringSlice(plan.Document.Tags),
+			SelectorCountries:  tfconv.SetToStringSlice(plan.Document.Countries),
 		},
 	}
 }
@@ -198,7 +198,7 @@ func (r *dspmPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	instance, err := r.apiClient.CreateDSPMPolicy(generatePolicyPayload(ctx, plan))
+	instance, err := r.apiClient.CreateDSPMPolicy(generatePolicyPayload(plan))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating DSPM Policy",
@@ -242,23 +242,17 @@ func (r *dspmPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 		priorDocument = *state.Document
 	}
 
-	tags, d := tfconv.StringListFromAPIPreserveNull(ctx, state.Tags, instance.Tags)
-	resp.Diagnostics.Append(d...)
 	detectors, d := types.SetValueFrom(ctx, types.StringType, instance.Document.SelectorDetectors)
-	resp.Diagnostics.Append(d...)
-	categories, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Categories, instance.Document.SelectorCategories)
-	resp.Diagnostics.Append(d...)
-	regions, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Regions, instance.Document.SelectorRegions)
-	resp.Diagnostics.Append(d...)
-	industries, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Industries, instance.Document.SelectorIndustries)
-	resp.Diagnostics.Append(d...)
-	documentTags, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Tags, instance.Document.SelectorTags)
-	resp.Diagnostics.Append(d...)
-	countries, d := tfconv.StringSetFromAPIPreserveNull(ctx, priorDocument.Countries, instance.Document.SelectorCountries)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	tags := tfconv.StringSliceToListPreserveNull(state.Tags, instance.Tags)
+	categories := tfconv.StringSliceToSetPreserveNull(priorDocument.Categories, instance.Document.SelectorCategories)
+	regions := tfconv.StringSliceToSetPreserveNull(priorDocument.Regions, instance.Document.SelectorRegions)
+	industries := tfconv.StringSliceToSetPreserveNull(priorDocument.Industries, instance.Document.SelectorIndustries)
+	documentTags := tfconv.StringSliceToSetPreserveNull(priorDocument.Tags, instance.Document.SelectorTags)
+	countries := tfconv.StringSliceToSetPreserveNull(priorDocument.Countries, instance.Document.SelectorCountries)
 
 	state.ID = types.StringValue(instance.ID)
 	state.OrganizationID = types.StringValue(instance.OrganizationID)
@@ -296,7 +290,7 @@ func (r *dspmPolicyResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	instance, err := r.apiClient.UpdateDSPMPolicy(plan.ID.ValueString(), generatePolicyPayload(ctx, plan))
+	instance, err := r.apiClient.UpdateDSPMPolicy(plan.ID.ValueString(), generatePolicyPayload(plan))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating DSPM Policy",

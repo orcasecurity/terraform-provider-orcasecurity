@@ -25,7 +25,7 @@ func TestScheduledReportResource_Basic(t *testing.T) {
 resource "%s" "%s" {
   name              = "%s"
   type              = "alerts_svl"
-  format            = "pdf"
+  format            = "csv"
   recurrence        = "daily"
   first_report_date = "2099-01-01T00:00:00Z"
   export_time       = "00:00:00"
@@ -33,6 +33,20 @@ resource "%s" "%s" {
   recipients_emails    = ["test@orca.security"]
   custom_email_subject = "custom subject"
   custom_email_content = "some custom content"
+
+  # Every optional attribute here is dropped in the update step below. Because
+  # updates are a PATCH, an attribute that is not sent stays live on the server,
+  # so a removal that does not reach the API shows up as a non-empty refresh plan
+  # after step 3.
+  #
+  # compression is why this step uses csv: the API only allows compression_type
+  # on the text formats, and rejects it for pdf, xlsx and html.
+  columns     = ["OrcaScore", "Title"]
+  s3_path     = "terraform-test/reports"
+  compression = ".zip"
+
+  sonar_query_params = jsonencode({ max_tier = 5 })
+  query_filters      = jsonencode({ show_informational_alerts = true })
 
   sonar_query = jsonencode({
     models = ["Alert"]
@@ -56,11 +70,15 @@ resource "%s" "%s" {
 					resource.TestCheckResourceAttrSet(resourceAddress, "id"),
 					resource.TestCheckResourceAttr(resourceAddress, "name", OrcaObject),
 					resource.TestCheckResourceAttr(resourceAddress, "type", "alerts_svl"),
-					resource.TestCheckResourceAttr(resourceAddress, "format", "pdf"),
+					resource.TestCheckResourceAttr(resourceAddress, "format", "csv"),
 					resource.TestCheckResourceAttr(resourceAddress, "recurrence", "daily"),
 					resource.TestCheckResourceAttr(resourceAddress, "status", "active"),
 					resource.TestCheckResourceAttr(resourceAddress, "recipients_emails.0", "test@orca.security"),
 					resource.TestCheckResourceAttr(resourceAddress, "share_to_slack", "false"),
+					resource.TestCheckResourceAttr(resourceAddress, "custom_email_subject", "custom subject"),
+					resource.TestCheckResourceAttr(resourceAddress, "s3_path", "terraform-test/reports"),
+					resource.TestCheckResourceAttr(resourceAddress, "compression", ".zip"),
+					resource.TestCheckResourceAttr(resourceAddress, "columns.#", "2"),
 				),
 			},
 			// import
@@ -78,7 +96,7 @@ resource "%s" "%s" {
 resource "%s" "%s" {
   name              = "%s updated"
   type              = "alerts_svl"
-  format            = "csv"
+  format            = "pdf"
   recurrence        = "weekly"
   first_report_date = "2099-01-01T00:00:00Z"
   export_time       = "12:00:00"
@@ -106,10 +124,18 @@ resource "%s" "%s" {
 `, ResourceType, Resource, OrcaObject),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceAddress, "name", OrcaObject+" updated"),
-					resource.TestCheckResourceAttr(resourceAddress, "format", "csv"),
+					resource.TestCheckResourceAttr(resourceAddress, "format", "pdf"),
 					resource.TestCheckResourceAttr(resourceAddress, "recurrence", "weekly"),
 					resource.TestCheckResourceAttr(resourceAddress, "status", "disabled"),
 					resource.TestCheckResourceAttr(resourceAddress, "export_time", "12:00:00"),
+					// Dropped from the config above: each must now be absent from
+					// state rather than retaining the value step 1 set.
+					resource.TestCheckNoResourceAttr(resourceAddress, "custom_email_subject"),
+					resource.TestCheckNoResourceAttr(resourceAddress, "custom_email_content"),
+					resource.TestCheckNoResourceAttr(resourceAddress, "s3_path"),
+					resource.TestCheckNoResourceAttr(resourceAddress, "compression"),
+					resource.TestCheckNoResourceAttr(resourceAddress, "sonar_query_params"),
+					resource.TestCheckNoResourceAttr(resourceAddress, "query_filters"),
 				),
 			},
 		},
