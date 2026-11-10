@@ -19,7 +19,7 @@ import (
 
 const movePath = "/api/shiftleft/repository_contexts/move_project/"
 
-// shiftleft-core refuses a context with a pending move or already in the target; the async part clears after asyncSleeps waits.
+// The API refuses a context with a pending move or one already in the target; the async part clears after asyncSleeps waits.
 type fakeMoveBackend struct {
 	project             string
 	pending             bool
