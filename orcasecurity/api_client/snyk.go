@@ -9,10 +9,6 @@ type SnykConfig struct {
 
 type SnykExternalServiceConfig = ConfigEnvelope[SnykConfig]
 
-func (client *APIClient) CreateSnykConfig(payload SnykExternalServiceConfig) (*SnykExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[SnykConfig](client, SnykServiceName, payload)
-}
-
 func (client *APIClient) GetSnykConfig(templateName string) (*SnykExternalServiceConfig, error) {
 	return GetExternalServiceConfig[SnykConfig](client, SnykServiceName, templateName, nil)
 }

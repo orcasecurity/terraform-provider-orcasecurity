@@ -45,40 +45,36 @@ func configListURL(serviceName, templateName string) string {
 	return fmt.Sprintf("%s?service_name=%s&template_name=%s", externalServiceConfigPath, serviceName, url.QueryEscape(templateName))
 }
 
-// CreateExternalServiceConfig POSTs a new config and decodes the envelope back. The serviceName
-// is pinned on the payload before sending so callers can leave ServiceName empty.
-func CreateExternalServiceConfig[C any](client *APIClient, serviceName string, payload ConfigEnvelope[C]) (*ConfigEnvelope[C], error) {
+// ExternalServiceConfigCreateOp builds the create for an envelope-shaped variant. serviceName is
+// pinned on the payload, so the POST and the recovery lookup always use the same service.
+func ExternalServiceConfigCreateOp[C any](client *APIClient, serviceName string, payload ConfigEnvelope[C]) CreateOp[ConfigEnvelope[C]] {
 	payload.ServiceName = serviceName
-	resp, err := client.PostCreate(externalServiceConfigPath, payload)
-	if err != nil {
-		return nil, err
-	}
-	response := configSingleResponse[C]{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode %s create response: %w", serviceName, err)
-	}
-	if response.Data.ID == "" {
-		return nil, fmt.Errorf("%s integration was not returned by the API", serviceName)
-	}
-	return &response.Data, nil
+	return externalServiceConfigCreateOp(client, serviceName, payload.TemplateName, payload,
+		func(e *ConfigEnvelope[C]) string { return e.ID })
 }
 
-// ExternalServiceConfigCreateOp wraps any /api/external_service/config create; P is the variant's
-// envelope type. (org, service_name, template_name) is unique, so a replay would 409 on the first copy.
-func ExternalServiceConfigCreateOp[P any](client *APIClient, serviceName, templateName string, create func() (*P, error)) CreateOp[P] {
+// (org, service_name, template_name) is unique, so a replay would 409 on the first copy.
+func externalServiceConfigCreateOp[P any](client *APIClient, serviceName, templateName string, payload any, id func(*P) string) CreateOp[P] {
 	return CreateOp[P]{
-		What:   fmt.Sprintf("%s integration with template_name %q", serviceName, templateName),
-		Create: create,
-		IDs: func() (map[string]bool, error) {
-			matches, err := listExternalServiceConfigs[P](client, serviceName, templateName)
+		What: fmt.Sprintf("%s integration with template_name %q", serviceName, templateName),
+		Create: func() (*P, error) {
+			resp, err := client.PostCreate(externalServiceConfigPath, payload)
 			if err != nil {
 				return nil, err
 			}
-			ids := map[string]bool{}
-			for id := range matches {
-				ids[id] = true
+			response := struct {
+				Data P `json:"data"`
+			}{}
+			if err := resp.ReadJSON(&response); err != nil {
+				return nil, fmt.Errorf("failed to decode %s create response: %w", serviceName, err)
 			}
-			return ids, nil
+			if id(&response.Data) == "" {
+				return nil, fmt.Errorf("%s integration was not returned by the API", serviceName)
+			}
+			return &response.Data, nil
+		},
+		IDs: func() (map[string]bool, error) {
+			return ListExternalServiceConfigIDs(client, serviceName, templateName)
 		},
 		Get: func(id string) (*P, error) {
 			matches, err := listExternalServiceConfigs[P](client, serviceName, templateName)
@@ -88,6 +84,18 @@ func ExternalServiceConfigCreateOp[P any](client *APIClient, serviceName, templa
 			return matches[id], nil
 		},
 	}
+}
+
+func ListExternalServiceConfigIDs(client *APIClient, serviceName, templateName string) (map[string]bool, error) {
+	matches, err := listExternalServiceConfigs[struct{}](client, serviceName, templateName)
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]bool{}
+	for id := range matches {
+		ids[id] = true
+	}
+	return ids, nil
 }
 
 // The list hides configs whose business_units are outside the caller's permitted BUs.

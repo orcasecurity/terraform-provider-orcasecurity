@@ -35,9 +35,9 @@ func groupAccessIDs(c *api_client.APIClient, name string) (map[string]bool, erro
 	return ids, nil
 }
 
-func configIDs[P any](service string) func(*api_client.APIClient, string) (map[string]bool, error) {
+func configIDs(service string) func(*api_client.APIClient, string) (map[string]bool, error) {
 	return func(c *api_client.APIClient, name string) (map[string]bool, error) {
-		return api_client.ExternalServiceConfigCreateOp[P](c, service, name, nil).IDs()
+		return api_client.ListExternalServiceConfigIDs(c, service, name)
 	}
 }
 
@@ -165,7 +165,7 @@ resource "orcasecurity_integration_opsgenie" "t" {
   is_enabled    = false
 }`, n)
 			},
-			ids: configIDs[api_client.OpsgenieExternalServiceConfig](api_client.OpsgenieServiceName),
+			ids: configIDs(api_client.OpsgenieServiceName),
 		},
 	)
 	if os.Getenv(jiraTemplateEnv) != "" {
@@ -184,7 +184,7 @@ resource "orcasecurity_integration_jira_cloud_template" "t" {
   is_enabled    = false
 }`, n, src.Config.ResourceID, src.Config.ResourceURL, src.Config.ProjectID, src.Config.IssueTypeID)
 			},
-			ids: configIDs[api_client.JiraCloudTemplate](api_client.JiraCloudServiceName),
+			ids: configIDs(api_client.JiraCloudServiceName),
 		})
 	}
 }

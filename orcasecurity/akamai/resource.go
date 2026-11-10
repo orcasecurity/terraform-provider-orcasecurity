@@ -79,7 +79,7 @@ func NewAkamaiResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateAkamaiConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.AkamaiConfig],
 		Get:          (*api_client.APIClient).GetAkamaiConfig,
 		Update:       (*api_client.APIClient).UpdateAkamaiConfig,
 		Delete:       (*api_client.APIClient).DeleteAkamaiConfig,

@@ -78,7 +78,7 @@ func NewAzureSentinelResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateAzureSentinelConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.AzureSentinelConfig],
 		Get:          (*api_client.APIClient).GetAzureSentinelConfig,
 		Update:       (*api_client.APIClient).UpdateAzureSentinelConfig,
 		Delete:       (*api_client.APIClient).DeleteAzureSentinelConfig,

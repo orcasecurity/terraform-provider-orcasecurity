@@ -110,7 +110,7 @@ func NewS3BucketResource() resource.Resource {
 		// (GET /api/settings for the uploader role ARN), so it runs via the client-aware hook
 		// rather than Extract.
 		AfterExtract: populateComputed,
-		Create:       (*api_client.APIClient).CreateS3BucketConfig,
+		CreateOp:     api_client.S3BucketConfigCreateOp,
 		Get:          (*api_client.APIClient).GetS3BucketConfig,
 		Update:       (*api_client.APIClient).UpdateS3BucketConfig,
 		Delete:       (*api_client.APIClient).DeleteS3BucketConfig,

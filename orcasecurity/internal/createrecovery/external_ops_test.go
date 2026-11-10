@@ -25,10 +25,6 @@ func configCase(name, service string, op func(c *api_client.APIClient) runner) o
 	}
 }
 
-func configOp[P any](c *api_client.APIClient, service string, create func() (*P, error), id func(*P) string) runner {
-	return runOp(api_client.ExternalServiceConfigCreateOp(c, service, stubTag, create), id)
-}
-
 func resourceCase(name, service string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
@@ -48,19 +44,16 @@ func resourceCase(name, service string, op func(c *api_client.APIClient) runner)
 func init() {
 	opCases = append(opCases,
 		configCase("external_service_config", api_client.OpsgenieServiceName, func(c *api_client.APIClient) runner {
-			return configOp(c, api_client.OpsgenieServiceName, func() (*api_client.OpsgenieExternalServiceConfig, error) {
-				return c.CreateOpsgenieConfig(api_client.OpsgenieExternalServiceConfig{TemplateName: stubTag})
-			}, func(o *api_client.OpsgenieExternalServiceConfig) string { return o.ID })
+			return runOp(api_client.ExternalServiceConfigCreateOp(c, api_client.OpsgenieServiceName, api_client.OpsgenieExternalServiceConfig{TemplateName: stubTag}),
+				func(o *api_client.OpsgenieExternalServiceConfig) string { return o.ID })
 		}),
 		configCase("s3_bucket", api_client.S3BucketServiceName, func(c *api_client.APIClient) runner {
-			return configOp(c, api_client.S3BucketServiceName, func() (*api_client.S3BucketExternalServiceConfig, error) {
-				return c.CreateS3BucketConfig(api_client.S3BucketExternalServiceConfig{TemplateName: stubTag})
-			}, func(o *api_client.S3BucketExternalServiceConfig) string { return o.ID })
+			return runOp(api_client.S3BucketConfigCreateOp(c, api_client.S3BucketServiceName, api_client.S3BucketExternalServiceConfig{TemplateName: stubTag}),
+				func(o *api_client.S3BucketExternalServiceConfig) string { return o.ID })
 		}),
 		configCase("jira_cloud_template", api_client.JiraCloudServiceName, func(c *api_client.APIClient) runner {
-			return configOp(c, api_client.JiraCloudServiceName, func() (*api_client.JiraCloudTemplate, error) {
-				return c.CreateJiraCloudTemplate(api_client.JiraCloudTemplate{TemplateName: stubTag})
-			}, func(o *api_client.JiraCloudTemplate) string { return o.ID })
+			return runOp(api_client.JiraCloudTemplateCreateOp(c, api_client.JiraCloudServiceName, api_client.JiraCloudTemplate{TemplateName: stubTag}),
+				func(o *api_client.JiraCloudTemplate) string { return o.ID })
 		}),
 		resourceCase("monday_resource", api_client.MondayResourceServiceName, func(c *api_client.APIClient) runner {
 			return runOp(c.MondayResourceCreateOp(api_client.MondayResource{Name: stubTag}),

@@ -51,7 +51,7 @@ func NewPagerDutyResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreatePagerDutyConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.PagerDutyConfig],
 		Get:          (*api_client.APIClient).GetPagerDutyConfig,
 		Update:       (*api_client.APIClient).UpdatePagerDutyConfig,
 		Delete:       (*api_client.APIClient).DeletePagerDutyConfig,

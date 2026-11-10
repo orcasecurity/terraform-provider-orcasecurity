@@ -30,9 +30,9 @@ type ServiceNowITSMTemplate = ConfigEnvelope[ServiceNowITSMTemplateConfig]
 
 const ServiceNowITSMTemplateConfigType = "ITSM"
 
-func (client *APIClient) CreateServiceNowITSMTemplate(payload ServiceNowITSMTemplate) (*ServiceNowITSMTemplate, error) {
+func ServiceNowITSMTemplateCreateOp(client *APIClient, serviceName string, payload ServiceNowITSMTemplate) CreateOp[ServiceNowITSMTemplate] {
 	payload.Config.Type = ServiceNowITSMTemplateConfigType
-	return CreateExternalServiceConfig[ServiceNowITSMTemplateConfig](client, ServiceNowITSMServiceName, payload)
+	return ExternalServiceConfigCreateOp(client, serviceName, payload)
 }
 
 // GetServiceNowITSMTemplate looks up a template by name and filters on “config.type == "ITSM"“

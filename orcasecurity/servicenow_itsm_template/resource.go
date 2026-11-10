@@ -15,7 +15,7 @@ func NewServiceNowITSMTemplateResource() resource.Resource {
 		UIName:         "ServiceNow ITSM template",
 		Description:    itsmDescription,
 		ConfigType:     api_client.ServiceNowITSMTemplateConfigType,
-		Create:         (*api_client.APIClient).CreateServiceNowITSMTemplate,
+		CreateOp:       api_client.ServiceNowITSMTemplateCreateOp,
 		Get:            (*api_client.APIClient).GetServiceNowITSMTemplate,
 		Update:         (*api_client.APIClient).UpdateServiceNowITSMTemplate,
 		Delete:         (*api_client.APIClient).DeleteServiceNowITSMTemplate,

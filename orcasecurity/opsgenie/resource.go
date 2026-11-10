@@ -54,7 +54,7 @@ func NewOpsgenieResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateOpsgenieConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.OpsgenieConfig],
 		Get:          (*api_client.APIClient).GetOpsgenieConfig,
 		Update:       (*api_client.APIClient).UpdateOpsgenieConfig,
 		Delete:       (*api_client.APIClient).DeleteOpsgenieConfig,

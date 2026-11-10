@@ -12,9 +12,9 @@ import (
 
 const ServiceNowSIRTemplateConfigType = "SIR"
 
-func (client *APIClient) CreateServiceNowSIRTemplate(payload ServiceNowITSMTemplate) (*ServiceNowITSMTemplate, error) {
+func ServiceNowSIRTemplateCreateOp(client *APIClient, serviceName string, payload ServiceNowITSMTemplate) CreateOp[ServiceNowITSMTemplate] {
 	payload.Config.Type = ServiceNowSIRTemplateConfigType
-	return CreateExternalServiceConfig[ServiceNowITSMTemplateConfig](client, ServiceNowITSMServiceName, payload)
+	return ExternalServiceConfigCreateOp(client, serviceName, payload)
 }
 
 // GetServiceNowSIRTemplate looks up a template by name and filters on “config.type == "SIR"“

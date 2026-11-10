@@ -46,22 +46,9 @@ type jiraCloudListResponse struct {
 	Data   []JiraCloudTemplate `json:"data"`
 }
 
-func (client *APIClient) CreateJiraCloudTemplate(payload JiraCloudTemplate) (*JiraCloudTemplate, error) {
-	payload.ServiceName = JiraCloudServiceName
-
-	resp, err := client.PostCreate(externalServiceConfigPath, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	response := jiraCloudSingleResponse{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode Jira Cloud create response: %w", err)
-	}
-	if response.Data.ID == "" {
-		return nil, fmt.Errorf("jira cloud template was not returned by the API")
-	}
-	return &response.Data, nil
+func JiraCloudTemplateCreateOp(client *APIClient, serviceName string, payload JiraCloudTemplate) CreateOp[JiraCloudTemplate] {
+	payload.ServiceName = serviceName
+	return externalServiceConfigCreateOp(client, serviceName, payload.TemplateName, payload, func(t *JiraCloudTemplate) string { return t.ID })
 }
 
 func (client *APIClient) GetJiraCloudTemplate(templateName string) (*JiraCloudTemplate, error) {

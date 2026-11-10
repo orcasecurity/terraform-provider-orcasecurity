@@ -105,7 +105,7 @@ func NewWebhookResource() resource.Resource {
 		// Read refreshes the whole config so the next plan detects drift. api_key is intentionally
 		// not overwritten from API echoes — the user-supplied secret already lives in state.
 		ExtractOnRead: extractFull,
-		Create:        (*api_client.APIClient).CreateWebhookConfig,
+		CreateOp:      api_client.ExternalServiceConfigCreateOp[api_client.WebhookResourceConfig],
 		Get:           (*api_client.APIClient).GetWebhookConfigByTemplate,
 		Update:        (*api_client.APIClient).UpdateWebhookConfig,
 		Delete:        (*api_client.APIClient).DeleteWebhookConfig,

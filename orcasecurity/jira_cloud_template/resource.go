@@ -181,9 +181,9 @@ func NewJiraCloudTemplateResource() resource.Resource {
 				BusinessUnits: o.BusinessUnits,
 			}
 		},
-		Create: (*api_client.APIClient).CreateJiraCloudTemplate,
-		Get:    (*api_client.APIClient).GetJiraCloudTemplate,
-		Update: (*api_client.APIClient).UpdateJiraCloudTemplate,
-		Delete: (*api_client.APIClient).DeleteJiraCloudTemplate,
+		CreateOp: api_client.JiraCloudTemplateCreateOp,
+		Get:      (*api_client.APIClient).GetJiraCloudTemplate,
+		Update:   (*api_client.APIClient).UpdateJiraCloudTemplate,
+		Delete:   (*api_client.APIClient).DeleteJiraCloudTemplate,
 	})
 }

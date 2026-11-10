@@ -23,7 +23,7 @@ func itsmOptions() Options {
 		TypeNameSuffix: "_integration_servicenow_itsm_template",
 		UIName:         "ServiceNow ITSM template",
 		ConfigType:     api_client.ServiceNowITSMTemplateConfigType,
-		Create:         (*api_client.APIClient).CreateServiceNowITSMTemplate,
+		CreateOp:       api_client.ServiceNowITSMTemplateCreateOp,
 		Get:            (*api_client.APIClient).GetServiceNowITSMTemplate,
 		Update:         (*api_client.APIClient).UpdateServiceNowITSMTemplate,
 		Delete:         (*api_client.APIClient).DeleteServiceNowITSMTemplate,

@@ -51,7 +51,7 @@ func NewCloudflareResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateCloudflareConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.CloudflareConfig],
 		Get:          (*api_client.APIClient).GetCloudflareConfig,
 		Update:       (*api_client.APIClient).UpdateCloudflareConfig,
 		Delete:       (*api_client.APIClient).DeleteCloudflareConfig,

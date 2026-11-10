@@ -60,7 +60,7 @@ func NewTerraformCloudResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateTerraformCloudConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.TerraformCloudConfig],
 		Get:          (*api_client.APIClient).GetTerraformCloudConfig,
 		Update:       (*api_client.APIClient).UpdateTerraformCloudConfig,
 		Delete:       (*api_client.APIClient).DeleteTerraformCloudConfig,

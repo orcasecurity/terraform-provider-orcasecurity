@@ -71,7 +71,7 @@ func NewZscalerResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateZscalerConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.ZscalerConfig],
 		Get:          (*api_client.APIClient).GetZscalerConfig,
 		Update:       (*api_client.APIClient).UpdateZscalerConfig,
 		Delete:       (*api_client.APIClient).DeleteZscalerConfig,

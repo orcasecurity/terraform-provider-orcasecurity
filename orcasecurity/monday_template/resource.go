@@ -155,9 +155,9 @@ func NewMondayTemplateResource() resource.Resource {
 				BusinessUnits: o.BusinessUnits,
 			}
 		},
-		Create: (*api_client.APIClient).CreateMondayTemplate,
-		Get:    (*api_client.APIClient).GetMondayTemplate,
-		Update: (*api_client.APIClient).UpdateMondayTemplate,
-		Delete: (*api_client.APIClient).DeleteMondayTemplate,
+		CreateOp: api_client.ExternalServiceConfigCreateOp[api_client.MondayTemplateConfig],
+		Get:      (*api_client.APIClient).GetMondayTemplate,
+		Update:   (*api_client.APIClient).UpdateMondayTemplate,
+		Delete:   (*api_client.APIClient).DeleteMondayTemplate,
 	})
 }

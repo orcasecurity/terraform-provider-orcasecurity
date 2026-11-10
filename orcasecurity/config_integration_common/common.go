@@ -54,8 +54,7 @@ type State interface {
 // the schema attributes, payload encoding, response extraction, and api_client method refs;
 // everything else lives in this package.
 type Spec[P any] struct {
-	TypeNameSuffix string
-	// ServiceName must match the service_name the variant's Create pins, or an ambiguous create is never recovered.
+	TypeNameSuffix        string
 	ServiceName           string
 	UIName                string
 	Description           string
@@ -87,13 +86,11 @@ type Spec[P any] struct {
 	// GET /api/settings) can populate them without hand-rolling their own CRUD loop.
 	AfterExtract func(client *api_client.APIClient, state State, diags *diag.Diagnostics)
 
-	// CRUD method references — typically the bound ``(*api_client.APIClient).XyzConfig``
-	// methods. The base calls these via the shared API client so per-variant files don't
-	// hand-roll the error-wrapping plumbing.
-	Create func(client *api_client.APIClient, payload P) (*P, error)
-	Get    func(client *api_client.APIClient, templateName string) (*P, error)
-	Update func(client *api_client.APIClient, templateName string, payload P) (*P, error)
-	Delete func(client *api_client.APIClient, templateName string) error
+	// CreateOp is called with ServiceName, so the POST and its recovery lookup use the same service.
+	CreateOp func(client *api_client.APIClient, serviceName string, payload P) api_client.CreateOp[P]
+	Get      func(client *api_client.APIClient, templateName string) (*P, error)
+	Update   func(client *api_client.APIClient, templateName string, payload P) (*P, error)
+	Delete   func(client *api_client.APIClient, templateName string) error
 }
 
 func buildSchema[P any](spec Spec[P]) schema.Schema {
@@ -205,9 +202,7 @@ func (r *genericResource[P]) Create(ctx context.Context, req resource.CreateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	op := api_client.ExternalServiceConfigCreateOp(r.client, r.spec.ServiceName, plan.GetCommon().TemplateName.ValueString(),
-		func() (*P, error) { return r.spec.Create(r.client, payload) })
-	created, err := createrecovery.Run(ctx, op, &resp.Diagnostics)
+	created, err := createrecovery.Run(ctx, r.spec.CreateOp(r.client, r.spec.ServiceName, payload), &resp.Diagnostics)
 	if err != nil {
 		errorWrap(&resp.Diagnostics, "create", r.spec.UIName, err)
 		return

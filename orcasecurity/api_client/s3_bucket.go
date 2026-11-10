@@ -68,22 +68,9 @@ func (client *APIClient) GetOrcaSettings() (*OrcaSettings, error) {
 	return nil, fmt.Errorf("orca settings response did not include report_uploader_arn")
 }
 
-func (client *APIClient) CreateS3BucketConfig(payload S3BucketExternalServiceConfig) (*S3BucketExternalServiceConfig, error) {
-	payload.ServiceName = S3BucketServiceName
-
-	resp, err := client.PostCreate(externalServiceConfigPath, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	response := s3BucketSingleResponse{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode S3 bucket create response: %w", err)
-	}
-	if response.Data.ID == "" {
-		return nil, fmt.Errorf("s3 bucket integration was not returned by the API")
-	}
-	return &response.Data, nil
+func S3BucketConfigCreateOp(client *APIClient, serviceName string, payload S3BucketExternalServiceConfig) CreateOp[S3BucketExternalServiceConfig] {
+	payload.ServiceName = serviceName
+	return externalServiceConfigCreateOp(client, serviceName, payload.TemplateName, payload, func(t *S3BucketExternalServiceConfig) string { return t.ID })
 }
 
 func (client *APIClient) GetS3BucketConfig(templateName string) (*S3BucketExternalServiceConfig, error) {

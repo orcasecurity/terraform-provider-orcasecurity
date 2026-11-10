@@ -183,9 +183,9 @@ func NewSlackResource() resource.Resource {
 				BusinessUnits: o.BusinessUnits,
 			}
 		},
-		Create: (*api_client.APIClient).CreateSlackTemplate,
-		Get:    (*api_client.APIClient).GetSlackTemplate,
-		Update: (*api_client.APIClient).UpdateSlackTemplate,
-		Delete: (*api_client.APIClient).DeleteSlackTemplate,
+		CreateOp: api_client.ExternalServiceConfigCreateOp[api_client.SlackConfig],
+		Get:      (*api_client.APIClient).GetSlackTemplate,
+		Update:   (*api_client.APIClient).UpdateSlackTemplate,
+		Delete:   (*api_client.APIClient).DeleteSlackTemplate,
 	})
 }

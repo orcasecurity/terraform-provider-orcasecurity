@@ -75,7 +75,7 @@ func NewSplunkResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateSplunkConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.SplunkConfig],
 		Get:          (*api_client.APIClient).GetSplunkConfig,
 		Update:       (*api_client.APIClient).UpdateSplunkConfig,
 		Delete:       (*api_client.APIClient).DeleteSplunkConfig,

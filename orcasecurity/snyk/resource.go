@@ -66,7 +66,7 @@ func NewSnykResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateSnykConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.SnykConfig],
 		Get:          (*api_client.APIClient).GetSnykConfig,
 		Update:       (*api_client.APIClient).UpdateSnykConfig,
 		Delete:       (*api_client.APIClient).DeleteSnykConfig,

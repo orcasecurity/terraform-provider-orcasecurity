@@ -9,10 +9,6 @@ type TerraformCloudConfig struct {
 
 type TerraformCloudExternalServiceConfig = ConfigEnvelope[TerraformCloudConfig]
 
-func (client *APIClient) CreateTerraformCloudConfig(payload TerraformCloudExternalServiceConfig) (*TerraformCloudExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[TerraformCloudConfig](client, TerraformCloudServiceName, payload)
-}
-
 func (client *APIClient) GetTerraformCloudConfig(templateName string) (*TerraformCloudExternalServiceConfig, error) {
 	return GetExternalServiceConfig[TerraformCloudConfig](client, TerraformCloudServiceName, templateName, nil)
 }
