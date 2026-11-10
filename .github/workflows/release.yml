@@ -1,5 +1,6 @@
 # This GitHub action can publish assets for release when a tag is created.
 # Currently its setup to run on any tag that matches the pattern "v*" (ie. v0.1.0).
+# Running it from master (Actions → Release → Run workflow) tags the next patch version first.
 #
 # This uses an action (hashicorp/ghaction-import-gpg) that assumes you set your
 # private key in the `GPG_PRIVATE_KEY` secret and passphrase in the `PASSPHRASE`
@@ -15,16 +16,10 @@ on:
     push:
         tags:
             - "v*"
-    workflow_call:
-        inputs:
-            tag:
-                description: "Tag to release, e.g. v0.0.63"
-                required: true
-                type: string
-            commit:
-                description: "Commit to tag as the release"
-                required: true
-                type: string
+
+concurrency:
+    group: release
+    cancel-in-progress: false
 
 permissions:
     contents: write
@@ -32,21 +27,37 @@ permissions:
 jobs:
     goreleaser:
         runs-on: ubuntu-24.04
-        env:
-            RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         steps:
             - name: Checkout
               uses: actions/checkout@v7
               with:
-                  ref: ${{ inputs.commit || github.ref }}
-                  # Allow goreleaser to acce`ss older tag information.
+                  # Allow goreleaser to access older tag information.
                   fetch-depth: 0
 
-            - name: Tag the release commit
-              if: inputs.commit != ''
-              run: scripts/changelog.sh tag "$RELEASE_TAG" "$COMMIT"
+            # Tags pushed with GITHUB_TOKEN do not trigger workflows, so this run releases the tag itself.
+            - name: Tag the next patch version
+              if: github.event_name == 'workflow_dispatch'
+              run: |
+                  if [ "$GITHUB_REF" != refs/heads/master ]; then
+                      echo "::error::Run the release from master, not $GITHUB_REF_NAME"
+                      exit 1
+                  fi
+                  tag=$(git tag --points-at HEAD --list 'v*' --sort=-v:refname | head -n1)
+                  if [ -n "$tag" ] && gh release view "$tag" >/dev/null 2>&1; then
+                      echo "::error::$GITHUB_SHA is already released as $tag"
+                      exit 1
+                  fi
+                  if [ -z "$tag" ]; then
+                      last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+                      IFS=. read -r major minor patch <<<"${last#v}"
+                      tag="v$major.$minor.$((patch + 1))"
+                      git tag "$tag"
+                      git push origin "refs/tags/$tag"
+                  fi
+                  echo "Releasing $tag"
+                  echo "GORELEASER_CURRENT_TAG=$tag" >>"$GITHUB_ENV"
               env:
-                  COMMIT: ${{ inputs.commit }}
+                  GH_TOKEN: ${{ github.token }}
 
             - name: Set up Go
               uses: actions/setup-go@v7
@@ -61,16 +72,12 @@ jobs:
                   gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
                   passphrase: ${{ secrets.PASSPHRASE }}
 
-            - name: Release notes from CHANGELOG.md
-              run: scripts/changelog.sh release-notes "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
-
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
               with:
                 distribution: goreleaser
                 version: "v1.25.1"
-                args: release --clean --release-notes=${{ runner.temp }}/release-notes.md
+                args: release --clean
               env:
-                GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
                 GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

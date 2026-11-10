@@ -72,16 +72,8 @@ For information about writing acceptance tests, see the main Terraform [contribu
 Releasing
 ---------------------------
 
-Every merged PR is released automatically. Its release notes are the `CHANGELOG.md` section that the PR itself adds, and the same text is published as the GitHub release, which is where Dependabot and similar tools read it.
+Merging a PR does not release it. To release, run the **Release** workflow from `master` (Actions → Release → Run workflow). It tags `master` with the next patch version (e.g. v0.0.63 → v0.0.64) and publishes it to GitHub Releases and the Terraform Registry. If the run fails after tagging, re-run that same run: it releases the tag it already created.
 
-1. Open your PR (a draft is fine), then run `make changelog` on the branch. It adds a `## X.Y.Z (date)` section to the top of `CHANGELOG.md` for the version your merge will release. The section lists your PR (from its title) and anything merged since the last release, such as Dependabot bumps, grouped into Features, Bug fixes, Changes and Dependencies (the grouping rules are in `scripts/changelog.sh`).
-2. Reword entries if you like, then commit `CHANGELOG.md` and push. The **CHANGELOG.md** check fails the PR if the section is missing, has the wrong version, or leaves out your PR or an unreleased change.
-3. When the PR merges, the **Release on merge** workflow tags the merge commit and publishes the release with that section as its notes.
+GoReleaser writes the release notes from the commits since the previous tag, grouped by PR title: titles starting with `feat` go under Features, `fix` under Bug fixes, Dependabot bumps under Dependencies, and everything else under Changes. A PR's squash-merge title is its commit message, so give it a clear title.
 
-Every release is the next patch version (e.g. 0.0.63 → 0.0.64); no label is needed. To merge without releasing, add the `no-release` label: the PR gets no section and the change ships with the next release (rerun `make changelog` after adding or removing it).
-
-If another PR is released first, your branch conflicts in `CHANGELOG.md`: update the branch from `master` and rerun `make changelog`. Rerunning rebuilds the section from scratch, so reword entries after the last run. Dependabot PRs need no section; their bumps are listed in the next release.
-
-If a release fails after its tag was pushed, the next push to `master` (or a rerun of **Release on merge**) retries it.
-
-Pushing a `v*` tag by hand still releases, with notes generated from the commits since the previous tag; the next `make changelog` backfills that version into `CHANGELOG.md`.
+Pushing a `v*` tag by hand also releases that tag.

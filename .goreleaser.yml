@@ -56,5 +56,19 @@ release:
           name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
     # If you want to manually examine the release before its live, uncomment this line:
     # draft: true
-# Do not set changelog.skip or changelog.disable: GoReleaser v1 ignores
-# --release-notes (the CHANGELOG.md section, see release.yml) when it is set.
+changelog:
+    use: github
+    sort: asc
+    abbrev: -1
+    groups:
+        - title: Features
+          regexp: '(?i)^feat'
+          order: 0
+        - title: Bug fixes
+          regexp: '(?i)^fix'
+          order: 1
+        - title: Dependencies
+          regexp: '(?i)^(chore\(deps\)|bump )'
+          order: 3
+        - title: Changes
+          order: 2
