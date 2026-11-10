@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -19,7 +20,8 @@ import (
 
 const movePath = "/api/shiftleft/repository_contexts/move_project/"
 
-// The API refuses a context with a pending move or one already in the target; the async part clears after asyncSleeps waits.
+// The API refuses a context with a pending move or one already in the target; a move stays pending for
+// asyncSleeps waits after it commits, and one already pending at the start for sleepsLeft waits.
 type fakeMoveBackend struct {
 	project             string
 	pending             bool
@@ -29,7 +31,18 @@ type fakeMoveBackend struct {
 	commitBeforeTimeout bool
 	moves               []string
 	finds               int
-	sleeps              int
+	slept               func() []time.Duration
+	pendingUntil        int
+}
+
+func (f *fakeMoveBackend) waits() int {
+	n := 0
+	for _, d := range f.slept() {
+		if d > 0 {
+			n++
+		}
+	}
+	return n
 }
 
 func moveErrorBody(code string) string {
@@ -52,7 +65,7 @@ func (f *fakeMoveBackend) handle(req *http.Request) *http.Response {
 		}
 		return testutils.JSONResponse(req, http.StatusGatewayTimeout, `upstream timed out`)
 	}
-	if f.pending {
+	if f.waits() < f.pendingUntil {
 		return testutils.JSONResponse(req, http.StatusBadRequest, moveErrorBody("move_already_in_progress"))
 	}
 	if f.project == body.TargetProjectID {
@@ -65,25 +78,15 @@ func (f *fakeMoveBackend) handle(req *http.Request) *http.Response {
 
 func (f *fakeMoveBackend) commit(target string) {
 	f.project = target
-	f.pending = f.asyncSleeps > 0
-	f.sleepsLeft = f.asyncSleeps
+	f.pendingUntil = f.waits() + f.asyncSleeps
 }
 
 func (f *fakeMoveBackend) ops(t *testing.T) repoOps {
 	t.Helper()
-	origDelays, origSleep := moveRetryDelays, moveSleep
-	moveRetryDelays = []time.Duration{0, time.Millisecond, time.Millisecond, time.Millisecond, time.Millisecond}
-	moveSleep = func(ctx context.Context, d time.Duration) error {
-		if d > 0 {
-			f.sleeps++
-			if f.pending {
-				f.sleepsLeft--
-				f.pending = f.sleepsLeft > 0
-			}
-		}
-		return ctx.Err()
+	f.slept = backoff.FastForTest(t)
+	if f.pending {
+		f.pendingUntil = f.sleepsLeft
 	}
-	t.Cleanup(func() { moveRetryDelays, moveSleep = origDelays, origSleep })
 	return repoOps{
 		client: testutils.NewStubAPIClient(f.handle),
 		traits: githubTraits,
@@ -124,8 +127,8 @@ func TestMoveRepository_InProgressOfOwnCommittedMoveIsSuccess(t *testing.T) {
 	if err := moveRepository(context.Background(), f.ops(t), "ctx-1", "proj-new"); err != nil {
 		t.Fatalf("a pending move into the target project is a completed move, got %v", err)
 	}
-	if len(f.moves) != 1 || f.sleeps != 0 {
-		t.Fatalf("no wait expected once the read shows the target project, moves=%v sleeps=%d", f.moves, f.sleeps)
+	if len(f.moves) != 1 || f.waits() != 0 {
+		t.Fatalf("no wait expected once the read shows the target project, moves=%v waits=%d", f.moves, f.waits())
 	}
 }
 
@@ -154,8 +157,8 @@ func TestMoveRepository_AmbiguousNotCommittedIsResent(t *testing.T) {
 	if err := moveRepository(context.Background(), f.ops(t), "ctx-1", "proj-new"); err != nil {
 		t.Fatalf("expected the resent move to land, got %v", err)
 	}
-	if f.project != "proj-new" || len(f.moves) != 2 || f.sleeps != 1 {
-		t.Fatalf("expected one resend after a wait, project=%s moves=%v sleeps=%d", f.project, f.moves, f.sleeps)
+	if f.project != "proj-new" || len(f.moves) != 2 || f.waits() != 1 {
+		t.Fatalf("expected one resend after a wait, project=%s moves=%v waits=%d", f.project, f.moves, f.waits())
 	}
 }
 
@@ -178,13 +181,10 @@ func TestMoveRepository_StopsWaitingWhenContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	o := f.ops(t)
-	inner := moveSleep
-	moveSleep = func(c context.Context, d time.Duration) error {
-		if d > 0 {
-			cancel()
-		}
-		return inner(c, d)
-	}
+	o.client = testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
+		defer cancel()
+		return f.handle(req)
+	})
 	err := moveRepository(ctx, o, "ctx-1", "proj-new")
 	if !errors.Is(err, context.Canceled) || !errors.Is(err, api_client.ErrMoveInProgress) {
 		t.Fatalf("expected the in-progress refusal plus the cancellation, got %v", err)
