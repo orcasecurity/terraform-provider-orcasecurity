@@ -44,6 +44,8 @@ type BitbucketInstallationWrite struct {
 
 func (b *BitbucketInstallation) installationID() string { return b.ID }
 
+func (b *BitbucketInstallation) installationName() string { return b.Name }
+
 const bitbucketInstallationsPath = "/api/shiftleft/bitbucket/installations/"
 
 func (client *APIClient) ListBitbucketInstallations() ([]BitbucketInstallation, error) {
@@ -54,8 +56,8 @@ func (client *APIClient) GetBitbucketInstallation(id string) (*BitbucketInstalla
 	return findScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, id)
 }
 
-func (client *APIClient) CreateBitbucketInstallation(body BitbucketInstallationWrite) (*BitbucketInstallation, error) {
-	return createScmInstallation[BitbucketInstallation](client, bitbucketInstallationsPath, body)
+func (client *APIClient) BitbucketInstallationCreateOp(body BitbucketInstallationWrite) CreateOp[BitbucketInstallation] {
+	return scmInstallationCreateOp[BitbucketInstallation](client, "Bitbucket", bitbucketInstallationsPath, body.Name, body)
 }
 
 func (client *APIClient) UpdateBitbucketInstallation(id string, body BitbucketInstallationWrite) (*BitbucketInstallation, error) {

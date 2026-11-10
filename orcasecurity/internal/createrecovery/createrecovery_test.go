@@ -22,16 +22,16 @@ func ids(v ...string) map[string]bool {
 	return m
 }
 
-func TestRecover_NonAmbiguousErrorPassesThrough(t *testing.T) {
+func TestRecoverID_NonAmbiguousErrorPassesThrough(t *testing.T) {
 	plain := errors.New("400 bad request")
-	if _, _, err := Recover(context.Background(), plain, "x", ids(), nil); err != plain {
+	if _, _, err := recoverID(context.Background(), plain, "x", ids(), nil); err != plain {
 		t.Fatalf("err = %v, want the original error", err)
 	}
 }
 
-func TestRecover_AdoptsSingleNewID(t *testing.T) {
+func TestRecoverID_AdoptsSingleNewID(t *testing.T) {
 	FastForTest(t)
-	id, warning, err := Recover(context.Background(), errAmbiguous, "x", ids("old"), func() (map[string]bool, error) {
+	id, warning, err := recoverID(context.Background(), errAmbiguous, "x", ids("old"), func() (map[string]bool, error) {
 		return ids("old", "new"), nil
 	})
 	if err != nil || id != "new" || warning == "" {
@@ -39,10 +39,10 @@ func TestRecover_AdoptsSingleNewID(t *testing.T) {
 	}
 }
 
-func TestRecover_PollsUntilTheCreateShowsUp(t *testing.T) {
+func TestRecoverID_PollsUntilTheCreateShowsUp(t *testing.T) {
 	FastForTest(t)
 	calls := 0
-	id, _, err := Recover(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
+	id, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		calls++
 		if calls < 3 {
 			return ids(), nil
@@ -54,9 +54,9 @@ func TestRecover_PollsUntilTheCreateShowsUp(t *testing.T) {
 	}
 }
 
-func TestRecover_NoSnapshotNeverAdopts(t *testing.T) {
+func TestRecoverID_NoSnapshotNeverAdopts(t *testing.T) {
 	FastForTest(t)
-	_, _, err := Recover(context.Background(), errAmbiguous, "x", nil, func() (map[string]bool, error) {
+	_, _, err := recoverID(context.Background(), errAmbiguous, "x", nil, func() (map[string]bool, error) {
 		return ids("new"), nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "import it") {
@@ -64,9 +64,9 @@ func TestRecover_NoSnapshotNeverAdopts(t *testing.T) {
 	}
 }
 
-func TestRecover_SeveralNewIDsError(t *testing.T) {
+func TestRecoverID_SeveralNewIDsError(t *testing.T) {
 	FastForTest(t)
-	_, _, err := Recover(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
+	_, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		return ids("a", "b"), nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "2 new matches") || !strings.Contains(err.Error(), "a, b") {
@@ -74,9 +74,9 @@ func TestRecover_SeveralNewIDsError(t *testing.T) {
 	}
 }
 
-func TestRecover_LookupFailureErrors(t *testing.T) {
+func TestRecoverID_LookupFailureErrors(t *testing.T) {
 	FastForTest(t)
-	_, _, err := Recover(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
+	_, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		return nil, errors.New("list down")
 	})
 	if err == nil || !strings.Contains(err.Error(), "also failed") {
@@ -85,7 +85,7 @@ func TestRecover_LookupFailureErrors(t *testing.T) {
 }
 
 func TestSnapshot_FailureDisablesAdoption(t *testing.T) {
-	if got := Snapshot(context.Background(), "x", func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
+	if got := snapshot(context.Background(), "x", func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
 		t.Fatalf("snapshot = %v, want nil", got)
 	}
 }

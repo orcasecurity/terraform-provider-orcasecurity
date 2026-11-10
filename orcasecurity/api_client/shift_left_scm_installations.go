@@ -7,13 +7,14 @@ import (
 
 // No single-item GET route for installations; reads scan the list.
 
-type installationIDer interface {
+type scmInstallation interface {
 	installationID() string
+	installationName() string
 }
 
 func findScmInstallation[T any, PT interface {
 	*T
-	installationIDer
+	scmInstallation
 }](client *APIClient, listPath, id string) (*T, error) {
 	all, err := getAllScmPages[T](client, listPath, nil)
 	if err != nil {
@@ -25,6 +26,26 @@ func findScmInstallation[T any, PT interface {
 		}
 	}
 	return nil, nil
+}
+
+func scmInstallationCreateOp[T any, PT interface {
+	*T
+	scmInstallation
+}](client *APIClient, scmName, listPath, name string, body any) CreateOp[T] {
+	id := func(t *T) string { return PT(t).installationID() }
+	return CreateOp[T]{
+		What:   fmt.Sprintf("%s installation named %q", scmName, name),
+		Create: func() (*T, error) { return createScmInstallation[T](client, listPath, body) },
+		ID:     id,
+		IDs: func() (map[string]bool, error) {
+			all, err := getAllScmPages[T](client, listPath, nil)
+			if err != nil {
+				return nil, err
+			}
+			return idsWhere(all, id, func(t *T) bool { return sameName(PT(t).installationName(), name) }), nil
+		},
+		Get: func(id string) (*T, error) { return findScmInstallation[T, PT](client, listPath, id) },
+	}
 }
 
 func createScmInstallation[T any](client *APIClient, listPath string, body any) (*T, error) {
@@ -45,7 +66,7 @@ func createScmInstallation[T any](client *APIClient, listPath string, body any) 
 // GitLab and Azure DevOps PATCH return an empty body; Bitbucket echoes the full serializer.
 func patchScmInstallationAndReread[T any, PT interface {
 	*T
-	installationIDer
+	scmInstallation
 }](client *APIClient, listPath, id string, body any) (*T, error) {
 	_, err := client.Patch(fmt.Sprintf("%s%s/", listPath, id), body)
 	if err != nil {

@@ -23,12 +23,8 @@ var (
 	Sleep      = sleepCtx
 )
 
-// Lister returns the ids of every existing object that matches what is being created. Names are not
-// unique, so recovery diffs id sets rather than trusting a name match alone.
-type Lister = api_client.IDLister
-
-// Snapshot takes the pre-create id set. A failed snapshot returns nil, which disables adoption.
-func Snapshot(ctx context.Context, what string, list Lister) map[string]bool {
+// A failed snapshot returns nil, which disables adoption.
+func snapshot(ctx context.Context, what string, list api_client.IDLister) map[string]bool {
 	ids, err := list()
 	if err != nil {
 		tflog.Warn(ctx, fmt.Sprintf("Could not list existing %s before create; an ambiguous create will not be recovered: %v", what, err))
@@ -37,15 +33,7 @@ func Snapshot(ctx context.Context, what string, list Lister) map[string]bool {
 	return ids
 }
 
-// SameName compares names the way the server may store them (surrounding whitespace trimmed).
-// A looser match is safe: adoption still requires exactly one id absent from the snapshot.
-func SameName(a, b string) bool {
-	return strings.TrimSpace(a) == strings.TrimSpace(b)
-}
-
-// Recover returns the created id when createErr is ambiguous and exactly one new match appeared.
-// what describes the object for messages, e.g. `iac policy named "x"`. warning is set on adoption.
-func Recover(ctx context.Context, createErr error, what string, before map[string]bool, list Lister) (id, warning string, err error) {
+func recoverID(ctx context.Context, createErr error, what string, before map[string]bool, list api_client.IDLister) (id, warning string, err error) {
 	if !errors.Is(createErr, api_client.ErrAmbiguousWrite) {
 		return "", "", createErr
 	}
@@ -73,7 +61,7 @@ func Recover(ctx context.Context, createErr error, what string, before map[strin
 // Run executes op. On an ambiguous POST it adopts the single new matching object, reads it back and
 // adds a warning to diags; any other outcome is returned as an error.
 func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diagnostics) (*T, error) {
-	before := Snapshot(ctx, op.What, op.IDs)
+	before := snapshot(ctx, op.What, op.IDs)
 	created, err := op.Create()
 	if err == nil {
 		if created == nil || op.ID(created) == "" {
@@ -81,7 +69,7 @@ func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diag
 		}
 		return created, nil
 	}
-	id, warning, err := Recover(ctx, err, op.What, before, op.IDs)
+	id, warning, err := recoverID(ctx, err, op.What, before, op.IDs)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +84,7 @@ func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diag
 	return created, nil
 }
 
-func newSince(ctx context.Context, before map[string]bool, list Lister) ([]string, time.Duration, error) {
+func newSince(ctx context.Context, before map[string]bool, list api_client.IDLister) ([]string, time.Duration, error) {
 	var waited time.Duration
 	var lastErr error
 	for _, d := range PollDelays {
