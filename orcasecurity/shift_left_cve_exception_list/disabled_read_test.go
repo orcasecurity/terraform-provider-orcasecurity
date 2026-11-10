@@ -28,6 +28,7 @@ func TestReadListDisabled(t *testing.T) {
 		{"omitted shows drift when an entry was re-enabled", types.BoolValue(true), listWith(true, false, true, false), false},
 		{"omitted keeps configured false", types.BoolValue(false), listWith(true, false, true), false},
 		{"import with every entry disabled", types.BoolNull(), listWith(true, false, true), true},
+		{"omitted keeps configured true with no entries", types.BoolValue(true), listWith(true, false), true},
 		{"import with no entries", types.BoolNull(), listWith(true, false), false},
 	}
 	for _, c := range cases {

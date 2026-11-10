@@ -413,7 +413,7 @@ func readListDisabled(prior types.Bool, instance *api_client.ShiftLeftCveExcepti
 		return false
 	}
 	if len(instance.Vulnerabilities) == 0 {
-		return false
+		return !prior.IsNull() && !prior.IsUnknown() && prior.ValueBool()
 	}
 	for _, v := range instance.Vulnerabilities {
 		if !v.Disabled {
