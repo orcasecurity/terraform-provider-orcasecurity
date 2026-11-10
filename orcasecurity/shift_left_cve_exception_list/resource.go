@@ -266,14 +266,19 @@ func (r *shiftLeftCveExceptionListResource) Read(ctx context.Context, req resour
 	} else {
 		state.Description = types.StringNull()
 	}
-	state.Disabled = types.BoolValue(instance.Disabled)
+	priorVulnDisabled := map[string]types.Bool{}
+	for _, v := range state.Vulnerabilities {
+		priorVulnDisabled[v.CVEID.ValueString()] = v.Disabled
+	}
+	listDisabled := readListDisabled(state.Disabled, instance)
+	state.Disabled = types.BoolValue(listDisabled)
 
 	var vulnerabilities []Vulnerability
 	for _, item := range instance.Vulnerabilities {
 		vuln := Vulnerability{
 			CVEID:       types.StringValue(item.CVEID),
 			Description: types.StringValue(item.Description),
-			Disabled:    types.BoolValue(item.Disabled),
+			Disabled:    types.BoolValue(readVulnerabilityDisabled(item, listDisabled && instance.DisabledOmitted, priorVulnDisabled[item.CVEID])),
 		}
 		if item.Expiration != "" {
 			vuln.Expiration = types.StringValue(item.Expiration)
@@ -396,4 +401,33 @@ func (r *shiftLeftCveExceptionListResource) Delete(ctx context.Context, req reso
 		)
 		return
 	}
+}
+
+// readListDisabled: when the server omits list-level disabled (see api_client DisabledOmitted) the
+// list reads as disabled only while every entry still is, so an entry re-enabled in the UI shows drift.
+func readListDisabled(prior types.Bool, instance *api_client.ShiftLeftCveExceptionList) bool {
+	if !instance.DisabledOmitted {
+		return instance.Disabled
+	}
+	if !prior.IsNull() && !prior.IsUnknown() && !prior.ValueBool() {
+		return false
+	}
+	if len(instance.Vulnerabilities) == 0 {
+		return false
+	}
+	for _, v := range instance.Vulnerabilities {
+		if !v.Disabled {
+			return false
+		}
+	}
+	return true
+}
+
+// readVulnerabilityDisabled keeps a configured disabled=false on an entry the server disabled only
+// because the list was written with disabled=true.
+func readVulnerabilityDisabled(item api_client.Vulnerability, disabledByList bool, prior types.Bool) bool {
+	if disabledByList && item.Disabled && !prior.IsNull() && !prior.IsUnknown() {
+		return prior.ValueBool()
+	}
+	return item.Disabled
 }

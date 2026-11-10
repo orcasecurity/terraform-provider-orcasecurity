@@ -27,6 +27,9 @@ type ShiftLeftCveExceptionList struct {
 	Disabled        bool            `json:"disabled"`
 	Vulnerabilities []Vulnerability `json:"vulnerabilities,omitempty"`
 	Projects        []Project       `json:"projects,omitempty"`
+	// Behind shiftleft_cve_exception_list_disabled_semantics the server never stores list-level
+	// disabled=true (it disables every entry instead) and omits the field from responses.
+	DisabledOmitted bool `json:"-"`
 }
 
 func (client *APIClient) GetShiftLeftCveExceptionList(id string) (*ShiftLeftCveExceptionList, error) {
@@ -44,6 +47,12 @@ func (client *APIClient) GetShiftLeftCveExceptionList(id string) (*ShiftLeftCveE
 	if err != nil {
 		return nil, err
 	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Body(), &keys); err != nil {
+		return nil, err
+	}
+	_, hasDisabled := keys["disabled"]
+	response.DisabledOmitted = !hasDisabled
 	return &response, nil
 }
 
