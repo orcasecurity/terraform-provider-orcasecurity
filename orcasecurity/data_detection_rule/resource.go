@@ -238,7 +238,6 @@ func (r *dataDetectionRuleResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	// non-standard REST: create is PUT on the collection, returns data.rule_id
 	instance, err := createrecovery.Run(ctx, r.apiClient.DataDetectionRuleCreateOp(generateRulePayload(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
