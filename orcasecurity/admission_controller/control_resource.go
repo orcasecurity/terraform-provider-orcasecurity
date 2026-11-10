@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -233,7 +234,7 @@ func (r *controlResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	instance, err := r.apiClient.CreateAdmissionControllerControl(payload)
+	instance, err := createrecovery.Run(ctx, r.apiClient.AdmissionControllerControlCreateOp(payload), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(errCreatingControl, "Could not create control, unexpected error: "+err.Error())
 		return

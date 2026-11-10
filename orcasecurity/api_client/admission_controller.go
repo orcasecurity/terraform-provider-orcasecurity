@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 // Admission Controller management API (Kubernetes admission controller).
@@ -46,7 +47,7 @@ type admissionControllerControlListAPIResponse struct {
 
 // GetAdmissionControllerControl fetches one control. The API has no
 // GET /controls/{id} route (it answers 405), so this filters the list
-// endpoint by id. Returns nil (no error) when the control does not exist.
+// endpoint by id and picks the row with that id. Returns nil (no error) when the control does not exist.
 func (client *APIClient) GetAdmissionControllerControl(id string) (*AdmissionControllerControl, error) {
 	resp, err := client.Get(fmt.Sprintf(
 		"/api/admission_controller/controls?ids=%s", url.QueryEscape(id),
@@ -59,13 +60,12 @@ func (client *APIClient) GetAdmissionControllerControl(id string) (*AdmissionCon
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
-	if len(response.Data) == 0 {
-		return nil, nil
+	for i := range response.Data {
+		if response.Data[i].ID == id {
+			return &response.Data[i], nil
+		}
 	}
-	if len(response.Data) > 1 {
-		return nil, fmt.Errorf("expected one admission controller control for id %s, got %d", id, len(response.Data))
-	}
-	return &response.Data[0], nil
+	return nil, nil
 }
 
 // normalizeAdmissionControllerControl defaults unset input_parameters to {}
@@ -80,7 +80,7 @@ func normalizeAdmissionControllerControl(data *AdmissionControllerControl) {
 func (client *APIClient) CreateAdmissionControllerControl(data AdmissionControllerControl) (*AdmissionControllerControl, error) {
 	data.ID = ""
 	normalizeAdmissionControllerControl(&data)
-	resp, err := client.Post("/api/admission_controller/controls", data)
+	resp, err := client.PostCreate("/api/admission_controller/controls", data)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (client *APIClient) GetAdmissionControllerPolicy(id string) (*AdmissionCont
 
 func (client *APIClient) CreateAdmissionControllerPolicy(data AdmissionControllerPolicy) (*AdmissionControllerPolicy, error) {
 	data.ID = ""
-	resp, err := client.Post("/api/admission_controller/policies", data)
+	resp, err := client.PostCreate("/api/admission_controller/policies", data)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (client *APIClient) GetAdmissionControllerScope(id string) (*AdmissionContr
 func (client *APIClient) CreateAdmissionControllerScope(data AdmissionControllerScope) (*AdmissionControllerScope, error) {
 	data.ID = ""
 	data.Policies = nil
-	resp, err := client.Post("/api/admission_controller/scopes", data)
+	resp, err := client.PostCreate("/api/admission_controller/scopes", data)
 	if err != nil {
 		return nil, err
 	}
@@ -297,4 +297,62 @@ func (client *APIClient) GetAdmissionControllerTemplates() ([]AdmissionControlle
 		return nil, err
 	}
 	return response.Data, nil
+}
+
+type admissionControllerListRow struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	TemplateID string `json:"template_id"`
+}
+
+// search is icontains over name/description (and template name for controls), so match exactly here.
+func (client *APIClient) listAdmissionControllerIDsByName(kind, name string, match func(*admissionControllerListRow) bool) (map[string]bool, error) {
+	resp, err := client.Get("/api/admission_controller/" + kind + "?" + url.Values{"search": {strings.TrimSpace(name)}}.Encode())
+	if err != nil {
+		return nil, err
+	}
+	rows, err := readData[[]admissionControllerListRow](resp)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(*rows, func(r *admissionControllerListRow) string { return r.ID }, func(r *admissionControllerListRow) bool {
+		return sameName(r.Name, name) && match(r)
+	}), nil
+}
+
+func anyRow(*admissionControllerListRow) bool { return true }
+
+func (client *APIClient) AdmissionControllerControlCreateOp(data AdmissionControllerControl) CreateOp[AdmissionControllerControl] {
+	return CreateOp[AdmissionControllerControl]{
+		What:   fmt.Sprintf("admission controller control named %q", data.Name),
+		Create: func() (*AdmissionControllerControl, error) { return client.CreateAdmissionControllerControl(data) },
+		IDs: func() (map[string]bool, error) {
+			return client.listAdmissionControllerIDsByName("controls", data.Name, func(r *admissionControllerListRow) bool {
+				return strings.EqualFold(r.TemplateID, data.TemplateID)
+			})
+		},
+		Get: client.GetAdmissionControllerControl,
+	}
+}
+
+func (client *APIClient) AdmissionControllerPolicyCreateOp(data AdmissionControllerPolicy) CreateOp[AdmissionControllerPolicy] {
+	return CreateOp[AdmissionControllerPolicy]{
+		What:   fmt.Sprintf("admission controller policy named %q", data.Name),
+		Create: func() (*AdmissionControllerPolicy, error) { return client.CreateAdmissionControllerPolicy(data) },
+		IDs: func() (map[string]bool, error) {
+			return client.listAdmissionControllerIDsByName("policies", data.Name, anyRow)
+		},
+		Get: client.GetAdmissionControllerPolicy,
+	}
+}
+
+func (client *APIClient) AdmissionControllerScopeCreateOp(data AdmissionControllerScope) CreateOp[AdmissionControllerScope] {
+	return CreateOp[AdmissionControllerScope]{
+		What:   fmt.Sprintf("admission controller policy assignment named %q", data.Name),
+		Create: func() (*AdmissionControllerScope, error) { return client.CreateAdmissionControllerScope(data) },
+		IDs: func() (map[string]bool, error) {
+			return client.listAdmissionControllerIDsByName("scopes", data.Name, anyRow)
+		},
+		Get: client.GetAdmissionControllerScope,
+	}
 }
