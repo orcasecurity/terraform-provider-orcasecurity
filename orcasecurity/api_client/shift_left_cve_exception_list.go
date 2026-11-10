@@ -27,12 +27,16 @@ type ShiftLeftCveExceptionList struct {
 	Disabled        bool            `json:"disabled"`
 	Vulnerabilities []Vulnerability `json:"vulnerabilities,omitempty"`
 	Projects        []Project       `json:"projects,omitempty"`
-	// For some orgs the API never stores list-level disabled=true (it disables every entry
-	// instead) and omits the field from responses.
-	DisabledOmitted bool `json:"-"`
 }
 
-func (client *APIClient) GetShiftLeftCveExceptionList(id string) (*ShiftLeftCveExceptionList, error) {
+// For some orgs the API never stores list-level disabled=true (it disables every entry instead)
+// and omits the field from responses; Disabled is then nil.
+type ShiftLeftCveExceptionListRead struct {
+	ShiftLeftCveExceptionList
+	Disabled *bool `json:"disabled"`
+}
+
+func (client *APIClient) GetShiftLeftCveExceptionList(id string) (*ShiftLeftCveExceptionListRead, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/shiftleft/exceptions/%s/", id))
 	if err != nil {
 		return nil, err
@@ -42,17 +46,11 @@ func (client *APIClient) GetShiftLeftCveExceptionList(id string) (*ShiftLeftCveE
 		return nil, nil
 	}
 
-	response := ShiftLeftCveExceptionList{}
+	response := ShiftLeftCveExceptionListRead{}
 	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
 	}
-	var keys map[string]json.RawMessage
-	if err := json.Unmarshal(resp.Body(), &keys); err != nil {
-		return nil, err
-	}
-	_, hasDisabled := keys["disabled"]
-	response.DisabledOmitted = !hasDisabled
 	return &response, nil
 }
 
@@ -61,7 +59,7 @@ func (client *APIClient) DoesShiftLeftCveExceptionListExist(id string) (bool, er
 	return resp.StatusCode() == 200, nil
 }
 
-func (client *APIClient) createShiftLeftCveExceptionList(data ShiftLeftCveExceptionList) (*ShiftLeftCveExceptionList, error) {
+func (client *APIClient) createShiftLeftCveExceptionList(data ShiftLeftCveExceptionList) (*ShiftLeftCveExceptionListRead, error) {
 	resp, err := client.PostCreate("/api/shiftleft/exceptions/", data)
 	if err != nil {
 		return nil, err
@@ -71,7 +69,7 @@ func (client *APIClient) createShiftLeftCveExceptionList(data ShiftLeftCveExcept
 		return nil, nil
 	}
 
-	response := ShiftLeftCveExceptionList{}
+	response := ShiftLeftCveExceptionListRead{}
 	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
 		return nil, err
@@ -113,11 +111,11 @@ func (client *APIClient) ListShiftLeftCveExceptionListIDsByName(name string) (ma
 		func(e *shiftLeftExceptionListSummary) bool { return sameName(e.Name, name) }), nil
 }
 
-func (client *APIClient) ShiftLeftCveExceptionListCreateOp(data ShiftLeftCveExceptionList) CreateOp[ShiftLeftCveExceptionList] {
-	return CreateOp[ShiftLeftCveExceptionList]{
+func (client *APIClient) ShiftLeftCveExceptionListCreateOp(data ShiftLeftCveExceptionList) CreateOp[ShiftLeftCveExceptionListRead] {
+	return CreateOp[ShiftLeftCveExceptionListRead]{
 		What:   fmt.Sprintf("shift-left exception list named %q", data.Name),
-		ID:     func(o *ShiftLeftCveExceptionList) string { return o.ID },
-		Create: func() (*ShiftLeftCveExceptionList, error) { return client.createShiftLeftCveExceptionList(data) },
+		ID:     func(o *ShiftLeftCveExceptionListRead) string { return o.ID },
+		Create: func() (*ShiftLeftCveExceptionListRead, error) { return client.createShiftLeftCveExceptionList(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListShiftLeftCveExceptionListIDsByName(data.Name) },
 		Get:    client.GetShiftLeftCveExceptionList,
 	}
