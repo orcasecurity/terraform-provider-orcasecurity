@@ -16,14 +16,14 @@ func (client *APIClient) ListShiftLeftProjects() ([]ShiftLeftProjectSummary, err
 }
 
 // Projects are unique per org by name and by key; key is the identity, name is the fallback when unset.
+// Lists all instead of ?search=<key>&search_fields=project_key: live, that exact search kept
+// answering empty for over 20s after the project was created, so recovery never saw it.
 func (client *APIClient) ListShiftLeftProjectIDsByKey(key, name string) (map[string]bool, error) {
-	filters := listFilters{"search": strings.TrimSpace(key), "search_fields": "project_key"}
 	match := func(p *ShiftLeftProjectSummary) bool { return sameName(p.Key, key) }
 	if strings.TrimSpace(key) == "" {
-		filters = nil
 		match = func(p *ShiftLeftProjectSummary) bool { return sameName(p.Name, name) }
 	}
-	all, err := getAllScmPages[ShiftLeftProjectSummary](client, "/api/shiftleft/projects/", filters)
+	all, err := client.ListShiftLeftProjects()
 	if err != nil {
 		return nil, err
 	}
