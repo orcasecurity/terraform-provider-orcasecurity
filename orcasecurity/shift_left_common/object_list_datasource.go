@@ -2,7 +2,6 @@ package shift_left_common
 
 import (
 	"context"
-	"errors"
 	"maps"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -44,7 +43,10 @@ type ScmObjectListSpec[A any] struct {
 	Attrs          map[string]dschema.Attribute
 	AttrTypes      map[string]attr.Type
 	List           func(*api_client.APIClient) ([]A, error)
-	Row            func(*A) map[string]attr.Value
+	// ListWithWarnings, when set, replaces List for lists that can return every row while some
+	// fields could not be resolved; each warning becomes a diagnostic warning, not an error.
+	ListWithWarnings func(*api_client.APIClient) ([]A, []string, error)
+	Row              func(*A) map[string]attr.Value
 }
 
 func (s ScmObjectListSpec[A]) ListValue(rows []A) (types.List, diag.Diagnostics) {
@@ -94,14 +96,18 @@ func (ds *scmObjectListDataSource[A]) Schema(_ context.Context, _ datasource.Sch
 	}
 }
 
-func (ds *scmObjectListDataSource[A]) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (ds *scmObjectListDataSource[A]) list() ([]A, []string, error) {
+	if ds.spec.ListWithWarnings != nil {
+		return ds.spec.ListWithWarnings(ds.apiClient)
+	}
 	rows, err := ds.spec.List(ds.apiClient)
-	var partial *api_client.PartialListWarning
-	if errors.As(err, &partial) {
-		for _, m := range partial.Messages {
-			resp.Diagnostics.AddWarning("Some list fields could not be resolved", m)
-		}
-		err = nil
+	return rows, nil, err
+}
+
+func (ds *scmObjectListDataSource[A]) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	rows, warnings, err := ds.list()
+	for _, m := range warnings {
+		resp.Diagnostics.AddWarning("Some list fields could not be resolved", m)
 	}
 	if err != nil {
 		resp.Diagnostics.AddError(ds.spec.ListErrorTitle, err.Error())

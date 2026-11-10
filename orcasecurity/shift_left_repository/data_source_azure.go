@@ -32,7 +32,7 @@ var azureRepositoriesSpec = shift_left_common.ScmObjectListSpec[api_client.Azure
 		"azure_repository_id": types.StringType,
 		"azure_project_id":    types.StringType,
 	}),
-	List: func(c *api_client.APIClient) ([]api_client.AzureRepositoryListItem, error) {
+	ListWithWarnings: func(c *api_client.APIClient) ([]api_client.AzureRepositoryListItem, []string, error) {
 		return c.ListAzureRepositories()
 	},
 	Row: func(a *api_client.AzureRepositoryListItem) map[string]attr.Value {

@@ -3,7 +3,6 @@ package api_client
 import (
 	"fmt"
 	"net/url"
-	"strings"
 )
 
 type GithubRepositoryListItem struct {
@@ -142,41 +141,30 @@ func (client *APIClient) getAzureAccountRepositoryProjectIDs(installationID, acc
 	return out, nil
 }
 
-func (client *APIClient) ListAzureRepositories() ([]AzureRepositoryListItem, error) {
+// ListAzureRepositories lists every integrated Azure DevOps repository. warnings name the accounts whose
+// azure_project_id could not be joined (their rows keep it empty); they are not an error.
+func (client *APIClient) ListAzureRepositories() (rows []AzureRepositoryListItem, warnings []string, err error) {
 	accounts, err := client.ListAzureDevopsAccounts()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	installByAccount := make(map[string]string, len(accounts))
 	for _, a := range accounts {
 		installByAccount[a.ID] = a.InstallationID
 	}
-	rows, err := getAllScmPages[azureRepositoryItem](client, integratedRepositoriesPath("azure_devops"), nil)
+	items, err := getAllScmPages[azureRepositoryItem](client, integratedRepositoriesPath("azure_devops"), nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out, err := buildAzureRepositoryListItems(rows, installByAccount)
+	out, err := buildAzureRepositoryListItems(items, installByAccount)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	warnings, err := client.joinAzureProjectIDs(out)
+	warnings, err = client.joinAzureProjectIDs(out)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if len(warnings) > 0 {
-		return out, &PartialListWarning{Messages: warnings}
-	}
-	return out, nil
-}
-
-// PartialListWarning: every row was listed, but a field could not be joined for some of them. List
-// data sources keep the rows and surface the messages as warnings rather than failing the fleet list.
-type PartialListWarning struct {
-	Messages []string
-}
-
-func (w *PartialListWarning) Error() string {
-	return strings.Join(w.Messages, "; ")
+	return out, warnings, nil
 }
 
 func buildAzureRepositoryListItems(rows []azureRepositoryItem, installByAccount map[string]string) ([]AzureRepositoryListItem, error) {

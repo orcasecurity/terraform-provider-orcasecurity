@@ -2,7 +2,6 @@ package api_client
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -235,7 +234,7 @@ func TestListAzureRepositoriesStampsInstallationID(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	rows, err := client.ListAzureRepositories()
+	rows, _, err := client.ListAzureRepositories()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +282,7 @@ func TestListAzureRepositoriesPrefersDirectProjectID(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	rows, err := client.ListAzureRepositories()
+	rows, _, err := client.ListAzureRepositories()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +324,7 @@ func TestListAzureRepositoriesMissingFromBrowseErrors(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	if _, err := client.ListAzureRepositories(); err == nil {
+	if _, _, err := client.ListAzureRepositories(); err == nil {
 		t.Fatal("expected error when repository is absent from the account browse listing, got nil")
 	}
 }
@@ -358,14 +357,14 @@ func TestListAzureRepositoriesMissingAccountErrors(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	if _, err := client.ListAzureRepositories(); err == nil {
+	if _, _, err := client.ListAzureRepositories(); err == nil {
 		t.Fatal("expected error for repository referencing a missing account, got nil")
 	}
 }
 
 // One installation with a revoked token must not fail the fleet-wide list: its rows keep a null
 // azure_project_id and the failure comes back as a warning (seen live on the lab, 401 from browse).
-func TestListAzureRepositoriesBrowseFailureIsPartialWarning(t *testing.T) {
+func TestListAzureRepositoriesBrowseFailureIsWarning(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -401,13 +400,12 @@ func TestListAzureRepositoriesBrowseFailureIsPartialWarning(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	client := &APIClient{APIEndpoint: srv.URL, HTTPClient: srv.Client()}
-	rows, err := client.ListAzureRepositories()
-	var partial *PartialListWarning
-	if !errors.As(err, &partial) {
-		t.Fatalf("err = %v, want *PartialListWarning", err)
+	rows, warnings, err := client.ListAzureRepositories()
+	if err != nil {
+		t.Fatalf("a failed account browse must not fail the list: %v", err)
 	}
-	if len(partial.Messages) != 1 || !strings.Contains(partial.Messages[0], "account org-name") {
-		t.Fatalf("want one warning naming the account, got %q", partial.Messages)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "account org-name") {
+		t.Fatalf("want one warning naming the account, got %q", warnings)
 	}
 	if len(rows) != 2 || rows[0].AzureProjectID != "" || rows[1].AzureProjectID != "" {
 		t.Fatalf("want both rows with a null azure_project_id, got %+v", rows)

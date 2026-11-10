@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
 
 // ExistingTemplateName returns envVar's value when set, otherwise a template_name that exists
@@ -41,32 +43,51 @@ func ExistingTemplateName(t *testing.T, serviceName, envVar string) string {
 	return ""
 }
 
-const sonarTextDisabledMsg = "Sonar text rules are disabled"
+const (
+	sonarTextDisabledMsg = "Sonar text rules are disabled"
+	sonarProbeName       = "tf-acc-sonar-text-probe"
+)
 
 // SkipIfSonarTextRulesDisabled skips when the org has the `ui_disable_sonar_text` flag on: the API
 // then rejects every text `rule` with 400 "Sonar text rules are disabled ... use 'rule_json'". The
-// probe query does not parse, so an org without the flag rejects it instead of creating a rule;
-// if a rule is created anyway it is deleted.
+// probe query does not parse, so an org without the flag rejects it instead of creating a rule.
+// It is sent with PostCreate (never replayed), and any rule left under the probe name is swept
+// before and after, so a flaky gateway cannot leave a stray probe rule behind.
 func SkipIfSonarTextRulesDisabled(t *testing.T) {
 	t.Helper()
 	client := APIClient(t)
-	resp, err := client.Post("/api/sonar/rules", map[string]any{
-		"name": "tf-acc-sonar-text-probe", "rule": "tf acc probe (((", "category": "Best practices", "orca_score": 1,
+	sweepSonarProbes(t, client)
+	t.Cleanup(func() { sweepSonarProbes(t, client) })
+	_, err := client.PostCreate("/api/sonar/rules", map[string]any{
+		"name": sonarProbeName, "rule": "tf acc probe (((", "category": "Best practices", "orca_score": 1,
 	})
-	if err == nil {
-		var created struct {
-			Data struct {
-				ID string `json:"rule_id"`
-			} `json:"data"`
-		}
-		if resp.ReadJSON(&created) == nil && created.Data.ID != "" {
-			if delErr := client.DeleteCustomSonarAlert(created.Data.ID); delErr != nil {
-				t.Fatalf("sonar probe rule %s was created and could not be deleted: %v", created.Data.ID, delErr)
-			}
-		}
+	if err != nil && strings.Contains(err.Error(), sonarTextDisabledMsg) {
+		t.Skipf("org has the ui_disable_sonar_text flag on (%s); text sonar rules cannot be created", sonarTextDisabledMsg)
+	}
+}
+
+func sweepSonarProbes(t *testing.T, client *api_client.APIClient) {
+	t.Helper()
+	resp, err := client.Get("/api/sonar/rules/custom?limit=1000")
+	if err != nil {
+		t.Logf("listing custom sonar rules to sweep %s: %v", sonarProbeName, err)
 		return
 	}
-	if strings.Contains(err.Error(), sonarTextDisabledMsg) {
-		t.Skipf("org has the ui_disable_sonar_text flag on (%s); text sonar rules cannot be created", sonarTextDisabledMsg)
+	var page struct {
+		Data []struct {
+			ID   string `json:"rule_id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := resp.ReadJSON(&page); err != nil {
+		t.Logf("decoding custom sonar rules: %v", err)
+		return
+	}
+	for _, r := range page.Data {
+		if r.Name == sonarProbeName && r.ID != "" {
+			if err := client.DeleteCustomSonarAlert(r.ID); err != nil {
+				t.Errorf("deleting stray sonar probe rule %s: %v", r.ID, err)
+			}
+		}
 	}
 }
