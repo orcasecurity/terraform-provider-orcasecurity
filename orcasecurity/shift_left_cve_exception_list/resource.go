@@ -204,10 +204,11 @@ func (r *shiftLeftCveExceptionListResource) Create(ctx context.Context, req reso
 
 	}
 
+	disabled := plan.Disabled.ValueBool()
 	exceptionListToCreate := api_client.ShiftLeftCveExceptionList{
 		Name:            plan.Name.ValueString(),
 		Description:     plan.Description.ValueString(),
-		Disabled:        plan.Disabled.ValueBool(),
+		Disabled:        &disabled,
 		Projects:        projects,
 		Vulnerabilities: vulnerabilities,
 	}
@@ -352,11 +353,12 @@ func (r *shiftLeftCveExceptionListResource) Update(ctx context.Context, req reso
 		})
 	}
 
+	disabled := plan.Disabled.ValueBool()
 	updateReq := api_client.ShiftLeftCveExceptionList{
 		ID:          plan.ID.ValueString(),
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
-		Disabled:    plan.Disabled.ValueBool(),
+		Disabled:    &disabled,
 		//Projects:        projects,
 		Vulnerabilities: vulnerabilities,
 	}
@@ -406,7 +408,7 @@ func (r *shiftLeftCveExceptionListResource) Delete(ctx context.Context, req reso
 
 // readListDisabled: when the server omits list-level disabled the list reads as disabled only while
 // every entry still is, so an entry re-enabled in the UI shows drift.
-func readListDisabled(prior types.Bool, instance *api_client.ShiftLeftCveExceptionListRead) bool {
+func readListDisabled(prior types.Bool, instance *api_client.ShiftLeftCveExceptionList) bool {
 	if instance.Disabled != nil {
 		return *instance.Disabled
 	}

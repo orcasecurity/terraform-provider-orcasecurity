@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func listWith(omitted bool, listDisabled bool, entries ...bool) *api_client.ShiftLeftCveExceptionListRead {
-	l := &api_client.ShiftLeftCveExceptionListRead{}
+func listWith(omitted bool, listDisabled bool, entries ...bool) *api_client.ShiftLeftCveExceptionList {
+	l := &api_client.ShiftLeftCveExceptionList{}
 	if !omitted {
 		l.Disabled = &listDisabled
 	}
@@ -23,7 +23,7 @@ func TestReadListDisabled(t *testing.T) {
 	cases := []struct {
 		name     string
 		prior    types.Bool
-		instance *api_client.ShiftLeftCveExceptionListRead
+		instance *api_client.ShiftLeftCveExceptionList
 		want     bool
 	}{
 		{"field present is read as-is", types.BoolValue(false), listWith(false, true, false), true},

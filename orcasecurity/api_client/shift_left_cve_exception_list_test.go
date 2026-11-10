@@ -5,12 +5,12 @@ import (
 	"testing"
 )
 
-func TestShiftLeftCveExceptionListRead_DisabledIsNilWhenOmitted(t *testing.T) {
+func TestShiftLeftCveExceptionList_DisabledIsNilWhenOmitted(t *testing.T) {
 	for body, want := range map[string]*bool{
 		`{"id":"l1","name":"n","vulnerabilities":[{"cve_id":"c","disabled":true}]}`: nil,
 		`{"id":"l1","name":"n","disabled":false}`:                                   new(bool),
 	} {
-		var got ShiftLeftCveExceptionListRead
+		var got ShiftLeftCveExceptionList
 		if err := json.Unmarshal([]byte(body), &got); err != nil {
 			t.Fatal(err)
 		}
