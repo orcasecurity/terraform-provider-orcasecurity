@@ -9,29 +9,19 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 )
 
-func TestCreateCustomTagRule_ReadBack404IsAnError(t *testing.T) {
-	client := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		if req.Method == http.MethodPost {
-			return testutils.JSONResponse(req, 200, `{"data":{"tags_rule_id":"rule-1"},"status":"success"}`)
+func TestCreateCustomTagRule_ReadBackFailureNamesTheIDToImport(t *testing.T) {
+	for status, cause := range map[int]string{404: "not found", 403: "forbidden"} {
+		client := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
+			if req.Method == http.MethodPost {
+				return testutils.JSONResponse(req, 200, `{"data":{"tags_rule_id":"rule-1"},"status":"success"}`)
+			}
+			return testutils.JSONResponse(req, status, `{"error":"`+cause+`"}`)
+		})
+		rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
+		if rule != nil || err == nil || !strings.Contains(err.Error(), "created as rule-1") ||
+			!strings.Contains(err.Error(), "import it") || !strings.Contains(err.Error(), cause) {
+			t.Errorf("read-back %d: rule=%v err=%v, want a created-as-rule-1 import error carrying %q", status, rule, err, cause)
 		}
-		return testutils.JSONResponse(req, 404, `{"error":"not found"}`)
-	})
-	rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
-	if rule != nil || err == nil || !strings.Contains(err.Error(), "created as rule-1") || !strings.Contains(err.Error(), "import it") {
-		t.Fatalf("rule=%v err=%v, want a created-as-rule-1 import error", rule, err)
-	}
-}
-
-func TestCreateCustomTagRule_ReadBackFailureNamesTheID(t *testing.T) {
-	client := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		if req.Method == http.MethodPost {
-			return testutils.JSONResponse(req, 200, `{"data":{"tags_rule_id":"rule-1"},"status":"success"}`)
-		}
-		return testutils.JSONResponse(req, 403, `{"error":"forbidden"}`)
-	})
-	rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
-	if rule != nil || err == nil || !strings.Contains(err.Error(), "created as rule-1") || !strings.Contains(err.Error(), "forbidden") {
-		t.Fatalf("rule=%v err=%v, want a created-as-rule-1 error carrying the GET failure", rule, err)
 	}
 }
 
