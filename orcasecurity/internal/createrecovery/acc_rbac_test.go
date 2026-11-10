@@ -36,7 +36,7 @@ func groupAccessIDs(c *api_client.APIClient, name string) (map[string]bool, erro
 func init() {
 	accCases = append(accCases,
 		accCase{
-			name: "business_unit", address: "orcasecurity_business_unit.t", post: "/api/business_units",
+			name: "business_unit", address: "orcasecurity_business_unit.t", path: "/api/business_units",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_business_unit" "t" {
@@ -47,7 +47,7 @@ resource "orcasecurity_business_unit" "t" {
 			ids: (*api_client.APIClient).ListBusinessUnitIDsByName,
 		},
 		accCase{
-			name: "custom_role", address: "orcasecurity_custom_role.t", post: "/api/rbac/roles",
+			name: "custom_role", address: "orcasecurity_custom_role.t", path: "/api/rbac/roles",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_role" "t" {
@@ -59,7 +59,7 @@ resource "orcasecurity_custom_role" "t" {
 			ids: (*api_client.APIClient).ListCustomRoleIDsByName,
 		},
 		accCase{
-			name: "group", address: "orcasecurity_group.t", post: "/api/rbac/group",
+			name: "group", address: "orcasecurity_group.t", path: "/api/rbac/group",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_group" "t" {
@@ -71,7 +71,7 @@ resource "orcasecurity_group" "t" {
 			ids: (*api_client.APIClient).ListGroupIDsByName,
 		},
 		accCase{
-			name: "user_invite", address: "orcasecurity_add_users.t", post: "/api/user_invites/bulk_create/",
+			name: "user_invite", address: "orcasecurity_add_users.t", path: "/api/user_invites/bulk_create/",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_role" "r" {
@@ -91,7 +91,7 @@ resource "orcasecurity_add_users" "t" {
 			},
 		},
 		accCase{
-			name: "trusted_cloud_account", address: "orcasecurity_trusted_cloud_account.t", post: "/api/organization/trusted_accounts",
+			name: "trusted_cloud_account", address: "orcasecurity_trusted_cloud_account.t", path: "/api/organization/trusted_accounts",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_trusted_cloud_account" "t" {
@@ -106,7 +106,7 @@ resource "orcasecurity_trusted_cloud_account" "t" {
 			},
 		},
 		accCase{
-			name: "group_access", address: "orcasecurity_group_access.t", post: "/api/rbac/access/group",
+			name: "group_access", address: "orcasecurity_group_access.t", path: "/api/rbac/access/group",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_role" "r" {

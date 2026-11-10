@@ -9,7 +9,7 @@ import (
 func init() {
 	accCases = append(accCases,
 		accCase{
-			name: "custom_tag_rule", address: "orcasecurity_custom_tag_rule.t", post: "/api/custom_tags",
+			name: "custom_tag_rule", address: "orcasecurity_custom_tag_rule.t", path: "/api/custom_tags",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_tag_rule" "t" {
@@ -22,7 +22,7 @@ resource "orcasecurity_custom_tag_rule" "t" {
 			ids: (*api_client.APIClient).ListCustomTagRuleIDsByName,
 		},
 		accCase{
-			name: "custom_discovery_alert", address: "orcasecurity_custom_discovery_alert.t", post: "/api/sonar/rules",
+			name: "custom_discovery_alert", address: "orcasecurity_custom_discovery_alert.t", path: "/api/sonar/rules",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_discovery_alert" "t" {
@@ -41,7 +41,7 @@ resource "orcasecurity_custom_discovery_alert" "t" {
 			ids: (*api_client.APIClient).ListCustomSonarRuleIDsByName,
 		},
 		accCase{
-			name: "automation_v2", address: "orcasecurity_automation_v2.t", post: "/api/automations",
+			name: "automation_v2", address: "orcasecurity_automation_v2.t", path: "/api/automations",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_automation_v2" "t" {
@@ -59,7 +59,7 @@ resource "orcasecurity_automation_v2" "t" {
 			ids: (*api_client.APIClient).ListAutomationV2IDsByName,
 		},
 		accCase{
-			name: "custom_compliance_framework", address: "orcasecurity_custom_compliance_framework.t", post: "/api/compliance/frameworks",
+			name: "custom_compliance_framework", address: "orcasecurity_custom_compliance_framework.t", path: "/api/compliance/frameworks",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_compliance_framework" "t" {
@@ -74,7 +74,7 @@ resource "orcasecurity_custom_compliance_framework" "t" {
 			ids: (*api_client.APIClient).ListCustomComplianceFrameworkIDsByName,
 		},
 		accCase{
-			name: "scheduled_report", address: "orcasecurity_scheduled_report.t", post: "/api/reporting/scheduled_reports",
+			name: "scheduled_report", address: "orcasecurity_scheduled_report.t", path: "/api/reporting/scheduled_reports",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_scheduled_report" "t" {

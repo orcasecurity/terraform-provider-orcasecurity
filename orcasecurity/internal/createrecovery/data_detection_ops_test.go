@@ -15,7 +15,7 @@ func init() {
 	opCases = append(opCases, opCase{
 		name:   "data_detection_rule",
 		method: http.MethodPut,
-		post:   base,
+		path:   base,
 		get: map[string]func(bool) string{
 			base: func(created bool) string {
 				return rows(created, row, func(items string) string { return "[" + items + "]" })

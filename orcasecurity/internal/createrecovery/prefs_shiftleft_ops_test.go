@@ -13,7 +13,7 @@ func prefsList(items string) string {
 func userPreferenceCase(name, viewType string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: "/api/user_preferences",
+		path: "/api/user_preferences",
 		get: map[string]func(bool) string{
 			"/api/user_preferences": func(created bool) string {
 				return rows(created, func(id string) string {
@@ -31,7 +31,7 @@ func userPreferenceCase(name, viewType string, op func(c *api_client.APIClient) 
 func shiftLeftCase(name, path, row string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: path,
+		path: path,
 		get: map[string]func(bool) string{
 			path: func(created bool) string {
 				return rows(created, func(id string) string { return fmt.Sprintf(row, id) }, dataList)

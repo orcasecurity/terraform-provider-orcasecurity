@@ -15,7 +15,7 @@ func externalRow(nameField, service string) func(id string) string {
 func configCase(name, service string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: "/api/external_service/config",
+		path: "/api/external_service/config",
 		get: map[string]func(bool) string{
 			"/api/external_service/config": func(created bool) string {
 				return rows(created, externalRow("template_name", service), dataList)
@@ -28,7 +28,7 @@ func configCase(name, service string, op func(c *api_client.APIClient) runner) o
 func resourceCase(name, service string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: "/api/external_service/resources",
+		path: "/api/external_service/resources",
 		get: map[string]func(bool) string{
 			"/api/external_service/resources": func(created bool) string {
 				return rows(created, externalRow("name", service), dataList)

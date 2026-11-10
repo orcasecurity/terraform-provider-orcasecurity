@@ -27,7 +27,7 @@ func init() {
 	opCases = append(opCases,
 		opCase{
 			name: "business_unit",
-			post: "/api/business_units",
+			path: "/api/business_units",
 			get: map[string]func(bool) string{
 				"/api/business_units":          namedList,
 				"/api/business_units/" + newID: namedData(newID),
@@ -38,7 +38,7 @@ func init() {
 		},
 		opCase{
 			name: "custom_role",
-			post: "/api/rbac/roles",
+			path: "/api/rbac/roles",
 			get: map[string]func(bool) string{
 				"/api/rbac/role":           namedList,
 				"/api/rbac/roles/" + newID: namedData(newID),
@@ -49,7 +49,7 @@ func init() {
 		},
 		opCase{
 			name:  "group",
-			post:  "/api/rbac/group",
+			path:  "/api/rbac/group",
 			empty: `{"total_items":0,"data":{"groups":[]}}`,
 			get: map[string]func(bool) string{
 				"/api/rbac/group": func(created bool) string {
@@ -63,7 +63,7 @@ func init() {
 		},
 		opCase{
 			name: "user_invite",
-			post: "/api/user_invites/bulk_create/",
+			path: "/api/user_invites/bulk_create/",
 			get: map[string]func(bool) string{
 				"/api/user_invites/": func(created bool) string {
 					return rows(created, func(id string) string {
@@ -77,7 +77,7 @@ func init() {
 		},
 		opCase{
 			name:    "trusted_cloud_account",
-			post:    "/api/organization/trusted_accounts",
+			path:    "/api/organization/trusted_accounts",
 			adopted: "1",
 			get: map[string]func(bool) string{
 				"/api/organization/trusted_accounts": func(created bool) string {
@@ -92,7 +92,7 @@ func init() {
 		},
 		opCase{
 			name: "group_access",
-			post: "/api/rbac/access/group",
+			path: "/api/rbac/access/group",
 			get: map[string]func(bool) string{
 				"/api/rbac/access/group": func(created bool) string {
 					return rows(created, func(id string) string {
