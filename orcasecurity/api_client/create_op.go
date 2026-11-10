@@ -1,6 +1,10 @@
 package api_client
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
 
 // CreateOp is a create sent with PostCreate (never replayed after an ambiguous outcome) plus what
 // createrecovery.Run needs to find the object if that POST may have committed anyway.
@@ -28,4 +32,12 @@ func idsWhere[T any](rows []T, id func(*T) string, match func(*T) bool) map[stri
 		}
 	}
 	return ids
+}
+
+// CreatedButUnreadableError reports an object that was created as id but could not be read back.
+func CreatedButUnreadableError(what, id string, cause error) error {
+	if cause == nil {
+		cause = errors.New("not found")
+	}
+	return fmt.Errorf("%s was created as %s, but reading it back failed (%w); import it before re-applying", what, id, cause)
 }

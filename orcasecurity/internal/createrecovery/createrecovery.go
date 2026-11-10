@@ -71,11 +71,8 @@ func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diag
 		return nil, err
 	}
 	created, err = op.Get(id)
-	if err == nil && created == nil {
-		err = errors.New("not found")
-	}
-	if err != nil {
-		return nil, fmt.Errorf("%s was created as %s after an ambiguous create, but reading it back failed (%v); import it before re-applying", op.What, id, err)
+	if err != nil || created == nil {
+		return nil, api_client.CreatedButUnreadableError(op.What, id, err)
 	}
 	diags.AddWarning("Recovered "+op.What+" after an ambiguous create", warning)
 	return created, nil
