@@ -16,7 +16,7 @@ func listedByName(created bool, idKey, name string, wrap func(string) string) st
 func idNameCase(name, path, listedName string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: path,
+		path: path,
 		get: map[string]func(bool) string{
 			path: func(created bool) string { return listedByName(created, "id", listedName, dataList) },
 			path + "/" + newID: func(bool) string {
@@ -35,7 +35,7 @@ func withAnswer(c opCase, answer string) opCase {
 func sonarRuleCase(name string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: "/api/sonar/rules",
+		path: "/api/sonar/rules",
 		get: map[string]func(bool) string{
 			"/api/sonar/rules/custom": func(created bool) string { return listedByName(created, "rule_id", stubTag, dataList) },
 			"/api/sonar/rules/" + newID: func(bool) string {
@@ -69,7 +69,7 @@ func init() {
 		}),
 		opCase{
 			name: "custom_compliance_framework",
-			post: "/api/compliance/frameworks",
+			path: "/api/compliance/frameworks",
 			get: map[string]func(bool) string{
 				"/api/compliance/frameworks/select": func(created bool) string {
 					return rows(created, func(id string) string {

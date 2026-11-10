@@ -10,7 +10,7 @@ import (
 func init() {
 	accCases = append(accCases, accCase{
 		name: "data_detection_rule", address: "orcasecurity_data_detection_rule.t",
-		method: http.MethodPut, post: "/api/scan_configuration/rules",
+		method: http.MethodPut, path: "/api/scan_configuration/rules",
 		config: func(n string) string {
 			return fmt.Sprintf(`
 resource "orcasecurity_dspm_policy" "for_rule" {
