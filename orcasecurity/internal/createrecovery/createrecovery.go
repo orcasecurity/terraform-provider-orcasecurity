@@ -55,15 +55,15 @@ func recoverID(ctx context.Context, createErr error, what string, before map[str
 	}
 }
 
-// Run executes op. On an ambiguous POST it adopts the single new matching object, reads it back and
-// adds a warning to diags; any other outcome is returned as an error.
+// Run executes op. On an ambiguous create, or one that succeeds without an id, it adopts the single
+// new matching object, reads it back and adds a warning to diags; any other outcome is returned as an error.
 func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diagnostics) (*T, error) {
 	before := snapshot(ctx, op.What, op.IDs)
 	created, err := op.Create()
+	if err == nil && (created == nil || op.ID(created) == "") {
+		err = fmt.Errorf("%w: the create succeeded but returned no object id", api_client.ErrAmbiguousWrite)
+	}
 	if err == nil {
-		if created == nil || op.ID(created) == "" {
-			return nil, fmt.Errorf("the create request for %s succeeded but returned no object id; check the Orca UI and import it if it was created", op.What)
-		}
 		return created, nil
 	}
 	id, warning, err := recoverID(ctx, err, op.What, before, op.IDs)

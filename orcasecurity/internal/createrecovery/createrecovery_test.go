@@ -91,27 +91,55 @@ func TestSnapshot_FailureDisablesAdoption(t *testing.T) {
 	}
 }
 
-func TestRun_CreateWithoutAnIDIsAnError(t *testing.T) {
-	type thing struct{ ID string }
+type thing struct{ ID string }
+
+func idlessCreateOp(created *thing, after map[string]bool, gets *[]string) api_client.CreateOp[thing] {
+	listed := 0
+	return api_client.CreateOp[thing]{
+		What:   `thing named "x"`,
+		Create: func() (*thing, error) { return created, nil },
+		ID:     func(t *thing) string { return t.ID },
+		IDs: func() (map[string]bool, error) {
+			listed++
+			if listed == 1 {
+				return ids("old"), nil
+			}
+			return after, nil
+		},
+		Get: func(id string) (*thing, error) {
+			*gets = append(*gets, id)
+			return &thing{ID: id}, nil
+		},
+	}
+}
+
+func TestRun_CreateWithoutAnIDAdoptsTheSingleNewID(t *testing.T) {
 	for name, created := range map[string]*thing{"nil": nil, "empty id": {}} {
-		gets := 0
-		op := api_client.CreateOp[thing]{
-			What:   `thing named "x"`,
-			Create: func() (*thing, error) { return created, nil },
-			ID:     func(t *thing) string { return t.ID },
-			IDs:    func() (map[string]bool, error) { return ids(), nil },
-			Get: func(string) (*thing, error) {
-				gets++
-				return nil, nil
-			},
-		}
+		backoff.FastForTest(t)
+		var gets []string
 		var diags diag.Diagnostics
-		got, err := Run(context.Background(), op, &diags)
-		if got != nil || err == nil || !strings.Contains(err.Error(), `thing named "x"`) || !strings.Contains(err.Error(), "returned no object id") {
-			t.Fatalf("%s: got=%v err=%v, want a returned-no-object-id error", name, got, err)
+		got, err := Run(context.Background(), idlessCreateOp(created, ids("old", "new"), &gets), &diags)
+		if err != nil || got == nil || got.ID != "new" {
+			t.Fatalf("%s: got=%v err=%v, want the new object adopted", name, got, err)
 		}
-		if gets != 0 || len(diags) != 0 {
-			t.Errorf("%s: gets=%d diags=%v, want no read-back and no diagnostics", name, gets, diags)
+		if len(gets) != 1 || gets[0] != "new" || diags.WarningsCount() != 1 || !strings.Contains(diags[0].Detail(), "returned no object id") {
+			t.Errorf("%s: gets=%v diags=%v, want one read-back of the new id and one warning", name, gets, diags)
+		}
+	}
+}
+
+func TestRun_CreateWithoutAnIDAndNothingNewSaysCheckUI(t *testing.T) {
+	for name, created := range map[string]*thing{"nil": nil, "empty id": {}} {
+		backoff.FastForTest(t)
+		var gets []string
+		var diags diag.Diagnostics
+		got, err := Run(context.Background(), idlessCreateOp(created, ids("old"), &gets), &diags)
+		if got != nil || err == nil || !strings.Contains(err.Error(), `thing named "x"`) ||
+			!strings.Contains(err.Error(), "returned no object id") || !strings.Contains(err.Error(), "check the Orca UI") {
+			t.Fatalf("%s: got=%v err=%v, want a returned-no-object-id error that says check the Orca UI", name, got, err)
+		}
+		if len(gets) != 0 || len(diags) != 0 {
+			t.Errorf("%s: gets=%v diags=%v, want no read-back and no diagnostics", name, gets, diags)
 		}
 	}
 }
