@@ -176,6 +176,7 @@ func TestMoveRepository_OtherRefusalFailsWithoutReRead(t *testing.T) {
 func TestMoveRepository_StopsWaitingWhenContextCancelled(t *testing.T) {
 	f := &fakeMoveBackend{project: "proj-other", pending: true, sleepsLeft: 100}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	o := f.ops(t)
 	inner := moveSleep
 	moveSleep = func(c context.Context, d time.Duration) error {
