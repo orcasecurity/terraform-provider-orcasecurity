@@ -203,4 +203,4 @@ Same code as 0.0.45; no changes.
 
 ## 0.0.41 and earlier
 
-No release notes were published; see the [commit history](https://github.com/orcasecurity/terraform-provider-orcasecurity/commits/v0.0.41).
+See [GitHub Releases](https://github.com/orcasecurity/terraform-provider-orcasecurity/releases).
