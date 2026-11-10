@@ -1,6 +1,6 @@
 PKG_NAME?=orcasecurity
 
-.PHONY: default changelog generate install build test-unit test-ci test-acc
+.PHONY: default changelog generate install build test-unit test-ci test-acc validate-examples
 
 default: install
 

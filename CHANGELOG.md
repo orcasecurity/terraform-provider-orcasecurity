@@ -2,11 +2,19 @@
 
 Notable changes in each release of the Orca Security Terraform provider. The same notes are published on [GitHub Releases](https://github.com/orcasecurity/terraform-provider-orcasecurity/releases).
 
-## 0.0.63 (November 9, 2026)
+## 0.0.63 (November 10, 2026)
+
+### Features
+
+* feat(appsec): SCM integration config as IaC — github/gitlab/azure/bitbucket (WASP-1483) ([#258](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/258))
 
 ### Changes
 
 * WASP-1872: Generate release notes and keep CHANGELOG.md current ([#279](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/279))
+
+### Dependencies
+
+* Chore(deps): bump github.com/getsentry/sentry-go from 0.49.0 to 0.50.0 ([#278](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/278))
 
 ## 0.0.62 (October 7, 2026)
 
