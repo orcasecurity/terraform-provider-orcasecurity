@@ -35,10 +35,6 @@ func settleMove(ops repoOps, moveErr error, targetProjectID string) (done bool, 
 	if moveErr == nil {
 		return true, nil
 	}
-	if !errors.Is(moveErr, api_client.ErrAmbiguousWrite) && !errors.Is(moveErr, api_client.ErrMoveInProgress) &&
-		!errors.Is(moveErr, api_client.ErrMoveAlreadyInTarget) {
-		return true, moveErr
-	}
 	row, findErr := ops.find()
 	switch {
 	case findErr != nil:
@@ -49,8 +45,10 @@ func settleMove(ops repoOps, moveErr error, targetProjectID string) (done bool, 
 		return true, nil
 	case errors.Is(moveErr, api_client.ErrMoveAlreadyInTarget):
 		return true, fmt.Errorf("%w, but reading it back shows project %s", moveErr, row.ProjectID)
+	case errors.Is(moveErr, api_client.ErrAmbiguousWrite), errors.Is(moveErr, api_client.ErrMoveInProgress):
+		return false, moveErr
 	}
-	return false, moveErr
+	return true, moveErr
 }
 
 // Move then PATCH are independent; on PATCH failure move the repo back so live matches state.
@@ -71,17 +69,7 @@ func rollbackProjectMove(ctx context.Context, ops repoOps, state *RepoConfigFiel
 	}
 	failed := fmt.Sprintf("%s, and moving it back to project %s did not succeed: %s.\n\n", detail, priorProjectID, err.Error())
 	row, findErr := ops.find()
-	switch {
-	case findErr == nil && row != nil && row.ProjectID == priorProjectID:
-	case findErr == nil && row != nil:
-		diags.AddWarning(
-			fmt.Sprintf("%s repository left in project %s", ops.traits.name, row.ProjectID),
-			fmt.Sprintf("%sThe repository stays in project %s. Re-running terraform apply continues from there and "+
-				"retries the configuration; to restore the previous placement instead, move the repository "+
-				"to project %s in the Orca console once its current move has finished.",
-				failed, row.ProjectID, priorProjectID),
-		)
-	default:
+	if findErr != nil || row == nil {
 		diags.AddWarning(
 			fmt.Sprintf("%s repository may be left in project %s", ops.traits.name, movedTo),
 			fmt.Sprintf("%sThe repository was last known to be in project %s, but it could not be read back, so "+
@@ -89,5 +77,16 @@ func rollbackProjectMove(ctx context.Context, ops repoOps, state *RepoConfigFiel
 				"configured project if needed; to restore the previous placement instead, move it to project %s "+
 				"in the Orca console.", failed, movedTo, priorProjectID),
 		)
+		return
 	}
+	if row.ProjectID == priorProjectID {
+		return
+	}
+	diags.AddWarning(
+		fmt.Sprintf("%s repository left in project %s", ops.traits.name, row.ProjectID),
+		fmt.Sprintf("%sThe repository stays in project %s. Re-running terraform apply continues from there and "+
+			"retries the configuration; to restore the previous placement instead, move the repository "+
+			"to project %s in the Orca console once its current move has finished.",
+			failed, row.ProjectID, priorProjectID),
+	)
 }

@@ -162,17 +162,25 @@ func TestMoveRepository_AmbiguousNotCommittedIsResent(t *testing.T) {
 	}
 }
 
-func TestMoveRepository_OtherRefusalFailsWithoutReRead(t *testing.T) {
-	f := &fakeMoveBackend{project: "proj-old"}
-	o := f.ops(t)
-	o.client = testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		return testutils.JSONResponse(req, http.StatusBadRequest, moveErrorBody("move_repository_context_error"))
-	})
-	if err := moveRepository(context.Background(), o, "ctx-1", "proj-missing"); err == nil {
-		t.Fatal("expected a definite refusal to fail the move")
-	}
-	if f.finds != 0 {
-		t.Fatalf("a definite refusal needs no read, finds=%d", f.finds)
+func TestMoveRepository_OtherRefusalIsSettledByOneReRead(t *testing.T) {
+	for _, landed := range []bool{false, true} {
+		f := &fakeMoveBackend{project: "proj-old"}
+		o := f.ops(t)
+		o.client = testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
+			f.moves = append(f.moves, "proj-new")
+			if landed {
+				f.commit("proj-new")
+			}
+			return testutils.JSONResponse(req, http.StatusBadRequest, moveErrorBody("move_repository_context_error"))
+		})
+		err := moveRepository(context.Background(), o, "ctx-1", "proj-new")
+		if (err == nil) != landed {
+			t.Fatalf("landed=%v: err=%v, want success only when the read shows the target project", landed, err)
+		}
+		if len(f.moves) != 1 || f.finds != 1 || f.waits() != 0 {
+			t.Fatalf("landed=%v: want one move, one read and no retry, moves=%v finds=%d waits=%d",
+				landed, f.moves, f.finds, f.waits())
+		}
 	}
 }
 
