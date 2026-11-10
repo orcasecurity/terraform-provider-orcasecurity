@@ -56,72 +56,6 @@ func accAllowedReposTemplateID(c *api_client.APIClient) (string, error) {
 func init() {
 	accCases = append(accCases,
 		accCase{
-			name: "custom_dashboard", address: "orcasecurity_custom_dashboard.t", post: "/api/user_preferences",
-			config: func(n string) string {
-				return fmt.Sprintf(`
-resource "orcasecurity_custom_dashboard" "t" {
-  name               = %q
-  filter_data        = {}
-  organization_level = false
-  view_type          = "dashboard"
-  extra_params = {
-    description    = "WASP-1876 ambiguous-create acceptance test"
-    version        = 2
-    widgets_config = [{ id = "cloud-accounts-inventory", size = "sm" }]
-  }
-}`, n)
-			},
-			ids: func(c *api_client.APIClient, n string) (map[string]bool, error) {
-				return c.CustomDashboardCreateOp(api_client.CustomDashboard{Name: n, ViewType: "dashboard"}).IDs()
-			},
-		},
-		accCase{
-			name: "custom_widget", address: "orcasecurity_custom_widget.t", post: "/api/user_preferences",
-			config: func(n string) string {
-				return fmt.Sprintf(`
-resource "orcasecurity_custom_widget" "t" {
-  name               = %q
-  organization_level = false
-  extra_params = {
-    type                = "donut"
-    empty_state_message = "No data found"
-    default_size        = "sm"
-    is_new              = true
-    subtitle            = "WASP-1876"
-    description         = "WASP-1876 ambiguous-create acceptance test"
-    settings = {
-      field = {
-        name = "Type"
-        type = "str"
-      }
-      request_params = {
-        query    = jsonencode({ models = ["AwsS3Bucket"], type = "object_set" })
-        group_by = ["Type"]
-      }
-    }
-  }
-}`, n)
-			},
-			ids: func(c *api_client.APIClient, n string) (map[string]bool, error) {
-				return c.CustomWidgetCreateOp(api_client.CustomWidget{Name: n, ViewType: api_client.CustomWidgetViewType}).IDs()
-			},
-		},
-		accCase{
-			name: "shift_left_project", address: "orcasecurity_shift_left_project.t", post: "/api/shiftleft/projects/",
-			config: func(n string) string {
-				return fmt.Sprintf(`
-resource "orcasecurity_shift_left_project" "t" {
-  name             = %[1]q
-  description      = "WASP-1876 ambiguous-create acceptance test"
-  key              = %[1]q
-  default_policies = true
-}`, n)
-			},
-			ids: func(c *api_client.APIClient, n string) (map[string]bool, error) {
-				return c.ListShiftLeftProjectIDsByKey(n, n)
-			},
-		},
-		accCase{
 			name: "dspm_policy", address: "orcasecurity_dspm_policy.t", post: "/api/scan_configuration/dspm_policies",
 			config: func(n string) string {
 				return fmt.Sprintf(`
@@ -177,7 +111,6 @@ resource "orcasecurity_sensitive_data_identifier" "t" {
 				return c.AdmissionControllerPolicyCreateOp(api_client.AdmissionControllerPolicy{Name: n}).IDs()
 			},
 		},
-		// A scope needs real clusters/accounts or full_organization; the inactive monitor-only policy keeps it inert.
 		accCase{
 			name: "admission_controller_policy_assignment", address: "orcasecurity_admission_controller_policy_assignment.t", post: "/api/admission_controller/scopes",
 			config: func(n string) string {
@@ -194,39 +127,6 @@ resource "orcasecurity_admission_controller_policy_assignment" "t" {
 			ids: func(c *api_client.APIClient, n string) (map[string]bool, error) {
 				return c.AdmissionControllerScopeCreateOp(api_client.AdmissionControllerScope{Name: n}).IDs()
 			},
-		},
-		accCase{
-			name: "custom_compliance_framework", address: "orcasecurity_custom_compliance_framework.t", post: "/api/compliance/frameworks",
-			config: func(n string) string {
-				return fmt.Sprintf(`
-resource "orcasecurity_custom_compliance_framework" "t" {
-  name        = %q
-  description = "WASP-1876 ambiguous-create acceptance test"
-  sections = [{
-    name  = "Section 1"
-    tests = [{ rule_id = "rc7bcf3b77f", rule_id_in_framework = "1.1" }]
-  }]
-}`, n)
-			},
-			ids: (*api_client.APIClient).ListCustomComplianceFrameworkIDsByName,
-		},
-		accCase{
-			name: "scheduled_report", address: "orcasecurity_scheduled_report.t", post: "/api/reporting/scheduled_reports",
-			config: func(n string) string {
-				return fmt.Sprintf(`
-resource "orcasecurity_scheduled_report" "t" {
-  name              = %q
-  type              = "discovery_svl"
-  format            = "csv"
-  recurrence        = "monthly"
-  first_report_date = "2036-01-01T00:00:00Z"
-  export_time       = "00:00:00"
-  status            = "disabled"
-  recipients_emails = ["wasp-1876@example.com"]
-  sonar_query       = jsonencode({ models = ["AwsS3Bucket"], type = "object_set" })
-}`, n)
-			},
-			ids: (*api_client.APIClient).ListScheduledReportIDsByName,
 		},
 	)
 }

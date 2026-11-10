@@ -21,8 +21,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// accCase is a live create that the fault proxy turns ambiguous. ids lists the lab objects matching
-// name, independently of the resource, to prove exactly one copy exists.
+// accCase is a live create that the fault proxy turns ambiguous. ids is the natural-key lister recovery
+// uses; the committed mode's exactly-one-copy check is what proves it sees a new object, so the dropped
+// mode's zero-copies check is not trivially true.
 type accCase struct {
 	name    string
 	address string
@@ -31,7 +32,7 @@ type accCase struct {
 	ids     func(c *api_client.APIClient, name string) (map[string]bool, error)
 }
 
-// accCases is filled by acc_cases_*_test.go init.
+// accCases is filled by each domain's acc_*_test.go init.
 var accCases []accCase
 
 // faultProxy forwards everything to the lab, except the first POST to post: with commit it is
