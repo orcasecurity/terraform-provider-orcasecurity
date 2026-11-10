@@ -57,4 +57,18 @@ release:
     # If you want to manually examine the release before its live, uncomment this line:
     # draft: true
 changelog:
-    skip: true
+    use: github
+    sort: asc
+    abbrev: -1
+    groups:
+        - title: Features
+          regexp: '(?i)^feat'
+          order: 0
+        - title: Bug fixes
+          regexp: '(?i)^fix'
+          order: 1
+        - title: Dependencies
+          regexp: '(?i)^(chore\(deps\)|bump )'
+          order: 3
+        - title: Changes
+          order: 2
