@@ -186,10 +186,6 @@ Same code as 0.0.45; no changes.
 
 * feat: add support for custom compliance frameworks creationg and mana… ([#217](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/217))
 
-### Changes
-
-* WASP-1120\add permission in Groups ([#218](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/218))
-
 ### Dependencies
 
 * Bump crazy-max/ghaction-import-gpg from 5 to 7 ([#214](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/214))
@@ -201,6 +197,70 @@ Same code as 0.0.45; no changes.
 * Bump goreleaser/goreleaser-action from 6 to 7 ([#210](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/210))
 * Bump hashicorp/setup-terraform from 3 to 4 ([#211](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/211))
 
-## 0.0.41 and earlier
+## 0.0.41 (April 12, 2026)
+
+### Changes
+
+* Remove typo from account_tags_info_list ([#213](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/213))
+* WASP-1120\add permission in Groups ([#218](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/218))
+
+## 0.0.40 (February 25, 2026)
+
+### Changes
+
+* WASP-1012\add more documentation and examples for dashboard and widge… ([#209](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/209))
+
+## 0.0.39 (February 11, 2026)
+
+### Changes
+
+* ST-946\remove empty folder ([#206](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/206))
+* WASP-1005\add UUID validator for BusinessUnit for shiftleft_project_i… ([#208](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/208))
+
+## 0.0.38 (January 27, 2026)
+
+### Changes
+
+* WASP-967\add enable/disable alert option in orcasecurity_system_sonar… ([#205](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/205))
+
+## 0.0.37 (January 27, 2026)
+
+Same code as 0.0.36; no changes.
+
+## 0.0.36 (January 25, 2026)
+
+### Changes
+
+* WASP-958\add enable/disable alert option in orcasecurity_custom_sonar… ([#204](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/204))
+
+## 0.0.35 (January 22, 2026)
+
+### Changes
+
+* WASP-956\add missing docs info and examples ([#203](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/203))
+
+## 0.0.34 (January 22, 2026)
+
+Same code as 0.0.33; no changes.
+
+## 0.0.33 (January 22, 2026)
+
+### Changes
+
+* WASP-955\Add RiskFindings Support to Discovery Views ([#202](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/202))
+
+## 0.0.32 (January 21, 2026)
+
+### Changes
+
+* WASP-951_b\fix critical issue ([#200](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/200))
+
+## 0.0.31 (January 21, 2026)
+
+### Changes
+
+* Wasp 951 ([#199](https://github.com/orcasecurity/terraform-provider-orcasecurity/pull/199))
+
+## 0.0.30 and earlier
 
 See [GitHub Releases](https://github.com/orcasecurity/terraform-provider-orcasecurity/releases).
