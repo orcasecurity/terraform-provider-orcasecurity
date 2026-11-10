@@ -250,18 +250,20 @@ func TestUpdateRepo_RollbackGivesUpWithPlacementWarning(t *testing.T) {
 	}
 }
 
-func TestUpdateRepo_RollbackWarningHedgesWhenTheReadFails(t *testing.T) {
-	f := &fakeMoveBackend{project: "proj-old", asyncSleeps: 100}
-	diags, _ := failingConfigUpdate(t, f, func(o *repoOps) {
-		o.find = func() (*api_client.ScmRepository, error) { return nil, errors.New("read failed") }
-	})
-	if !diags.HasError() || diags.WarningsCount() != 1 {
-		t.Fatalf("expected the config error plus one rollback warning, got %v", *diags)
-	}
-	w := diags.Warnings()[0]
-	if !strings.Contains(w.Summary(), "may be left in project proj-new") ||
-		!strings.Contains(w.Detail(), "last known to be in project proj-new") || !strings.Contains(w.Detail(), "check its current project") {
-		t.Errorf("an unread location must not be stated as fact: %q / %q", w.Summary(), w.Detail())
+func TestUpdateRepo_RollbackWarningHedgesWhenTheRepositoryCannotBeRead(t *testing.T) {
+	for name, readErr := range map[string]error{"read fails": errors.New("read failed"), "not found": nil} {
+		f := &fakeMoveBackend{project: "proj-old", asyncSleeps: 100}
+		diags, _ := failingConfigUpdate(t, f, func(o *repoOps) {
+			o.find = func() (*api_client.ScmRepository, error) { return nil, readErr }
+		})
+		if !diags.HasError() || diags.WarningsCount() != 1 {
+			t.Fatalf("%s: expected the config error plus one rollback warning, got %v", name, *diags)
+		}
+		w := diags.Warnings()[0]
+		if !strings.Contains(w.Summary(), "may be left in project proj-new") || !strings.Contains(w.Detail(), "could not be read back") ||
+			!strings.Contains(w.Detail(), "last known to be in project proj-new") || !strings.Contains(w.Detail(), "check its current project") {
+			t.Errorf("%s: an unread location must not be stated as fact: %q / %q", name, w.Summary(), w.Detail())
+		}
 	}
 }
 

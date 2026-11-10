@@ -84,7 +84,7 @@ func rollbackProjectMove(ctx context.Context, ops repoOps, state *RepoConfigFiel
 	default:
 		diags.AddWarning(
 			fmt.Sprintf("%s repository may be left in project %s", ops.traits.name, movedTo),
-			fmt.Sprintf("%sThe repository was last known to be in project %s, but reading it back failed, so "+
+			fmt.Sprintf("%sThe repository was last known to be in project %s, but it could not be read back, so "+
 				"check its current project in the Orca console. Re-running terraform apply moves it to the "+
 				"configured project if needed; to restore the previous placement instead, move it to project %s "+
 				"in the Orca console.", failed, movedTo, priorProjectID),
