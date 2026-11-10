@@ -1,6 +1,7 @@
 package api_client_test
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -25,21 +26,23 @@ func TestCreateCustomTagRule_ReadBackFailureNamesTheIDToImport(t *testing.T) {
 	}
 }
 
-func TestCreateCustomTagRule_MissingIDIsAnErrorWithoutReadBack(t *testing.T) {
-	gets := 0
-	client := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
-		if req.Method == http.MethodPost {
-			return testutils.JSONResponse(req, 200, `{"data":{},"status":"success"}`)
+func TestCreateCustomTagRule_UnusableResponseIsAmbiguousWithoutReadBack(t *testing.T) {
+	for _, body := range []string{`{"data":{},"status":"success"}`, `<html>ok</html>`} {
+		gets := 0
+		client := testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
+			if req.Method == http.MethodPost {
+				return testutils.JSONResponse(req, 200, body)
+			}
+			gets++
+			return testutils.JSONResponse(req, 404, `{}`)
+		})
+		rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
+		if rule != nil || !errors.Is(err, api_client.ErrAmbiguousWrite) || !strings.Contains(err.Error(), "tags_rule_id") {
+			t.Errorf("%s: rule=%v err=%v, want an ambiguous-write error so recovery looks the rule up", body, rule, err)
 		}
-		gets++
-		return testutils.JSONResponse(req, 404, `{}`)
-	})
-	rule, err := client.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: "r", RuleType: api_client.CustomTagRuleRuleTypeString}).Create()
-	if rule != nil || err == nil || !strings.Contains(err.Error(), "missing tags_rule_id") || !strings.Contains(err.Error(), "import the rule") {
-		t.Fatalf("rule=%v err=%v, want a missing-tags_rule_id error", rule, err)
-	}
-	if gets != 0 {
-		t.Errorf("made %d read-back GETs, want none", gets)
+		if gets != 0 {
+			t.Errorf("%s: made %d read-back GETs, want none", body, gets)
+		}
 	}
 }
 

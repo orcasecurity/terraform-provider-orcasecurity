@@ -129,15 +129,11 @@ func (client *APIClient) createCustomTagRule(what string, data CustomTagRule) (*
 	}
 
 	response := responseType{}
-	if err = resp.ReadJSON(&response); err != nil {
-		return nil, err
+	if err := resp.ReadJSON(&response); err != nil || response.Data.TagsRuleID == "" {
+		return nil, fmt.Errorf("%w: custom tag rule create succeeded without a usable tags_rule_id in the response: %s",
+			ErrAmbiguousWrite, string(resp.Body()))
 	}
-	id := response.Data.TagsRuleID
-	if id == "" {
-		return nil, fmt.Errorf("custom tag rule create: missing tags_rule_id in response: %s; check the Orca UI and import the rule if it was created",
-			string(resp.Body()))
-	}
-	return ReadCreated(what, id, client.GetCustomTagRule)
+	return ReadCreated(what, response.Data.TagsRuleID, client.GetCustomTagRule)
 }
 
 // The list is unpaginated and takes no filters.
