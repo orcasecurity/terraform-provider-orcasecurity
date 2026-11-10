@@ -65,14 +65,29 @@ func rollbackProjectMove(ctx context.Context, ops repoOps, state *RepoConfigFiel
 		)
 		return
 	}
-	if err := moveRepository(ctx, ops, ctxID, priorProjectID); err != nil {
+	err := moveRepository(ctx, ops, ctxID, priorProjectID)
+	if err == nil {
+		return
+	}
+	failed := fmt.Sprintf("%s, and moving it back to project %s did not succeed: %s.\n\n", detail, priorProjectID, err.Error())
+	row, findErr := ops.find()
+	switch {
+	case findErr == nil && row != nil && row.ProjectID == priorProjectID:
+	case findErr == nil && row != nil:
 		diags.AddWarning(
-			fmt.Sprintf("%s repository left in project %s", ops.traits.name, movedTo),
-			fmt.Sprintf("%s, and moving it back to project %s did not succeed: %s.\n\n"+
-				"The repository stays in project %s. Re-running terraform apply continues from there and "+
+			fmt.Sprintf("%s repository left in project %s", ops.traits.name, row.ProjectID),
+			fmt.Sprintf("%sThe repository stays in project %s. Re-running terraform apply continues from there and "+
 				"retries the configuration; to restore the previous placement instead, move the repository "+
 				"to project %s in the Orca console once its current move has finished.",
-				detail, priorProjectID, err.Error(), movedTo, priorProjectID),
+				failed, row.ProjectID, priorProjectID),
+		)
+	default:
+		diags.AddWarning(
+			fmt.Sprintf("%s repository may be left in project %s", ops.traits.name, movedTo),
+			fmt.Sprintf("%sThe repository was last known to be in project %s, but reading it back failed, so "+
+				"check its current project in the Orca console. Re-running terraform apply moves it to the "+
+				"configured project if needed; to restore the previous placement instead, move it to project %s "+
+				"in the Orca console.", failed, movedTo, priorProjectID),
 		)
 	}
 }
