@@ -12,6 +12,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -67,6 +68,29 @@ func Recover(ctx context.Context, createErr error, what string, before map[strin
 		return "", "", fmt.Errorf("%w; %d new matches for %s appeared (%s) — import the intended one and delete the rest",
 			createErr, len(created), what, strings.Join(created, ", "))
 	}
+}
+
+// Run executes op. On an ambiguous POST it adopts the single new matching object, reads it back and
+// adds a warning to diags; any other outcome is returned as an error.
+func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diagnostics) (*T, error) {
+	before := Snapshot(ctx, op.What, op.IDs)
+	created, err := op.Create()
+	if err == nil {
+		return created, nil
+	}
+	id, warning, err := Recover(ctx, err, op.What, before, op.IDs)
+	if err != nil {
+		return nil, err
+	}
+	created, err = op.Get(id)
+	if err == nil && created == nil {
+		err = errors.New("not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%s was created as %s after an ambiguous create, but reading it back failed (%v); import it before re-applying", op.What, id, err)
+	}
+	diags.AddWarning("Recovered "+op.What+" after an ambiguous create", warning)
+	return created, nil
 }
 
 func newSince(ctx context.Context, before map[string]bool, list Lister) ([]string, time.Duration, error) {

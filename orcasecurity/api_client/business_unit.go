@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const BusinessUnitTypeCombinedFilter = "combined_filter"
@@ -35,7 +36,7 @@ func (client *APIClient) GetBusinessUnit(businessUnitID string) (*BusinessUnit, 
 }
 
 func (client *APIClient) CreateBusinessUnit(data BusinessUnit) (*BusinessUnit, error) {
-	resp, err := client.Post("/api/business_units", data)
+	resp, err := client.PostCreate("/api/business_units", data)
 	if err != nil {
 		return nil, err
 	}
@@ -56,4 +57,23 @@ func (client *APIClient) DeleteBusinessUnit(ID string) error {
 		return nil
 	}
 	return err
+}
+
+// Names are unique per creating user, not per org, so other users' same-named units can match;
+// recovery only adopts an id absent from the pre-create snapshot. search is a substring match.
+func (client *APIClient) ListBusinessUnitIDsByName(name string) (map[string]bool, error) {
+	all, err := paginateOffset[BusinessUnit](client, "/api/business_units", listFilters{"search": strings.TrimSpace(name)}, 300, 500)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(b *BusinessUnit) string { return b.ID }, func(b *BusinessUnit) bool { return sameName(b.Name, name) }), nil
+}
+
+func (client *APIClient) BusinessUnitCreateOp(data BusinessUnit) CreateOp[BusinessUnit] {
+	return CreateOp[BusinessUnit]{
+		What:   fmt.Sprintf("business unit named %q", data.Name),
+		Create: func() (*BusinessUnit, error) { return client.CreateBusinessUnit(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListBusinessUnitIDsByName(data.Name) },
+		Get:    client.GetBusinessUnit,
+	}
 }

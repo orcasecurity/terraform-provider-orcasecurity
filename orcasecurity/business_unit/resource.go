@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
@@ -411,7 +412,7 @@ func (r *businessUnitResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	instance, err := r.apiClient.CreateBusinessUnit(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.BusinessUnitCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating business unit",
