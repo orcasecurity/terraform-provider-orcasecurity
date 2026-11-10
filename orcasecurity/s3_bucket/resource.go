@@ -44,6 +44,7 @@ type state struct {
 func NewS3BucketResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.S3BucketExternalServiceConfig]{
 		TypeNameSuffix: "_integration_s3_bucket",
+		ServiceName:    api_client.S3BucketServiceName,
 		UIName:         "S3 bucket integration",
 		Description:    "Manage an S3 Bucket integration in Orca. Orca uploads alert exports into the customer-owned S3 bucket. After creating the resource, attach the rendered `bucket_policy_json` to the bucket so Orca's uploader role can `PutObject` under `folder/*`.",
 		VariantAttributes: map[string]schema.Attribute{

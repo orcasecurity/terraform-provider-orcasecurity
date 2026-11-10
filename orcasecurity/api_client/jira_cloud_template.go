@@ -49,7 +49,7 @@ type jiraCloudListResponse struct {
 func (client *APIClient) CreateJiraCloudTemplate(payload JiraCloudTemplate) (*JiraCloudTemplate, error) {
 	payload.ServiceName = JiraCloudServiceName
 
-	resp, err := client.Post("/api/external_service/config", payload)
+	resp, err := client.PostCreate(externalServiceConfigPath, payload)
 	if err != nil {
 		return nil, err
 	}

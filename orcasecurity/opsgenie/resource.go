@@ -39,6 +39,7 @@ func extract(o *api_client.OpsgenieExternalServiceConfig, _ cc.State, _ *diag.Di
 func NewOpsgenieResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.OpsgenieExternalServiceConfig]{
 		TypeNameSuffix:        "_integration_opsgenie",
+		ServiceName:           api_client.OpsgenieServiceName,
 		UIName:                "Opsgenie integration",
 		Description:           "Manage an Opsgenie integration in Orca. Creates an external service config of `service_name = \"opsgenie\"` and stores the Opsgenie API key in Orca's secret store.",
 		SupportsBusinessUnits: true,

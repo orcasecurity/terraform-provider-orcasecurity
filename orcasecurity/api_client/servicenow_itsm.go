@@ -32,7 +32,7 @@ func (client *APIClient) CreateServiceNowITSMResource(payload ServiceNowITSMReso
 	payload.ServiceName = ServiceNowITSMServiceName
 	payload.Type = ServiceNowITSMResourceType
 
-	resp, err := client.Post("/api/external_service/resources", payload)
+	resp, err := client.PostCreate(externalServiceResourcesPath, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +53,17 @@ func (client *APIClient) CreateServiceNowITSMResource(payload ServiceNowITSMReso
 	}
 
 	return &response.Data, nil
+}
+
+func (client *APIClient) ServiceNowITSMResourceCreateOp(payload ServiceNowITSMResource) CreateOp[ServiceNowITSMResource] {
+	return externalServiceResourceCreateOp(fmt.Sprintf("ServiceNow ITSM integration named %q", payload.Name),
+		func() (*ServiceNowITSMResource, error) { return client.CreateServiceNowITSMResource(payload) },
+		client.ListServiceNowITSMResources,
+		func(s *ServiceNowITSMResource) string { return s.ID },
+		func(s *ServiceNowITSMResource) bool {
+			return s.ServiceName == ServiceNowITSMServiceName && sameName(s.Name, payload.Name)
+		},
+		client.GetServiceNowITSMResource)
 }
 
 // ListServiceNowITSMResources returns every external_service/resources entry filed under

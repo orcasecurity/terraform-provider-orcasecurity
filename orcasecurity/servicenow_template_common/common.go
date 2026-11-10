@@ -157,6 +157,7 @@ func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state, diags
 func NewResource(opts Options) resource.Resource {
 	return cc.New(cc.Spec[api_client.ServiceNowITSMTemplate]{
 		TypeNameSuffix:        opts.TypeNameSuffix,
+		ServiceName:           api_client.ServiceNowITSMServiceName,
 		UIName:                opts.UIName,
 		Description:           opts.Description,
 		SupportsBusinessUnits: false,

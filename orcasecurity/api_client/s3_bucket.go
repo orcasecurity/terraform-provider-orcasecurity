@@ -71,7 +71,7 @@ func (client *APIClient) GetOrcaSettings() (*OrcaSettings, error) {
 func (client *APIClient) CreateS3BucketConfig(payload S3BucketExternalServiceConfig) (*S3BucketExternalServiceConfig, error) {
 	payload.ServiceName = S3BucketServiceName
 
-	resp, err := client.Post("/api/external_service/config", payload)
+	resp, err := client.PostCreate(externalServiceConfigPath, payload)
 	if err != nil {
 		return nil, err
 	}

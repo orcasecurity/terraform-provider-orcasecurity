@@ -43,6 +43,7 @@ func extract(o *api_client.SnykExternalServiceConfig, st cc.State, _ *diag.Diagn
 func NewSnykResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.SnykExternalServiceConfig]{
 		TypeNameSuffix: "_integration_snyk",
+		ServiceName:    api_client.SnykServiceName,
 		UIName:         "Snyk integration",
 		Description:    "Manage a Snyk integration in Orca. Creates an external service config of `service_name = \"snyk\"`. The Snyk API token is stored in Orca's secret store and is never returned by the API.",
 		VariantAttributes: map[string]schema.Attribute{

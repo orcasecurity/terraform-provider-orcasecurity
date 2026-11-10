@@ -109,6 +109,7 @@ func encodeMappings(s *state, cfg *api_client.MondayTemplateConfig, diags *diag.
 func NewMondayTemplateResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.MondayTemplate]{
 		TypeNameSuffix:        "_integration_monday_template",
+		ServiceName:           api_client.MondayServiceName,
 		UIName:                "Monday template",
 		Description:           "Manage a Monday.com template in Orca. Creates an external service config of `service_name = \"monday\"` linked to an existing Monday resource. Holds the board, group, field-mapping, and status-mapping settings used when Orca opens Monday items.",
 		SupportsBusinessUnits: true,

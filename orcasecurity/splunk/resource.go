@@ -50,6 +50,7 @@ func extract(o *api_client.SplunkExternalServiceConfig, st cc.State, _ *diag.Dia
 func NewSplunkResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.SplunkExternalServiceConfig]{
 		TypeNameSuffix: "_integration_splunk",
+		ServiceName:    api_client.SplunkServiceName,
 		UIName:         "Splunk integration",
 		Description:    "Manage a Splunk HEC integration in Orca. Creates an external service config of `service_name = \"splunk\"`. The HEC token is stored in Orca's secret store and is never returned by the API.",
 		VariantAttributes: map[string]schema.Attribute{

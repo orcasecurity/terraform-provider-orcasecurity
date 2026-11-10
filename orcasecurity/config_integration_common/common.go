@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -53,7 +54,9 @@ type State interface {
 // the schema attributes, payload encoding, response extraction, and api_client method refs;
 // everything else lives in this package.
 type Spec[P any] struct {
-	TypeNameSuffix        string
+	TypeNameSuffix string
+	// ServiceName must match the service_name the variant's Create pins, or an ambiguous create is never recovered.
+	ServiceName           string
 	UIName                string
 	Description           string
 	SupportsBusinessUnits bool
@@ -202,7 +205,9 @@ func (r *genericResource[P]) Create(ctx context.Context, req resource.CreateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	created, err := r.spec.Create(r.client, payload)
+	op := api_client.ExternalServiceConfigCreateOp(r.client, r.spec.ServiceName, plan.GetCommon().TemplateName.ValueString(),
+		func() (*P, error) { return r.spec.Create(r.client, payload) })
+	created, err := createrecovery.Run(ctx, op, &resp.Diagnostics)
 	if err != nil {
 		errorWrap(&resp.Diagnostics, "create", r.spec.UIName, err)
 		return

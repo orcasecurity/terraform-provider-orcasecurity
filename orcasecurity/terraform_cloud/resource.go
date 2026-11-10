@@ -41,6 +41,7 @@ func extract(o *api_client.TerraformCloudExternalServiceConfig, st cc.State, _ *
 func NewTerraformCloudResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.TerraformCloudExternalServiceConfig]{
 		TypeNameSuffix: "_integration_terraform_cloud",
+		ServiceName:    api_client.TerraformCloudServiceName,
 		UIName:         "Terraform Cloud integration",
 		Description:    "Manage a Terraform Cloud (HCP Terraform) integration in Orca. Creates an external service config of `service_name = \"terraform_cloud\"`. The API token is stored in Orca's secret store and is never returned by the API.",
 		VariantAttributes: map[string]schema.Attribute{

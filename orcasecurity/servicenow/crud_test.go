@@ -174,6 +174,10 @@ func TestRead_APIErrorSurfacesDiag(t *testing.T) {
 // Create must POST the payload and write the API's returned id/name/url/username back to state.
 func TestCreate_Success(t *testing.T) {
 	r, sch := itsmUnderTest(t, func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet {
+			jsonOK(`{"status":"success","data":[]}`)(w, req)
+			return
+		}
 		if req.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", req.Method)
 		}
