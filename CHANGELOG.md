@@ -89,4 +89,4 @@ Release notes for 0.0.63 and later are on [GitHub Releases](https://github.com/o
 
 ## 0.0.54 and earlier
 
-See [GitHub Releases](https://github.com/orcasecurity/terraform-provider-orcasecurity/releases).
+Notes for 0.0.53 and 0.0.54 are on [GitHub Releases](https://github.com/orcasecurity/terraform-provider-orcasecurity/releases). No release notes were published for 0.0.52 and earlier; see the [commit history](https://github.com/orcasecurity/terraform-provider-orcasecurity/commits/v0.0.52).
