@@ -60,10 +60,6 @@ func (client *APIClient) createShiftLeftCveExceptionList(data ShiftLeftCveExcept
 		return nil, err
 	}
 
-	if !resp.IsOk() {
-		return nil, nil
-	}
-
 	response := ShiftLeftCveExceptionList{}
 	err = json.Unmarshal(resp.Body(), &response)
 	if err != nil {
