@@ -60,32 +60,9 @@ func (client *APIClient) GetCustomSonarAlert(id string) (*CustomAlert, error) {
 	return &alert, nil
 }
 
-func (client *APIClient) CreateCustomSonarAlert(data CustomAlert) (*CustomAlert, error) {
-	type responseType struct {
-		Data CustomAlert `json:"data"`
-	}
-
-	resp, err := client.Post("/api/sonar/rules", data)
-	if err != nil {
-		return nil, err
-	}
-
-	response := responseType{}
-	if err = resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-
-	alert := &response.Data
-
-	// set remediation
-	if data.RemediationText != nil {
-		data.RemediationText.AlertType = alert.RuleType
-		if err = client.SetCustomSonarAlertRemediationText(*data.RemediationText); err != nil {
-			return nil, rollbackCreatedRule(err, alert.ID, client.DeleteCustomSonarAlert)
-		}
-	}
-
-	return alert, nil
+// CustomSonarAlertCreateOp's Create only posts the rule; call SetCreatedCustomAlertRemediation after it.
+func (client *APIClient) CustomSonarAlertCreateOp(data CustomAlert) CreateOp[CustomAlert] {
+	return sonarRuleCreateOp(client, data.Name, data, func(a *CustomAlert) string { return a.ID }, client.GetCustomSonarAlert)
 }
 
 func (client *APIClient) UpdateCustomSonarAlert(id string, data CustomAlert) (*CustomAlert, error) {

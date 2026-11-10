@@ -117,3 +117,30 @@ func TestListShiftLeftProjects_StopsOnEmptyPage(t *testing.T) {
 		t.Errorf("expected 0 projects, got %d", len(projects))
 	}
 }
+
+func TestListShiftLeftProjectIDsByKey_DoesNotTrustKeySearch(t *testing.T) {
+	const fixture = `{"data":[{"id":"p-new","name":"Other name","key":"my-key"},{"id":"p-other","name":"my-key","key":"other-key"}]}`
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		body := firstPageOnly(req, fixture)
+		if req.URL.Query().Has("search") {
+			body = `{"data":[]}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+	})}
+	apiClient := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+
+	ids, err := apiClient.ListShiftLeftProjectIDsByKey("my-key", "Other name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || !ids["p-new"] {
+		t.Errorf("by key: got %v, want only p-new", ids)
+	}
+	ids, err = apiClient.ListShiftLeftProjectIDsByKey("", "my-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || !ids["p-other"] {
+		t.Errorf("by name: got %v, want only p-other", ids)
+	}
+}

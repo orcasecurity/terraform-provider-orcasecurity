@@ -39,9 +39,9 @@ type UserInvite struct {
 	Expired    bool   `json:"expired"`
 }
 
-// CreateUserInvite invites a single user and returns the created invite.
-func (client *APIClient) CreateUserInvite(req UserInviteRequest) (*UserInvite, error) {
-	resp, err := client.Post(apiUserInvitesBulkCreatePath, req)
+// createUserInvite invites a single user and returns the created invite.
+func (client *APIClient) createUserInvite(req UserInviteRequest) (*UserInvite, error) {
+	resp, err := client.PostCreate(apiUserInvitesBulkCreatePath, req)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +80,23 @@ func parseUserInviteList(body []byte) ([]UserInvite, error) {
 
 // ListUserInvites returns all pending invites in the organization.
 func (client *APIClient) ListUserInvites() ([]UserInvite, error) {
-	resp, err := client.Get(apiUserInvitesListPath)
+	return client.listUserInvites(nil)
+}
+
+// Unpaged, the list serves only its default first page (10 rows).
+func (client *APIClient) listUserInvites(filters listFilters) ([]UserInvite, error) {
+	return paginateOffset[UserInvite](client, apiUserInvitesListPath, filters, 300, 500)
+}
+
+func (client *APIClient) ListUserInviteIDsByEmail(email string) (map[string]bool, error) {
+	email = strings.TrimSpace(email)
+	all, err := client.listUserInvites(listFilters{"search": email})
 	if err != nil {
 		return nil, err
 	}
-	return parseUserInviteList(resp.Body())
+	return idsWhere(all, func(inv *UserInvite) string { return inv.ID }, func(inv *UserInvite) bool {
+		return strings.EqualFold(strings.TrimSpace(inv.Email), email)
+	}), nil
 }
 
 // GetUserInvite finds a pending invite by id, returning nil when it no longer
@@ -110,4 +122,15 @@ func (client *APIClient) DeleteUserInvite(id string) error {
 		return nil
 	}
 	return err
+}
+
+func (client *APIClient) UserInviteCreateOp(req UserInviteRequest) CreateOp[UserInvite] {
+	email := strings.Join(req.InviteUserEmails, ",")
+	return CreateOp[UserInvite]{
+		What:   fmt.Sprintf("user invite for %q", email),
+		ID:     func(o *UserInvite) string { return o.ID },
+		Create: func() (*UserInvite, error) { return client.createUserInvite(req) },
+		IDs:    func() (map[string]bool, error) { return client.ListUserInviteIDsByEmail(email) },
+		Get:    client.GetUserInvite,
+	}
 }

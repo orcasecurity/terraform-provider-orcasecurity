@@ -11,23 +11,17 @@ import (
 	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // After a 504/timeout the backend may still be saving, so the lookup is retried (about 30s total).
-// FastForTest swaps these package vars, so tests that call it must not use t.Parallel.
-var (
-	PollDelays = []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
-	Sleep      = sleepCtx
-)
+var pollDelays = []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
 
-// Lister returns the ids of every existing object that matches what is being created. Names are not
-// unique, so recovery diffs id sets rather than trusting a name match alone.
-type Lister func() (map[string]bool, error)
-
-// Snapshot takes the pre-create id set. A failed snapshot returns nil, which disables adoption.
-func Snapshot(ctx context.Context, what string, list Lister) map[string]bool {
+// A failed snapshot returns nil, which disables adoption.
+func snapshot(ctx context.Context, what string, list api_client.IDLister) map[string]bool {
 	ids, err := list()
 	if err != nil {
 		tflog.Warn(ctx, fmt.Sprintf("Could not list existing %s before create; an ambiguous create will not be recovered: %v", what, err))
@@ -36,15 +30,7 @@ func Snapshot(ctx context.Context, what string, list Lister) map[string]bool {
 	return ids
 }
 
-// SameName compares names the way the server may store them (surrounding whitespace trimmed).
-// A looser match is safe: adoption still requires exactly one id absent from the snapshot.
-func SameName(a, b string) bool {
-	return strings.TrimSpace(a) == strings.TrimSpace(b)
-}
-
-// Recover returns the created id when createErr is ambiguous and exactly one new match appeared.
-// what describes the object for messages, e.g. `iac policy named "x"`. warning is set on adoption.
-func Recover(ctx context.Context, createErr error, what string, before map[string]bool, list Lister) (id, warning string, err error) {
+func recoverID(ctx context.Context, createErr error, what string, before map[string]bool, list api_client.IDLister) (id, warning string, err error) {
 	if !errors.Is(createErr, api_client.ErrAmbiguousWrite) {
 		return "", "", createErr
 	}
@@ -69,52 +55,47 @@ func Recover(ctx context.Context, createErr error, what string, before map[strin
 	}
 }
 
-func newSince(ctx context.Context, before map[string]bool, list Lister) ([]string, time.Duration, error) {
-	var waited time.Duration
-	var lastErr error
-	for _, d := range PollDelays {
-		if err := Sleep(ctx, d); err != nil {
-			return nil, waited, err
-		}
-		waited += d
+// Run executes op. On an ambiguous create, or one that succeeds without an id, it adopts the single
+// new matching object, reads it back and adds a warning to diags; any other outcome is returned as an error.
+func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diagnostics) (*T, error) {
+	before := snapshot(ctx, op.What, op.IDs)
+	created, err := op.Create()
+	if err == nil && (created == nil || op.ID(created) == "") {
+		err = fmt.Errorf("%w: the create succeeded but returned no object id", api_client.ErrAmbiguousWrite)
+	}
+	if err == nil {
+		return created, nil
+	}
+	id, warning, err := recoverID(ctx, err, op.What, before, op.IDs)
+	if err != nil {
+		return nil, err
+	}
+	created, err = api_client.ReadCreated(op.What, id, op.Get)
+	if err != nil {
+		return nil, err
+	}
+	diags.AddWarning("Recovered "+op.What+" after an ambiguous create", warning)
+	return created, nil
+}
+
+func newSince(ctx context.Context, before map[string]bool, list api_client.IDLister) ([]string, time.Duration, error) {
+	var created []string
+	waited, err := backoff.Poll(ctx, pollDelays, func() (bool, error) {
 		after, err := list()
 		if err != nil {
-			lastErr = err
-			continue
+			return false, err
 		}
-		lastErr = nil
-		var created []string
+		created = created[:0]
 		for id := range after {
 			if !before[id] {
 				created = append(created, id)
 			}
 		}
-		if len(created) > 0 {
-			sort.Strings(created)
-			return created, waited, nil
-		}
+		return len(created) > 0, nil
+	})
+	if err != nil || len(created) == 0 {
+		return nil, waited, err
 	}
-	return nil, waited, lastErr
-}
-
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return nil
-	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
-}
-
-// FastForTest removes the backoff between lookups for the duration of a test.
-func FastForTest(t interface{ Cleanup(func()) }) {
-	delays, sleep := PollDelays, Sleep
-	PollDelays = []time.Duration{0, time.Millisecond, time.Millisecond, time.Millisecond}
-	Sleep = func(context.Context, time.Duration) error { return nil }
-	t.Cleanup(func() { PollDelays, Sleep = delays, sleep })
+	sort.Strings(created)
+	return created, waited, nil
 }

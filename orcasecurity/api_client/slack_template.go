@@ -25,10 +25,6 @@ type SlackConfig struct {
 // envelope's Resource field is left empty.
 type SlackTemplate = ConfigEnvelope[SlackConfig]
 
-func (client *APIClient) CreateSlackTemplate(payload SlackTemplate) (*SlackTemplate, error) {
-	return CreateExternalServiceConfig[SlackConfig](client, SlackServiceName, payload)
-}
-
 func (client *APIClient) GetSlackTemplate(templateName string) (*SlackTemplate, error) {
 	return GetExternalServiceConfig[SlackConfig](client, SlackServiceName, templateName, nil)
 }

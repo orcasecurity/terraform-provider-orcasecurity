@@ -10,10 +10,6 @@ type SplunkConfig struct {
 
 type SplunkExternalServiceConfig = ConfigEnvelope[SplunkConfig]
 
-func (client *APIClient) CreateSplunkConfig(payload SplunkExternalServiceConfig) (*SplunkExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[SplunkConfig](client, SplunkServiceName, payload)
-}
-
 func (client *APIClient) GetSplunkConfig(templateName string) (*SplunkExternalServiceConfig, error) {
 	return GetExternalServiceConfig[SplunkConfig](client, SplunkServiceName, templateName, nil)
 }

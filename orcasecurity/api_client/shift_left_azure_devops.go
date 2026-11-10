@@ -44,6 +44,8 @@ type AzureDevopsInstallationWrite struct {
 
 func (a *AzureDevopsInstallation) installationID() string { return a.ID }
 
+func (a *AzureDevopsInstallation) installationName() string { return a.Name }
+
 const azureDevopsInstallationsPath = "/api/shiftleft/azure_devops/installations/"
 
 func (client *APIClient) ListAzureDevopsInstallations() ([]AzureDevopsInstallation, error) {
@@ -54,8 +56,8 @@ func (client *APIClient) GetAzureDevopsInstallation(id string) (*AzureDevopsInst
 	return findScmInstallation[AzureDevopsInstallation](client, azureDevopsInstallationsPath, id)
 }
 
-func (client *APIClient) CreateAzureDevopsInstallation(body AzureDevopsInstallationWrite) (*AzureDevopsInstallation, error) {
-	return createScmInstallation[AzureDevopsInstallation](client, azureDevopsInstallationsPath, body)
+func (client *APIClient) AzureDevopsInstallationCreateOp(body AzureDevopsInstallationWrite) CreateOp[AzureDevopsInstallation] {
+	return scmInstallationCreateOp[AzureDevopsInstallation](client, "Azure DevOps", azureDevopsInstallationsPath, body.Name, body)
 }
 
 // PATCH returns empty body; re-read after update.

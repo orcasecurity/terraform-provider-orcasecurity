@@ -215,9 +215,9 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 	})}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	automation, err := apiClient.CreateAutomationV2(expectedRequest, false)
+	automation, err := apiClient.AutomationV2CreateOp(expectedRequest, false).Create()
 	if err != nil {
-		t.Fatalf("CreateAutomationV2 failed: %v", err)
+		t.Fatalf("AutomationV2CreateOp.Create failed: %v", err)
 	}
 
 	if automation == nil {
@@ -276,9 +276,9 @@ func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
 	}
 
 	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	result, err := apiClient.CreateAutomationV2(automation, true)
+	result, err := apiClient.AutomationV2CreateOp(automation, true).Create()
 	if err != nil {
-		t.Fatalf("CreateAutomationV2 with applyOnExisting=true failed: %v", err)
+		t.Fatalf("AutomationV2CreateOp.Create with applyOnExisting=true failed: %v", err)
 	}
 	if result == nil {
 		t.Fatal("Expected automation to be returned, got nil")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -213,7 +214,7 @@ func (r *addUsersResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	invite, err := r.apiClient.CreateUserInvite(payload)
+	invite, err := createrecovery.Run(ctx, r.apiClient.UserInviteCreateOp(payload), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating user invite", err.Error())
 		return

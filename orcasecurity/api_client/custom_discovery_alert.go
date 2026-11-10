@@ -26,11 +26,7 @@ type CustomDiscoveryAlert struct {
 	RemediationText      *CustomDiscoveryAlertRemediationText      // managed in a separate API call
 }
 
-type CustomDiscoveryAlertRemediationText struct {
-	AlertType string `json:"alert_type"`
-	Enable    bool   `json:"enabled"`
-	Text      string `json:"custom_text"`
-}
+type CustomDiscoveryAlertRemediationText = CustomSonarAlertRemediationText
 
 func (client *APIClient) GetCustomDiscoveryAlert(id string) (*CustomDiscoveryAlert, error) {
 	type responseType struct {
@@ -64,28 +60,9 @@ func (client *APIClient) GetCustomDiscoveryAlert(id string) (*CustomDiscoveryAle
 	return &alert, nil
 }
 
-func (client *APIClient) CreateCustomDiscoveryAlert(data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {
-	resp, err := client.Post("/api/sonar/rules", data)
-	if err != nil {
-		return nil, err
-	}
-
-	response := customDiscoveryAlertAPIResponseType{}
-	if err = resp.ReadJSON(&response); err != nil {
-		return nil, err
-	}
-
-	alert := &response.Data
-
-	// set remediation
-	if data.RemediationText != nil {
-		data.RemediationText.AlertType = alert.RuleType
-		if err = client.SetCustomRemediationText(*data.RemediationText); err != nil {
-			return nil, rollbackCreatedRule(err, alert.ID, client.DeleteCustomDiscoveryAlert)
-		}
-	}
-
-	return alert, nil
+// CustomDiscoveryAlertCreateOp's Create only posts the rule; call SetCreatedCustomAlertRemediation after it.
+func (client *APIClient) CustomDiscoveryAlertCreateOp(data CustomDiscoveryAlert) CreateOp[CustomDiscoveryAlert] {
+	return sonarRuleCreateOp(client, data.Name, data, func(a *CustomDiscoveryAlert) string { return a.ID }, client.GetCustomDiscoveryAlert)
 }
 
 func (client *APIClient) UpdateCustomDiscoveryAlert(id string, data CustomDiscoveryAlert) (*CustomDiscoveryAlert, error) {

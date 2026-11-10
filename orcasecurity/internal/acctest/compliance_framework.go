@@ -1,11 +1,15 @@
 package acctest
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 // AnchorRuleID is a built-in rule placed in every disposable framework section, so
@@ -45,7 +49,8 @@ func CreateDisposableComplianceFramework(t *testing.T, name string, sections ...
 		})
 	}
 
-	created, err := client.CreateCustomComplianceFramework(request)
+	var diags diag.Diagnostics
+	created, err := createrecovery.Run(context.Background(), client.CustomComplianceFrameworkCreateOp(request), &diags)
 	if err != nil {
 		t.Fatalf("create compliance framework %q: %s", name, err)
 	}

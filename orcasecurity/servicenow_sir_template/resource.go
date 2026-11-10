@@ -15,7 +15,7 @@ func NewServiceNowSIRTemplateResource() resource.Resource {
 		UIName:         "ServiceNow SIR template",
 		Description:    sirDescription,
 		ConfigType:     api_client.ServiceNowSIRTemplateConfigType,
-		Create:         (*api_client.APIClient).CreateServiceNowSIRTemplate,
+		CreateOp:       api_client.ServiceNowSIRTemplateCreateOp,
 		Get:            (*api_client.APIClient).GetServiceNowSIRTemplate,
 		Update:         (*api_client.APIClient).UpdateServiceNowSIRTemplate,
 		Delete:         (*api_client.APIClient).DeleteServiceNowSIRTemplate,

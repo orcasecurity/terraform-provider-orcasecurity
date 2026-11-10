@@ -97,7 +97,7 @@ func TestCreateAdmissionControllerControl(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	control, err := client.CreateAdmissionControllerControl(AdmissionControllerControl{
+	control, err := client.createAdmissionControllerControl(AdmissionControllerControl{
 		Name:       "my control",
 		TemplateID: "tpl-1",
 		ClusterScope: AdmissionControllerClusterScope{Kinds: []AdmissionControllerClusterScopeKind{
@@ -185,7 +185,7 @@ func TestDeleteAdmissionControllerControl_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
+func TestGetAdmissionControllerControl_PicksRowByID(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
@@ -198,15 +198,13 @@ func TestGetAdmissionControllerControl_MultipleMatches(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	control, err := client.GetAdmissionControllerControl("ctrl-1")
-	if err == nil {
-		t.Fatalf("expected error for multiple matches, got control %+v", control)
+	control, err := client.GetAdmissionControllerControl("ctrl-2")
+	if err != nil || control == nil || control.ID != "ctrl-2" || control.Name != "second" {
+		t.Fatalf("want ctrl-2, got control=%+v err=%v", control, err)
 	}
-	if control != nil {
-		t.Errorf("expected nil control on multiple matches, got %+v", control)
-	}
-	if !strings.Contains(err.Error(), "got 2") {
-		t.Errorf("expected error to report match count, got: %v", err)
+	control, err = client.GetAdmissionControllerControl("ctrl-3")
+	if err != nil || control != nil {
+		t.Errorf("want nil for an id absent from the rows, got control=%+v err=%v", control, err)
 	}
 }
 
@@ -274,7 +272,7 @@ func TestCreateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	control, err := client.CreateAdmissionControllerControl(AdmissionControllerControl{
+	control, err := client.createAdmissionControllerControl(AdmissionControllerControl{
 		Name:       "minimal control",
 		TemplateID: "tpl-1",
 		ClusterScope: AdmissionControllerClusterScope{Kinds: []AdmissionControllerClusterScopeKind{
@@ -388,7 +386,7 @@ func TestCreateAdmissionControllerPolicy_OmitsScopesKey(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	policy, err := client.CreateAdmissionControllerPolicy(AdmissionControllerPolicy{
+	policy, err := client.createAdmissionControllerPolicy(AdmissionControllerPolicy{
 		Name: "my policy", IsActive: true, EnforcementAction: "block", Controls: []string{"ctrl-1"},
 	})
 	if err != nil {
@@ -507,7 +505,7 @@ func TestCreateAdmissionControllerScope_SendsPolicyIDs(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	scope, err := client.CreateAdmissionControllerScope(AdmissionControllerScope{
+	scope, err := client.createAdmissionControllerScope(AdmissionControllerScope{
 		Name: "my assignment", FullOrganization: true,
 		CloudAccounts: []string{}, Clusters: []string{}, PolicyIDs: []string{"pol-1"},
 	})

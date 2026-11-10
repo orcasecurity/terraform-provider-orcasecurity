@@ -26,7 +26,7 @@ func TestMondayTemplate_CreateSendsServiceNameResourceAndConfig(t *testing.T) {
 		}
 	})
 
-	out, err := apiClient.CreateMondayTemplate(api_client.MondayTemplate{
+	out, err := api_client.ExternalServiceConfigCreateOp(apiClient, api_client.MondayServiceName, api_client.MondayTemplate{
 		TemplateName: "t1",
 		Resource:     "res-1",
 		IsEnabled:    true,
@@ -35,7 +35,7 @@ func TestMondayTemplate_CreateSendsServiceNameResourceAndConfig(t *testing.T) {
 			WorkspaceID: "w1",
 			Mapping:     json.RawMessage(`{"status_14":{"value":"0"}}`),
 		},
-	})
+	}).Create()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -60,7 +60,7 @@ func TestGetSonarRule_ConfirmsMissingAgainstList(t *testing.T) {
 			slept := stubRetrySleep(t)
 			stub := &sonarRuleStub{ruleCodes: tt.ruleCodes, listed: tt.listed}
 			_, missing, err := pathStubClient(stub.handle).getSonarRule("r1")
-			got := fmt.Sprintf("err=%v missing=%v gets=%d lists=%d sleeps=%d", err != nil, missing, stub.gets, stub.lists, len(*slept))
+			got := fmt.Sprintf("err=%v missing=%v gets=%d lists=%d sleeps=%d", err != nil, missing, stub.gets, stub.lists, len(slept()))
 			want := fmt.Sprintf("err=%v missing=%v gets=%d lists=%d sleeps=%d", tt.wantErr, tt.wantMissing, tt.wantGets, tt.wantLists, tt.wantSleeps)
 			if got != want {
 				t.Fatalf("got %s, want %s (err: %v)", got, want, err)

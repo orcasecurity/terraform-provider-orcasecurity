@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 )
@@ -45,22 +46,92 @@ func configListURL(serviceName, templateName string) string {
 	return fmt.Sprintf("%s?service_name=%s&template_name=%s", externalServiceConfigPath, serviceName, url.QueryEscape(templateName))
 }
 
-// CreateExternalServiceConfig POSTs a new config and decodes the envelope back. The serviceName
-// is pinned on the payload before sending so callers can leave ServiceName empty.
-func CreateExternalServiceConfig[C any](client *APIClient, serviceName string, payload ConfigEnvelope[C]) (*ConfigEnvelope[C], error) {
+// ExternalServiceConfigCreateOp builds the create for an envelope-shaped variant. serviceName is
+// pinned on the payload, so the POST and the recovery lookup always use the same service.
+func ExternalServiceConfigCreateOp[C any](client *APIClient, serviceName string, payload ConfigEnvelope[C]) CreateOp[ConfigEnvelope[C]] {
 	payload.ServiceName = serviceName
-	resp, err := client.Post(externalServiceConfigPath, payload)
+	return externalServiceConfigCreateOp(client, serviceName, payload.TemplateName, payload,
+		func(e *ConfigEnvelope[C]) string { return e.ID })
+}
+
+// (org, service_name, template_name) is unique, so a replay would 409 on the first copy.
+func externalServiceConfigCreateOp[P any](client *APIClient, serviceName, templateName string, payload any, id func(*P) string) CreateOp[P] {
+	return CreateOp[P]{
+		What: fmt.Sprintf("%s integration with template_name %q", serviceName, templateName),
+		ID:   id,
+		Create: func() (*P, error) {
+			resp, err := client.PostCreate(externalServiceConfigPath, payload)
+			if err != nil {
+				return nil, err
+			}
+			response := struct {
+				Data P `json:"data"`
+			}{}
+			if err := resp.ReadJSON(&response); err != nil {
+				return nil, fmt.Errorf("failed to decode %s create response: %w", serviceName, err)
+			}
+			return &response.Data, nil
+		},
+		IDs: func() (map[string]bool, error) {
+			return ListExternalServiceConfigIDs(client, serviceName, templateName)
+		},
+		Get: func(id string) (*P, error) {
+			matches, err := listExternalServiceConfigs[P](client, serviceName, templateName)
+			if err != nil {
+				return nil, err
+			}
+			return matches[id], nil
+		},
+	}
+}
+
+func ListExternalServiceConfigIDs(client *APIClient, serviceName, templateName string) (map[string]bool, error) {
+	matches, err := listExternalServiceConfigs[struct{}](client, serviceName, templateName)
 	if err != nil {
 		return nil, err
 	}
-	response := configSingleResponse[C]{}
-	if err := resp.ReadJSON(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode %s create response: %w", serviceName, err)
+	ids := map[string]bool{}
+	for id := range matches {
+		ids[id] = true
 	}
-	if response.Data.ID == "" {
-		return nil, fmt.Errorf("%s integration was not returned by the API", serviceName)
+	return ids, nil
+}
+
+// The list hides configs whose business_units are outside the caller's permitted BUs.
+func listExternalServiceConfigs[P any](client *APIClient, serviceName, templateName string) (map[string]*P, error) {
+	resp, err := client.Get(configListURL(serviceName, templateName))
+	if err != nil {
+		if resp != nil && resp.StatusCode() == 404 {
+			return map[string]*P{}, nil
+		}
+		return nil, err
 	}
-	return &response.Data, nil
+	rows := struct {
+		Data []json.RawMessage `json:"data"`
+	}{}
+	if err := resp.ReadJSON(&rows); err != nil {
+		return nil, fmt.Errorf("failed to decode %s list response: %w", serviceName, err)
+	}
+	matches := map[string]*P{}
+	for _, raw := range rows.Data {
+		var key struct {
+			ID           string `json:"id"`
+			ServiceName  string `json:"service_name"`
+			TemplateName string `json:"template_name"`
+		}
+		if err := json.Unmarshal(raw, &key); err != nil {
+			return nil, fmt.Errorf("failed to decode %s list row: %w", serviceName, err)
+		}
+		if key.ServiceName != serviceName || !sameName(key.TemplateName, templateName) {
+			continue
+		}
+		row := new(P)
+		if err := json.Unmarshal(raw, row); err != nil {
+			return nil, fmt.Errorf("failed to decode %s list row: %w", serviceName, err)
+		}
+		matches[key.ID] = row
+	}
+	return matches, nil
 }
 
 // GetExternalServiceConfig fetches the config list for templateName and returns the first

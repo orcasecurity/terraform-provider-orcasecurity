@@ -34,11 +34,11 @@ type mondayResourceSingleResponse struct {
 	Data   MondayResource `json:"data"`
 }
 
-func (client *APIClient) CreateMondayResource(payload MondayResource) (*MondayResource, error) {
+func (client *APIClient) createMondayResource(payload MondayResource) (*MondayResource, error) {
 	payload.ServiceName = MondayResourceServiceName
 	payload.Type = MondayResourceType
 
-	resp, err := client.Post("/api/external_service/resources", payload)
+	resp, err := client.PostCreate(externalServiceResourcesPath, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +56,17 @@ func (client *APIClient) CreateMondayResource(payload MondayResource) (*MondayRe
 		return nil, fmt.Errorf("monday resource was not returned by the API")
 	}
 	return &response.Data, nil
+}
+
+func (client *APIClient) MondayResourceCreateOp(payload MondayResource) CreateOp[MondayResource] {
+	return externalServiceResourceCreateOp(fmt.Sprintf("Monday resource named %q", payload.Name),
+		func() (*MondayResource, error) { return client.createMondayResource(payload) },
+		client.ListMondayResources,
+		func(m *MondayResource) string { return m.ID },
+		func(m *MondayResource) bool {
+			return m.ServiceName == MondayResourceServiceName && sameName(m.Name, payload.Name)
+		},
+		client.GetMondayResource)
 }
 
 // ListMondayResources returns every external_service/resources entry filed under

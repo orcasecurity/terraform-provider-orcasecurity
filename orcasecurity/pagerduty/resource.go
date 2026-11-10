@@ -37,6 +37,7 @@ func extract(o *api_client.PagerDutyExternalServiceConfig, _ cc.State, _ *diag.D
 func NewPagerDutyResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.PagerDutyExternalServiceConfig]{
 		TypeNameSuffix: "_integration_pagerduty",
+		ServiceName:    api_client.PagerDutyServiceName,
 		UIName:         "PagerDuty integration",
 		Description:    "Manage a PagerDuty integration in Orca. Creates an external service config of `service_name = \"pagerduty\"` and stores the integration key in Orca's secret store.",
 		VariantAttributes: map[string]schema.Attribute{
@@ -50,7 +51,7 @@ func NewPagerDutyResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreatePagerDutyConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.PagerDutyConfig],
 		Get:          (*api_client.APIClient).GetPagerDutyConfig,
 		Update:       (*api_client.APIClient).UpdatePagerDutyConfig,
 		Delete:       (*api_client.APIClient).DeletePagerDutyConfig,

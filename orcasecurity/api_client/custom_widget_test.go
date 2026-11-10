@@ -33,7 +33,7 @@ func TestAPIClientListCustomWidgets(t *testing.T) {
 	})}
 
 	apiClient := APIClient{APIEndpoint: testAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
-	widgets, err := apiClient.ListCustomWidgets()
+	widgets, err := apiClient.ListUserPreferences(CustomWidgetViewType)
 	if err != nil {
 		t.Fatalf(errMsgExpectedNoError, err)
 	}
@@ -77,7 +77,7 @@ func TestAPIClientListCustomWidgetsDeduplicates(t *testing.T) {
 	})}
 
 	apiClient := APIClient{APIEndpoint: testAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
-	widgets, err := apiClient.ListCustomWidgets()
+	widgets, err := apiClient.ListUserPreferences(CustomWidgetViewType)
 	if err != nil {
 		t.Fatalf(errMsgExpectedNoError, err)
 	}
@@ -110,7 +110,7 @@ func TestAPIClientListCustomWidgetsEmpty(t *testing.T) {
 	})}
 
 	apiClient := APIClient{APIEndpoint: testAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
-	widgets, err := apiClient.ListCustomWidgets()
+	widgets, err := apiClient.ListUserPreferences(CustomWidgetViewType)
 	if err != nil {
 		t.Fatalf(errMsgExpectedNoError, err)
 	}

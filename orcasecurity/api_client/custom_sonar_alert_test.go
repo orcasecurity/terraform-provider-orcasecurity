@@ -82,12 +82,18 @@ func remediationFailureStub(deleteStatus int, calls *[]string) func(req *http.Re
 func TestCreateCustomAlerts_RemediationFailureDeletesRule(t *testing.T) {
 	create := map[string]func(c *api_client.APIClient) error{
 		"sonar": func(c *api_client.APIClient) error {
-			_, err := c.CreateCustomSonarAlert(api_client.CustomAlert{RemediationText: &api_client.CustomSonarAlertRemediationText{Text: "x"}})
-			return err
+			alert, err := c.CustomSonarAlertCreateOp(api_client.CustomAlert{}).Create()
+			if err != nil {
+				return err
+			}
+			return c.SetCreatedCustomAlertRemediation(alert.ID, alert.RuleType, &api_client.CustomSonarAlertRemediationText{Text: "x"})
 		},
 		"discovery": func(c *api_client.APIClient) error {
-			_, err := c.CreateCustomDiscoveryAlert(api_client.CustomDiscoveryAlert{RemediationText: &api_client.CustomDiscoveryAlertRemediationText{Text: "x"}})
-			return err
+			alert, err := c.CustomDiscoveryAlertCreateOp(api_client.CustomDiscoveryAlert{}).Create()
+			if err != nil {
+				return err
+			}
+			return c.SetCreatedCustomAlertRemediation(alert.ID, alert.RuleType, &api_client.CustomSonarAlertRemediationText{Text: "x"})
 		},
 	}
 	wantMsg := map[int]string{

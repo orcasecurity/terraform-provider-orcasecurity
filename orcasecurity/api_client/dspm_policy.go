@@ -5,7 +5,10 @@ import (
 	"fmt"
 )
 
-const dspmPolicyBasePath = "/api/scan_configuration/dspm_policies"
+const (
+	dspmPolicyBasePath       = "/api/scan_configuration/dspm_policies"
+	dspmPolicyDefaultFeature = "DSPM Scanning"
+)
 
 // PolicyTags decodes the two shapes the API emits for policy tags:
 // a list of strings (the normal case) and {} — the server-side default for
@@ -87,8 +90,8 @@ func (client *APIClient) GetDSPMPolicy(id string) (*DSPMPolicy, error) {
 	return readDSPMPolicyData(resp)
 }
 
-func (client *APIClient) CreateDSPMPolicy(data DSPMPolicy) (*DSPMPolicy, error) {
-	resp, err := client.Post(dspmPolicyBasePath, data)
+func (client *APIClient) createDSPMPolicy(data DSPMPolicy) (*DSPMPolicy, error) {
+	resp, err := client.PostCreate(dspmPolicyBasePath, data)
 	if err != nil {
 		return nil, err
 	}
@@ -106,4 +109,34 @@ func (client *APIClient) UpdateDSPMPolicy(id string, data DSPMPolicy) (*DSPMPoli
 func (client *APIClient) DeleteDSPMPolicy(id string) error {
 	_, err := client.Delete(fmt.Sprintf("%s/%s", dspmPolicyBasePath, id))
 	return err
+}
+
+type dspmPolicyListRow struct {
+	ID      string `json:"policy_id"`
+	Name    string `json:"policy_name"`
+	Feature string `json:"feature"`
+}
+
+// The list takes no filters and includes other features' policies (documents don't fit DSPMPolicy): page all, decode only the key.
+func (client *APIClient) ListDSPMPolicyIDsByName(name, feature string) (map[string]bool, error) {
+	if feature == "" {
+		feature = dspmPolicyDefaultFeature
+	}
+	all, err := paginateOffset[dspmPolicyListRow](client, dspmPolicyBasePath, nil, 300, 500)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(p *dspmPolicyListRow) string { return p.ID }, func(p *dspmPolicyListRow) bool {
+		return sameName(p.Name, name) && p.Feature == feature
+	}), nil
+}
+
+func (client *APIClient) DSPMPolicyCreateOp(data DSPMPolicy) CreateOp[DSPMPolicy] {
+	return CreateOp[DSPMPolicy]{
+		What:   fmt.Sprintf("DSPM policy named %q", data.Name),
+		ID:     func(o *DSPMPolicy) string { return o.ID },
+		Create: func() (*DSPMPolicy, error) { return client.createDSPMPolicy(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListDSPMPolicyIDsByName(data.Name, data.Feature) },
+		Get:    client.GetDSPMPolicy,
+	}
 }

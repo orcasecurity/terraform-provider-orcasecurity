@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -275,7 +276,7 @@ func (r *sensitiveDataIdentifierResource) Create(ctx context.Context, req resour
 		return
 	}
 
-	instance, err := r.apiClient.CreateDSPMDetector(generateDetectorPayload(plan))
+	instance, err := createrecovery.Run(ctx, r.apiClient.DSPMDetectorCreateOp(generateDetectorPayload(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Sensitive Data Identifier",

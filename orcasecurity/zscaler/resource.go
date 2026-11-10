@@ -46,6 +46,7 @@ func extract(o *api_client.ZscalerExternalServiceConfig, st cc.State, _ *diag.Di
 func NewZscalerResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.ZscalerExternalServiceConfig]{
 		TypeNameSuffix: "_integration_zscaler_zpa",
+		ServiceName:    api_client.ZscalerServiceName,
 		UIName:         "Zscaler ZPA integration",
 		Description:    "Manage a Zscaler ZPA integration in Orca. Creates an external service config of `service_name = \"zscaler\"`. The OAuth `client_id` and `client_secret` are stored in Orca's secret store and are never returned by the API.",
 		VariantAttributes: map[string]schema.Attribute{
@@ -70,7 +71,7 @@ func NewZscalerResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateZscalerConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.ZscalerConfig],
 		Get:          (*api_client.APIClient).GetZscalerConfig,
 		Update:       (*api_client.APIClient).UpdateZscalerConfig,
 		Delete:       (*api_client.APIClient).DeleteZscalerConfig,

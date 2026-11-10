@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -116,7 +117,7 @@ func (r *mondayResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	created, err := r.apiClient.CreateMondayResource(r.buildPayload(plan))
+	created, err := createrecovery.Run(ctx, r.apiClient.MondayResourceCreateOp(r.buildPayload(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Monday resource",

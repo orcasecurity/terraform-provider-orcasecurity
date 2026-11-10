@@ -41,8 +41,8 @@ func NewBitbucketInstallationResource() resource.Resource {
 		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return shift_left_integration.InstallationLifecycle[bitbucketInstallationModel, api_client.BitbucketInstallation]{
 				SCMName: "Bitbucket",
-				Create: func(plan *bitbucketInstallationModel) (*api_client.BitbucketInstallation, error) {
-					return apiClient.CreateBitbucketInstallation(bitbucketWriteBody(plan))
+				CreateOp: func(plan *bitbucketInstallationModel) api_client.CreateOp[api_client.BitbucketInstallation] {
+					return apiClient.BitbucketInstallationCreateOp(bitbucketWriteBody(plan))
 				},
 				Get: apiClient.GetBitbucketInstallation,
 				Update: func(plan *bitbucketInstallationModel) (*api_client.BitbucketInstallation, error) {
@@ -50,8 +50,6 @@ func NewBitbucketInstallationResource() resource.Resource {
 				},
 				Delete:   apiClient.DeleteBitbucketInstallation,
 				ID:       func(m *bitbucketInstallationModel) string { return m.ID.ValueString() },
-				Name:     func(m *bitbucketInstallationModel) string { return m.Name.ValueString() },
-				IDsNamed: installationIDsNamed(apiClient.ListBitbucketInstallations, func(i *api_client.BitbucketInstallation) (string, string) { return i.ID, i.Name }),
 				SetState: bitbucketSetState,
 			}
 		},

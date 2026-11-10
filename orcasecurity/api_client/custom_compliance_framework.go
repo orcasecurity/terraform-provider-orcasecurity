@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Request types
@@ -50,8 +51,8 @@ func (client *APIClient) GetCustomComplianceFramework(id string) (*ComplianceFra
 	return client.GetComplianceFramework(id)
 }
 
-func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
-	resp, err := client.Post(customComplianceFrameworkBasePath, data)
+func (client *APIClient) createCustomComplianceFramework(data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
+	resp, err := client.PostCreate(customComplianceFrameworkBasePath, data)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +63,40 @@ func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFr
 		return nil, err
 	}
 	return &response.Data, nil
+}
+
+// Names are unique per org trimmed and case-insensitive. Frameworks forced to cloud vendors the org
+// has not onboarded are absent from the select map, so their recovery falls back to check-the-UI.
+func (client *APIClient) ListCustomComplianceFrameworkIDsByName(name string) (map[string]bool, error) {
+	selections, err := client.GetComplianceFrameworkSelections()
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]bool{}
+	for id, fw := range selections {
+		if fw.Custom && strings.EqualFold(strings.TrimSpace(fw.DisplayName), strings.TrimSpace(name)) {
+			ids[id] = true
+		}
+	}
+	return ids, nil
+}
+
+func (client *APIClient) CustomComplianceFrameworkCreateOp(data CustomComplianceFrameworkRequest) CreateOp[CustomComplianceFrameworkWriteResponse] {
+	return CreateOp[CustomComplianceFrameworkWriteResponse]{
+		What: fmt.Sprintf("custom compliance framework named %q", data.Name),
+		ID:   func(o *CustomComplianceFrameworkWriteResponse) string { return o.ID.String() },
+		Create: func() (*CustomComplianceFrameworkWriteResponse, error) {
+			return client.createCustomComplianceFramework(data)
+		},
+		IDs: func() (map[string]bool, error) { return client.ListCustomComplianceFrameworkIDsByName(data.Name) },
+		Get: func(id string) (*CustomComplianceFrameworkWriteResponse, error) {
+			fw, err := client.GetCustomComplianceFramework(id)
+			if err != nil || fw == nil {
+				return nil, err
+			}
+			return &CustomComplianceFrameworkWriteResponse{ID: json.Number(fw.ID), Name: fw.DisplayName}, nil
+		},
+	}
 }
 
 func (client *APIClient) UpdateCustomComplianceFramework(id string, data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
