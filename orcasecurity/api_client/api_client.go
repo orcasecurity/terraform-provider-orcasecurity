@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,6 +79,9 @@ func (c *APIClient) withoutTimeoutRetry() *APIClient {
 type APIResponse struct {
 	_body    []byte
 	response *http.Response
+	// ambiguousWrite is set by the retry layer for a non-idempotent request whose status (502/504)
+	// leaves it unknown whether the server applied it.
+	ambiguousWrite bool
 }
 
 // Return response status code
@@ -144,7 +148,7 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 
 	resp, err := c.roundTripWithRetry(req)
 	if err != nil {
-		return nil, fmt.Errorf("request execution failed: %v", err)
+		return nil, fmt.Errorf("request execution failed: %w", err)
 	}
 
 	c.debugf("Response Status: %d", resp.StatusCode())
@@ -152,8 +156,12 @@ func (c *APIClient) doRequest(req http.Request) (*APIResponse, error) {
 
 	if !resp.IsOk() {
 		apiErr := resp.Error()
-		return resp, fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
+		err := fmt.Errorf("API returned error - status: %d, body: %s, error: %v",
 			resp.StatusCode(), string(resp.Body()), apiErr)
+		if resp.ambiguousWrite {
+			err = fmt.Errorf("%w: %w", ErrAmbiguousWrite, err)
+		}
+		return resp, err
 	}
 
 	return resp, nil
@@ -179,6 +187,25 @@ func (c *APIClient) Head(path string) (*APIResponse, error) {
 
 // Execute POST HTTP request.
 func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
+	return c.post(context.Background(), path, data)
+}
+
+// PostCreate is Post for a create whose caller recovers an ambiguous outcome: after a timeout,
+// dropped connection or 502/504 it returns ErrAmbiguousWrite instead of replaying the request.
+func (c *APIClient) PostCreate(path string, data interface{}) (*APIResponse, error) {
+	return c.post(noReplayContext(), path, data)
+}
+
+func (c *APIClient) post(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
+	resp, err := c.postWithResponse(ctx, path, data)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// postWithResponse keeps the response on an API error so the caller can branch on its status.
+func (c *APIClient) postWithResponse(ctx context.Context, path string, data interface{}) (*APIResponse, error) {
 	payload, err := json.Marshal(&data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %v", err)
@@ -187,7 +214,8 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 	fullURL := fmt.Sprintf("%s%s", c.APIEndpoint, path)
 	c.debugf("Making POST request to: %s", fullURL)
 
-	req, err := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		ctx,
 		"POST",
 		fullURL,
 		strings.NewReader(string(payload)),
@@ -203,7 +231,7 @@ func (c *APIClient) Post(path string, data interface{}) (*APIResponse, error) {
 		// Do not append the request payload — it carries integration secrets and
 		// this error surfaces to the user via diagnostics. doRequest already wraps
 		// the server's response body for context.
-		return nil, fmt.Errorf("request failed: %v, URL: %s", err, fullURL)
+		return response, fmt.Errorf("request failed: %w, URL: %s", err, fullURL)
 	}
 
 	return response, nil

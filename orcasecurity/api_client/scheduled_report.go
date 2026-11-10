@@ -1,10 +1,21 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
 const scheduledReportAPIPath = "/api/reporting/scheduled_reports"
+
+// Nil map marshals as {} — reporting API returns 500 on null object fields.
+type jsonObject map[string]interface{}
+
+func (o jsonObject) MarshalJSON() ([]byte, error) {
+	if o == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(map[string]interface{}(o))
+}
 
 type scheduledReportAPIResponseType struct {
 	Data ScheduledReport `json:"data"`
@@ -31,32 +42,34 @@ type ScheduledReport struct {
 	// Status is an integer enum on the API side (responses always return integers).
 	Status *int `json:"status,omitempty"`
 
-	Columns          []string               `json:"columns"`
-	DSLFilter        map[string]interface{} `json:"dsl_filter,omitempty"`
-	SonarQuery       string                 `json:"sonar_query,omitempty"`
-	SonarQueryParams map[string]interface{} `json:"sonar_query_params,omitempty"`
-	QueryFilters     map[string]interface{} `json:"query_filters,omitempty"`
-	Config           map[string]interface{} `json:"config,omitempty"`
-	S3Path           string                 `json:"s3_path,omitempty"`
+	// No omitempty: PATCH omits keys → unchanged. Zero values clear ("" / {}); only id and status keep omitempty.
+	// Writes go through scheduledReportBody, which omits unset optionals that hold nothing to clear.
+	Columns          []string   `json:"columns"`
+	DSLFilter        jsonObject `json:"dsl_filter"`
+	SonarQuery       string     `json:"sonar_query"`
+	SonarQueryParams jsonObject `json:"sonar_query_params"`
+	QueryFilters     jsonObject `json:"query_filters"`
+	Config           jsonObject `json:"config"`
+	S3Path           string     `json:"s3_path"`
 
 	RecipientsEmails   []string `json:"recipients_emails"`
-	CustomEmailSubject string   `json:"custom_email_subject,omitempty"`
-	CustomEmailContent string   `json:"custom_email_content,omitempty"`
+	CustomEmailSubject string   `json:"custom_email_subject"`
+	CustomEmailContent string   `json:"custom_email_content"`
 
-	ShareToSlack bool                   `json:"share_to_slack"`
-	SlackChannel map[string]interface{} `json:"slack_channel,omitempty"`
+	ShareToSlack bool       `json:"share_to_slack"`
+	SlackChannel jsonObject `json:"slack_channel"`
 
 	ShareToBucket bool   `json:"share_to_bucket"`
-	Bucket        string `json:"bucket,omitempty"`
+	Bucket        string `json:"bucket"`
 
 	ShareToAzureBlob   bool   `json:"share_to_azure_blob"`
-	AzureBlobContainer string `json:"azure_blob_container,omitempty"`
+	AzureBlobContainer string `json:"azure_blob_container"`
 
 	ShareToGoogleCloudStorage  bool   `json:"share_to_google_cloud_storage"`
-	GoogleCloudStorageTemplate string `json:"google_cloud_storage_template,omitempty"`
+	GoogleCloudStorageTemplate string `json:"google_cloud_storage_template"`
 
 	ShareToSnowflake  bool   `json:"share_to_snowflake"`
-	SnowflakeTemplate string `json:"snowflake_template,omitempty"`
+	SnowflakeTemplate string `json:"snowflake_template"`
 }
 
 func (client *APIClient) DoesScheduledReportExist(id string) (bool, error) {
@@ -89,8 +102,54 @@ func (client *APIClient) GetScheduledReport(id string) (*ScheduledReport, error)
 	return &report, nil
 }
 
+var scheduledReportClearableFields = []string{
+	"dsl_filter", "sonar_query", "sonar_query_params", "query_filters", "config", "s3_path",
+	"custom_email_subject", "custom_email_content", "slack_channel", "bucket",
+	"azure_blob_container", "google_cloud_storage_template", "snowflake_template",
+}
+
+func scheduledReportFields(data ScheduledReport) (map[string]json.RawMessage, error) {
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	body := map[string]json.RawMessage{}
+	err = json.Unmarshal(raw, &body)
+	return body, err
+}
+
+func isScheduledReportZero(v json.RawMessage) bool {
+	return len(v) == 0 || string(v) == `""` || string(v) == "{}"
+}
+
+// The API stores a sent "" as "" but an omitted string as null, and PATCH treats an omitted key
+// as unchanged. So an unset optional is sent as its zero value only to clear a value prior held;
+// otherwise it is omitted (create has no prior, so it omits every unset optional).
+func scheduledReportBody(prior *ScheduledReport, next ScheduledReport) (map[string]json.RawMessage, error) {
+	body, err := scheduledReportFields(next)
+	if err != nil {
+		return nil, err
+	}
+	held := map[string]json.RawMessage{}
+	if prior != nil {
+		if held, err = scheduledReportFields(*prior); err != nil {
+			return nil, err
+		}
+	}
+	for _, field := range scheduledReportClearableFields {
+		if isScheduledReportZero(body[field]) && isScheduledReportZero(held[field]) {
+			delete(body, field)
+		}
+	}
+	return body, nil
+}
+
 func (client *APIClient) CreateScheduledReport(data ScheduledReport) (*ScheduledReport, error) {
-	resp, err := client.Post(scheduledReportAPIPath, data)
+	body, err := scheduledReportBody(nil, data)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Post(scheduledReportAPIPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +161,12 @@ func (client *APIClient) CreateScheduledReport(data ScheduledReport) (*Scheduled
 	return &response.Data, nil
 }
 
-func (client *APIClient) UpdateScheduledReport(id string, data ScheduledReport) (*ScheduledReport, error) {
-	resp, err := client.Patch(fmt.Sprintf("%s/%s", scheduledReportAPIPath, id), data)
+func (client *APIClient) UpdateScheduledReport(id string, prior, next ScheduledReport) (*ScheduledReport, error) {
+	body, err := scheduledReportBody(&prior, next)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Patch(fmt.Sprintf("%s/%s", scheduledReportAPIPath, id), body)
 	if err != nil {
 		return nil, err
 	}

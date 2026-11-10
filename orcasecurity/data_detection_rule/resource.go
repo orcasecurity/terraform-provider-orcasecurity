@@ -182,12 +182,12 @@ func (r *dataDetectionRuleResource) Schema(_ context.Context, req resource.Schem
 	}
 }
 
-func tagsToAPI(ctx context.Context, tags []tagModel) []api_client.DataDetectionRuleTag {
+func tagsToAPI(tags []tagModel) []api_client.DataDetectionRuleTag {
 	out := []api_client.DataDetectionRuleTag{}
 	for _, tag := range tags {
 		out = append(out, api_client.DataDetectionRuleTag{
-			Keys:   tfconv.StringListToAPINonNull(ctx, tag.Keys),
-			Values: tfconv.StringListToAPINonNull(ctx, tag.Values),
+			Keys:   tfconv.ListToStringSliceNonNull(tag.Keys),
+			Values: tfconv.ListToStringSliceNonNull(tag.Values),
 		})
 	}
 	return out
@@ -195,7 +195,7 @@ func tagsToAPI(ctx context.Context, tags []tagModel) []api_client.DataDetectionR
 
 // tagsFromAPI maps rule tags back to state. An empty remote list maps to
 // null when the attribute was not configured (nil prior), mirroring
-// tfconv.StringListFromAPIPreserveNull.
+// tfconv.StringSliceToListPreserveNull.
 func tagsFromAPI(ctx context.Context, prior []tagModel, tags []api_client.DataDetectionRuleTag) ([]tagModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if len(tags) == 0 {
@@ -215,17 +215,17 @@ func tagsFromAPI(ctx context.Context, prior []tagModel, tags []api_client.DataDe
 	return out, diags
 }
 
-func generateRulePayload(ctx context.Context, plan stateModel) api_client.DataDetectionRule {
+func generateRulePayload(plan stateModel) api_client.DataDetectionRule {
 	return api_client.DataDetectionRule{
 		Name:                  plan.Name.ValueString(),
 		Feature:               plan.Feature.ValueString(),
 		Action:                plan.Action.ValueString(),
 		Priority:              tfconv.Int64ToAPIPtr(plan.Priority),
 		Enabled:               plan.Enabled.ValueBool(),
-		SelectorCloudAccounts: tfconv.StringSetToAPINonNull(ctx, plan.SelectorCloudAccounts),
-		SelectorBusinessUnits: tfconv.StringSetToAPINonNull(ctx, plan.SelectorBusinessUnits),
-		Tags:                  tagsToAPI(ctx, plan.Tags),
-		Policies:              tfconv.StringSetToAPINonNull(ctx, plan.Policies),
+		SelectorCloudAccounts: tfconv.SetToStringSliceNonNull(plan.SelectorCloudAccounts),
+		SelectorBusinessUnits: tfconv.SetToStringSliceNonNull(plan.SelectorBusinessUnits),
+		Tags:                  tagsToAPI(plan.Tags),
+		Policies:              tfconv.SetToStringSliceNonNull(plan.Policies),
 	}
 }
 
@@ -238,7 +238,7 @@ func (r *dataDetectionRuleResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	// non-standard REST: create is PUT on the collection, returns data.rule_id
-	ruleID, err := r.apiClient.CreateDataDetectionRule(generateRulePayload(ctx, plan))
+	ruleID, err := r.apiClient.CreateDataDetectionRule(generateRulePayload(plan))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Data Detection Rule",
@@ -293,12 +293,9 @@ func (r *dataDetectionRuleResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	policies, d := tfconv.StringSetFromAPIPreserveNull(ctx, state.Policies, instance.Policies)
-	resp.Diagnostics.Append(d...)
-	cloudAccounts, d := tfconv.StringSetFromAPIPreserveNull(ctx, state.SelectorCloudAccounts, instance.SelectorCloudAccounts)
-	resp.Diagnostics.Append(d...)
-	businessUnits, d := tfconv.StringSetFromAPIPreserveNull(ctx, state.SelectorBusinessUnits, instance.SelectorBusinessUnits)
-	resp.Diagnostics.Append(d...)
+	policies := tfconv.StringSliceToSetPreserveNull(state.Policies, instance.Policies)
+	cloudAccounts := tfconv.StringSliceToSetPreserveNull(state.SelectorCloudAccounts, instance.SelectorCloudAccounts)
+	businessUnits := tfconv.StringSliceToSetPreserveNull(state.SelectorBusinessUnits, instance.SelectorBusinessUnits)
 	tags, d := tagsFromAPI(ctx, state.Tags, instance.Tags)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
@@ -339,7 +336,7 @@ func (r *dataDetectionRuleResource) Update(ctx context.Context, req resource.Upd
 	}
 
 	// non-standard REST: update goes through POST /bulk_rules
-	updateReq := generateRulePayload(ctx, plan)
+	updateReq := generateRulePayload(plan)
 	updateReq.ID = plan.ID.ValueString()
 	if err := r.apiClient.UpdateDataDetectionRule(updateReq); err != nil {
 		resp.Diagnostics.AddError(

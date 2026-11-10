@@ -3,8 +3,10 @@ package api_client_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"testing"
@@ -14,7 +16,7 @@ func TestAutomationsV2_DoesAutomationV2Exist(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -33,7 +35,7 @@ func TestAutomationsV2_DoesAutomationV2ExistFalse(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
-			Body:       ioutil.NopCloser(strings.NewReader(`ok`)),
+			Body:       io.NopCloser(strings.NewReader(`ok`)),
 			Request:    req,
 		}
 	})}
@@ -88,7 +90,7 @@ func TestAutomationsV2_GetAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -101,6 +103,7 @@ func TestAutomationsV2_GetAutomationV2(t *testing.T) {
 
 	if automation == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 
 	if automation.ID != "test-id-123" {
@@ -121,7 +124,7 @@ func TestAutomationsV2_GetAutomationV2NotFound(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 404,
-			Body:       ioutil.NopCloser(strings.NewReader(`{"error": "not found"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
 			Request:    req,
 		}
 	})}
@@ -206,7 +209,7 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 201,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -219,6 +222,7 @@ func TestAutomationsV2_CreateAutomationV2(t *testing.T) {
 
 	if automation == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 
 	if automation.ID != "created-id-456" {
@@ -254,7 +258,7 @@ func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 201,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -278,6 +282,7 @@ func TestAutomationsV2_CreateAutomationV2_ApplyOnExisting(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 	if result.ID != "created-id-789" {
 		t.Errorf("Expected ID 'created-id-789', got '%s'", result.ID)
@@ -348,7 +353,7 @@ func TestAutomationsV2_UpdateAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -361,6 +366,7 @@ func TestAutomationsV2_UpdateAutomationV2(t *testing.T) {
 
 	if automation == nil {
 		t.Fatal("Expected automation to be returned, got nil")
+		return
 	}
 
 	if automation.Name != "Updated Automation" {
@@ -384,7 +390,7 @@ func TestAutomationsV2_DeleteAutomationV2(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: 204,
-			Body:       ioutil.NopCloser(strings.NewReader("")),
+			Body:       io.NopCloser(strings.NewReader("")),
 			Request:    req,
 		}
 	})}
@@ -487,7 +493,7 @@ func TestAutomationsV2_GetAutomationV2DecodesPriority(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -526,7 +532,7 @@ func TestAutomationsV2_SetAutomationV2Priority(t *testing.T) {
 		if req.URL.Path != expectedURL {
 			t.Errorf("expected URL path %s, got %s", expectedURL, req.URL.Path)
 		}
-		body, _ := ioutil.ReadAll(req.Body)
+		body, _ := io.ReadAll(req.Body)
 		var payload map[string]interface{}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("request body is not JSON: %v", err)
@@ -536,7 +542,7 @@ func TestAutomationsV2_SetAutomationV2Priority(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -571,7 +577,7 @@ func TestAutomationsV2_SetAutomationV2PriorityClamped(t *testing.T) {
 	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(mockResponse)),
+			Body:       io.NopCloser(strings.NewReader(mockResponse)),
 			Request:    req,
 		}
 	})}
@@ -607,13 +613,18 @@ func TestAutomationsV2_ListAutomationsV2Paginates(t *testing.T) {
 		}
 		offset := req.URL.Query().Get("start_at_index")
 		requestedOffsets = append(requestedOffsets, offset)
-		body := page("a1", "a2", "a3")
-		if offset != "0" {
+		var body string
+		switch offset {
+		case "0":
+			body = page("a1", "a2", "a3")
+		case "3":
 			body = page("a4")
+		default:
+			body = page() // trailing empty page terminates the loop
 		}
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}
 	})}
@@ -630,9 +641,11 @@ func TestAutomationsV2_ListAutomationsV2Paginates(t *testing.T) {
 		t.Errorf("expected last automation a4, got %s", automations[3].ID)
 	}
 	// The next offset is the number of items received so far, not a page
-	// multiple, so short pages never skip items.
-	if len(requestedOffsets) != 2 || requestedOffsets[0] != "0" || requestedOffsets[1] != "3" {
-		t.Errorf("expected offsets [0 3], got %v", requestedOffsets)
+	// multiple, so short pages never skip items. A trailing empty-page fetch
+	// at offset 4 confirms termination no longer trusts total_items.
+	want := []string{"0", "3", "4"}
+	if !slices.Equal(requestedOffsets, want) {
+		t.Errorf("expected offsets %v, got %v", want, requestedOffsets)
 	}
 }
 
@@ -645,7 +658,7 @@ func TestAutomationsV2_ListAutomationsV2StopsOnEmptyPage(t *testing.T) {
 		body := `{"total_items": 50, "data": []}`
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}
 	})}
@@ -660,5 +673,31 @@ func TestAutomationsV2_ListAutomationsV2StopsOnEmptyPage(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Errorf("expected exactly 1 request, got %d", calls)
+	}
+}
+
+// An absent total_items must not be misread as 0 (which would falsely
+// terminate after the first full page); it paginates until an empty page.
+func TestAutomationsV2_ListAutomationsV2AbsentTotalItems(t *testing.T) {
+	const pageLimit = 300
+	const total = 350
+	httpClient := &http.Client{Transport: api_client.RoundTripFunc(func(req *http.Request) *http.Response {
+		start, _ := strconv.Atoi(req.URL.Query().Get("start_at_index"))
+		items := make([]string, 0, pageLimit)
+		for i := start; i < start+pageLimit && i < total; i++ {
+			items = append(items, fmt.Sprintf(
+				`{"id":"a%d","name":"auto","status":"enabled","filter":{"sonar_query":{"models":["Alert"],"type":"object_set"}},"actions":[]}`, i))
+		}
+		body := `{"data": [` + strings.Join(items, ",") + `]}`
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
+	})}
+
+	apiClient := api_client.APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	automations, err := apiClient.ListAutomationsV2()
+	if err != nil {
+		t.Fatalf("ListAutomationsV2 failed: %v", err)
+	}
+	if len(automations) != total {
+		t.Fatalf("expected %d automations with absent total_items, got %d", total, len(automations))
 	}
 }

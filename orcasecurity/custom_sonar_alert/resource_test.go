@@ -24,6 +24,7 @@ const frameworkName = "tf-acc-sonar-framework"
 
 func TestAccCustomSonarAlertResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -84,6 +85,7 @@ resource "%s" "%s" {
 
 func TestAccCustomSonarAlertResource_AddRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -129,6 +131,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 
 func TestAccCustomSonarAlertResource_UpdateRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -185,6 +188,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 
 func TestAccCustomSonarAlertResource_DeleteRemediationText(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -232,6 +236,7 @@ func TestAccCustomSonarAlertResource_AddComplianceFramework(t *testing.T) {
 	acctest.CreateDisposableComplianceFramework(t, frameworkName, "section_1", "section_2")
 
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -301,6 +306,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 	}
 
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -335,6 +341,7 @@ func TestAccCustomSonarAlertResource_DeleteComplianceFramework(t *testing.T) {
 	acctest.CreateDisposableComplianceFramework(t, frameworkName, "section_1", "section_2")
 
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create
@@ -400,6 +407,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 
 func TestAccCustomSonarAlertResource_EnabledToggle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create with enabled = true (default)
@@ -465,6 +473,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 
 func TestAccCustomSonarAlertResource_CreateDisabled(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create with enabled = false
@@ -497,6 +506,7 @@ resource "orcasecurity_custom_sonar_alert" "test" {
 
 func TestAccCustomSonarAlertResource_EnabledPreservedOnUpdate(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.SkipIfSonarTextRulesDisabled(t) },
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// create with enabled = true (explicitly set)
