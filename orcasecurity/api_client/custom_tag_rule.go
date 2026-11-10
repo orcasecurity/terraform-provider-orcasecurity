@@ -110,7 +110,7 @@ func (client *APIClient) GetCustomTagRule(id string) (*CustomTagRule, error) {
 	return response.Data.toCustomTagRule()
 }
 
-func (client *APIClient) createCustomTagRule(data CustomTagRule) (*CustomTagRule, error) {
+func (client *APIClient) createCustomTagRule(what string, data CustomTagRule) (*CustomTagRule, error) {
 	type responseDataType struct {
 		TagsRuleID string `json:"tags_rule_id"`
 	}
@@ -132,8 +132,11 @@ func (client *APIClient) createCustomTagRule(data CustomTagRule) (*CustomTagRule
 	if err = resp.ReadJSON(&response); err != nil {
 		return nil, err
 	}
-
-	return client.GetCustomTagRule(response.Data.TagsRuleID)
+	id := response.Data.TagsRuleID
+	if id == "" {
+		return nil, fmt.Errorf("custom tag rule create: missing tags_rule_id in response: %s", string(resp.Body()))
+	}
+	return ReadCreated(what, id, client.GetCustomTagRule)
 }
 
 // The list is unpaginated and takes no filters.
@@ -150,10 +153,11 @@ func (client *APIClient) ListCustomTagRuleIDsByName(name string) (map[string]boo
 }
 
 func (client *APIClient) CustomTagRuleCreateOp(data CustomTagRule) CreateOp[CustomTagRule] {
+	what := fmt.Sprintf("custom tag rule named %q", data.Name)
 	return CreateOp[CustomTagRule]{
-		What:   fmt.Sprintf("custom tag rule named %q", data.Name),
+		What:   what,
 		ID:     func(o *CustomTagRule) string { return o.ID },
-		Create: func() (*CustomTagRule, error) { return client.createCustomTagRule(data) },
+		Create: func() (*CustomTagRule, error) { return client.createCustomTagRule(what, data) },
 		IDs:    func() (map[string]bool, error) { return client.ListCustomTagRuleIDsByName(data.Name) },
 		Get:    client.GetCustomTagRule,
 	}
