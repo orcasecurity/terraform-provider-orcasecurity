@@ -61,7 +61,7 @@ func (client *APIClient) DoesShiftLeftCveExceptionListExist(id string) (bool, er
 	return resp.StatusCode() == 200, nil
 }
 
-func (client *APIClient) CreateShiftLeftCveExceptionList(data ShiftLeftCveExceptionList) (*ShiftLeftCveExceptionList, error) {
+func (client *APIClient) createShiftLeftCveExceptionList(data ShiftLeftCveExceptionList) (*ShiftLeftCveExceptionList, error) {
 	resp, err := client.PostCreate("/api/shiftleft/exceptions/", data)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (client *APIClient) ListShiftLeftCveExceptionListIDsByName(name string) (ma
 func (client *APIClient) ShiftLeftCveExceptionListCreateOp(data ShiftLeftCveExceptionList) CreateOp[ShiftLeftCveExceptionList] {
 	return CreateOp[ShiftLeftCveExceptionList]{
 		What:   fmt.Sprintf("shift-left exception list named %q", data.Name),
-		Create: func() (*ShiftLeftCveExceptionList, error) { return client.CreateShiftLeftCveExceptionList(data) },
+		Create: func() (*ShiftLeftCveExceptionList, error) { return client.createShiftLeftCveExceptionList(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListShiftLeftCveExceptionListIDsByName(data.Name) },
 		Get:    client.GetShiftLeftCveExceptionList,
 	}

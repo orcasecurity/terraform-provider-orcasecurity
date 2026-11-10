@@ -36,7 +36,7 @@ func TestCreateUserInvite(t *testing.T) {
 	})}
 
 	apiClient := newTestAPIClient(httpClient)
-	invite, err := apiClient.CreateUserInvite(UserInviteRequest{
+	invite, err := apiClient.createUserInvite(UserInviteRequest{
 		InviteUserEmails: []string{"tf@example.com"},
 		RoleID:           testUserAccessRoleID,
 		ShouldSendEmail:  true,

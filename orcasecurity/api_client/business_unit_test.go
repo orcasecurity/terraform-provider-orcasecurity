@@ -98,7 +98,7 @@ func TestCreateBusinessUnit(t *testing.T) {
 		return jsonResponse(201, businessUnitResponse)
 	})
 
-	bu, err := client.CreateBusinessUnit(BusinessUnit{
+	bu, err := client.createBusinessUnit(BusinessUnit{
 		Name:   "bu",
 		BUType: BusinessUnitTypeCombinedFilter,
 		Config: json.RawMessage(`{"some":{"CloudProviders":["aws"]}}`),

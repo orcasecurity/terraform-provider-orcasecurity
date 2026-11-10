@@ -34,7 +34,7 @@ type mondayResourceSingleResponse struct {
 	Data   MondayResource `json:"data"`
 }
 
-func (client *APIClient) CreateMondayResource(payload MondayResource) (*MondayResource, error) {
+func (client *APIClient) createMondayResource(payload MondayResource) (*MondayResource, error) {
 	payload.ServiceName = MondayResourceServiceName
 	payload.Type = MondayResourceType
 
@@ -60,7 +60,7 @@ func (client *APIClient) CreateMondayResource(payload MondayResource) (*MondayRe
 
 func (client *APIClient) MondayResourceCreateOp(payload MondayResource) CreateOp[MondayResource] {
 	return externalServiceResourceCreateOp(fmt.Sprintf("Monday resource named %q", payload.Name),
-		func() (*MondayResource, error) { return client.CreateMondayResource(payload) },
+		func() (*MondayResource, error) { return client.createMondayResource(payload) },
 		client.ListMondayResources,
 		func(m *MondayResource) string { return m.ID },
 		func(m *MondayResource) bool {

@@ -110,7 +110,7 @@ func (client *APIClient) GetCustomTagRule(id string) (*CustomTagRule, error) {
 	return response.Data.toCustomTagRule()
 }
 
-func (client *APIClient) CreateCustomTagRule(data CustomTagRule) (*CustomTagRule, error) {
+func (client *APIClient) createCustomTagRule(data CustomTagRule) (*CustomTagRule, error) {
 	type responseDataType struct {
 		TagsRuleID string `json:"tags_rule_id"`
 	}
@@ -152,7 +152,7 @@ func (client *APIClient) ListCustomTagRuleIDsByName(name string) (map[string]boo
 func (client *APIClient) CustomTagRuleCreateOp(data CustomTagRule) CreateOp[CustomTagRule] {
 	return CreateOp[CustomTagRule]{
 		What:   fmt.Sprintf("custom tag rule named %q", data.Name),
-		Create: func() (*CustomTagRule, error) { return client.CreateCustomTagRule(data) },
+		Create: func() (*CustomTagRule, error) { return client.createCustomTagRule(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListCustomTagRuleIDsByName(data.Name) },
 		Get:    client.GetCustomTagRule,
 	}

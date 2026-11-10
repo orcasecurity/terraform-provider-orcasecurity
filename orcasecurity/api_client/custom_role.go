@@ -47,7 +47,7 @@ func (client *APIClient) GetCustomRole(id string) (*CustomRole, error) {
 	return &customRole, nil
 }
 
-func (client *APIClient) CreateCustomRole(data CustomRole) (*CustomRole, error) {
+func (client *APIClient) createCustomRole(data CustomRole) (*CustomRole, error) {
 	resp, err := client.PostCreate("/api/rbac/roles", data)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (client *APIClient) ListCustomRoleIDsByName(name string) (map[string]bool, 
 func (client *APIClient) CustomRoleCreateOp(data CustomRole) CreateOp[CustomRole] {
 	return CreateOp[CustomRole]{
 		What:   fmt.Sprintf("custom role named %q", data.Name),
-		Create: func() (*CustomRole, error) { return client.CreateCustomRole(data) },
+		Create: func() (*CustomRole, error) { return client.createCustomRole(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListCustomRoleIDsByName(data.Name) },
 		Get:    client.GetCustomRole,
 	}

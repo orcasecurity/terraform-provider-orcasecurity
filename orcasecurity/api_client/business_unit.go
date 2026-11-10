@@ -35,7 +35,7 @@ func (client *APIClient) GetBusinessUnit(businessUnitID string) (*BusinessUnit, 
 	return readData[BusinessUnit](resp)
 }
 
-func (client *APIClient) CreateBusinessUnit(data BusinessUnit) (*BusinessUnit, error) {
+func (client *APIClient) createBusinessUnit(data BusinessUnit) (*BusinessUnit, error) {
 	resp, err := client.PostCreate("/api/business_units", data)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (client *APIClient) ListBusinessUnitIDsByName(name string) (map[string]bool
 func (client *APIClient) BusinessUnitCreateOp(data BusinessUnit) CreateOp[BusinessUnit] {
 	return CreateOp[BusinessUnit]{
 		What:   fmt.Sprintf("business unit named %q", data.Name),
-		Create: func() (*BusinessUnit, error) { return client.CreateBusinessUnit(data) },
+		Create: func() (*BusinessUnit, error) { return client.createBusinessUnit(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListBusinessUnitIDsByName(data.Name) },
 		Get:    client.GetBusinessUnit,
 	}

@@ -90,7 +90,7 @@ func (client *APIClient) GetDSPMPolicy(id string) (*DSPMPolicy, error) {
 	return readDSPMPolicyData(resp)
 }
 
-func (client *APIClient) CreateDSPMPolicy(data DSPMPolicy) (*DSPMPolicy, error) {
+func (client *APIClient) createDSPMPolicy(data DSPMPolicy) (*DSPMPolicy, error) {
 	resp, err := client.PostCreate(dspmPolicyBasePath, data)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (client *APIClient) ListDSPMPolicyIDsByName(name, feature string) (map[stri
 func (client *APIClient) DSPMPolicyCreateOp(data DSPMPolicy) CreateOp[DSPMPolicy] {
 	return CreateOp[DSPMPolicy]{
 		What:   fmt.Sprintf("DSPM policy named %q", data.Name),
-		Create: func() (*DSPMPolicy, error) { return client.CreateDSPMPolicy(data) },
+		Create: func() (*DSPMPolicy, error) { return client.createDSPMPolicy(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListDSPMPolicyIDsByName(data.Name, data.Feature) },
 		Get:    client.GetDSPMPolicy,
 	}

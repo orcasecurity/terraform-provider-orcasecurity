@@ -44,7 +44,7 @@ func (client *APIClient) GetGroup(id string) (*Group, error) {
 	return &group, nil
 }
 
-func (client *APIClient) CreateGroup(data Group) (*Group, error) {
+func (client *APIClient) createGroup(data Group) (*Group, error) {
 	resp, err := client.PostCreate("/api/rbac/group", data)
 	if err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func (client *APIClient) ListGroupIDsByName(name string) (map[string]bool, error
 func (client *APIClient) GroupCreateOp(data Group) CreateOp[Group] {
 	return CreateOp[Group]{
 		What:   fmt.Sprintf("group named %q", data.Name),
-		Create: func() (*Group, error) { return client.CreateGroup(data) },
+		Create: func() (*Group, error) { return client.createGroup(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListGroupIDsByName(data.Name) },
 		Get:    client.GetGroup,
 	}

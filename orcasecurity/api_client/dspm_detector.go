@@ -109,7 +109,7 @@ func (client *APIClient) ListDSPMDetectors(filters DSPMDetectorListFilters) ([]D
 	return *detectors, nil
 }
 
-func (client *APIClient) CreateDSPMDetector(data DSPMDetector) (*DSPMDetector, error) {
+func (client *APIClient) createDSPMDetector(data DSPMDetector) (*DSPMDetector, error) {
 	resp, err := client.PostCreate(dspmDetectorBasePath, data)
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func (client *APIClient) ListDSPMDetectorIDsByTitle(title string) (map[string]bo
 func (client *APIClient) DSPMDetectorCreateOp(data DSPMDetector) CreateOp[DSPMDetector] {
 	return CreateOp[DSPMDetector]{
 		What:   fmt.Sprintf("sensitive data identifier titled %q", data.Title),
-		Create: func() (*DSPMDetector, error) { return client.CreateDSPMDetector(data) },
+		Create: func() (*DSPMDetector, error) { return client.createDSPMDetector(data) },
 		IDs:    func() (map[string]bool, error) { return client.ListDSPMDetectorIDsByTitle(data.Title) },
 		Get:    client.GetDSPMDetector,
 	}

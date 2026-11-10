@@ -53,7 +53,7 @@ func (client *APIClient) GetTrustedCloudAccount(id string) (*TrustedCloudAccount
 	return nil, nil
 }
 
-func (client *APIClient) CreateTrustedCloudAccount(data TrustedCloudAccount) (*TrustedCloudAccount, error) {
+func (client *APIClient) createTrustedCloudAccount(data TrustedCloudAccount) (*TrustedCloudAccount, error) {
 	resp, err := client.PostCreate("/api/organization/trusted_accounts", data)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (client *APIClient) ListTrustedCloudAccountIDs(cloudProvider, cloudAccountI
 func (client *APIClient) TrustedCloudAccountCreateOp(data TrustedCloudAccount) CreateOp[TrustedCloudAccount] {
 	return CreateOp[TrustedCloudAccount]{
 		What:   fmt.Sprintf("trusted %s cloud account %q", data.CloudProvider, data.CloudAccountID),
-		Create: func() (*TrustedCloudAccount, error) { return client.CreateTrustedCloudAccount(data) },
+		Create: func() (*TrustedCloudAccount, error) { return client.createTrustedCloudAccount(data) },
 		IDs: func() (map[string]bool, error) {
 			return client.ListTrustedCloudAccountIDs(data.CloudProvider, data.CloudAccountID)
 		},

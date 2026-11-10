@@ -28,7 +28,7 @@ type serviceNowITSMSingleResponse struct {
 	Data   ServiceNowITSMResource `json:"data"`
 }
 
-func (client *APIClient) CreateServiceNowITSMResource(payload ServiceNowITSMResource) (*ServiceNowITSMResource, error) {
+func (client *APIClient) createServiceNowITSMResource(payload ServiceNowITSMResource) (*ServiceNowITSMResource, error) {
 	payload.ServiceName = ServiceNowITSMServiceName
 	payload.Type = ServiceNowITSMResourceType
 
@@ -57,7 +57,7 @@ func (client *APIClient) CreateServiceNowITSMResource(payload ServiceNowITSMReso
 
 func (client *APIClient) ServiceNowITSMResourceCreateOp(payload ServiceNowITSMResource) CreateOp[ServiceNowITSMResource] {
 	return externalServiceResourceCreateOp(fmt.Sprintf("ServiceNow ITSM integration named %q", payload.Name),
-		func() (*ServiceNowITSMResource, error) { return client.CreateServiceNowITSMResource(payload) },
+		func() (*ServiceNowITSMResource, error) { return client.createServiceNowITSMResource(payload) },
 		client.ListServiceNowITSMResources,
 		func(s *ServiceNowITSMResource) string { return s.ID },
 		func(s *ServiceNowITSMResource) bool {

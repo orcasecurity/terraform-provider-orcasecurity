@@ -51,7 +51,7 @@ func (client *APIClient) GetCustomComplianceFramework(id string) (*ComplianceFra
 	return client.GetComplianceFramework(id)
 }
 
-func (client *APIClient) CreateCustomComplianceFramework(data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
+func (client *APIClient) createCustomComplianceFramework(data CustomComplianceFrameworkRequest) (*CustomComplianceFrameworkWriteResponse, error) {
 	resp, err := client.PostCreate(customComplianceFrameworkBasePath, data)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (client *APIClient) CustomComplianceFrameworkCreateOp(data CustomCompliance
 	return CreateOp[CustomComplianceFrameworkWriteResponse]{
 		What: fmt.Sprintf("custom compliance framework named %q", data.Name),
 		Create: func() (*CustomComplianceFrameworkWriteResponse, error) {
-			return client.CreateCustomComplianceFramework(data)
+			return client.createCustomComplianceFramework(data)
 		},
 		IDs: func() (map[string]bool, error) { return client.ListCustomComplianceFrameworkIDsByName(data.Name) },
 		Get: func(id string) (*CustomComplianceFrameworkWriteResponse, error) {

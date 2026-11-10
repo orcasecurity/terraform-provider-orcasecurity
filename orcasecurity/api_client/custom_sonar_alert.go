@@ -60,17 +60,6 @@ func (client *APIClient) GetCustomSonarAlert(id string) (*CustomAlert, error) {
 	return &alert, nil
 }
 
-func (client *APIClient) CreateCustomSonarAlert(data CustomAlert) (*CustomAlert, error) {
-	alert, err := client.CustomSonarAlertCreateOp(data).Create()
-	if err != nil {
-		return nil, err
-	}
-	if err := client.SetCreatedCustomAlertRemediation(alert.ID, alert.RuleType, data.RemediationText); err != nil {
-		return nil, err
-	}
-	return alert, nil
-}
-
 // CustomSonarAlertCreateOp's Create only posts the rule; call SetCreatedCustomAlertRemediation after it.
 func (client *APIClient) CustomSonarAlertCreateOp(data CustomAlert) CreateOp[CustomAlert] {
 	return sonarRuleCreateOp(client, data.Name, data, client.GetCustomSonarAlert)

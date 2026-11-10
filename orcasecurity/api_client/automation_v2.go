@@ -83,7 +83,7 @@ func (client *APIClient) ListAutomationV2IDsByName(name string) (map[string]bool
 func (client *APIClient) AutomationV2CreateOp(automation AutomationV2, applyOnExisting bool) CreateOp[AutomationV2] {
 	return CreateOp[AutomationV2]{
 		What:   fmt.Sprintf("automation named %q", automation.Name),
-		Create: func() (*AutomationV2, error) { return client.CreateAutomationV2(automation, applyOnExisting) },
+		Create: func() (*AutomationV2, error) { return client.createAutomationV2(automation, applyOnExisting) },
 		IDs:    func() (map[string]bool, error) { return client.ListAutomationV2IDsByName(automation.Name) },
 		Get:    client.GetAutomationV2,
 	}
@@ -94,7 +94,7 @@ func (client *APIClient) DoesAutomationV2Exist(id string) (bool, error) {
 	return resp.StatusCode() == 200, nil
 }
 
-func (client *APIClient) CreateAutomationV2(automation AutomationV2, applyOnExisting bool) (*AutomationV2, error) {
+func (client *APIClient) createAutomationV2(automation AutomationV2, applyOnExisting bool) (*AutomationV2, error) {
 	path := "/api/automations"
 	if applyOnExisting {
 		path += "?apply_on_existing=true"

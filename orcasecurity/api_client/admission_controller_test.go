@@ -97,7 +97,7 @@ func TestCreateAdmissionControllerControl(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	control, err := client.CreateAdmissionControllerControl(AdmissionControllerControl{
+	control, err := client.createAdmissionControllerControl(AdmissionControllerControl{
 		Name:       "my control",
 		TemplateID: "tpl-1",
 		ClusterScope: AdmissionControllerClusterScope{Kinds: []AdmissionControllerClusterScopeKind{
@@ -272,7 +272,7 @@ func TestCreateAdmissionControllerControl_EmptyOptionalFields(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	control, err := client.CreateAdmissionControllerControl(AdmissionControllerControl{
+	control, err := client.createAdmissionControllerControl(AdmissionControllerControl{
 		Name:       "minimal control",
 		TemplateID: "tpl-1",
 		ClusterScope: AdmissionControllerClusterScope{Kinds: []AdmissionControllerClusterScopeKind{
@@ -386,7 +386,7 @@ func TestCreateAdmissionControllerPolicy_OmitsScopesKey(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	policy, err := client.CreateAdmissionControllerPolicy(AdmissionControllerPolicy{
+	policy, err := client.createAdmissionControllerPolicy(AdmissionControllerPolicy{
 		Name: "my policy", IsActive: true, EnforcementAction: "block", Controls: []string{"ctrl-1"},
 	})
 	if err != nil {
@@ -505,7 +505,7 @@ func TestCreateAdmissionControllerScope_SendsPolicyIDs(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	scope, err := client.CreateAdmissionControllerScope(AdmissionControllerScope{
+	scope, err := client.createAdmissionControllerScope(AdmissionControllerScope{
 		Name: "my assignment", FullOrganization: true,
 		CloudAccounts: []string{}, Clusters: []string{}, PolicyIDs: []string{"pol-1"},
 	})

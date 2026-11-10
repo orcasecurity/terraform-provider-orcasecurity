@@ -131,7 +131,7 @@ func (client *APIClient) GetCustomWidget(id string) (*CustomWidget, error) {
 	}, nil
 }
 
-func (client *APIClient) CreateCustomWidget(data CustomWidget) (*CustomWidget, error) {
+func (client *APIClient) createCustomWidget(data CustomWidget) (*CustomWidget, error) {
 	resp, err := client.PostCreate("/api/user_preferences", data)
 	if err != nil {
 		return nil, err

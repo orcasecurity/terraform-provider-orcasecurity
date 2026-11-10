@@ -39,8 +39,8 @@ type UserInvite struct {
 	Expired    bool   `json:"expired"`
 }
 
-// CreateUserInvite invites a single user and returns the created invite.
-func (client *APIClient) CreateUserInvite(req UserInviteRequest) (*UserInvite, error) {
+// createUserInvite invites a single user and returns the created invite.
+func (client *APIClient) createUserInvite(req UserInviteRequest) (*UserInvite, error) {
 	resp, err := client.PostCreate(apiUserInvitesBulkCreatePath, req)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (client *APIClient) UserInviteCreateOp(req UserInviteRequest) CreateOp[User
 	email := strings.Join(req.InviteUserEmails, ",")
 	return CreateOp[UserInvite]{
 		What:   fmt.Sprintf("user invite for %q", email),
-		Create: func() (*UserInvite, error) { return client.CreateUserInvite(req) },
+		Create: func() (*UserInvite, error) { return client.createUserInvite(req) },
 		IDs:    func() (map[string]bool, error) { return client.ListUserInviteIDsByEmail(email) },
 		Get:    client.GetUserInvite,
 	}

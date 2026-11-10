@@ -77,7 +77,7 @@ func normalizeAdmissionControllerControl(data *AdmissionControllerControl) {
 	}
 }
 
-func (client *APIClient) CreateAdmissionControllerControl(data AdmissionControllerControl) (*AdmissionControllerControl, error) {
+func (client *APIClient) createAdmissionControllerControl(data AdmissionControllerControl) (*AdmissionControllerControl, error) {
 	data.ID = ""
 	normalizeAdmissionControllerControl(&data)
 	resp, err := client.PostCreate("/api/admission_controller/controls", data)
@@ -149,7 +149,7 @@ func (client *APIClient) GetAdmissionControllerPolicy(id string) (*AdmissionCont
 	return &response.Data, nil
 }
 
-func (client *APIClient) CreateAdmissionControllerPolicy(data AdmissionControllerPolicy) (*AdmissionControllerPolicy, error) {
+func (client *APIClient) createAdmissionControllerPolicy(data AdmissionControllerPolicy) (*AdmissionControllerPolicy, error) {
 	data.ID = ""
 	resp, err := client.PostCreate("/api/admission_controller/policies", data)
 	if err != nil {
@@ -234,7 +234,7 @@ func (client *APIClient) GetAdmissionControllerScope(id string) (*AdmissionContr
 	return &response.Data, nil
 }
 
-func (client *APIClient) CreateAdmissionControllerScope(data AdmissionControllerScope) (*AdmissionControllerScope, error) {
+func (client *APIClient) createAdmissionControllerScope(data AdmissionControllerScope) (*AdmissionControllerScope, error) {
 	data.ID = ""
 	data.Policies = nil
 	resp, err := client.PostCreate("/api/admission_controller/scopes", data)
@@ -325,7 +325,7 @@ func anyRow(*admissionControllerListRow) bool { return true }
 func (client *APIClient) AdmissionControllerControlCreateOp(data AdmissionControllerControl) CreateOp[AdmissionControllerControl] {
 	return CreateOp[AdmissionControllerControl]{
 		What:   fmt.Sprintf("admission controller control named %q", data.Name),
-		Create: func() (*AdmissionControllerControl, error) { return client.CreateAdmissionControllerControl(data) },
+		Create: func() (*AdmissionControllerControl, error) { return client.createAdmissionControllerControl(data) },
 		IDs: func() (map[string]bool, error) {
 			return client.listAdmissionControllerIDsByName("controls", data.Name, func(r *admissionControllerListRow) bool {
 				return strings.EqualFold(r.TemplateID, data.TemplateID)
@@ -338,7 +338,7 @@ func (client *APIClient) AdmissionControllerControlCreateOp(data AdmissionContro
 func (client *APIClient) AdmissionControllerPolicyCreateOp(data AdmissionControllerPolicy) CreateOp[AdmissionControllerPolicy] {
 	return CreateOp[AdmissionControllerPolicy]{
 		What:   fmt.Sprintf("admission controller policy named %q", data.Name),
-		Create: func() (*AdmissionControllerPolicy, error) { return client.CreateAdmissionControllerPolicy(data) },
+		Create: func() (*AdmissionControllerPolicy, error) { return client.createAdmissionControllerPolicy(data) },
 		IDs: func() (map[string]bool, error) {
 			return client.listAdmissionControllerIDsByName("policies", data.Name, anyRow)
 		},
@@ -349,7 +349,7 @@ func (client *APIClient) AdmissionControllerPolicyCreateOp(data AdmissionControl
 func (client *APIClient) AdmissionControllerScopeCreateOp(data AdmissionControllerScope) CreateOp[AdmissionControllerScope] {
 	return CreateOp[AdmissionControllerScope]{
 		What:   fmt.Sprintf("admission controller policy assignment named %q", data.Name),
-		Create: func() (*AdmissionControllerScope, error) { return client.CreateAdmissionControllerScope(data) },
+		Create: func() (*AdmissionControllerScope, error) { return client.createAdmissionControllerScope(data) },
 		IDs: func() (map[string]bool, error) {
 			return client.listAdmissionControllerIDsByName("scopes", data.Name, anyRow)
 		},
