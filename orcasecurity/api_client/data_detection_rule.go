@@ -78,7 +78,7 @@ func (client *APIClient) CreateDataDetectionRule(data DataDetectionRule) (string
 	dataDetectionRuleMutationLock.Lock()
 	defer dataDetectionRuleMutationLock.Unlock()
 
-	resp, err := client.Put(scanConfigRulesBasePath, data)
+	resp, err := client.PutCreate(scanConfigRulesBasePath, data)
 	if err != nil {
 		return "", err
 	}
@@ -121,4 +121,38 @@ func (client *APIClient) DeleteDataDetectionRule(id string) error {
 
 	_, err := client.Delete(fmt.Sprintf("%s/%s", scanConfigRulesBasePath, id))
 	return err
+}
+
+// The list is a bare JSON array (no {status,data} envelope) paged by limit/start_at_index; rule_name
+// is unique per organization.
+func (client *APIClient) ListDataDetectionRuleIDsByName(name string) (map[string]bool, error) {
+	type ruleRow struct {
+		ID   string `json:"rule_id"`
+		Name string `json:"rule_name"`
+	}
+	all, err := paginateOffsetWith(client, scanConfigRulesBasePath, nil, 300, 500, func(resp *APIResponse) (*[]ruleRow, error) {
+		var rows *[]ruleRow
+		err := resp.ReadJSON(&rows)
+		return rows, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(r *ruleRow) string { return r.ID }, func(r *ruleRow) bool { return sameName(r.Name, name) }), nil
+}
+
+func (client *APIClient) DataDetectionRuleCreateOp(data DataDetectionRule) CreateOp[DataDetectionRule] {
+	return CreateOp[DataDetectionRule]{
+		What: fmt.Sprintf("data detection rule named %q", data.Name),
+		ID:   func(r *DataDetectionRule) string { return r.ID },
+		Create: func() (*DataDetectionRule, error) {
+			id, err := client.CreateDataDetectionRule(data)
+			if err != nil {
+				return nil, err
+			}
+			return &DataDetectionRule{ID: id}, nil
+		},
+		IDs: func() (map[string]bool, error) { return client.ListDataDetectionRuleIDsByName(data.Name) },
+		Get: client.GetDataDetectionRule,
+	}
 }

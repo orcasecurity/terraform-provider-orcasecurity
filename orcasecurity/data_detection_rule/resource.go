@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -238,7 +239,7 @@ func (r *dataDetectionRuleResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	// non-standard REST: create is PUT on the collection, returns data.rule_id
-	ruleID, err := r.apiClient.CreateDataDetectionRule(generateRulePayload(plan))
+	created, err := createrecovery.Run(ctx, r.apiClient.DataDetectionRuleCreateOp(generateRulePayload(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Data Detection Rule",
@@ -246,6 +247,7 @@ func (r *dataDetectionRuleResource) Create(ctx context.Context, req resource.Cre
 		)
 		return
 	}
+	ruleID := created.ID
 
 	// the create response only carries the id — refresh to resolve the
 	// server-assigned priority, organization and default flag

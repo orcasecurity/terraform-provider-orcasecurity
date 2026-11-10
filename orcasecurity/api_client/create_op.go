@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// CreateOp is a create sent with PostCreate (never replayed after an ambiguous outcome) plus what
-// createrecovery.Run needs to find the object if that POST may have committed anyway.
+// CreateOp is a create sent with PostCreate/PutCreate (never replayed after an ambiguous outcome) plus what
+// createrecovery.Run needs to find the object if that create may have committed anyway.
 type CreateOp[T any] struct {
 	What   string
 	Create func() (*T, error)
 	ID     func(*T) string
 	// IDs returns the ids of every existing object matching the create's natural key. It is taken
-	// before and after the POST; only an id absent from the first set is ever adopted.
+	// before and after the create; only an id absent from the first set is ever adopted.
 	IDs IDLister
 	Get func(id string) (*T, error)
 }
