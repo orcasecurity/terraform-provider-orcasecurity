@@ -12,7 +12,7 @@ usage:
   scripts/changelog.sh extract <version>            print the <version> section body from CHANGELOG.md
   scripts/changelog.sh release-notes <tag>          CI: print the GitHub release body for <tag> (section, or generated notes)
 
-labels: no-release (no section, no release), release:minor, release:major (default: patch)
+every release is the next patch version; label no-release: no section, no release
 EOF
 	exit 2
 }
@@ -118,15 +118,9 @@ has_label() {
 }
 
 next_version() {
-	local last=$1 labels=$2 major minor patch
-	IFS=. read -r major minor patch <<<"${last#v}"
-	if has_label "$labels" release:major; then
-		echo "$((major + 1)).0.0"
-	elif has_label "$labels" release:minor; then
-		echo "$major.$((minor + 1)).0"
-	else
-		echo "$major.$minor.$((patch + 1))"
-	fi
+	local major minor patch
+	IFS=. read -r major minor patch <<<"${1#v}"
+	echo "$major.$minor.$((patch + 1))"
 }
 
 repo_url() {
@@ -276,7 +270,7 @@ update() {
 
 	last=$(current_version "$base")
 	[[ -n $last ]] || die "no v* tag found on $base"
-	version=$(next_version "$last" "$labels")
+	version=$(next_version "$last")
 	from=$(range_start "$base" "$last")
 	generate "$version" "$(release_date)" "$from" "$base" "$title (#$number)"
 	echo "PR #$number releases v$version on merge. Review the section, then commit CHANGELOG.md."
@@ -308,11 +302,11 @@ check() {
 
 	last=$(current_version "$base")
 	[[ -n $last ]] || die "no v* tag found on $base"
-	expected=$(next_version "$last" "$labels")
+	expected=$(next_version "$last")
 	((${#new[@]} > 0)) || fail "This PR does not add a CHANGELOG.md section. Merging it releases **v$expected**, so it needs a \`## $expected (...)\` section."
 	((${#new[@]} == 1)) || fail "This PR adds more than one new section (${new[*]}); it should add only \`## $expected\`."
 	version=${new[0]}
-	[[ $version == "$expected" ]] || fail "The new section is \`## $version\`, but merging this PR releases **v$expected** (latest version on $base_branch: $last, labels: ${labels:-none})."
+	[[ $version == "$expected" ]] || fail "The new section is \`## $version\`, but merging this PR releases **v$expected** (latest version on $base_branch: $last)."
 
 	body=$(extract "$version")
 	[[ $body == *"[#$number]("* ]] || fail "The \`## $version\` section has no entry for this PR (#$number)."
@@ -329,20 +323,15 @@ check() {
 	summary "$body"
 }
 
-merged_pr_labels() {
-	local sha=$1
-	gh api "repos/{owner}/{repo}/commits/$sha/pulls" --jq 'if length == 0 then error("no PR") else [.[0].labels[].name] | join(",") end'
-}
-
 # A version is pending until its GitHub release exists: release.yml pushes the
 # tag before GoReleaser publishes, so a tag alone may be a failed release.
 # Every pending merged section is released, oldest first: when several PRs
 # merge before a run starts, GitHub replaces the queued runs with one.
-# An untagged version must be exactly what its PR's labels allow, as the PR
-# check requires, because that check is not a required status check. An
-# existing tag already fixes the version and the commit.
+# An untagged version must be the next patch version, as the PR check
+# requires, because that check is not a required status check. An existing
+# tag already fixes the version and the commit.
 release_plan() {
-	local published last="" t v sha previous labels expected releases="[]"
+	local published last="" t v sha previous expected releases="[]"
 	published=$(gh release list --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName') ||
 		die "cannot list GitHub releases; nothing was released"
 	for t in $(release_tags HEAD); do
@@ -361,10 +350,9 @@ release_plan() {
 		else
 			sha=$(section_commit HEAD "$v" "$last")
 			[[ -n $sha ]] || die "cannot find the commit that added the $v section"
-			labels=$(merged_pr_labels "$sha") || die "cannot read the PR labels for ${sha:0:7}; nothing was released"
-			expected=$(next_version "$previous" "$labels")
+			expected=$(next_version "$previous")
 			[[ $v == "$expected" ]] ||
-				die "CHANGELOG.md section $v (${sha:0:7}) should be $expected after $previous (PR labels: ${labels:-none}); nothing was released"
+				die "CHANGELOG.md section $v (${sha:0:7}) should be $expected after $previous; nothing was released"
 		fi
 		previous=$v
 		echo "release v$v at ${sha:0:7}"

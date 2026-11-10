@@ -1,5 +1,5 @@
 # Every PR must add the CHANGELOG.md section that its merge will release
-# (run `make changelog`). Labels: no-release, release:minor, release:major.
+# (run `make changelog`): always the next patch version. Label no-release: no section.
 name: Changelog
 on:
     pull_request:

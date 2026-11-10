@@ -78,14 +78,7 @@ Every merged PR is released automatically. Its release notes are the `CHANGELOG.
 2. Reword entries if you like, then commit `CHANGELOG.md` and push. The **CHANGELOG.md** check fails the PR if the section is missing, has the wrong version, or leaves out your PR or an unreleased change.
 3. When the PR merges, the **Release on merge** workflow tags the merge commit and publishes the release with that section as its notes.
 
-Labels change what a merge releases (rerun `make changelog` after changing them):
-
-| Label | Effect |
-| --- | --- |
-| *(none)* | patch release, e.g. 0.0.63 → 0.0.64 |
-| `release:minor` | minor release, e.g. 0.0.63 → 0.1.0 |
-| `release:major` | major release, e.g. 0.1.0 → 1.0.0 |
-| `no-release` | no section, no release; the change ships with the next release |
+Every release is the next patch version (e.g. 0.0.63 → 0.0.64); no label is needed. To merge without releasing, add the `no-release` label: the PR gets no section and the change ships with the next release (rerun `make changelog` after adding or removing it).
 
 If another PR is released first, your branch conflicts in `CHANGELOG.md`: update the branch from `master` and rerun `make changelog`. Rerunning rebuilds the section from scratch, so reword entries after the last run. Dependabot PRs need no section; their bumps are listed in the next release.
 
