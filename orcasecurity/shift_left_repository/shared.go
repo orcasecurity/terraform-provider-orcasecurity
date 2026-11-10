@@ -2,7 +2,9 @@ package shift_left_repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
@@ -270,7 +272,7 @@ func repoUpdate[M any, PM repoModelPtr[M]](ctx context.Context, req resource.Upd
 	}
 	planFields := PM(&plan).configFields()
 	o := ops(&plan)
-	row := updateRepo(o, planFields, PM(&state).configFields(), &resp.Diagnostics)
+	row := updateRepo(ctx, o, planFields, PM(&state).configFields(), &resp.Diagnostics)
 	if row == nil {
 		return
 	}
@@ -361,7 +363,7 @@ func rollbackUnconfirmedIntegration(ops repoOps, diags *diag.Diagnostics) {
 	)
 }
 
-func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
+func updateRepo(ctx context.Context, ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnostics) *api_client.ScmRepository {
 	// Move project before config PATCH — move failure must not leave remote config ahead of state.
 	ctxID := state.RepositoryContextID.ValueString()
 	moved := false
@@ -371,7 +373,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 				"repository_context_id is unknown; run terraform refresh and retry")
 			return nil
 		}
-		if err := ops.client.MoveRepositoryContexts(plan.ProjectID.ValueString(), []string{ctxID}); err != nil {
+		if err := moveRepository(ctx, ops, ctxID, plan.ProjectID.ValueString()); err != nil {
 			diags.AddError(fmt.Sprintf("Error moving %s repository to project", ops.traits.name), err.Error())
 			return nil
 		}
@@ -380,7 +382,7 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	if body, set := configUpdateBody(state.ID.ValueString(), plan); set {
 		if err := ops.update(body); err != nil {
 			if moved {
-				rollbackProjectMove(ops, state, ctxID, diags)
+				rollbackProjectMove(ctx, ops, state, plan.ProjectID.ValueString(), ctxID, diags)
 			}
 			diags.AddError(fmt.Sprintf("Error updating %s repository configuration", ops.traits.name), err.Error())
 			return nil
@@ -397,23 +399,91 @@ func updateRepo(ops repoOps, plan, state *RepoConfigFields, diags *diag.Diagnost
 	return row
 }
 
+var (
+	moveRetryDelays = []time.Duration{0, time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second,
+		15 * time.Second, 15 * time.Second, 15 * time.Second}
+	moveSleep = sleepCtx
+)
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+// The move's outcome is settled by the repository's project on a re-read, never by a refusal alone.
+func moveRepository(ctx context.Context, ops repoOps, ctxID, targetProjectID string) error {
+	var lastErr error
+	for _, delay := range moveRetryDelays {
+		if err := moveSleep(ctx, delay); err != nil {
+			if lastErr != nil {
+				return fmt.Errorf("%w (stopped waiting: %w)", lastErr, err)
+			}
+			return err
+		}
+		err := ops.client.MoveRepositoryContexts(targetProjectID, []string{ctxID})
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, api_client.ErrAmbiguousWrite) && !errors.Is(err, api_client.ErrMoveInProgress) &&
+			!errors.Is(err, api_client.ErrMoveAlreadyInTarget) {
+			return err
+		}
+		row, findErr := ops.find()
+		if findErr != nil {
+			return fmt.Errorf("%w; reading the repository back to confirm the move also failed: %w", err, findErr)
+		}
+		if row != nil && row.ProjectID == targetProjectID {
+			return nil
+		}
+		if row == nil {
+			return fmt.Errorf("%w; the repository was not found when reading it back to confirm the move", err)
+		}
+		if errors.Is(err, api_client.ErrMoveAlreadyInTarget) {
+			return fmt.Errorf("%w, but reading it back shows project %s", err, row.ProjectID)
+		}
+		lastErr = err
+	}
+	return fmt.Errorf("repository context %s is still not in project %s after retrying for %s: %w",
+		ctxID, targetProjectID, totalDelay(moveRetryDelays), lastErr)
+}
+
+func totalDelay(delays []time.Duration) time.Duration {
+	var total time.Duration
+	for _, d := range delays {
+		total += d
+	}
+	return total
+}
+
 // Move then PATCH are independent; on PATCH failure move the repo back so live matches state.
-func rollbackProjectMove(ops repoOps, state *RepoConfigFields, ctxID string, diags *diag.Diagnostics) {
+func rollbackProjectMove(ctx context.Context, ops repoOps, state *RepoConfigFields, movedTo, ctxID string, diags *diag.Diagnostics) {
 	priorProjectID := state.ProjectID.ValueString()
 	const detail = "The repository was moved to the configured project but applying its configuration failed"
 	if !tfconv.Known(state.ProjectID) || priorProjectID == "" {
 		diags.AddWarning(
 			fmt.Sprintf("%s repository left in its new project", ops.traits.name),
-			detail+", and state does not record which project it came from, so the move could not be undone. "+
-				"Re-run to reconcile.",
+			fmt.Sprintf("%s, and state does not record which project it came from, so the move could not be "+
+				"undone. The repository is in project %s; the next apply continues from there.", detail, movedTo),
 		)
 		return
 	}
-	if err := ops.client.MoveRepositoryContexts(priorProjectID, []string{ctxID}); err != nil {
+	if err := moveRepository(ctx, ops, ctxID, priorProjectID); err != nil {
 		diags.AddWarning(
-			fmt.Sprintf("Failed to undo the %s repository project move", ops.traits.name),
-			fmt.Sprintf("%s, and moving it back to project %s also failed: %s. Re-run to reconcile.",
-				detail, priorProjectID, err.Error()),
+			fmt.Sprintf("%s repository left in project %s", ops.traits.name, movedTo),
+			fmt.Sprintf("%s, and moving it back to project %s did not succeed: %s.\n\n"+
+				"The repository stays in project %s. Re-running terraform apply continues from there and "+
+				"retries the configuration; to restore the previous placement instead, move the repository "+
+				"to project %s in the Orca console once its current move has finished.",
+				detail, priorProjectID, err.Error(), movedTo, priorProjectID),
 		)
 	}
 }
