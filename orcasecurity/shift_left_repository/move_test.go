@@ -194,9 +194,12 @@ func TestMoveRepository_StopsWaitingWhenContextCancelled(t *testing.T) {
 	}
 }
 
-func failingConfigUpdate(t *testing.T, f *fakeMoveBackend) (*diag.Diagnostics, *api_client.ScmRepository) {
+func failingConfigUpdate(t *testing.T, f *fakeMoveBackend, tweak func(*repoOps)) (*diag.Diagnostics, *api_client.ScmRepository) {
 	t.Helper()
 	o := f.ops(t)
+	if tweak != nil {
+		tweak(&o)
+	}
 	o.update = func(api_client.ScmRepositoryConfigUpdate) error { return errors.New("config rejected") }
 	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-new"), Disabled: types.BoolValue(true)}
 	state := &RepoConfigFields{
@@ -211,7 +214,7 @@ func failingConfigUpdate(t *testing.T, f *fakeMoveBackend) (*diag.Diagnostics, *
 
 func TestUpdateRepo_RollbackWaitsForInProgressMoveThenMovesBack(t *testing.T) {
 	f := &fakeMoveBackend{project: "proj-old", asyncSleeps: 2}
-	diags, row := failingConfigUpdate(t, f)
+	diags, row := failingConfigUpdate(t, f, nil)
 	if row != nil || !diags.HasError() {
 		t.Fatalf("the config failure must still fail the update, row=%+v diags=%v", row, *diags)
 	}
@@ -229,7 +232,7 @@ func TestUpdateRepo_RollbackWaitsForInProgressMoveThenMovesBack(t *testing.T) {
 
 func TestUpdateRepo_RollbackGivesUpWithPlacementWarning(t *testing.T) {
 	f := &fakeMoveBackend{project: "proj-old", asyncSleeps: 100}
-	diags, _ := failingConfigUpdate(t, f)
+	diags, _ := failingConfigUpdate(t, f, nil)
 	if !diags.HasError() || diags.WarningsCount() != 1 {
 		t.Fatalf("expected the config error plus one rollback warning, got %v", *diags)
 	}
@@ -244,5 +247,36 @@ func TestUpdateRepo_RollbackGivesUpWithPlacementWarning(t *testing.T) {
 	}
 	if f.project != "proj-new" {
 		t.Fatalf("the repository should be left in proj-new, it is in %s", f.project)
+	}
+}
+
+func TestUpdateRepo_RollbackWarningHedgesWhenTheReadFails(t *testing.T) {
+	f := &fakeMoveBackend{project: "proj-old", asyncSleeps: 100}
+	diags, _ := failingConfigUpdate(t, f, func(o *repoOps) {
+		o.find = func() (*api_client.ScmRepository, error) { return nil, errors.New("read failed") }
+	})
+	if !diags.HasError() || diags.WarningsCount() != 1 {
+		t.Fatalf("expected the config error plus one rollback warning, got %v", *diags)
+	}
+	w := diags.Warnings()[0]
+	if !strings.Contains(w.Summary(), "may be left in project proj-new") ||
+		!strings.Contains(w.Detail(), "last known to be in project proj-new") || !strings.Contains(w.Detail(), "check its current project") {
+		t.Errorf("an unread location must not be stated as fact: %q / %q", w.Summary(), w.Detail())
+	}
+}
+
+func TestUpdateRepo_RollbackThatLandedDespiteAnErrorNeedsNoWarning(t *testing.T) {
+	f := &fakeMoveBackend{project: "proj-old"}
+	diags, _ := failingConfigUpdate(t, f, func(o *repoOps) {
+		o.client = testutils.NewStubAPIClient(func(req *http.Request) *http.Response {
+			f.moves = append(f.moves, "move")
+			if len(f.moves) == 1 {
+				return testutils.JSONResponse(req, http.StatusOK, ``)
+			}
+			return testutils.JSONResponse(req, http.StatusBadRequest, moveErrorBody("move_repository_context_error"))
+		})
+	})
+	if !diags.HasError() || diags.WarningsCount() != 0 {
+		t.Fatalf("the read shows the prior project, so only the config error is expected, got %v", *diags)
 	}
 }
