@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -84,7 +85,7 @@ func (s *ambiguousStub) serve(w http.ResponseWriter, r *http.Request) {
 
 func startStub(t *testing.T, c opCase, commits bool) (*ambiguousStub, *api_client.APIClient) {
 	t.Helper()
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &ambiguousStub{c: c, commits: commits}
 	srv := httptest.NewServer(http.HandlerFunc(stub.serve))
 	t.Cleanup(srv.Close)

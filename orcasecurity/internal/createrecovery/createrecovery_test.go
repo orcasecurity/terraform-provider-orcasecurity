@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
@@ -30,7 +31,7 @@ func TestRecoverID_NonAmbiguousErrorPassesThrough(t *testing.T) {
 }
 
 func TestRecoverID_AdoptsSingleNewID(t *testing.T) {
-	FastForTest(t)
+	backoff.FastForTest(t)
 	id, warning, err := recoverID(context.Background(), errAmbiguous, "x", ids("old"), func() (map[string]bool, error) {
 		return ids("old", "new"), nil
 	})
@@ -40,7 +41,7 @@ func TestRecoverID_AdoptsSingleNewID(t *testing.T) {
 }
 
 func TestRecoverID_PollsUntilTheCreateShowsUp(t *testing.T) {
-	FastForTest(t)
+	backoff.FastForTest(t)
 	calls := 0
 	id, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		calls++
@@ -55,7 +56,7 @@ func TestRecoverID_PollsUntilTheCreateShowsUp(t *testing.T) {
 }
 
 func TestRecoverID_NoSnapshotNeverAdopts(t *testing.T) {
-	FastForTest(t)
+	backoff.FastForTest(t)
 	_, _, err := recoverID(context.Background(), errAmbiguous, "x", nil, func() (map[string]bool, error) {
 		return ids("new"), nil
 	})
@@ -65,7 +66,7 @@ func TestRecoverID_NoSnapshotNeverAdopts(t *testing.T) {
 }
 
 func TestRecoverID_SeveralNewIDsError(t *testing.T) {
-	FastForTest(t)
+	backoff.FastForTest(t)
 	_, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		return ids("a", "b"), nil
 	})
@@ -75,7 +76,7 @@ func TestRecoverID_SeveralNewIDsError(t *testing.T) {
 }
 
 func TestRecoverID_LookupFailureErrors(t *testing.T) {
-	FastForTest(t)
+	backoff.FastForTest(t)
 	_, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		return nil, errors.New("list down")
 	})

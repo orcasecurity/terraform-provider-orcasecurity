@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
-	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -303,7 +303,7 @@ func TestShiftLeftPolicyCreate_SuccessKeepsPolicy(t *testing.T) {
 // A 504 on create can still have committed the policy. The client must not replay the POST, and
 // Create must adopt the new policy instead of leaving it untracked (seen live on the lab).
 func TestShiftLeftPolicyCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
 		preexisting: []string{"11111111-1111-1111-1111-111111111111"}}
 	stub.start(t)
@@ -322,7 +322,7 @@ func TestShiftLeftPolicyCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T)
 }
 
 func TestShiftLeftPolicyCreate_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout,
 		preexisting: []string{"11111111-1111-1111-1111-111111111111"}}
 	stub.start(t)
@@ -342,7 +342,7 @@ func TestShiftLeftPolicyCreate_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testi
 
 // The backend can still be saving after a 504; the lookup must keep polling, not give up at once.
 func TestShiftLeftPolicyCreate_AmbiguousPostVisibleOnLaterPollIsAdopted(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true, visibleAfterLists: 2}
 	stub.start(t)
 
@@ -356,7 +356,7 @@ func TestShiftLeftPolicyCreate_AmbiguousPostVisibleOnLaterPollIsAdopted(t *testi
 }
 
 func TestShiftLeftPolicyCreate_AmbiguousPostWithSeveralNewPoliciesErrors(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
 		extraCreated: []string{"22222222-2222-2222-2222-222222222222"}}
 	stub.start(t)
@@ -372,7 +372,7 @@ func TestShiftLeftPolicyCreate_AmbiguousPostWithSeveralNewPoliciesErrors(t *test
 
 // Without a pre-create snapshot a same-name policy cannot be told apart, so nothing is adopted.
 func TestShiftLeftPolicyCreate_AmbiguousPostWithoutSnapshotDoesNotAdopt(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
 		listStatusBeforePost: http.StatusInternalServerError}
 	stub.start(t)
@@ -387,7 +387,7 @@ func TestShiftLeftPolicyCreate_AmbiguousPostWithoutSnapshotDoesNotAdopt(t *testi
 }
 
 func TestShiftLeftPolicyCreate_AmbiguousPostWithFailingLookupErrors(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	stub := &policyStub{attachStatus: http.StatusOK, postStatus: http.StatusGatewayTimeout, postCommits: true,
 		listStatusAfterPost: http.StatusInternalServerError}
 	stub.start(t)

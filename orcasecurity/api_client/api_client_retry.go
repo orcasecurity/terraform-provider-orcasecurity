@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 )
 
 const (
@@ -49,15 +51,12 @@ func isNonIdempotent(req *http.Request) bool {
 	return req.Method == http.MethodPost && req.Context().Value(noReplayPostKey{}) != nil
 }
 
-var (
-	retrySleep  = sleepCtx
-	retryJitter = func(n time.Duration) time.Duration {
-		if n <= 0 {
-			return 0
-		}
-		return rand.N(n)
+var retryJitter = func(n time.Duration) time.Duration {
+	if n <= 0 {
+		return 0
 	}
-)
+	return rand.N(n)
+}
 
 func slurpRequestBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil {
@@ -97,7 +96,7 @@ func (c *APIClient) sleepIfRetriableTransportError(ctx context.Context, attempt 
 	if attempt >= maxHTTPRetryAttempts-1 || !c.isRetriableRoundTripError(errOut) {
 		return false, nil
 	}
-	if err := retrySleep(ctx, retryDelay(attempt, nil)); err != nil {
+	if err := backoff.Sleep(ctx, retryDelay(attempt, nil)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -118,7 +117,7 @@ func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, r
 	if !isRetriableHTTPStatus(res.StatusCode) || attempt >= maxAttemptsForStatus(res.StatusCode)-1 {
 		return apiResp, false, nil
 	}
-	if err := retrySleep(ctx, retryDelay(attempt, res)); err != nil {
+	if err := backoff.Sleep(ctx, retryDelay(attempt, res)); err != nil {
 		return nil, false, err
 	}
 	return nil, true, nil
@@ -216,20 +215,6 @@ func backoffWithJitter(attempt int, base, maxDelay time.Duration) time.Duration 
 		d = maxDelay
 	}
 	return d + retryJitter(d/2)
-}
-
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return nil
-	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
 }
 
 // roundTripIteration runs a single HTTP attempt (execute, read body, apply HTTP retry policy).

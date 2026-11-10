@@ -11,17 +11,14 @@ import (
 	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // After a 504/timeout the backend may still be saving, so the lookup is retried (about 30s total).
-// FastForTest swaps these package vars, so tests that call it must not use t.Parallel.
-var (
-	PollDelays = []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
-	Sleep      = sleepCtx
-)
+var pollDelays = []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
 
 // A failed snapshot returns nil, which disables adoption.
 func snapshot(ctx context.Context, what string, list api_client.IDLister) map[string]bool {
@@ -85,51 +82,23 @@ func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diag
 }
 
 func newSince(ctx context.Context, before map[string]bool, list api_client.IDLister) ([]string, time.Duration, error) {
-	var waited time.Duration
-	var lastErr error
-	for _, d := range PollDelays {
-		if err := Sleep(ctx, d); err != nil {
-			return nil, waited, err
-		}
-		waited += d
+	var created []string
+	waited, err := backoff.Poll(ctx, pollDelays, func() (bool, error) {
 		after, err := list()
 		if err != nil {
-			lastErr = err
-			continue
+			return false, err
 		}
-		lastErr = nil
-		var created []string
+		created = created[:0]
 		for id := range after {
 			if !before[id] {
 				created = append(created, id)
 			}
 		}
-		if len(created) > 0 {
-			sort.Strings(created)
-			return created, waited, nil
-		}
+		return len(created) > 0, nil
+	})
+	if err != nil || len(created) == 0 {
+		return nil, waited, err
 	}
-	return nil, waited, lastErr
-}
-
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return nil
-	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
-}
-
-// FastForTest removes the backoff between lookups for the duration of a test.
-func FastForTest(t interface{ Cleanup(func()) }) {
-	delays, sleep := PollDelays, Sleep
-	PollDelays = []time.Duration{0, time.Millisecond, time.Millisecond, time.Millisecond}
-	Sleep = func(context.Context, time.Duration) error { return nil }
-	t.Cleanup(func() { PollDelays, Sleep = delays, sleep })
+	sort.Strings(created)
+	return created, waited, nil
 }

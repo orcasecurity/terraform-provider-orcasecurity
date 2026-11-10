@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
-	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
@@ -144,7 +144,7 @@ func TestResourceCreate_BuildPayloadAndExtract(t *testing.T) {
 }
 
 func TestResourceCreate_AmbiguousPostIsRecoveredByTemplateName(t *testing.T) {
-	createrecovery.FastForTest(t)
+	backoff.FastForTest(t)
 	posts := 0
 	r, sch, closeFn := configuredResource(t, itsmOptions(), func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")

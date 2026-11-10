@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity"
-	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -114,7 +114,7 @@ func (s *installationStub) postCount() int {
 func TestInstallationCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
 	for _, scm := range stubSCMs {
 		t.Run(scm.name, func(t *testing.T) {
-			createrecovery.FastForTest(t)
+			backoff.FastForTest(t)
 			stub := &installationStub{path: scm.path, postStatus: http.StatusGatewayTimeout, postCommits: true,
 				preexisting: []string{"44444444-4444-4444-4444-444444444444"}}
 			stub.start(t)
@@ -136,7 +136,7 @@ func TestInstallationCreate_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
 func TestInstallationCreate_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
 	for _, scm := range stubSCMs {
 		t.Run(scm.name, func(t *testing.T) {
-			createrecovery.FastForTest(t)
+			backoff.FastForTest(t)
 			stub := &installationStub{path: scm.path, postStatus: http.StatusGatewayTimeout}
 			stub.start(t)
 

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 )
 
 const (
@@ -26,7 +28,7 @@ func (client *APIClient) getSonarRule(id string) (resp *APIResponse, missing boo
 	path := fmt.Sprintf("/api/sonar/rules/%s", id)
 	resp, err = client.Get(path)
 	if resp != nil && resp.StatusCode() == http.StatusInternalServerError {
-		if sleepErr := retrySleep(context.Background(), deletedRuleRecheckDelay+retryJitter(deletedRuleRecheckDelay/2)); sleepErr != nil {
+		if sleepErr := backoff.Sleep(context.Background(), deletedRuleRecheckDelay+retryJitter(deletedRuleRecheckDelay/2)); sleepErr != nil {
 			return nil, false, sleepErr
 		}
 		resp, err = client.Get(path)

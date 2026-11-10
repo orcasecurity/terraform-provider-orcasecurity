@@ -15,7 +15,7 @@ import (
 
 	"terraform-provider-orcasecurity/orcasecurity"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
-	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -148,7 +148,7 @@ func TestAccAmbiguousCreate_CommittedPostIsAdopted(t *testing.T) {
 func TestAccAmbiguousCreate_DroppedPostSaysCheckUI(t *testing.T) {
 	for _, c := range accCases {
 		t.Run(c.name, func(t *testing.T) {
-			createrecovery.FastForTest(t)
+			backoff.FastForTest(t)
 			proxy, direct := startFaultProxy(t, c.post, false)
 			name := accName(c)
 			resource.Test(t, resource.TestCase{
