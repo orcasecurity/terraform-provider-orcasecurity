@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 )
@@ -105,20 +106,24 @@ func listExternalServiceConfigs[P any](client *APIClient, serviceName, templateN
 		}
 		return nil, err
 	}
-	keys := configListResponse[struct{}]{}
 	rows := struct {
-		Data []P `json:"data"`
+		Data []json.RawMessage `json:"data"`
 	}{}
-	if err := resp.ReadJSON(&keys); err != nil {
-		return nil, fmt.Errorf("failed to decode %s list response: %w", serviceName, err)
-	}
 	if err := resp.ReadJSON(&rows); err != nil {
 		return nil, fmt.Errorf("failed to decode %s list response: %w", serviceName, err)
 	}
 	matches := map[string]*P{}
-	for i, key := range keys.Data {
+	for _, raw := range rows.Data {
+		var key ConfigEnvelope[struct{}]
+		row := new(P)
+		if err := json.Unmarshal(raw, &key); err != nil {
+			return nil, fmt.Errorf("failed to decode %s list row: %w", serviceName, err)
+		}
+		if err := json.Unmarshal(raw, row); err != nil {
+			return nil, fmt.Errorf("failed to decode %s list row: %w", serviceName, err)
+		}
 		if key.ServiceName == serviceName && sameName(key.TemplateName, templateName) {
-			matches[key.ID] = &rows.Data[i]
+			matches[key.ID] = row
 		}
 	}
 	return matches, nil
