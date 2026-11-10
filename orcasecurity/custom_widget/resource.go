@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -790,10 +791,10 @@ func (r *customWidgetResource) Create(ctx context.Context, req resource.CreateRe
 		FilterData:        filterData,
 		ExtraParameters:   generateExtraParameters(&plan),
 		OrganizationLevel: plan.OrganizationLevel.ValueBool(),
-		ViewType:          "customs_widgets",
+		ViewType:          api_client.CustomWidgetViewType,
 	}
 
-	instance, err := r.apiClient.CreateCustomWidget(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.CustomWidgetCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			errCreatingCustomWidget,

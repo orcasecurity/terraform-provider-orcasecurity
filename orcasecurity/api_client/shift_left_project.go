@@ -68,7 +68,7 @@ func (client *APIClient) DoesShiftLeftProjectExist(id string) (bool, error) {
 }
 
 func (client *APIClient) CreateShiftLeftProject(shift_left_project ShiftLeftProject) (*ShiftLeftProject, error) {
-	resp, err := client.Post("/api/shiftleft/projects/", shift_left_project)
+	resp, err := client.PostCreate("/api/shiftleft/projects/", shift_left_project)
 	if err != nil {
 		return nil, err
 	}

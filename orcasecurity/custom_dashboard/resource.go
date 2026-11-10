@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -284,7 +285,7 @@ func (r *customDashboardResource) Create(ctx context.Context, req resource.Creat
 		ViewType:          plan.ViewType.ValueString(),
 	}
 
-	instance, err := r.apiClient.CreateCustomDashboard(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.CustomDashboardCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating custom dashboard",

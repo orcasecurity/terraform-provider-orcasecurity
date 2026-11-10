@@ -56,7 +56,7 @@ func (client *APIClient) GetCustomDashboard(id string) (*CustomDashboard, error)
 }
 
 func (client *APIClient) CreateCustomDashboard(data CustomDashboard) (*CustomDashboard, error) {
-	resp, err := client.Post("/api/user_preferences", data)
+	resp, err := client.PostCreate("/api/user_preferences", data)
 	if err != nil {
 		return nil, err
 	}

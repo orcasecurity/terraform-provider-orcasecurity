@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type Vulnerability struct {
@@ -52,7 +53,7 @@ func (client *APIClient) DoesShiftLeftCveExceptionListExist(id string) (bool, er
 }
 
 func (client *APIClient) CreateShiftLeftCveExceptionList(data ShiftLeftCveExceptionList) (*ShiftLeftCveExceptionList, error) {
-	resp, err := client.Post("/api/shiftleft/exceptions/", data)
+	resp, err := client.PostCreate("/api/shiftleft/exceptions/", data)
 	if err != nil {
 		return nil, err
 	}
@@ -86,4 +87,28 @@ func (client *APIClient) UpdateShiftLeftCveExceptionList(ID string, data ShiftLe
 func (client *APIClient) DeleteShiftLeftCveExceptionList(ID string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/shiftleft/exceptions/%s/", ID))
 	return err
+}
+
+type shiftLeftExceptionListSummary struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func (client *APIClient) ListShiftLeftCveExceptionListIDsByName(name string) (map[string]bool, error) {
+	filters := listFilters{"search": strings.TrimSpace(name), "search_fields": "exception_name"}
+	all, err := getAllScmPages[shiftLeftExceptionListSummary](client, "/api/shiftleft/exceptions/", filters)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(e *shiftLeftExceptionListSummary) string { return e.ID },
+		func(e *shiftLeftExceptionListSummary) bool { return sameName(e.Name, name) }), nil
+}
+
+func (client *APIClient) ShiftLeftCveExceptionListCreateOp(data ShiftLeftCveExceptionList) CreateOp[ShiftLeftCveExceptionList] {
+	return CreateOp[ShiftLeftCveExceptionList]{
+		What:   fmt.Sprintf("shift-left exception list named %q", data.Name),
+		Create: func() (*ShiftLeftCveExceptionList, error) { return client.CreateShiftLeftCveExceptionList(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListShiftLeftCveExceptionListIDsByName(data.Name) },
+		Get:    client.GetShiftLeftCveExceptionList,
+	}
 }

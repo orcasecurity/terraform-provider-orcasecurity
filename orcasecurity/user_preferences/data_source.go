@@ -70,7 +70,7 @@ func (ds *userPreferencesDataSource) Schema(_ context.Context, _ datasource.Sche
 }
 
 func (ds *userPreferencesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	widgets, err := ds.apiClient.ListCustomWidgets()
+	widgets, err := ds.apiClient.ListUserPreferences(api_client.CustomWidgetViewType)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to list custom widgets", err.Error())
 		return
