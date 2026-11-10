@@ -510,6 +510,9 @@ func TestMoveRepositoryContexts_RefusalCodes(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected an error")
 			}
+			if !strings.Contains(err.Error(), tc.code) || !strings.Contains(err.Error(), "refused") {
+				t.Errorf("the original API error text must be kept, got %q", err.Error())
+			}
 			for _, sentinel := range []error{ErrMoveInProgress, ErrMoveAlreadyInTarget} {
 				if errors.Is(err, sentinel) != (sentinel == tc.want) {
 					t.Errorf("errors.Is(%v) = %v, want %v", sentinel, errors.Is(err, sentinel), sentinel == tc.want)
