@@ -27,8 +27,8 @@ type ShiftLeftCveExceptionList struct {
 	Disabled        bool            `json:"disabled"`
 	Vulnerabilities []Vulnerability `json:"vulnerabilities,omitempty"`
 	Projects        []Project       `json:"projects,omitempty"`
-	// Behind shiftleft_cve_exception_list_disabled_semantics the server never stores list-level
-	// disabled=true (it disables every entry instead) and omits the field from responses.
+	// For some orgs the API never stores list-level disabled=true (it disables every entry
+	// instead) and omits the field from responses.
 	DisabledOmitted bool `json:"-"`
 }
 

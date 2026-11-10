@@ -66,8 +66,8 @@ resource "orcasecurity_shift_left_cve_exception_list" "shiftleft_exception_list_
 	})
 }
 
-// Behind the org flag shiftleft_cve_exception_list_disabled_semantics, list-level disabled=true is
-// stored as "every entry disabled" and omitted from responses; either way the plan must stay clean.
+// For some orgs the API stores list-level disabled=true as "every entry disabled" and omits it from
+// responses; either way the plan must stay clean.
 func TestAccShiftLeftCveExceptionListResource_ListLevelDisabled(t *testing.T) {
 	withEntry := func(entryDisabled bool) string {
 		return fmt.Sprintf(`
