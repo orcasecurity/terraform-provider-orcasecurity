@@ -523,15 +523,18 @@ func TestAPIToState_FileSystemVulnerabilities_ScopedRead(t *testing.T) {
 }
 
 func TestValidateTypeBlock(t *testing.T) {
+	// Matching block present: no error.
 	model := &shiftLeftPolicyResourceModel{Sast: &sastBlockModel{}}
 	if diags := validateTypeBlock("sast", model); diags.HasError() {
 		t.Errorf("expected no error when sast block is present, got %v", diags)
 	}
 
+	// Missing block: error.
 	if diags := validateTypeBlock("sast", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error when sast block is missing")
 	}
 
+	// Unknown type: error.
 	if diags := validateTypeBlock("nope", &shiftLeftPolicyResourceModel{}); !diags.HasError() {
 		t.Error("expected error for unknown policy type")
 	}

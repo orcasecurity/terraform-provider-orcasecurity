@@ -1,3 +1,5 @@
+// Package tfconv holds the shared conversions between terraform-plugin-framework
+// attribute values and the plain Go values used by api_client payloads.
 package tfconv
 
 import (
@@ -8,14 +10,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// Known reports whether v is neither null nor unknown.
 func Known(v attr.Value) bool {
 	return !v.IsNull() && !v.IsUnknown()
 }
 
+// BoolIsTrue reports whether b is known and true.
 func BoolIsTrue(b types.Bool) bool {
 	return Known(b) && b.ValueBool()
 }
 
+// StringIsSet reports whether s is known and non-empty.
 func StringIsSet(s types.String) bool {
 	return Known(s) && s.ValueString() != ""
 }
@@ -38,6 +43,7 @@ func stringValues(values []string) []attr.Value {
 	return elems
 }
 
+// SetToStringSlice converts a types.Set of strings to a Go slice.
 // Null and unknown sets become nil (omitted from the JSON payload).
 func SetToStringSlice(s types.Set) []string {
 	if !Known(s) {
@@ -46,7 +52,8 @@ func SetToStringSlice(s types.Set) []string {
 	return stringElements(s.Elements())
 }
 
-// Never returns nil — send [] to clear on PATCH endpoints where omitted keys are unchanged.
+// SetToStringSliceNonNull is SetToStringSlice but never returns nil: a null,
+// unknown, or empty set becomes []string{}. See ListToStringSliceNonNull.
 func SetToStringSliceNonNull(s types.Set) []string {
 	if out := SetToStringSlice(s); out != nil {
 		return out
@@ -54,6 +61,7 @@ func SetToStringSliceNonNull(s types.Set) []string {
 	return []string{}
 }
 
+// ListToStringSlice converts a types.List of strings to a Go slice.
 // Null and unknown lists become nil (omitted from the JSON payload).
 func ListToStringSlice(l types.List) []string {
 	if !Known(l) {
@@ -62,7 +70,10 @@ func ListToStringSlice(l types.List) []string {
 	return stringElements(l.Elements())
 }
 
-// Never returns nil — send [] to clear on PATCH endpoints where omitted keys are unchanged.
+// ListToStringSliceNonNull is ListToStringSlice but never returns nil: a null,
+// unknown, or empty list becomes []string{}. Use it for payloads that must
+// always serialize the field as [] — e.g. partial-update endpoints where an
+// omitted key keeps its remote value, so clearing a list requires sending [].
 func ListToStringSliceNonNull(l types.List) []string {
 	if out := ListToStringSlice(l); out != nil {
 		return out
@@ -70,6 +81,7 @@ func ListToStringSliceNonNull(l types.List) []string {
 	return []string{}
 }
 
+// StringSliceToSet maps an API string slice to a set: empty becomes null.
 func StringSliceToSet(values []string) types.Set {
 	if len(values) == 0 {
 		return types.SetNull(types.StringType)
@@ -77,7 +89,10 @@ func StringSliceToSet(values []string) types.Set {
 	return types.SetValueMust(types.StringType, stringValues(values))
 }
 
-// Preserve null-vs-[] so a configured empty set does not drift when the API omits values.
+// StringSliceToSetPreserveNull maps an API string slice back to a set in
+// state. When the API returns empty and the prior state was null (attribute not
+// configured), null is preserved to avoid a perpetual null-vs-[] diff; a
+// configured attribute keeps an empty set, not null.
 func StringSliceToSetPreserveNull(prior types.Set, values []string) types.Set {
 	if len(values) == 0 && prior.IsNull() {
 		return types.SetNull(types.StringType)
@@ -85,6 +100,7 @@ func StringSliceToSetPreserveNull(prior types.Set, values []string) types.Set {
 	return types.SetValueMust(types.StringType, stringValues(values))
 }
 
+// StringSliceToListPreserveNull is StringSliceToSetPreserveNull for lists.
 func StringSliceToListPreserveNull(prior types.List, values []string) types.List {
 	if len(values) == 0 && prior.IsNull() {
 		return types.ListNull(types.StringType)
@@ -92,6 +108,7 @@ func StringSliceToListPreserveNull(prior types.List, values []string) types.List
 	return types.ListValueMust(types.StringType, stringValues(values))
 }
 
+// StringOrNull maps optional API strings: empty string becomes null.
 func StringOrNull(v string) types.String {
 	if v == "" {
 		return types.StringNull()
@@ -126,7 +143,7 @@ func StringListFromAPI(ctx context.Context, values []string) (types.List, diag.D
 
 // StringSetFromAPIPreserveNull maps an API string slice back to a set in
 // state, preserving null when the API returns empty and the prior state was
-// null.
+// null. See StringSliceToSetPreserveNull.
 func StringSetFromAPIPreserveNull(ctx context.Context, prior types.Set, values []string) (types.Set, diag.Diagnostics) {
 	if len(values) == 0 {
 		if prior.IsNull() {
@@ -149,6 +166,7 @@ func Int64ToAPIPtr(v types.Int64) *int64 {
 	return &value
 }
 
+// Int64FromAPIPtr maps an optional API integer back to state: nil becomes null.
 func Int64FromAPIPtr(v *int64) types.Int64 {
 	if v == nil {
 		return types.Int64Null()

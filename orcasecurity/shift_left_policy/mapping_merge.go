@@ -10,6 +10,8 @@ func mergeBaseControlFromPlan(dst *baseControlModel, src baseControlModel) {
 	if tfconv.StringIsSet(src.ID) {
 		dst.ID = src.ID
 	} else {
+		// Config referenced the control by title (or it is custom): keep id null
+		// in state so an API-resolved id does not show as drift.
 		dst.ID = types.StringNull()
 	}
 	if tfconv.StringIsSet(src.Priority) {

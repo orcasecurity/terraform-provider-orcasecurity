@@ -205,6 +205,8 @@ func scmControlsToMaps(items []scmControlModel) []map[string]interface{} {
 	return mapSlice(items, scmControlToMap)
 }
 
+// buildContainerImageData populates the container_image policy_data scopes and
+// returns the flat list of all controls across every feature scope.
 func buildContainerImageData(block *containerImageBlockModel, policy *api_client.ShiftLeftPolicy, policyData map[string]interface{}) []map[string]interface{} {
 	policy.FeatureScope = stringSliceFromTypes(block.FeatureScope)
 	policyData["feature_scope"] = policy.FeatureScope
@@ -229,6 +231,7 @@ func buildContainerImageData(block *containerImageBlockModel, policy *api_client
 	return controls
 }
 
+// buildScmScope encodes the scm_posture scope and returns the encoded scope plus its controls.
 func buildScmScope(block *scmPostureBlockModel) (json.RawMessage, []map[string]interface{}, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	scope := map[string][]string{}

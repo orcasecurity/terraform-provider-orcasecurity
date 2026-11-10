@@ -270,6 +270,7 @@ func quoteAll(values []string) []string {
 	return out
 }
 
+// buildControlsAndData dispatches per policy type, returning the controls slice and policy_data map.
 func buildControlsAndData(model *shiftLeftPolicyResourceModel, policy *api_client.ShiftLeftPolicy) ([]map[string]interface{}, map[string]interface{}, diag.Diagnostics) {
 	policyData := map[string]interface{}{}
 	buildWrite := policyTypeHandlers[model.Type.ValueString()].buildWrite
@@ -283,6 +284,8 @@ func buildControlsAndData(model *shiftLeftPolicyResourceModel, policy *api_clien
 	return controls, policyData, diags
 }
 
+// allControlsScopeKeys returns the scope keys for which the config requested all
+// catalog controls. Container_image uses feature scope names; other types use "".
 func allControlsScopeKeys(model *shiftLeftPolicyResourceModel) []string {
 	h, ok := policyTypeHandlers[model.Type.ValueString()]
 	if !ok || h.allControlsScopes == nil {

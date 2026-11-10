@@ -8,7 +8,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
-// Like objectvalidator.AtLeastOneOf, but skips when the nested object itself is null.
+// atLeastOneChildSet validates that, when a nested object block is configured
+// (non-null), at least one of the named child attributes is set. Unlike
+// objectvalidator.AtLeastOneOf, it does NOT fire when the object itself is null,
+// so the block stays optional.
 type atLeastOneChildSet struct {
 	attributes []string
 }
@@ -26,6 +29,7 @@ func (v atLeastOneChildSet) MarkdownDescription(ctx context.Context) string {
 }
 
 func (v atLeastOneChildSet) ValidateObject(_ context.Context, req validator.ObjectRequest, resp *validator.ObjectResponse) {
+	// Block not configured, or not yet known - nothing to enforce.
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
@@ -36,6 +40,7 @@ func (v atLeastOneChildSet) ValidateObject(_ context.Context, req validator.Obje
 		if !ok {
 			continue
 		}
+		// Unknown value may resolve to something set - don't error early.
 		if val.IsUnknown() {
 			return
 		}

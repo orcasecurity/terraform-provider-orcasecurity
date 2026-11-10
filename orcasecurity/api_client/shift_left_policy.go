@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// ShiftLeftPolicy represents an AppSec (Shift Left) policy from the API.
 type ShiftLeftPolicy struct {
 	ID                       string                   `json:"id,omitempty"`
 	Name                     string                   `json:"name"`
@@ -32,6 +33,7 @@ type ShiftLeftPolicyProject struct {
 	ID string `json:"id"`
 }
 
+// ShiftLeftPolicyCatalogControls holds the raw catalog API response.
 type ShiftLeftPolicyCatalogControls struct {
 	Body json.RawMessage
 }

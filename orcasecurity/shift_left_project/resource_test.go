@@ -15,6 +15,7 @@ func TestAccShiftLeftProjectResource_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
+			// create
 			{
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_shift_left_project" "shift_left_project_1" {
@@ -29,11 +30,13 @@ resource "orcasecurity_shift_left_project" "shift_left_project_1" {
 					resource.TestCheckResourceAttr("orcasecurity_shift_left_project.shift_left_project_1", "description", "Project for all repos"),
 				),
 			},
+			// import
 			{
 				ResourceName:      "orcasecurity_shift_left_project.shift_left_project_1",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
+			// update
 			{
 				Config: orcasecurity.TestProviderConfig + fmt.Sprintf(`
 resource "orcasecurity_shift_left_project" "shift_left_project_1" {

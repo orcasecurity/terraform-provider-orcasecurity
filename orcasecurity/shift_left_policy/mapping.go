@@ -157,6 +157,8 @@ func apiToState(apiPolicy *api_client.ShiftLeftPolicy, existing *shiftLeftPolicy
 	return model
 }
 
+// stateFromPlanAfterWrite anchors post-create/update state on the applied plan.
+// Nested container controls in API responses are not reliably round-tripped immediately after write.
 func stateFromPlanAfterWrite(plan *shiftLeftPolicyResourceModel, apiPolicy *api_client.ShiftLeftPolicy) *shiftLeftPolicyResourceModel {
 	state := *plan
 	state.ID = types.StringValue(apiPolicy.ID)
