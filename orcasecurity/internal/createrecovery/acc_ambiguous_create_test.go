@@ -21,13 +21,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// accCase is a live create that the fault proxy turns ambiguous. ids is the natural-key lister recovery
-// uses; the committed mode's exactly-one-copy check is what proves it sees a new object, so the dropped
-// mode's zero-copies check is not trivially true.
+// accCase is a live create that the fault proxy turns ambiguous. path is the create path and method
+// its verb (default POST). ids is the natural-key lister recovery uses; the committed mode's
+// exactly-one-copy check is what proves it sees a new object, so the dropped mode's zero-copies check
+// is not trivially true.
 type accCase struct {
 	name    string
 	address string
-	post    string
+	method  string
+	path    string
 	config  func(name string) string
 	ids     func(c *api_client.APIClient, name string) (map[string]bool, error)
 }
@@ -35,21 +37,22 @@ type accCase struct {
 // accCases is filled by each domain's acc_*_test.go init.
 var accCases []accCase
 
-// faultProxy forwards everything to the lab, except the first POST to post: with commit it is
-// forwarded (the lab saves it) and the client gets a 504 anyway; without commit it is dropped.
+// faultProxy forwards everything to the lab, except the first create (method on path): with commit it
+// is forwarded (the lab saves it) and the client gets a 504 anyway; without commit it is dropped.
 type faultProxy struct {
 	mu       sync.Mutex
 	upstream *httputil.ReverseProxy
-	post     string
+	method   string
+	path     string
 	commit   bool
 	injected bool
-	posts    int
+	creates  int
 }
 
 func (p *faultProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost && strings.TrimSuffix(r.URL.Path, "/") == strings.TrimSuffix(p.post, "/") {
+	if r.Method == p.method && strings.TrimSuffix(r.URL.Path, "/") == strings.TrimSuffix(p.path, "/") {
 		p.mu.Lock()
-		p.posts++
+		p.creates++
 		inject := !p.injected
 		p.injected = true
 		p.mu.Unlock()
@@ -64,13 +67,13 @@ func (p *faultProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.upstream.ServeHTTP(w, r)
 }
 
-func (p *faultProxy) postCount() int {
+func (p *faultProxy) createCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.posts
+	return p.creates
 }
 
-func startFaultProxy(t *testing.T, post string, commit bool) (*faultProxy, *api_client.APIClient) {
+func startFaultProxy(t *testing.T, c accCase, commit bool) (*faultProxy, *api_client.APIClient) {
 	t.Helper()
 	endpoint, token := os.Getenv("ORCASECURITY_API_ENDPOINT"), os.Getenv("ORCASECURITY_API_TOKEN")
 	if os.Getenv("TF_ACC") == "" || endpoint == "" || token == "" {
@@ -86,7 +89,7 @@ func startFaultProxy(t *testing.T, post string, commit bool) (*faultProxy, *api_
 		director(r)
 		r.Host = target.Host
 	}
-	proxy := &faultProxy{upstream: upstream, post: post, commit: commit}
+	proxy := &faultProxy{upstream: upstream, method: createMethod(c.method), path: c.path, commit: commit}
 	srv := httptest.NewServer(proxy)
 	t.Cleanup(srv.Close)
 	direct, _ := api_client.NewAPIClient(&endpoint, &token)
@@ -111,21 +114,21 @@ func labCopies(c accCase, direct *api_client.APIClient, name string, want int) r
 	}
 }
 
-func onePost(proxy *faultProxy) resource.TestCheckFunc {
+func oneCreate(proxy *faultProxy) resource.TestCheckFunc {
 	return func(*terraform.State) error {
-		if got := proxy.postCount(); got != 1 {
-			return fmt.Errorf("the ambiguous create must be sent once, the lab got %d POSTs", got)
+		if got := proxy.createCount(); got != 1 {
+			return fmt.Errorf("the ambiguous create must be sent once, the lab got %d %ss", got, proxy.method)
 		}
 		return nil
 	}
 }
 
-// TestAccAmbiguousCreate_CommittedPostIsAdopted: the lab saves the create but the provider sees a
-// 504. The object must be adopted (one POST, one copy on the lab, clean follow-up plan).
-func TestAccAmbiguousCreate_CommittedPostIsAdopted(t *testing.T) {
+// TestAccAmbiguousCreate_CommittedCreateIsAdopted: the lab saves the create but the provider sees a
+// 504. The object must be adopted (one create, one copy on the lab, clean follow-up plan).
+func TestAccAmbiguousCreate_CommittedCreateIsAdopted(t *testing.T) {
 	for _, c := range accCases {
 		t.Run(c.name, func(t *testing.T) {
-			proxy, direct := startFaultProxy(t, c.post, true)
+			proxy, direct := startFaultProxy(t, c, true)
 			name := accName(c)
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -133,7 +136,7 @@ func TestAccAmbiguousCreate_CommittedPostIsAdopted(t *testing.T) {
 					Config: orcasecurity.TestProviderConfig + c.config(name),
 					Check: resource.ComposeAggregateTestCheckFunc(
 						resource.TestCheckResourceAttrSet(c.address, "id"),
-						onePost(proxy),
+						oneCreate(proxy),
 						labCopies(c, direct, name, 1),
 					),
 				}},
@@ -143,13 +146,13 @@ func TestAccAmbiguousCreate_CommittedPostIsAdopted(t *testing.T) {
 	}
 }
 
-// TestAccAmbiguousCreate_DroppedPostSaysCheckUI: the create never reaches the lab. The apply must
+// TestAccAmbiguousCreate_DroppedCreateSaysCheckUI: the create never reaches the lab. The apply must
 // fail with the check-the-Orca-UI error, without re-sending, and leave nothing behind.
-func TestAccAmbiguousCreate_DroppedPostSaysCheckUI(t *testing.T) {
+func TestAccAmbiguousCreate_DroppedCreateSaysCheckUI(t *testing.T) {
 	for _, c := range accCases {
 		t.Run(c.name, func(t *testing.T) {
 			backoff.FastForTest(t)
-			proxy, direct := startFaultProxy(t, c.post, false)
+			proxy, direct := startFaultProxy(t, c, false)
 			name := accName(c)
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: orcasecurity.TestAccProtoV6ProviderFactories,
@@ -157,7 +160,7 @@ func TestAccAmbiguousCreate_DroppedPostSaysCheckUI(t *testing.T) {
 					Config:      orcasecurity.TestProviderConfig + c.config(name),
 					ExpectError: regexp.MustCompile(`check\s+the\s+Orca\s+UI`),
 				}},
-				CheckDestroy: resource.ComposeAggregateTestCheckFunc(onePost(proxy), labCopies(c, direct, name, 0)),
+				CheckDestroy: resource.ComposeAggregateTestCheckFunc(oneCreate(proxy), labCopies(c, direct, name, 0)),
 			})
 		})
 	}

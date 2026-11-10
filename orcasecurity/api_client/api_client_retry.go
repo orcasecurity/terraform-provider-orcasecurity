@@ -29,7 +29,7 @@ const (
 	throttleMaxDelay         = 8 * time.Second
 )
 
-// ErrAmbiguousWrite marks a PostCreate whose outcome is unknown: the client timed out, the connection
+// ErrAmbiguousWrite marks a PostCreate/PutCreate whose outcome is unknown: the client timed out, the connection
 // dropped after send, or a gateway answered 502/504. The server may already have committed it, so
 // it is not replayed (a replay creates a duplicate or fails on the first copy, orphaning it); the
 // caller recovers the outcome instead (see internal/createrecovery).
@@ -46,7 +46,7 @@ func noReplayContext() context.Context {
 }
 
 // isNonIdempotent reports whether req must not be replayed after an ambiguous failure: one sent via
-// sendOnce (PostCreate). Plain Post keeps the full retry policy.
+// sendOnce (PostCreate/PutCreate). Plain Post and Put keep the full retry policy.
 func isNonIdempotent(req *http.Request) bool {
 	return req.Context().Value(noReplayKey{}) != nil
 }
@@ -254,8 +254,8 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 // roundTripWithRetry performs the HTTP round trip with retries for transient
 // transport failures and selected HTTP status codes (408, 429, 502, 503, 504).
 // 429 gets maxThrottleRetryAttempts; everything else maxHTTPRetryAttempts.
-// A POST sent via PostCreate is not idempotent: it retries only 408/429/503 and fails with
-// ErrAmbiguousWrite otherwise. Plain Post keeps the full policy.
+// A create sent via PostCreate/PutCreate is not idempotent: it retries only 408/429/503 and fails
+// with ErrAmbiguousWrite otherwise. Plain Post and Put keep the full policy.
 // On success (any HTTP status), returns a fully read APIResponse; err is only
 // for request body read failures, transport failures after retries, or context
 // cancellation during backoff.

@@ -23,19 +23,27 @@ const (
 
 type runner func(context.Context, *diag.Diagnostics) (string, error)
 
-// opCase is one create under test. post is the create path; get answers every GET by path (query
-// stripped) with created reporting whether the ambiguous POST committed. A preexisting same-named
-// object (oldID) must always be listed so the test proves it is never adopted. empty is the page
-// after the last one for offset-paginated lists (default {"data":[]}). answer, when set, is a 200 body
-// the create gets instead of a 504.
+// opCase is one create under test. path is the create path and method its verb (default POST); get
+// answers every GET by path (query stripped) with created reporting whether the ambiguous create
+// committed. A preexisting same-named object (oldID) must always be listed so the test proves it is
+// never adopted. empty is the page after the last one for offset-paginated lists (default {"data":[]}).
+// answer, when set, is a 200 body the create gets instead of a 504.
 type opCase struct {
 	name    string
-	post    string
+	method  string
+	path    string
 	get     map[string]func(created bool) string
 	empty   string
 	adopted string
 	answer  string
 	op      func(c *api_client.APIClient) runner
+}
+
+func createMethod(method string) string {
+	if method == "" {
+		return http.MethodPost
+	}
+	return method
 }
 
 // opCases is filled by each domain's *_ops_test.go init.
@@ -56,15 +64,15 @@ type ambiguousStub struct {
 	c       opCase
 	commits bool
 	created bool
-	posts   int
+	creates int
 }
 
 func (s *ambiguousStub) serve(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	if r.Method == http.MethodPost && r.URL.Path == s.c.post {
-		s.posts++
+	if r.Method == createMethod(s.c.method) && r.URL.Path == s.c.path {
+		s.creates++
 		s.created = s.commits
 		if s.c.answer != "" {
 			_, _ = w.Write([]byte(s.c.answer))
@@ -111,7 +119,7 @@ func rows(created bool, row func(id string) string, wrap func(items string) stri
 
 func dataList(items string) string { return `{"data":[` + items + `]}` }
 
-func TestCreateOps_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
+func TestCreateOps_AmbiguousCreateThatCommittedIsAdopted(t *testing.T) {
 	for _, c := range opCases {
 		t.Run(c.name, func(t *testing.T) {
 			stub, client := startStub(t, c, true)
@@ -127,14 +135,14 @@ func TestCreateOps_AmbiguousPostThatCommittedIsAdopted(t *testing.T) {
 			if diags.WarningsCount() != 1 {
 				t.Errorf("want one recovery warning, got %v", diags)
 			}
-			if stub.posts != 1 {
-				t.Errorf("an ambiguous create must not be replayed, got %d POSTs", stub.posts)
+			if stub.creates != 1 {
+				t.Errorf("an ambiguous create must not be replayed, got %d creates", stub.creates)
 			}
 		})
 	}
 }
 
-func TestCreateOps_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
+func TestCreateOps_AmbiguousCreateThatDidNotCommitSaysCheckUI(t *testing.T) {
 	for _, c := range opCases {
 		t.Run(c.name, func(t *testing.T) {
 			stub, client := startStub(t, c, false)
@@ -143,8 +151,8 @@ func TestCreateOps_AmbiguousPostThatDidNotCommitSaysCheckUI(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "check the Orca UI") {
 				t.Fatalf("err = %v, want a check-the-Orca-UI error", err)
 			}
-			if stub.posts != 1 {
-				t.Errorf("an ambiguous create must not be replayed, got %d POSTs", stub.posts)
+			if stub.creates != 1 {
+				t.Errorf("an ambiguous create must not be replayed, got %d creates", stub.creates)
 			}
 		})
 	}

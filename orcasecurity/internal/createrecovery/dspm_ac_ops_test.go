@@ -9,7 +9,7 @@ import (
 func listAndGetCase(name, base string, row func(id string) string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
-		post: base,
+		path: base,
 		get: map[string]func(bool) string{
 			base:               func(created bool) string { return rows(created, row, dataList) },
 			base + "/" + newID: func(bool) string { return `{"data":` + row(newID) + `}` },

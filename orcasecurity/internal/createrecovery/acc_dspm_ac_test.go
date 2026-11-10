@@ -56,7 +56,7 @@ func accAllowedReposTemplateID(c *api_client.APIClient) (string, error) {
 func init() {
 	accCases = append(accCases,
 		accCase{
-			name: "dspm_policy", address: "orcasecurity_dspm_policy.t", post: "/api/scan_configuration/dspm_policies",
+			name: "dspm_policy", address: "orcasecurity_dspm_policy.t", path: "/api/scan_configuration/dspm_policies",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_dspm_policy" "t" {
@@ -72,7 +72,7 @@ resource "orcasecurity_dspm_policy" "t" {
 			},
 		},
 		accCase{
-			name: "sensitive_data_identifier", address: "orcasecurity_sensitive_data_identifier.t", post: "/api/scan_configuration/dspm_detector",
+			name: "sensitive_data_identifier", address: "orcasecurity_sensitive_data_identifier.t", path: "/api/scan_configuration/dspm_detector",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_sensitive_data_identifier" "t" {
@@ -91,7 +91,7 @@ resource "orcasecurity_sensitive_data_identifier" "t" {
 			ids: (*api_client.APIClient).ListDSPMDetectorIDsByTitle,
 		},
 		accCase{
-			name: "admission_controller_control", address: "orcasecurity_admission_controller_control.dep", post: "/api/admission_controller/controls",
+			name: "admission_controller_control", address: "orcasecurity_admission_controller_control.dep", path: "/api/admission_controller/controls",
 			config: accAdmissionControl,
 			ids: func(c *api_client.APIClient, n string) (map[string]bool, error) {
 				templateID, err := accAllowedReposTemplateID(c)
@@ -102,7 +102,7 @@ resource "orcasecurity_sensitive_data_identifier" "t" {
 			},
 		},
 		accCase{
-			name: "admission_controller_policy", address: "orcasecurity_admission_controller_policy.dep", post: "/api/admission_controller/policies",
+			name: "admission_controller_policy", address: "orcasecurity_admission_controller_policy.dep", path: "/api/admission_controller/policies",
 			config: func(n string) string {
 				return accAdmissionControl(n+"-control") +
 					accAdmissionPolicy(n, "orcasecurity_admission_controller_control.dep.id")
@@ -112,7 +112,7 @@ resource "orcasecurity_sensitive_data_identifier" "t" {
 			},
 		},
 		accCase{
-			name: "admission_controller_policy_assignment", address: "orcasecurity_admission_controller_policy_assignment.t", post: "/api/admission_controller/scopes",
+			name: "admission_controller_policy_assignment", address: "orcasecurity_admission_controller_policy_assignment.t", path: "/api/admission_controller/scopes",
 			config: func(n string) string {
 				return accAdmissionControl(n+"-control") +
 					accAdmissionPolicy(n+"-policy", "orcasecurity_admission_controller_control.dep.id") + fmt.Sprintf(`
