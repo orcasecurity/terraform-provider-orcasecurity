@@ -23,19 +23,27 @@ const (
 
 type runner func(context.Context, *diag.Diagnostics) (string, error)
 
-// opCase is one create under test. post is the create path; get answers every GET by path (query
-// stripped) with created reporting whether the ambiguous POST committed. A preexisting same-named
-// object (oldID) must always be listed so the test proves it is never adopted. empty is the page
-// after the last one for offset-paginated lists (default {"data":[]}). answer, when set, is a 200 body
-// the create gets instead of a 504.
+// opCase is one create under test. post is the create path and method its verb (default POST); get
+// answers every GET by path (query stripped) with created reporting whether the ambiguous create
+// committed. A preexisting same-named object (oldID) must always be listed so the test proves it is
+// never adopted. empty is the page after the last one for offset-paginated lists (default {"data":[]}).
+// answer, when set, is a 200 body the create gets instead of a 504.
 type opCase struct {
 	name    string
+	method  string
 	post    string
 	get     map[string]func(created bool) string
 	empty   string
 	adopted string
 	answer  string
 	op      func(c *api_client.APIClient) runner
+}
+
+func (c opCase) createMethod() string {
+	if c.method == "" {
+		return http.MethodPost
+	}
+	return c.method
 }
 
 // opCases is filled by each domain's *_ops_test.go init.
@@ -63,7 +71,7 @@ func (s *ambiguousStub) serve(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	if r.Method == http.MethodPost && r.URL.Path == s.c.post {
+	if r.Method == s.c.createMethod() && r.URL.Path == s.c.post {
 		s.posts++
 		s.created = s.commits
 		if s.c.answer != "" {

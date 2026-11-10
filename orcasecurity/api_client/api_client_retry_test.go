@@ -366,6 +366,51 @@ func TestPostCreate_GatewayErrorIsAmbiguous(t *testing.T) {
 	}
 }
 
+// Data detection rules are created with PUT on the collection; a replay after the first PUT committed
+// fails on the (organization, rule_name) constraint and orphans the first rule.
+func TestPutCreate_NotReplayedWhilePlainPutIs(t *testing.T) {
+	for _, code := range []int{http.StatusBadGateway, http.StatusGatewayTimeout} {
+		stubRetrySleep(t)
+		c, n := statusSequenceClient(func(n int) int {
+			if n == 1 {
+				return code
+			}
+			return http.StatusOK
+		})
+		if _, err := c.PutCreate("/api/x", map[string]string{}); !errors.Is(err, ErrAmbiguousWrite) {
+			t.Fatalf("status %d: err = %v, want ErrAmbiguousWrite", code, err)
+		}
+		if *n != 1 {
+			t.Errorf("status %d: PutCreate attempts = %d, want 1", code, *n)
+		}
+		*n = 0
+		if _, err := c.Put("/api/x", map[string]string{}); err != nil {
+			t.Fatalf("status %d: plain Put: %v", code, err)
+		}
+		if *n != 2 {
+			t.Errorf("status %d: plain Put attempts = %d, want 2", code, *n)
+		}
+	}
+
+	stubRetrySleep(t)
+	var tries int
+	httpClient := &http.Client{Transport: errRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		tries++
+		if tries == 1 {
+			return nil, timeoutError{}
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header), Request: req}, nil
+	})}
+	c := &APIClient{APIEndpoint: retryTestAPIEndpoint, APIToken: "secret", HTTPClient: httpClient}
+	if _, err := c.PutCreate("/api/x", map[string]string{}); !errors.Is(err, ErrAmbiguousWrite) || tries != 1 {
+		t.Fatalf("PutCreate timeout: err = %v, attempts = %d; want ErrAmbiguousWrite after 1", err, tries)
+	}
+	tries = 0
+	if _, err := c.Put("/api/x", map[string]string{}); err != nil || tries != 2 {
+		t.Fatalf("plain Put timeout: err = %v, attempts = %d; want success after 2", err, tries)
+	}
+}
+
 func TestRoundTripWithRetry_GETTimeoutStillRetried(t *testing.T) {
 	stubRetrySleep(t)
 	var n int
