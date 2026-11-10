@@ -51,3 +51,17 @@ func TestSleep_EndsWithTheContext(t *testing.T) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
+
+func TestPoll_CancelledWaitKeepsTheLastError(t *testing.T) {
+	FastForTest(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	refused := errors.New("refused")
+	_, err := Poll(ctx, []time.Duration{0, time.Second}, func() (bool, error) {
+		cancel()
+		return false, refused
+	})
+	if !errors.Is(err, refused) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want the last error joined with the cancellation", err)
+	}
+}
