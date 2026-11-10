@@ -2,6 +2,7 @@ package api_client
 
 import (
 	"fmt"
+	"strings"
 )
 
 type Group struct {
@@ -44,7 +45,7 @@ func (client *APIClient) GetGroup(id string) (*Group, error) {
 }
 
 func (client *APIClient) CreateGroup(data Group) (*Group, error) {
-	resp, err := client.Post("/api/rbac/group", data)
+	resp, err := client.PostCreate("/api/rbac/group", data)
 	if err != nil {
 		return nil, err
 	}
@@ -98,4 +99,40 @@ func (client *APIClient) RemoveGroupUsers(groupID string, userIDs []string) erro
 		map[string][]string{"user_ids": userIDs},
 	)
 	return err
+}
+
+type groupListRow struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// The list nests rows one level down: {"total_items": n, "data": {"groups": [...]}}.
+type groupListPage struct {
+	Data *struct {
+		Groups *[]groupListRow `json:"groups"`
+	} `json:"data"`
+}
+
+func (client *APIClient) ListGroupIDsByName(name string) (map[string]bool, error) {
+	all, err := paginateOffsetWith(client, "/api/rbac/group", listFilters{"search": strings.TrimSpace(name)}, 300, 500,
+		func(resp *APIResponse) (*[]groupListRow, error) {
+			var page groupListPage
+			if err := resp.ReadJSON(&page); err != nil || page.Data == nil {
+				return nil, err
+			}
+			return page.Data.Groups, nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(g *groupListRow) string { return g.ID }, func(g *groupListRow) bool { return sameName(g.Name, name) }), nil
+}
+
+func (client *APIClient) GroupCreateOp(data Group) CreateOp[Group] {
+	return CreateOp[Group]{
+		What:   fmt.Sprintf("group named %q", data.Name),
+		Create: func() (*Group, error) { return client.CreateGroup(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListGroupIDsByName(data.Name) },
+		Get:    client.GetGroup,
+	}
 }

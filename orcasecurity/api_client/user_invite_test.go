@@ -52,11 +52,18 @@ func TestCreateUserInvite(t *testing.T) {
 	}
 }
 
-func TestGetUserInvite(t *testing.T) {
-	body := `{"results":[{"id":"` + testUserInviteID + `","email":"tf@example.com","expired":false}]}`
+func TestGetUserInvite_PagesPastFirstPage(t *testing.T) {
+	pages := map[string]string{
+		"0": `{"total_items":2,"data":[{"id":"other","email":"other@example.com"}]}`,
+		"1": `{"total_items":2,"data":[{"id":"` + testUserInviteID + `","email":"tf@example.com","expired":false}]}`,
+	}
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
 		if req.Method != "GET" {
 			t.Errorf("expected GET, got %s", req.Method)
+		}
+		body, ok := pages[req.URL.Query().Get("start_at_index")]
+		if !ok {
+			body = `{"total_items":2,"data":[]}`
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}
 	})}
@@ -73,7 +80,7 @@ func TestGetUserInvite(t *testing.T) {
 
 func TestGetUserInvite_NotFound(t *testing.T) {
 	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"results":[]}`)), Request: req}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"total_items":0,"data":[]}`)), Request: req}
 	})}
 
 	apiClient := newTestAPIClient(httpClient)

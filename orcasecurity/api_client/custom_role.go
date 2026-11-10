@@ -48,7 +48,7 @@ func (client *APIClient) GetCustomRole(id string) (*CustomRole, error) {
 }
 
 func (client *APIClient) CreateCustomRole(data CustomRole) (*CustomRole, error) {
-	resp, err := client.Post("/api/rbac/roles", data)
+	resp, err := client.PostCreate("/api/rbac/roles", data)
 	if err != nil {
 		return nil, err
 	}
@@ -78,4 +78,21 @@ func (client *APIClient) UpdateCustomRole(data CustomRole) (*CustomRole, error) 
 func (client *APIClient) DeleteCustomRole(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/rbac/roles/%s", id))
 	return err
+}
+
+func (client *APIClient) ListCustomRoleIDsByName(name string) (map[string]bool, error) {
+	roles, err := client.ListRBACRoles()
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(roles, func(r *RBACRole) string { return r.ID }, func(r *RBACRole) bool { return sameName(r.Name, name) }), nil
+}
+
+func (client *APIClient) CustomRoleCreateOp(data CustomRole) CreateOp[CustomRole] {
+	return CreateOp[CustomRole]{
+		What:   fmt.Sprintf("custom role named %q", data.Name),
+		Create: func() (*CustomRole, error) { return client.CreateCustomRole(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListCustomRoleIDsByName(data.Name) },
+		Get:    client.GetCustomRole,
+	}
 }

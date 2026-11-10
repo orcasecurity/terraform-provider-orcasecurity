@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 )
 
@@ -44,11 +45,16 @@ func (client *APIClient) GetTrustedCloudAccount(id string) (*TrustedCloudAccount
 	if err != nil {
 		return nil, err
 	}
-	return &response.Data[0], nil
+	for i := range response.Data {
+		if strconv.FormatInt(response.Data[i].ID, 10) == id {
+			return &response.Data[i], nil
+		}
+	}
+	return nil, nil
 }
 
 func (client *APIClient) CreateTrustedCloudAccount(data TrustedCloudAccount) (*TrustedCloudAccount, error) {
-	resp, err := client.Post("/api/organization/trusted_accounts", data)
+	resp, err := client.PostCreate("/api/organization/trusted_accounts", data)
 	if err != nil {
 		return nil, err
 	}
@@ -78,4 +84,30 @@ func (client *APIClient) UpdateTrustedCloudAccount(data TrustedCloudAccount) (*T
 func (client *APIClient) DeleteTrustedCloudAccount(id string) error {
 	_, err := client.Delete(fmt.Sprintf("/api/organization/trusted_accounts?id=%s", id))
 	return err
+}
+
+// Query params feed the ORM filter as-is (cloud_provider is an int column there), so filter on cloud_provider_id only.
+func (client *APIClient) ListTrustedCloudAccountIDs(cloudProvider, cloudAccountID string) (map[string]bool, error) {
+	resp, err := client.Get("/api/organization/trusted_accounts?" + url.Values{"cloud_provider_id": {cloudAccountID}}.Encode())
+	if err != nil {
+		return nil, err
+	}
+	var response trustedCloudAccountAPIResponseTypeRead
+	if err := json.Unmarshal(resp.Body(), &response); err != nil {
+		return nil, err
+	}
+	return idsWhere(response.Data, func(a *TrustedCloudAccount) string { return strconv.FormatInt(a.ID, 10) }, func(a *TrustedCloudAccount) bool {
+		return a.CloudProvider == cloudProvider && a.CloudAccountID == cloudAccountID
+	}), nil
+}
+
+func (client *APIClient) TrustedCloudAccountCreateOp(data TrustedCloudAccount) CreateOp[TrustedCloudAccount] {
+	return CreateOp[TrustedCloudAccount]{
+		What:   fmt.Sprintf("trusted %s cloud account %q", data.CloudProvider, data.CloudAccountID),
+		Create: func() (*TrustedCloudAccount, error) { return client.CreateTrustedCloudAccount(data) },
+		IDs: func() (map[string]bool, error) {
+			return client.ListTrustedCloudAccountIDs(data.CloudProvider, data.CloudAccountID)
+		},
+		Get: client.GetTrustedCloudAccount,
+	}
 }

@@ -37,6 +37,8 @@ type rbacAccessEndpoint struct {
 	path      string
 	ownerKey  string // nested list-row object + payload field stem: "group" | "user"
 	paginated bool
+	// User access create is create_or_extend (an upsert) and keeps Post's replay; group access create inserts.
+	noReplayCreate bool
 }
 
 // rbacAccessRecord is the endpoint-agnostic canonical shape the engine operates
@@ -258,6 +260,14 @@ func (client *APIClient) listAccessForOwner(ep rbacAccessEndpoint, ownerID strin
 	return out, nil
 }
 
+func (client *APIClient) accessIDsMatching(ep rbacAccessEndpoint, want rbacAccessRecord) (map[string]bool, error) {
+	list, err := client.listAccessForOwner(ep, want.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(list, func(r *rbacAccessRecord) string { return r.ID }, func(r *rbacAccessRecord) bool { return rbacAccessScopesMatch(want, *r) }), nil
+}
+
 // findAccess resolves an assignment by scanning the collection: exact id match
 // first, then role+scope as a fallback for when the id changed server-side.
 func (client *APIClient) findAccess(ep rbacAccessEndpoint, assignmentID string, want rbacAccessRecord) (*rbacAccessRecord, error) {
@@ -281,7 +291,11 @@ func (client *APIClient) findAccess(ep rbacAccessEndpoint, assignmentID string, 
 }
 
 func (client *APIClient) createAccess(ep rbacAccessEndpoint, rec rbacAccessRecord) (string, error) {
-	resp, err := client.Post(ep.path, rec.toWire(ep))
+	post := client.Post
+	if ep.noReplayCreate {
+		post = client.PostCreate
+	}
+	resp, err := post(ep.path, rec.toWire(ep))
 	if err != nil {
 		return "", err
 	}

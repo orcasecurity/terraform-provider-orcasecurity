@@ -1,11 +1,14 @@
 package api_client
 
+import "fmt"
+
 const apiRBACGroupAccessPath = "/api/rbac/access/group"
 
 var groupAccessEndpoint = rbacAccessEndpoint{
-	path:      apiRBACGroupAccessPath,
-	ownerKey:  "group",
-	paginated: true,
+	path:           apiRBACGroupAccessPath,
+	ownerKey:       "group",
+	paginated:      true,
+	noReplayCreate: true,
 }
 
 // GroupAccess is the public DTO for a group–role assignment. The shared engine
@@ -92,4 +95,28 @@ func (client *APIClient) UpdateGroupAccess(data GroupAccess) (*GroupAccess, erro
 // DeleteGroupAccess removes a group–role assignment (id carried in the body).
 func (client *APIClient) DeleteGroupAccess(id string) error {
 	return client.deleteAccess(groupAccessEndpoint, id)
+}
+
+func (client *APIClient) ListGroupAccessIDsMatching(want GroupAccess) (map[string]bool, error) {
+	return client.accessIDsMatching(groupAccessEndpoint, want.toRecord())
+}
+
+func (client *APIClient) GroupAccessCreateOp(data GroupAccess) CreateOp[GroupAccess] {
+	return CreateOp[GroupAccess]{
+		What:   fmt.Sprintf("access for group %s with role %s and the same scope", data.GroupID, data.RoleID),
+		Create: func() (*GroupAccess, error) { return client.CreateGroupAccess(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListGroupAccessIDsMatching(data) },
+		Get: func(id string) (*GroupAccess, error) {
+			all, err := client.ListGroupAccessForGroup(data.GroupID)
+			if err != nil {
+				return nil, err
+			}
+			for i := range all {
+				if all[i].ID == id {
+					return &all[i], nil
+				}
+			}
+			return nil, nil
+		},
+	}
 }

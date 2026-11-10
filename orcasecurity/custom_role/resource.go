@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -133,7 +134,7 @@ func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequ
 		Description:      plan.Description.ValueString(),
 	}
 
-	instance, err := r.apiClient.CreateCustomRole(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.CustomRoleCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating custom role",

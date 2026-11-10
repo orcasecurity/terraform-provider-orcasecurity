@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -185,7 +186,7 @@ func (r *groupAccessResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	created, err := r.apiClient.CreateGroupAccess(payload)
+	created, err := createrecovery.Run(ctx, r.apiClient.GroupAccessCreateOp(payload), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating group access", err.Error())
 		return
