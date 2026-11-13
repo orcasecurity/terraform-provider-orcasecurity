@@ -14,6 +14,7 @@ var groupAccessEndpoint = rbacAccessEndpoint{
 type GroupAccess struct {
 	ID                string
 	AllCloudAccounts  bool
+	ShiftleftGlobal   bool
 	RoleID            string
 	GroupID           string
 	CloudAccounts     []string
@@ -27,6 +28,7 @@ func (g GroupAccess) toRecord() rbacAccessRecord {
 		OwnerID:           g.GroupID,
 		RoleID:            g.RoleID,
 		AllCloudAccounts:  g.AllCloudAccounts,
+		ShiftleftGlobal:   g.ShiftleftGlobal,
 		CloudAccounts:     g.CloudAccounts,
 		ShiftleftProjects: g.ShiftleftProjects,
 		UserFilters:       g.UserFilters,
@@ -39,6 +41,7 @@ func groupAccessFromRecord(r rbacAccessRecord) GroupAccess {
 		GroupID:           r.OwnerID,
 		RoleID:            r.RoleID,
 		AllCloudAccounts:  r.AllCloudAccounts,
+		ShiftleftGlobal:   r.ShiftleftGlobal,
 		CloudAccounts:     r.CloudAccounts,
 		ShiftleftProjects: r.ShiftleftProjects,
 		UserFilters:       r.UserFilters,

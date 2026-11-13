@@ -10,15 +10,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var (
-	_ resource.Resource                = &userAccessResource{}
-	_ resource.ResourceWithConfigure   = &userAccessResource{}
-	_ resource.ResourceWithImportState = &userAccessResource{}
+	_ resource.Resource                   = &userAccessResource{}
+	_ resource.ResourceWithConfigure      = &userAccessResource{}
+	_ resource.ResourceWithImportState    = &userAccessResource{}
+	_ resource.ResourceWithValidateConfig = &userAccessResource{}
 )
 
 type userAccessResource struct {
@@ -30,6 +32,7 @@ type userAccessResourceModel struct {
 	UserID            types.String `tfsdk:"user_id"`
 	RoleID            types.String `tfsdk:"role_id"`
 	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	ShiftleftGlobal   types.Bool   `tfsdk:"shiftleft_global"`
 	CloudAccounts     types.List   `tfsdk:"cloud_accounts"`
 	ShiftleftProjects types.List   `tfsdk:"shiftleft_projects"`
 	UserFilters       types.List   `tfsdk:"user_filters"`
@@ -57,7 +60,7 @@ func (r *userAccessResource) ImportState(ctx context.Context, req resource.Impor
 func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a single user's permissions by assigning an RBAC role to a user with optional scope: " +
-			"all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). " +
+			"all cloud accounts, the Shift Left global scope, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). " +
 			"Backed by /api/rbac/access/user. This is the per-user counterpart of `orcasecurity_group_access`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -85,6 +88,13 @@ func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics).",
 				Required:    true,
 			},
+			"shiftleft_global": schema.BoolAttribute{
+				Description: "When true, the role applies to every Shift Left project (the Shift Left global scope). " +
+					"Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
+			},
 			"cloud_accounts": schema.ListAttribute{
 				Description: "Scoped cloud account ids when not using all_cloud_accounts.",
 				ElementType: types.StringType,
@@ -104,6 +114,19 @@ func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}
 }
 
+func (r *userAccessResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config userAccessResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, map[string]types.List{
+		"cloud_accounts":     config.CloudAccounts,
+		"shiftleft_projects": config.ShiftleftProjects,
+		"user_filters":       config.UserFilters,
+	})...)
+}
+
 func (r *userAccessResource) modelToAPI(ctx context.Context, plan userAccessResourceModel, assignmentID string) (api_client.UserAccess, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	cloudAccounts, d := common.StringSliceFromList(ctx, plan.CloudAccounts)
@@ -118,6 +141,7 @@ func (r *userAccessResource) modelToAPI(ctx context.Context, plan userAccessReso
 	return api_client.UserAccess{
 		ID:                assignmentID,
 		AllCloudAccounts:  plan.AllCloudAccounts.ValueBool(),
+		ShiftleftGlobal:   plan.ShiftleftGlobal.ValueBool(),
 		RoleID:            plan.RoleID.ValueString(),
 		UserID:            plan.UserID.ValueString(),
 		CloudAccounts:     cloudAccounts,
@@ -143,6 +167,7 @@ func (r *userAccessResource) apiToModel(ctx context.Context, ua *api_client.User
 		UserID:            types.StringValue(ua.UserID),
 		RoleID:            types.StringValue(ua.RoleID),
 		AllCloudAccounts:  types.BoolValue(ua.AllCloudAccounts),
+		ShiftleftGlobal:   types.BoolValue(ua.ShiftleftGlobal),
 		CloudAccounts:     cloudList,
 		ShiftleftProjects: shiftList,
 		UserFilters:       filterList,

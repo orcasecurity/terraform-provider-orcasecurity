@@ -10,15 +10,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var (
-	_ resource.Resource                = &groupAccessResource{}
-	_ resource.ResourceWithConfigure   = &groupAccessResource{}
-	_ resource.ResourceWithImportState = &groupAccessResource{}
+	_ resource.Resource                   = &groupAccessResource{}
+	_ resource.ResourceWithConfigure      = &groupAccessResource{}
+	_ resource.ResourceWithImportState    = &groupAccessResource{}
+	_ resource.ResourceWithValidateConfig = &groupAccessResource{}
 )
 
 type groupAccessResource struct {
@@ -30,6 +32,7 @@ type groupAccessResourceModel struct {
 	GroupID           types.String `tfsdk:"group_id"`
 	RoleID            types.String `tfsdk:"role_id"`
 	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	ShiftleftGlobal   types.Bool   `tfsdk:"shiftleft_global"`
 	CloudAccounts     types.List   `tfsdk:"cloud_accounts"`
 	ShiftleftProjects types.List   `tfsdk:"shiftleft_projects"`
 	UserFilters       types.List   `tfsdk:"user_filters"`
@@ -56,7 +59,7 @@ func (r *groupAccessResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.",
+		Description: "Assigns an RBAC role to a group with optional scope: all cloud accounts, the Shift Left global scope, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -83,6 +86,13 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics).",
 				Required:    true,
 			},
+			"shiftleft_global": schema.BoolAttribute{
+				Description: "When true, the role applies to every Shift Left project (the Shift Left global scope). " +
+					"Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
+			},
 			"cloud_accounts": schema.ListAttribute{
 				Description: "Scoped cloud account ids when not using all_cloud_accounts.",
 				ElementType: types.StringType,
@@ -102,6 +112,19 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
+func (r *groupAccessResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config groupAccessResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, map[string]types.List{
+		"cloud_accounts":     config.CloudAccounts,
+		"shiftleft_projects": config.ShiftleftProjects,
+		"user_filters":       config.UserFilters,
+	})...)
+}
+
 func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessResourceModel, assignmentID string) (api_client.GroupAccess, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	cloudAccounts, d := common.StringSliceFromList(ctx, plan.CloudAccounts)
@@ -116,6 +139,7 @@ func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessRe
 	return api_client.GroupAccess{
 		ID:                assignmentID,
 		AllCloudAccounts:  plan.AllCloudAccounts.ValueBool(),
+		ShiftleftGlobal:   plan.ShiftleftGlobal.ValueBool(),
 		RoleID:            plan.RoleID.ValueString(),
 		GroupID:           plan.GroupID.ValueString(),
 		CloudAccounts:     cloudAccounts,
@@ -141,6 +165,7 @@ func (r *groupAccessResource) apiToModel(ctx context.Context, ga *api_client.Gro
 		GroupID:           types.StringValue(ga.GroupID),
 		RoleID:            types.StringValue(ga.RoleID),
 		AllCloudAccounts:  types.BoolValue(ga.AllCloudAccounts),
+		ShiftleftGlobal:   types.BoolValue(ga.ShiftleftGlobal),
 		CloudAccounts:     cloudList,
 		ShiftleftProjects: shiftList,
 		UserFilters:       filterList,
@@ -169,6 +194,7 @@ func mergeGroupAccessAfterCreate(refreshed *api_client.GroupAccess, created *api
 		out.UserFilters = payload.UserFilters
 	}
 	out.AllCloudAccounts = payload.AllCloudAccounts
+	out.ShiftleftGlobal = payload.ShiftleftGlobal
 	return &out
 }
 

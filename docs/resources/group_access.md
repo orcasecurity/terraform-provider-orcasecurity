@@ -3,12 +3,12 @@
 page_title: "orcasecurity_group_access Resource - orcasecurity"
 subcategory: ""
 description: |-
-  Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.
+  Assigns an RBAC role to a group with optional scope: all cloud accounts, the Shift Left global scope, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.
 ---
 
 # orcasecurity_group_access (Resource)
 
-Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.
+Assigns an RBAC role to a group with optional scope: all cloud accounts, the Shift Left global scope, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.
 
 ## Example Usage
 
@@ -19,6 +19,16 @@ resource "orcasecurity_group_access" "role_on_bu" {
   role_id            = orcasecurity_custom_role.example.id
   all_cloud_accounts = false
   user_filters       = [orcasecurity_business_unit.example.id]
+}
+
+// Built-in Shift Left roles belong in the Shift Left global scope, not in all_cloud_accounts.
+data "orcasecurity_rbac_roles" "all" {}
+
+resource "orcasecurity_group_access" "shiftleft_user_on_all_projects" {
+  group_id           = orcasecurity_group.example.id
+  role_id            = one([for r in data.orcasecurity_rbac_roles.all.roles : r.id if r.name == "Shiftleft User"])
+  all_cloud_accounts = false
+  shiftleft_global   = true
 }
 
 resource "orcasecurity_custom_role" "example" {
@@ -54,6 +64,7 @@ resource "orcasecurity_group" "example" {
 ### Optional
 
 - `cloud_accounts` (List of String) Scoped cloud account ids when not using all_cloud_accounts.
+- `shiftleft_global` (Boolean) When true, the role applies to every Shift Left project (the Shift Left global scope). Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters.
 - `shiftleft_projects` (List of String) Scoped Shift Left project ids.
 - `user_filters` (List of String) User filter ids (business unit IDs from orcasecurity_business_unit).
 
