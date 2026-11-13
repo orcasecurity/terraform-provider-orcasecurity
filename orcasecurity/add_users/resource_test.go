@@ -125,3 +125,17 @@ func TestModelToRequest_NullEmailProducesSingleEntry(t *testing.T) {
 		t.Errorf("expected single empty-string email, got %v", got.InviteUserEmails)
 	}
 }
+
+func TestModelToRequest_ShiftleftGlobal(t *testing.T) {
+	r := &addUsersResource{}
+	plan := basePlan()
+	plan.ShiftleftGlobal = types.BoolValue(true)
+
+	got, diags := r.modelToRequest(context.Background(), plan)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !got.ShiftleftGlobal || got.AllCloudAccounts {
+		t.Errorf("scope mismatch: shiftleft_global=%v all=%v", got.ShiftleftGlobal, got.AllCloudAccounts)
+	}
+}

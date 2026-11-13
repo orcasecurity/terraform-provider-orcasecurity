@@ -44,6 +44,7 @@ type rbacAccessEndpoint struct {
 type rbacAccessRecord struct {
 	ID                string
 	AllCloudAccounts  bool
+	ShiftleftGlobal   bool
 	RoleID            string
 	OwnerID           string // group id or user id
 	CloudAccounts     []string
@@ -59,6 +60,7 @@ type idRef struct {
 type rbacAccessListRow struct {
 	ID               string          `json:"id"`
 	AllCloudAccounts bool            `json:"all_cloud_accounts"`
+	ShiftleftGlobal  bool            `json:"shiftleft_global"`
 	Group            idRef           `json:"group"`
 	User             idRef           `json:"user"`
 	Role             idRef           `json:"role"`
@@ -83,6 +85,7 @@ func (row rbacAccessListRow) toRecord(ep rbacAccessEndpoint) rbacAccessRecord {
 		OwnerID:           ownerID,
 		RoleID:            row.Role.ID,
 		AllCloudAccounts:  row.AllCloudAccounts,
+		ShiftleftGlobal:   row.ShiftleftGlobal,
 		CloudAccounts:     cloudIDs,
 		ShiftleftProjects: parseShiftleftProjectIDs(row.ShiftleftRaw),
 		UserFilters:       row.UserFilters,
@@ -94,6 +97,7 @@ func (row rbacAccessListRow) toRecord(ep rbacAccessEndpoint) rbacAccessRecord {
 type rbacAccessWire struct {
 	ID                string   `json:"id,omitempty"`
 	AllCloudAccounts  bool     `json:"all_cloud_accounts"`
+	ShiftleftGlobal   bool     `json:"shiftleft_global"`
 	RoleID            string   `json:"role_id"`
 	GroupID           string   `json:"group_id,omitempty"`
 	UserID            string   `json:"user_id,omitempty"`
@@ -106,6 +110,7 @@ func (r rbacAccessRecord) toWire(ep rbacAccessEndpoint) rbacAccessWire {
 	w := rbacAccessWire{
 		ID:                r.ID,
 		AllCloudAccounts:  r.AllCloudAccounts,
+		ShiftleftGlobal:   r.ShiftleftGlobal,
 		RoleID:            r.RoleID,
 		CloudAccounts:     r.CloudAccounts,
 		ShiftleftProjects: r.ShiftleftProjects,
@@ -157,6 +162,7 @@ func stringSliceSetEqual(a, b []string) bool {
 func rbacAccessScopesMatch(want, got rbacAccessRecord) bool {
 	return want.RoleID == got.RoleID &&
 		want.AllCloudAccounts == got.AllCloudAccounts &&
+		want.ShiftleftGlobal == got.ShiftleftGlobal &&
 		stringSliceSetEqual(want.CloudAccounts, got.CloudAccounts) &&
 		stringSliceSetEqual(want.ShiftleftProjects, got.ShiftleftProjects) &&
 		stringSliceSetEqual(want.UserFilters, got.UserFilters)

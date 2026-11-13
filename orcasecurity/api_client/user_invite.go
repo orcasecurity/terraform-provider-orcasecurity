@@ -24,6 +24,7 @@ type UserInviteRequest struct {
 	RoleID            string   `json:"role_id,omitempty"`
 	Groups            []string `json:"groups"`
 	AllCloudAccounts  bool     `json:"all_cloud_accounts"`
+	ShiftleftGlobal   bool     `json:"shiftleft_global"`
 	CloudAccounts     []string `json:"cloud_accounts"`
 	UserFilters       []string `json:"user_filters"`
 	ShiftleftProjects []string `json:"shiftleft_projects"`

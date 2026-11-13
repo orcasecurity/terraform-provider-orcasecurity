@@ -306,3 +306,59 @@ func TestDeleteGroupAccess_404Ignored(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// shiftleft_global is sent on create and tells two same-role rows apart on read.
+func TestGroupAccess_ShiftleftGlobalIsSentAndMatched(t *testing.T) {
+	var posted map[string]interface{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != apiRBACGroupAccessPath {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		if r.Method == http.MethodPost {
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatal(err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": map[string]string{"id": "asg-sl"}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"total_items": 2,
+			"data": []map[string]interface{}{
+				{
+					"id": "asg-global", "all_cloud_accounts": true, "shiftleft_global": false,
+					"group":              map[string]string{"id": "g1"},
+					"role":               map[string]string{"id": "r-sl"},
+					"cloud_accounts":     []interface{}{},
+					"user_filters":       []string{},
+					"shiftleft_projects": []string{},
+				},
+				{
+					"id": "asg-sl", "all_cloud_accounts": false, "shiftleft_global": true,
+					"group":              map[string]string{"id": "g1"},
+					"role":               map[string]string{"id": "r-sl"},
+					"cloud_accounts":     []interface{}{},
+					"user_filters":       []string{},
+					"shiftleft_projects": []string{},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	want := GroupAccess{GroupID: "g1", RoleID: "r-sl", ShiftleftGlobal: true}
+	if _, err := c.CreateGroupAccess(want); err != nil {
+		t.Fatal(err)
+	}
+	if posted["shiftleft_global"] != true {
+		t.Errorf("create payload should carry shiftleft_global=true, got %v", posted)
+	}
+
+	got, err := c.FindGroupAccess("stale-id", want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.ID != "asg-sl" || !got.ShiftleftGlobal {
+		t.Fatalf("scope match should pick the shiftleft_global row, got %+v", got)
+	}
+}

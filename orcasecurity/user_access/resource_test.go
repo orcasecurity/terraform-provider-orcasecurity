@@ -221,3 +221,33 @@ func TestModelToAPI_ApiToModel_RoundTrip(t *testing.T) {
 		t.Errorf("cloud accounts drifted: %v", cloud)
 	}
 }
+
+// shiftleft_global travels to the API and back unchanged.
+func TestModelToAPI_ApiToModel_ShiftleftGlobalRoundTrip(t *testing.T) {
+	r := &userAccessResource{}
+	plan := userAccessResourceModel{
+		UserID:            types.StringValue("user-1"),
+		RoleID:            types.StringValue("role-sl"),
+		AllCloudAccounts:  types.BoolValue(false),
+		ShiftleftGlobal:   types.BoolValue(true),
+		CloudAccounts:     types.ListNull(types.StringType),
+		ShiftleftProjects: types.ListNull(types.StringType),
+		UserFilters:       types.ListNull(types.StringType),
+	}
+
+	payload, diags := r.modelToAPI(context.Background(), plan, "assign-1")
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !payload.ShiftleftGlobal || payload.AllCloudAccounts {
+		t.Errorf("scope mismatch: %+v", payload)
+	}
+
+	got, diags := r.apiToModel(context.Background(), &payload, &plan)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !got.ShiftleftGlobal.ValueBool() || got.AllCloudAccounts.ValueBool() {
+		t.Errorf("state scope mismatch: %+v", got)
+	}
+}
