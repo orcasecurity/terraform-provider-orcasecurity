@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -237,27 +238,11 @@ func (r *dataDetectionRuleResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	// non-standard REST: create is PUT on the collection, returns data.rule_id
-	ruleID, err := r.apiClient.CreateDataDetectionRule(generateRulePayload(plan))
+	instance, err := createrecovery.Run(ctx, r.apiClient.DataDetectionRuleCreateOp(generateRulePayload(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Data Detection Rule",
 			"Could not create Data Detection Rule, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// the create response only carries the id — refresh to resolve the
-	// server-assigned priority, organization and default flag
-	instance, err := r.apiClient.GetDataDetectionRule(ruleID)
-	if err != nil || instance == nil {
-		message := "rule vanished right after creation"
-		if err != nil {
-			message = err.Error()
-		}
-		resp.Diagnostics.AddError(
-			"Error refreshing Data Detection Rule",
-			fmt.Sprintf("Could not read Data Detection Rule ID %s after create: %s", ruleID, message),
 		)
 		return
 	}

@@ -9,7 +9,7 @@ import (
 func init() {
 	accCases = append(accCases,
 		accCase{
-			name: "custom_dashboard", address: "orcasecurity_custom_dashboard.t", post: "/api/user_preferences",
+			name: "custom_dashboard", address: "orcasecurity_custom_dashboard.t", path: "/api/user_preferences",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_dashboard" "t" {
@@ -29,7 +29,7 @@ resource "orcasecurity_custom_dashboard" "t" {
 			},
 		},
 		accCase{
-			name: "custom_widget", address: "orcasecurity_custom_widget.t", post: "/api/user_preferences",
+			name: "custom_widget", address: "orcasecurity_custom_widget.t", path: "/api/user_preferences",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_custom_widget" "t" {
@@ -60,7 +60,7 @@ resource "orcasecurity_custom_widget" "t" {
 			},
 		},
 		accCase{
-			name: "discovery_view", address: "orcasecurity_discovery_view.t", post: "/api/user_preferences",
+			name: "discovery_view", address: "orcasecurity_discovery_view.t", path: "/api/user_preferences",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_discovery_view" "t" {
@@ -78,7 +78,7 @@ resource "orcasecurity_discovery_view" "t" {
 			},
 		},
 		accCase{
-			name: "shift_left_project", address: "orcasecurity_shift_left_project.t", post: "/api/shiftleft/projects/",
+			name: "shift_left_project", address: "orcasecurity_shift_left_project.t", path: "/api/shiftleft/projects/",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_shift_left_project" "t" {
@@ -93,7 +93,7 @@ resource "orcasecurity_shift_left_project" "t" {
 			},
 		},
 		accCase{
-			name: "shift_left_cve_exception_list", address: "orcasecurity_shift_left_cve_exception_list.t", post: "/api/shiftleft/exceptions/",
+			name: "shift_left_cve_exception_list", address: "orcasecurity_shift_left_cve_exception_list.t", path: "/api/shiftleft/exceptions/",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_shift_left_cve_exception_list" "t" {

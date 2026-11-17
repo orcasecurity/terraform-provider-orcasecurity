@@ -33,7 +33,7 @@ var jiraSource = sync.OnceValue(func() *api_client.JiraCloudTemplate {
 func init() {
 	accCases = append(accCases,
 		accCase{
-			name: "external_service_config", address: "orcasecurity_integration_opsgenie.t", post: "/api/external_service/config",
+			name: "external_service_config", address: "orcasecurity_integration_opsgenie.t", path: "/api/external_service/config",
 			config: func(n string) string {
 				return fmt.Sprintf(`
 resource "orcasecurity_integration_opsgenie" "t" {
@@ -47,7 +47,7 @@ resource "orcasecurity_integration_opsgenie" "t" {
 	)
 	if os.Getenv(jiraTemplateEnv) != "" {
 		accCases = append(accCases, accCase{
-			name: "jira_cloud_template", address: "orcasecurity_integration_jira_cloud_template.t", post: "/api/external_service/config",
+			name: "jira_cloud_template", address: "orcasecurity_integration_jira_cloud_template.t", path: "/api/external_service/config",
 			config: func(n string) string {
 				src := jiraSource()
 				return fmt.Sprintf(`
