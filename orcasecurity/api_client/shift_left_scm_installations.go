@@ -58,7 +58,7 @@ func createScmInstallation[T any](client *APIClient, listPath string, body any) 
 	}
 	created := new(T)
 	if err := resp.ReadJSON(created); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: create at %s succeeded but its response could not be decoded: %w", ErrAmbiguousWrite, listPath, err)
 	}
 	return created, nil
 }

@@ -68,7 +68,7 @@ func externalServiceConfigCreateOp[P any](client *APIClient, serviceName, templa
 				Data P `json:"data"`
 			}{}
 			if err := resp.ReadJSON(&response); err != nil {
-				return nil, fmt.Errorf("failed to decode %s create response: %w", serviceName, err)
+				return nil, fmt.Errorf("%w: %s create succeeded but its response could not be decoded: %w", ErrAmbiguousWrite, serviceName, err)
 			}
 			return &response.Data, nil
 		},

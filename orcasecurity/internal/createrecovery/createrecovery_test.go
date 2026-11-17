@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
@@ -141,5 +144,70 @@ func TestRun_CreateWithoutAnIDAndNothingNewSaysCheckUI(t *testing.T) {
 		if len(gets) != 0 || len(diags) != 0 {
 			t.Errorf("%s: gets=%v diags=%v, want no read-back and no diagnostics", name, gets, diags)
 		}
+	}
+}
+
+type keyedObj struct{ ID string }
+
+func TestRun_ParallelSameKeyCreateIsNeverAdopted(t *testing.T) {
+	backoff.FastForTest(t)
+	var mu sync.Mutex
+	store := ids()
+	list := func() (map[string]bool, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return maps.Clone(store), nil
+	}
+	get := func(id string) (*keyedObj, error) { return &keyedObj{ID: id}, nil }
+	snapshotTaken := make(chan struct{})
+	bDone := make(chan struct{})
+	var once sync.Once
+
+	opA := api_client.CreateOp[keyedObj]{
+		What: `thing named "dup"`,
+		ID:   func(o *keyedObj) string { return o.ID },
+		IDs: func() (map[string]bool, error) {
+			once.Do(func() { close(snapshotTaken) })
+			return list()
+		},
+		Create: func() (*keyedObj, error) {
+			select {
+			case <-bDone:
+			case <-time.After(200 * time.Millisecond):
+			}
+			return nil, errAmbiguous
+		},
+		Get: get,
+	}
+	opB := api_client.CreateOp[keyedObj]{
+		What: `Thing named " dup "`,
+		ID:   func(o *keyedObj) string { return o.ID },
+		IDs:  list,
+		Create: func() (*keyedObj, error) {
+			mu.Lock()
+			store["b"] = true
+			mu.Unlock()
+			return &keyedObj{ID: "b"}, nil
+		},
+		Get: get,
+	}
+
+	aErr := make(chan error, 1)
+	go func() {
+		var d diag.Diagnostics
+		got, err := Run(context.Background(), opA, &d)
+		if err == nil {
+			err = fmt.Errorf("A adopted %q", got.ID)
+		}
+		aErr <- err
+	}()
+	<-snapshotTaken
+	var d diag.Diagnostics
+	if _, err := Run(context.Background(), opB, &d); err != nil {
+		t.Fatalf("B: %v", err)
+	}
+	close(bDone)
+	if err := <-aErr; !errors.Is(err, api_client.ErrAmbiguousWrite) {
+		t.Fatalf("A: %v, want the unrecovered ambiguous error", err)
 	}
 }

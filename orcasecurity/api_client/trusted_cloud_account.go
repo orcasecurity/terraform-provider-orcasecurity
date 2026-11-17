@@ -33,7 +33,7 @@ func (client *APIClient) DoesTrustedCloudAccountExist(id string) (bool, error) {
 
 func (client *APIClient) GetTrustedCloudAccount(id string) (*TrustedCloudAccount, error) {
 	resp, err := client.Get(fmt.Sprintf("/api/organization/trusted_accounts?id=%s", id))
-	if resp.StatusCode() == 400 || resp.StatusCode() == 500 {
+	if resp != nil && (resp.StatusCode() == 400 || resp.StatusCode() == 500) {
 		return nil, nil
 	}
 	if err != nil {

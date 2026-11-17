@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -55,9 +56,23 @@ func recoverID(ctx context.Context, createErr error, what string, before map[str
 	}
 }
 
+var keyLocks sync.Map
+
+// lockKey serializes creates of the same natural key within one provider process, so an ambiguous
+// create never adopts the object a parallel same-key create just made. Lowercasing and dropping
+// whitespace makes the key at least as coarse as every lister's match.
+func lockKey(what string) func() {
+	key := strings.Join(strings.Fields(strings.ToLower(what)), "")
+	m, _ := keyLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 // Run executes op. On an ambiguous create, or one that succeeds without an id, it adopts the single
 // new matching object, reads it back and adds a warning to diags; any other outcome is returned as an error.
 func Run[T any](ctx context.Context, op api_client.CreateOp[T], diags *diag.Diagnostics) (*T, error) {
+	defer lockKey(op.What)()
 	before := snapshot(ctx, op.What, op.IDs)
 	created, err := op.Create()
 	if err == nil && (created == nil || op.ID(created) == "") {

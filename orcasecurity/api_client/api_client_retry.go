@@ -9,7 +9,9 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
@@ -30,7 +32,7 @@ const (
 )
 
 // ErrAmbiguousWrite marks a PostCreate whose outcome is unknown: the client timed out, the connection
-// dropped after send, or a gateway answered 502/504. The server may already have committed it, so
+// dropped or was reset once the request was written, or a gateway answered 502/504. The server may already have committed it, so
 // it is not replayed (a replay creates a duplicate or fails on the first copy, orphaning it); the
 // caller recovers the outcome instead (see internal/createrecovery).
 var ErrAmbiguousWrite = errors.New("the request may have been applied by the server")
@@ -125,8 +127,8 @@ func httpResponseFinalOrBackoff(ctx context.Context, attempt int, body []byte, r
 
 // transportPhaseOutcome maps Execute / body-read errors to either another attempt
 // (continueLoop) or a terminal error for the caller to return.
-func (c *APIClient) transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error, nonIdempotent bool) (continueLoop bool, err error) {
-	if nonIdempotent && c.isRetriableRoundTripError(phaseErr) {
+func (c *APIClient) transportPhaseOutcome(ctx context.Context, attempt int, phaseErr error, nonIdempotent, requestSent bool) (continueLoop bool, err error) {
+	if nonIdempotent && (requestSent || c.isRetriableRoundTripError(phaseErr)) {
 		return false, fmt.Errorf("%w: %w", ErrAmbiguousWrite, phaseErr)
 	}
 	retry, sleepErr := c.sleepIfRetriableTransportError(ctx, attempt, phaseErr)
@@ -222,10 +224,16 @@ func backoffWithJitter(attempt int, base, maxDelay time.Duration) time.Duration 
 // resp is the final APIResponse. If err is non-nil, the caller must return that error.
 func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *http.Request, reqBody []byte) (resp *APIResponse, tryAgain bool, err error) {
 	nonIdempotent := isNonIdempotent(proto)
+	var requestSent atomic.Bool
+	if nonIdempotent {
+		ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			WroteRequest: func(httptrace.WroteRequestInfo) { requestSent.Store(true) },
+		})
+	}
 	r := cloneRequestWithBody(ctx, proto, reqBody)
 	res, execErr := c.Execute(r)
 	if execErr != nil {
-		cont, out := c.transportPhaseOutcome(ctx, attempt, execErr, nonIdempotent)
+		cont, out := c.transportPhaseOutcome(ctx, attempt, execErr, nonIdempotent, requestSent.Load())
 		if cont {
 			return nil, true, nil
 		}
@@ -234,7 +242,7 @@ func (c *APIClient) roundTripIteration(ctx context.Context, attempt int, proto *
 
 	body, readErr := readResponseBody(res)
 	if readErr != nil {
-		cont, out := c.transportPhaseOutcome(ctx, attempt, readErr, nonIdempotent)
+		cont, out := c.transportPhaseOutcome(ctx, attempt, readErr, nonIdempotent, true)
 		if cont {
 			return nil, true, nil
 		}
