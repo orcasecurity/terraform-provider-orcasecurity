@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &groupAccessResource{}
-	_ resource.ResourceWithConfigure   = &groupAccessResource{}
-	_ resource.ResourceWithImportState = &groupAccessResource{}
+	_ resource.Resource                   = &groupAccessResource{}
+	_ resource.ResourceWithConfigure      = &groupAccessResource{}
+	_ resource.ResourceWithImportState    = &groupAccessResource{}
+	_ resource.ResourceWithValidateConfig = &groupAccessResource{}
 )
 
 type groupAccessResource struct {
@@ -31,6 +32,7 @@ type groupAccessResourceModel struct {
 	GroupID           types.String `tfsdk:"group_id"`
 	RoleID            types.String `tfsdk:"role_id"`
 	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	ShiftleftGlobal   types.Bool   `tfsdk:"shiftleft_global"`
 	CloudAccounts     types.List   `tfsdk:"cloud_accounts"`
 	ShiftleftProjects types.List   `tfsdk:"shiftleft_projects"`
 	UserFilters       types.List   `tfsdk:"user_filters"`
@@ -57,7 +59,7 @@ func (r *groupAccessResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Assigns an RBAC role to a group with optional scope: all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.",
+		Description: "Assigns an RBAC role to a group with optional scope: all cloud accounts, the Shift Left global scope, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). Backed by POST /api/rbac/access/group.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -81,8 +83,18 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"all_cloud_accounts": schema.BoolAttribute{
-				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics).",
-				Required:    true,
+				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics). " +
+					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global. " +
+					"For the built-in Shift Left roles, true grants the role org-wide; shiftleft_global = true is the recommended scope.",
+				Optional: true,
+				Computed: true,
+			},
+			"shiftleft_global": schema.BoolAttribute{
+				Description: "When true, the role applies to every Shift Left project (the Shift Left global scope). " +
+					"Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters. " +
+					"Defaults to true for the built-in Shift Left roles when no scope is set.",
+				Optional: true,
+				Computed: true,
 			},
 			"cloud_accounts": schema.ListAttribute{
 				Description: "Scoped cloud account ids when not using all_cloud_accounts.",
@@ -103,6 +115,29 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
+func (r *groupAccessResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config groupAccessResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, scopeLists(config))...)
+}
+
+func scopeLists(m groupAccessResourceModel) map[string]types.List {
+	return map[string]types.List{
+		"cloud_accounts":     m.CloudAccounts,
+		"shiftleft_projects": m.ShiftleftProjects,
+		"user_filters":       m.UserFilters,
+	}
+}
+
+func (r *groupAccessResource) resolveScope(plan *groupAccessResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	plan.AllCloudAccounts, plan.ShiftleftGlobal, diags = common.ResolveScope(r.apiClient, plan.RoleID.ValueString(), plan.AllCloudAccounts, plan.ShiftleftGlobal, scopeLists(*plan))
+	return diags
+}
+
 func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessResourceModel, assignmentID string) (api_client.GroupAccess, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	cloudAccounts, d := common.StringSliceFromList(ctx, plan.CloudAccounts)
@@ -117,6 +152,7 @@ func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessRe
 	return api_client.GroupAccess{
 		ID:                assignmentID,
 		AllCloudAccounts:  plan.AllCloudAccounts.ValueBool(),
+		ShiftleftGlobal:   plan.ShiftleftGlobal.ValueBool(),
 		RoleID:            plan.RoleID.ValueString(),
 		GroupID:           plan.GroupID.ValueString(),
 		CloudAccounts:     cloudAccounts,
@@ -142,6 +178,7 @@ func (r *groupAccessResource) apiToModel(ctx context.Context, ga *api_client.Gro
 		GroupID:           types.StringValue(ga.GroupID),
 		RoleID:            types.StringValue(ga.RoleID),
 		AllCloudAccounts:  types.BoolValue(ga.AllCloudAccounts),
+		ShiftleftGlobal:   types.BoolValue(ga.ShiftleftGlobal),
 		CloudAccounts:     cloudList,
 		ShiftleftProjects: shiftList,
 		UserFilters:       filterList,
@@ -170,6 +207,7 @@ func mergeGroupAccessAfterCreate(refreshed *api_client.GroupAccess, created *api
 		out.UserFilters = payload.UserFilters
 	}
 	out.AllCloudAccounts = payload.AllCloudAccounts
+	out.ShiftleftGlobal = payload.ShiftleftGlobal
 	return &out
 }
 
@@ -180,6 +218,10 @@ func (r *groupAccessResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToAPI(ctx, plan, "")
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -255,6 +297,10 @@ func (r *groupAccessResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToAPI(ctx, plan, prior.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

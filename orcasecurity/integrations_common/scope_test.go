@@ -1,0 +1,125 @@
+package integrations_common
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+func stringList(values ...string) types.List {
+	elems := make([]attr.Value, 0, len(values))
+	for _, v := range values {
+		elems = append(elems, types.StringValue(v))
+	}
+	return types.ListValueMust(types.StringType, elems)
+}
+
+func TestValidateShiftleftGlobalScope_AloneIsValid(t *testing.T) {
+	diags := ValidateShiftleftGlobalScope(types.BoolValue(true), types.BoolValue(false), map[string]types.List{
+		"cloud_accounts":     types.ListNull(types.StringType),
+		"shiftleft_projects": stringList(),
+		"user_filters":       types.ListUnknown(types.StringType),
+	})
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+}
+
+func TestValidateShiftleftGlobalScope_FalseNeverConflicts(t *testing.T) {
+	diags := ValidateShiftleftGlobalScope(types.BoolValue(false), types.BoolValue(true), map[string]types.List{
+		"cloud_accounts": stringList("ca-1"),
+	})
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+}
+
+func TestValidateShiftleftGlobalScope_UnknownIsSkipped(t *testing.T) {
+	diags := ValidateShiftleftGlobalScope(types.BoolUnknown(), types.BoolValue(true), nil)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+}
+
+func TestValidateShiftleftGlobalScope_ConflictsAreListed(t *testing.T) {
+	diags := ValidateShiftleftGlobalScope(types.BoolValue(true), types.BoolValue(true), map[string]types.List{
+		"cloud_accounts":     stringList(),
+		"shiftleft_projects": stringList("sl-1"),
+		"user_filters":       types.ListNull(types.StringType),
+	})
+	if !diags.HasError() {
+		t.Fatal("expected a conflict")
+	}
+	detail := diags[0].Detail()
+	if !strings.Contains(detail, "all_cloud_accounts, shiftleft_projects") {
+		t.Errorf("conflict detail should name the conflicting scopes in order, got %q", detail)
+	}
+	if strings.Contains(detail, "with cloud_accounts") || strings.Contains(detail, "user_filters") {
+		t.Errorf("empty and null lists must not be reported, got %q", detail)
+	}
+}
+
+func TestScopeIsUnset(t *testing.T) {
+	unset := map[string]types.List{
+		"cloud_accounts":     types.ListNull(types.StringType),
+		"shiftleft_projects": stringList(),
+		"user_filters":       types.ListUnknown(types.StringType),
+	}
+	if !ScopeIsUnset(types.BoolNull(), types.BoolUnknown(), unset) {
+		t.Error("null and unknown flags with empty lists should count as unset")
+	}
+	if ScopeIsUnset(types.BoolValue(false), types.BoolNull(), unset) {
+		t.Error("an explicit false is a choice, not unset")
+	}
+	if ScopeIsUnset(types.BoolNull(), types.BoolNull(), map[string]types.List{"user_filters": stringList("bu-1")}) {
+		t.Error("a non-empty list scope is a choice")
+	}
+}
+
+func TestDefaultScope(t *testing.T) {
+	if got := DefaultScope(true); got != (ScopeFlags{ShiftleftGlobal: true}) {
+		t.Errorf("built-in Shift Left role: %+v", got)
+	}
+	if got := DefaultScope(false); got != (ScopeFlags{AllCloudAccounts: true}) {
+		t.Errorf("other role: %+v", got)
+	}
+}
+
+type fakeRoleLookup struct {
+	shiftleft bool
+	calls     int
+}
+
+func (f *fakeRoleLookup) IsBuiltInShiftleftRole(string) (bool, error) {
+	f.calls++
+	return f.shiftleft, nil
+}
+
+func TestResolveScope(t *testing.T) {
+	unset := map[string]types.List{"user_filters": types.ListNull(types.StringType)}
+
+	lookup := &fakeRoleLookup{shiftleft: true}
+	allCA, slGlobal, diags := ResolveScope(lookup, "r-sl", types.BoolUnknown(), types.BoolUnknown(), unset)
+	if diags.HasError() || allCA.ValueBool() || !slGlobal.ValueBool() {
+		t.Errorf("Shift Left role default: all=%v sl=%v diags=%v", allCA, slGlobal, diags)
+	}
+
+	lookup = &fakeRoleLookup{}
+	allCA, slGlobal, _ = ResolveScope(lookup, "r-viewer", types.BoolNull(), types.BoolNull(), unset)
+	if !allCA.ValueBool() || slGlobal.ValueBool() {
+		t.Errorf("other role default: all=%v sl=%v", allCA, slGlobal)
+	}
+
+	lookup = &fakeRoleLookup{shiftleft: true}
+	allCA, slGlobal, _ = ResolveScope(lookup, "r-sl", types.BoolValue(true), types.BoolNull(), unset)
+	if !allCA.ValueBool() || slGlobal.ValueBool() || lookup.calls != 0 {
+		t.Errorf("explicit scope must win without a lookup: all=%v sl=%v calls=%d", allCA, slGlobal, lookup.calls)
+	}
+
+	allCA, slGlobal, _ = ResolveScope(lookup, "", types.BoolUnknown(), types.BoolUnknown(), unset)
+	if allCA.ValueBool() || slGlobal.ValueBool() || allCA.IsUnknown() || lookup.calls != 0 {
+		t.Errorf("no role: all=%v sl=%v calls=%d", allCA, slGlobal, lookup.calls)
+	}
+}

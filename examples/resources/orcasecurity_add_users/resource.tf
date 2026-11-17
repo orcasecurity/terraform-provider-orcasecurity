@@ -6,6 +6,15 @@ resource "orcasecurity_add_users" "invite_with_role" {
   user_filters       = [orcasecurity_business_unit.example.id]
 }
 
+// Invite a user with a built-in Shift Left role. With no scope set it defaults to the Shift Left
+// global scope (shiftleft_global = true); any other role defaults to all_cloud_accounts = true.
+data "orcasecurity_rbac_roles" "all" {}
+
+resource "orcasecurity_add_users" "invite_shiftleft_user" {
+  email   = "dev@example.com"
+  role_id = one([for r in data.orcasecurity_rbac_roles.all.roles : r.id if r.name == "Shiftleft User"])
+}
+
 // Invite a user and add them to one or more groups instead of a role.
 resource "orcasecurity_add_users" "invite_with_groups" {
   email  = "teammate@example.com"

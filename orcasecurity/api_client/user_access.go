@@ -16,6 +16,7 @@ var userAccessEndpoint = rbacAccessEndpoint{
 type UserAccess struct {
 	ID                string
 	AllCloudAccounts  bool
+	ShiftleftGlobal   bool
 	RoleID            string
 	UserID            string
 	CloudAccounts     []string
@@ -29,6 +30,7 @@ func (u UserAccess) toRecord() rbacAccessRecord {
 		OwnerID:           u.UserID,
 		RoleID:            u.RoleID,
 		AllCloudAccounts:  u.AllCloudAccounts,
+		ShiftleftGlobal:   u.ShiftleftGlobal,
 		CloudAccounts:     u.CloudAccounts,
 		ShiftleftProjects: u.ShiftleftProjects,
 		UserFilters:       u.UserFilters,
@@ -41,6 +43,7 @@ func userAccessFromRecord(r rbacAccessRecord) UserAccess {
 		UserID:            r.OwnerID,
 		RoleID:            r.RoleID,
 		AllCloudAccounts:  r.AllCloudAccounts,
+		ShiftleftGlobal:   r.ShiftleftGlobal,
 		CloudAccounts:     r.CloudAccounts,
 		ShiftleftProjects: r.ShiftleftProjects,
 		UserFilters:       r.UserFilters,

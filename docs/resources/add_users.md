@@ -23,6 +23,15 @@ resource "orcasecurity_add_users" "invite_with_role" {
   user_filters       = [orcasecurity_business_unit.example.id]
 }
 
+// Invite a user with a built-in Shift Left role. With no scope set it defaults to the Shift Left
+// global scope (shiftleft_global = true); any other role defaults to all_cloud_accounts = true.
+data "orcasecurity_rbac_roles" "all" {}
+
+resource "orcasecurity_add_users" "invite_shiftleft_user" {
+  email   = "dev@example.com"
+  role_id = one([for r in data.orcasecurity_rbac_roles.all.roles : r.id if r.name == "Shiftleft User"])
+}
+
 // Invite a user and add them to one or more groups instead of a role.
 resource "orcasecurity_add_users" "invite_with_groups" {
   email  = "teammate@example.com"
@@ -58,11 +67,12 @@ resource "orcasecurity_group" "example" {
 
 ### Optional
 
-- `all_cloud_accounts` (Boolean) When true, the granted role applies to all cloud accounts. Only relevant with `role_id`.
+- `all_cloud_accounts` (Boolean) When true, the granted role applies to all cloud accounts. Only relevant with `role_id`. Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to `shiftleft_global`.
 - `cloud_accounts` (List of String) Cloud account ids the role applies to when not using `all_cloud_accounts`.
 - `groups` (List of String) RBAC group ids to add the user to on registration. Mutually exclusive with `role_id`.
 - `mfa_required` (Boolean) Require the invited user to set up MFA after registration.
 - `role_id` (String) RBAC role id to grant on registration. Mutually exclusive with `groups`.
+- `shiftleft_global` (Boolean) When true, the granted role applies to every Shift Left project (the Shift Left global scope). Only relevant with `role_id`; mutually exclusive with `all_cloud_accounts`, `cloud_accounts`, `shiftleft_projects` and `user_filters`. Defaults to true for the built-in Shift Left roles when no scope is set.
 - `shiftleft_projects` (List of String) Shift Left project ids the role applies to.
 - `should_send_email` (Boolean) Send an invitation email to the user. Defaults to true.
 - `user_filters` (List of String) User filter ids (business unit IDs from orcasecurity_business_unit).

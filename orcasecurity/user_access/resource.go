@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &userAccessResource{}
-	_ resource.ResourceWithConfigure   = &userAccessResource{}
-	_ resource.ResourceWithImportState = &userAccessResource{}
+	_ resource.Resource                   = &userAccessResource{}
+	_ resource.ResourceWithConfigure      = &userAccessResource{}
+	_ resource.ResourceWithImportState    = &userAccessResource{}
+	_ resource.ResourceWithValidateConfig = &userAccessResource{}
 )
 
 type userAccessResource struct {
@@ -30,6 +31,7 @@ type userAccessResourceModel struct {
 	UserID            types.String `tfsdk:"user_id"`
 	RoleID            types.String `tfsdk:"role_id"`
 	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	ShiftleftGlobal   types.Bool   `tfsdk:"shiftleft_global"`
 	CloudAccounts     types.List   `tfsdk:"cloud_accounts"`
 	ShiftleftProjects types.List   `tfsdk:"shiftleft_projects"`
 	UserFilters       types.List   `tfsdk:"user_filters"`
@@ -57,7 +59,7 @@ func (r *userAccessResource) ImportState(ctx context.Context, req resource.Impor
 func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a single user's permissions by assigning an RBAC role to a user with optional scope: " +
-			"all cloud accounts, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). " +
+			"all cloud accounts, the Shift Left global scope, specific cloud accounts, Shift Left projects, or user filters (business unit IDs from orcasecurity_business_unit). " +
 			"Backed by /api/rbac/access/user. This is the per-user counterpart of `orcasecurity_group_access`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -82,8 +84,18 @@ func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 			"all_cloud_accounts": schema.BoolAttribute{
-				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics).",
-				Required:    true,
+				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics). " +
+					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global. " +
+					"For the built-in Shift Left roles, true grants the role org-wide; shiftleft_global = true is the recommended scope.",
+				Optional: true,
+				Computed: true,
+			},
+			"shiftleft_global": schema.BoolAttribute{
+				Description: "When true, the role applies to every Shift Left project (the Shift Left global scope). " +
+					"Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters. " +
+					"Defaults to true for the built-in Shift Left roles when no scope is set.",
+				Optional: true,
+				Computed: true,
 			},
 			"cloud_accounts": schema.ListAttribute{
 				Description: "Scoped cloud account ids when not using all_cloud_accounts.",
@@ -104,6 +116,29 @@ func (r *userAccessResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}
 }
 
+func (r *userAccessResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config userAccessResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, scopeLists(config))...)
+}
+
+func scopeLists(m userAccessResourceModel) map[string]types.List {
+	return map[string]types.List{
+		"cloud_accounts":     m.CloudAccounts,
+		"shiftleft_projects": m.ShiftleftProjects,
+		"user_filters":       m.UserFilters,
+	}
+}
+
+func (r *userAccessResource) resolveScope(plan *userAccessResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	plan.AllCloudAccounts, plan.ShiftleftGlobal, diags = common.ResolveScope(r.apiClient, plan.RoleID.ValueString(), plan.AllCloudAccounts, plan.ShiftleftGlobal, scopeLists(*plan))
+	return diags
+}
+
 func (r *userAccessResource) modelToAPI(ctx context.Context, plan userAccessResourceModel, assignmentID string) (api_client.UserAccess, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	cloudAccounts, d := common.StringSliceFromList(ctx, plan.CloudAccounts)
@@ -118,6 +153,7 @@ func (r *userAccessResource) modelToAPI(ctx context.Context, plan userAccessReso
 	return api_client.UserAccess{
 		ID:                assignmentID,
 		AllCloudAccounts:  plan.AllCloudAccounts.ValueBool(),
+		ShiftleftGlobal:   plan.ShiftleftGlobal.ValueBool(),
 		RoleID:            plan.RoleID.ValueString(),
 		UserID:            plan.UserID.ValueString(),
 		CloudAccounts:     cloudAccounts,
@@ -143,6 +179,7 @@ func (r *userAccessResource) apiToModel(ctx context.Context, ua *api_client.User
 		UserID:            types.StringValue(ua.UserID),
 		RoleID:            types.StringValue(ua.RoleID),
 		AllCloudAccounts:  types.BoolValue(ua.AllCloudAccounts),
+		ShiftleftGlobal:   types.BoolValue(ua.ShiftleftGlobal),
 		CloudAccounts:     cloudList,
 		ShiftleftProjects: shiftList,
 		UserFilters:       filterList,
@@ -156,6 +193,10 @@ func (r *userAccessResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToAPI(ctx, plan, "")
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -229,6 +270,10 @@ func (r *userAccessResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToAPI(ctx, plan, prior.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

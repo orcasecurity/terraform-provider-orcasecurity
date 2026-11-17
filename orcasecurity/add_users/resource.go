@@ -24,6 +24,7 @@ var (
 	_ resource.ResourceWithConfigure        = &addUsersResource{}
 	_ resource.ResourceWithImportState      = &addUsersResource{}
 	_ resource.ResourceWithConfigValidators = &addUsersResource{}
+	_ resource.ResourceWithValidateConfig   = &addUsersResource{}
 )
 
 type addUsersResource struct {
@@ -36,6 +37,7 @@ type addUsersResourceModel struct {
 	RoleID            types.String `tfsdk:"role_id"`
 	Groups            types.List   `tfsdk:"groups"`
 	AllCloudAccounts  types.Bool   `tfsdk:"all_cloud_accounts"`
+	ShiftleftGlobal   types.Bool   `tfsdk:"shiftleft_global"`
 	CloudAccounts     types.List   `tfsdk:"cloud_accounts"`
 	UserFilters       types.List   `tfsdk:"user_filters"`
 	ShiftleftProjects types.List   `tfsdk:"shiftleft_projects"`
@@ -110,10 +112,20 @@ func (r *addUsersResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 			"all_cloud_accounts": schema.BoolAttribute{
-				Description: "When true, the granted role applies to all cloud accounts. Only relevant with `role_id`.",
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
+				Description: "When true, the granted role applies to all cloud accounts. Only relevant with `role_id`. " +
+					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to `shiftleft_global`.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(),
+				},
+			},
+			"shiftleft_global": schema.BoolAttribute{
+				Description: "When true, the granted role applies to every Shift Left project (the Shift Left global scope). " +
+					"Only relevant with `role_id`; mutually exclusive with `all_cloud_accounts`, `cloud_accounts`, `shiftleft_projects` and `user_filters`. " +
+					"Defaults to true for the built-in Shift Left roles when no scope is set.",
+				Optional: true,
+				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
 				},
@@ -175,6 +187,29 @@ func (r *addUsersResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 	}
 }
 
+func (r *addUsersResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config addUsersResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, scopeLists(config))...)
+}
+
+func scopeLists(m addUsersResourceModel) map[string]types.List {
+	return map[string]types.List{
+		"cloud_accounts":     m.CloudAccounts,
+		"shiftleft_projects": m.ShiftleftProjects,
+		"user_filters":       m.UserFilters,
+	}
+}
+
+func (r *addUsersResource) resolveScope(plan *addUsersResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	plan.AllCloudAccounts, plan.ShiftleftGlobal, diags = common.ResolveScope(r.apiClient, plan.RoleID.ValueString(), plan.AllCloudAccounts, plan.ShiftleftGlobal, scopeLists(*plan))
+	return diags
+}
+
 func (r *addUsersResource) modelToRequest(ctx context.Context, plan addUsersResourceModel) (api_client.UserInviteRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	groups, d := common.StringSliceFromList(ctx, plan.Groups)
@@ -193,6 +228,7 @@ func (r *addUsersResource) modelToRequest(ctx context.Context, plan addUsersReso
 		RoleID:            plan.RoleID.ValueString(),
 		Groups:            groups,
 		AllCloudAccounts:  plan.AllCloudAccounts.ValueBool(),
+		ShiftleftGlobal:   plan.ShiftleftGlobal.ValueBool(),
 		CloudAccounts:     cloudAccounts,
 		UserFilters:       userFilters,
 		ShiftleftProjects: shiftleft,
@@ -208,6 +244,10 @@ func (r *addUsersResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToRequest(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -250,6 +290,10 @@ func (r *addUsersResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 	state.Expired = types.BoolValue(invite.Expired)
 	// invite_link is only returned at creation time; keep the stored value.
+	// State written before shiftleft_global existed holds null; settle it so the plan stays clean.
+	if state.ShiftleftGlobal.IsNull() {
+		state.ShiftleftGlobal = types.BoolValue(false)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
