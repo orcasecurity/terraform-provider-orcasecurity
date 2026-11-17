@@ -27,6 +27,11 @@ func idNameCase(name, path, listedName string, op func(c *api_client.APIClient) 
 	}
 }
 
+func withAnswer(c opCase, answer string) opCase {
+	c.answer = answer
+	return c
+}
+
 func sonarRuleCase(name string, op func(c *api_client.APIClient) runner) opCase {
 	return opCase{
 		name: name,
@@ -53,6 +58,9 @@ func init() {
 		idNameCase("custom_tag_rule", "/api/custom_tags", stubTag, func(c *api_client.APIClient) runner {
 			return runOp(c.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: stubTag, RuleType: api_client.CustomTagRuleRuleTypeString}))
 		}),
+		withAnswer(idNameCase("custom_tag_rule_without_id", "/api/custom_tags", stubTag, func(c *api_client.APIClient) runner {
+			return runOp(c.CustomTagRuleCreateOp(api_client.CustomTagRule{Name: stubTag, RuleType: api_client.CustomTagRuleRuleTypeString}))
+		}), `{"data":{},"status":"success"}`),
 		idNameCase("automation_v2", "/api/automations", stubTag, func(c *api_client.APIClient) runner {
 			return runOp(c.AutomationV2CreateOp(api_client.AutomationV2{Name: stubTag}, true))
 		}),
