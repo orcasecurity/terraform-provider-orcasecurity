@@ -1,7 +1,10 @@
 package api_client
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 )
 
@@ -103,12 +106,38 @@ func (client *APIClient) DeleteRepositoryContext(repositoryContextID string) err
 	return deleteScmPathIgnoring404(client, fmt.Sprintf("/api/shiftleft/repository_contexts/%s/", repositoryContextID))
 }
 
+var (
+	// The move commits synchronously and finishes asynchronously; until then every move of the context is refused.
+	ErrMoveInProgress      = errors.New("a project move of the repository is still in progress")
+	ErrMoveAlreadyInTarget = errors.New("the repository is already in the target project")
+)
+
+var moveErrorCodes = map[string]error{
+	"move_already_in_progress":                               ErrMoveInProgress,
+	"repositories_contexts_already_exists_in_target_project": ErrMoveAlreadyInTarget,
+}
+
+// MoveRepositoryContexts is not replayed: a replay after the first call committed is refused with
+// ErrMoveInProgress or ErrMoveAlreadyInTarget, and an unknown outcome returns ErrAmbiguousWrite.
 func (client *APIClient) MoveRepositoryContexts(targetProjectID string, repositoryContextIDs []string) error {
 	body := struct {
 		TargetProjectID      string   `json:"target_project_id"`
 		RepositoryContextIDs []string `json:"repository_context_ids"`
 	}{targetProjectID, repositoryContextIDs}
-	_, err := client.Post("/api/shiftleft/repository_contexts/move_project/", body)
+	resp, err := client.sendOnce(http.MethodPost, "/api/shiftleft/repository_contexts/move_project/", body)
+	if err == nil {
+		return nil
+	}
+	if resp != nil && resp.StatusCode() == http.StatusBadRequest {
+		var payload struct {
+			ErrorCode string `json:"error_code"`
+		}
+		if json.Unmarshal(resp.Body(), &payload) == nil {
+			if sentinel, ok := moveErrorCodes[payload.ErrorCode]; ok {
+				return fmt.Errorf("%w: %w", sentinel, err)
+			}
+		}
+	}
 	return err
 }
 

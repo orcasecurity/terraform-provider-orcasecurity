@@ -624,7 +624,7 @@ func TestUpdateRepo_NoConfigNoMove(t *testing.T) {
 	plan := &RepoConfigFields{}
 	state := &RepoConfigFields{ID: types.StringValue("row-1")}
 	var diags diag.Diagnostics
-	if row := updateRepo(ops, plan, state, &diags); row != found || diags.HasError() {
+	if row := updateRepo(context.Background(), ops, plan, state, &diags); row != found || diags.HasError() {
 		t.Fatalf("expected clean re-read, row=%+v hasErr=%v", row, diags.HasError())
 	}
 }
@@ -641,7 +641,7 @@ func TestUpdateRepo_ConfigUpdateError(t *testing.T) {
 	plan := &RepoConfigFields{Disabled: types.BoolValue(true)}
 	state := &RepoConfigFields{ID: types.StringValue("row-1")}
 	var diags diag.Diagnostics
-	if row := updateRepo(ops, plan, state, &diags); row != nil || !diags.HasError() {
+	if row := updateRepo(context.Background(), ops, plan, state, &diags); row != nil || !diags.HasError() {
 		t.Fatalf("expected nil row + error, got row=%+v hasErr=%v", row, diags.HasError())
 	}
 }
@@ -651,7 +651,7 @@ func TestUpdateRepo_MoveWithoutContextIDErrors(t *testing.T) {
 	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-new")}
 	state := &RepoConfigFields{ID: types.StringValue("row-1"), ProjectID: types.StringValue("proj-old")}
 	var diags diag.Diagnostics
-	if row := updateRepo(ops, plan, state, &diags); row != nil || !diags.HasError() {
+	if row := updateRepo(context.Background(), ops, plan, state, &diags); row != nil || !diags.HasError() {
 		t.Fatalf("expected error when context id is unknown, got row=%+v hasErr=%v", row, diags.HasError())
 	}
 }
@@ -671,7 +671,7 @@ func TestUpdateRepo_MovesProject(t *testing.T) {
 		RepositoryContextID: types.StringValue("ctx-1"),
 	}
 	var diags diag.Diagnostics
-	row := updateRepo(ops, plan, state, &diags)
+	row := updateRepo(context.Background(), ops, plan, state, &diags)
 	if diags.HasError() || row != found {
 		t.Fatalf("expected clean move, row=%+v hasErr=%v", row, diags.HasError())
 	}
@@ -691,7 +691,7 @@ func TestUpdateRepo_SameProjectDoesNotMove(t *testing.T) {
 	plan := &RepoConfigFields{ProjectID: types.StringValue("proj-1")}
 	state := &RepoConfigFields{ID: types.StringValue("row-1"), ProjectID: types.StringValue("proj-1")}
 	var diags diag.Diagnostics
-	if row := updateRepo(ops, plan, state, &diags); row != found || diags.HasError() {
+	if row := updateRepo(context.Background(), ops, plan, state, &diags); row != found || diags.HasError() {
 		t.Fatalf("unexpected: row=%+v hasErr=%v", row, diags.HasError())
 	}
 	if len(*reqs) != 0 {
@@ -719,7 +719,7 @@ func TestUpdateRepo_ConfigFailureUndoesProjectMove(t *testing.T) {
 		RepositoryContextID: types.StringValue("ctx-1"),
 	}
 	var diags diag.Diagnostics
-	if row := updateRepo(ops, plan, state, &diags); row != nil || !diags.HasError() {
+	if row := updateRepo(context.Background(), ops, plan, state, &diags); row != nil || !diags.HasError() {
 		t.Fatalf("expected nil row + error, got row=%+v hasErr=%v", row, diags.HasError())
 	}
 	if len(*reqs) != 2 {
@@ -748,7 +748,7 @@ func TestUpdateRepo_ConfigFailureWarnsWhenPriorProjectUnknown(t *testing.T) {
 		RepositoryContextID: types.StringValue("ctx-1"),
 	}
 	var diags diag.Diagnostics
-	if row := updateRepo(ops, plan, state, &diags); row != nil || !diags.HasError() {
+	if row := updateRepo(context.Background(), ops, plan, state, &diags); row != nil || !diags.HasError() {
 		t.Fatalf("expected nil row + error, got row=%+v hasErr=%v", row, diags.HasError())
 	}
 	if diags.WarningsCount() != 1 {
