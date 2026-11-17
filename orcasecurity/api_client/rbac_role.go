@@ -35,6 +35,7 @@ func (client *APIClient) ListRBACRoles() ([]RBACRole, error) {
 
 // builtInShiftleftRoleNames are the roles the UI defaults to the Shift Left global
 // scope. Role names are unique per organization, so a custom role cannot shadow one.
+// Must match the backend's built-in Shift Left role names.
 var builtInShiftleftRoleNames = map[string]struct{}{
 	"Shiftleft Administrator": {},
 	"Shiftleft User":          {},

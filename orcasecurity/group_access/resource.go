@@ -83,7 +83,8 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"all_cloud_accounts": schema.BoolAttribute{
 				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics). " +
-					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global.",
+					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global. " +
+					"For the built-in Shift Left roles, true grants the role org-wide; shiftleft_global = true is the recommended scope.",
 				Optional: true,
 				Computed: true,
 			},

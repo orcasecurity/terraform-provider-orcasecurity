@@ -23,6 +23,9 @@ resource "orcasecurity_group_access" "role_on_bu" {
 
 // With no scope set, a built-in Shift Left role defaults to the Shift Left global scope
 // (shiftleft_global = true); any other role defaults to all_cloud_accounts = true.
+// An explicit all_cloud_accounts = true grants a built-in Shift Left role org-wide. Older configs
+// set it because the attribute used to be required: replace it with shiftleft_global = true,
+// or remove the scope, to keep these roles in the Shift Left global scope.
 data "orcasecurity_rbac_roles" "all" {}
 
 resource "orcasecurity_group_access" "shiftleft_user_on_all_projects" {
@@ -61,7 +64,7 @@ resource "orcasecurity_group" "example" {
 
 ### Optional
 
-- `all_cloud_accounts` (Boolean) When true, scope includes all cloud accounts (see Orca RBAC semantics). Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global.
+- `all_cloud_accounts` (Boolean) When true, scope includes all cloud accounts (see Orca RBAC semantics). Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global. For the built-in Shift Left roles, true grants the role org-wide; shiftleft_global = true is the recommended scope.
 - `cloud_accounts` (List of String) Scoped cloud account ids when not using all_cloud_accounts.
 - `shiftleft_global` (Boolean) When true, the role applies to every Shift Left project (the Shift Left global scope). Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters. Defaults to true for the built-in Shift Left roles when no scope is set.
 - `shiftleft_projects` (List of String) Scoped Shift Left project ids.
