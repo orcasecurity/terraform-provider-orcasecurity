@@ -2,9 +2,14 @@ package add_users
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -154,5 +159,41 @@ func TestResolveScope_GroupsInviteHasNoScope(t *testing.T) {
 	}
 	if plan.AllCloudAccounts.ValueBool() || plan.ShiftleftGlobal.ValueBool() || plan.AllCloudAccounts.IsUnknown() {
 		t.Errorf("groups invite: %+v", plan)
+	}
+}
+
+// State written before shiftleft_global existed holds null; Read settles it to false so no replacement is planned.
+func TestRead_BackfillsNullShiftleftGlobal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"id":"inv-1","email":"tf-acc-test-x@example.com","expired":false}]}`))
+	}))
+	defer srv.Close()
+	r := &addUsersResource{apiClient: &api_client.APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}}
+
+	prior := basePlan()
+	prior.ID = types.StringValue("inv-1")
+	prior.ShiftleftGlobal = types.BoolNull()
+	prior.InviteLink = types.StringValue("https://example.com/invite")
+	prior.Expired = types.BoolValue(false)
+
+	ctx := context.Background()
+	schemaResp := resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	state := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := state.Set(ctx, prior); diags.HasError() {
+		t.Fatalf("set prior state: %v", diags)
+	}
+
+	resp := resource.ReadResponse{State: state}
+	r.Read(ctx, resource.ReadRequest{State: state}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("read: %v", resp.Diagnostics)
+	}
+	var got addUsersResourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("get state: %v", diags)
+	}
+	if got.ShiftleftGlobal.IsNull() || got.ShiftleftGlobal.ValueBool() {
+		t.Errorf("shiftleft_global should be a known false, got %v", got.ShiftleftGlobal)
 	}
 }

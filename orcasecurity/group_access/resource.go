@@ -119,36 +119,21 @@ func (r *groupAccessResource) ValidateConfig(ctx context.Context, req resource.V
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, map[string]types.List{
-		"cloud_accounts":     config.CloudAccounts,
-		"shiftleft_projects": config.ShiftleftProjects,
-		"user_filters":       config.UserFilters,
-	})...)
+	resp.Diagnostics.Append(common.ValidateShiftleftGlobalScope(config.ShiftleftGlobal, config.AllCloudAccounts, scopeLists(config))...)
 }
 
-// resolveScope fills the wide scope flags the config left unset: the UI default for the
-// role when no scope is named at all, false otherwise.
+func scopeLists(m groupAccessResourceModel) map[string]types.List {
+	return map[string]types.List{
+		"cloud_accounts":     m.CloudAccounts,
+		"shiftleft_projects": m.ShiftleftProjects,
+		"user_filters":       m.UserFilters,
+	}
+}
+
 func (r *groupAccessResource) resolveScope(plan *groupAccessResourceModel) diag.Diagnostics {
-	lists := map[string]types.List{
-		"cloud_accounts":     plan.CloudAccounts,
-		"shiftleft_projects": plan.ShiftleftProjects,
-		"user_filters":       plan.UserFilters,
-	}
-	if common.ScopeIsUnset(plan.AllCloudAccounts, plan.ShiftleftGlobal, lists) {
-		isShiftleft, err := r.apiClient.IsBuiltInShiftleftRole(plan.RoleID.ValueString())
-		if err != nil {
-			var diags diag.Diagnostics
-			diags.AddError("Error resolving the default scope", err.Error())
-			return diags
-		}
-		scope := common.DefaultScope(isShiftleft)
-		plan.AllCloudAccounts = types.BoolValue(scope.AllCloudAccounts)
-		plan.ShiftleftGlobal = types.BoolValue(scope.ShiftleftGlobal)
-		return nil
-	}
-	plan.AllCloudAccounts = types.BoolValue(plan.AllCloudAccounts.ValueBool())
-	plan.ShiftleftGlobal = types.BoolValue(plan.ShiftleftGlobal.ValueBool())
-	return nil
+	var diags diag.Diagnostics
+	plan.AllCloudAccounts, plan.ShiftleftGlobal, diags = common.ResolveScope(r.apiClient, plan.RoleID.ValueString(), plan.AllCloudAccounts, plan.ShiftleftGlobal, scopeLists(*plan))
+	return diags
 }
 
 func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessResourceModel, assignmentID string) (api_client.GroupAccess, diag.Diagnostics) {

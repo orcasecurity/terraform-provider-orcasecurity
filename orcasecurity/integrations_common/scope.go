@@ -47,6 +47,28 @@ type ScopeFlags struct {
 	ShiftleftGlobal  bool
 }
 
+// RoleLookup answers whether a role id is one of the built-in Shift Left roles.
+type RoleLookup interface {
+	IsBuiltInShiftleftRole(roleID string) (bool, error)
+}
+
+// ResolveScope returns the wide scope flags to send: the UI default for the role
+// when the config names no scope at all (and a role is given), the config values
+// as known booleans otherwise.
+func ResolveScope(lookup RoleLookup, roleID string, allCloudAccounts, shiftleftGlobal types.Bool, lists map[string]types.List) (types.Bool, types.Bool, diag.Diagnostics) {
+	if roleID != "" && ScopeIsUnset(allCloudAccounts, shiftleftGlobal, lists) {
+		isShiftleft, err := lookup.IsBuiltInShiftleftRole(roleID)
+		if err != nil {
+			var diags diag.Diagnostics
+			diags.AddError("Error resolving the default scope", err.Error())
+			return allCloudAccounts, shiftleftGlobal, diags
+		}
+		scope := DefaultScope(isShiftleft)
+		return types.BoolValue(scope.AllCloudAccounts), types.BoolValue(scope.ShiftleftGlobal), nil
+	}
+	return types.BoolValue(allCloudAccounts.ValueBool()), types.BoolValue(shiftleftGlobal.ValueBool()), nil
+}
+
 // ScopeIsUnset reports whether the config names no scope at all: both wide flags
 // left unset and every list scope null, unknown or empty.
 func ScopeIsUnset(allCloudAccounts types.Bool, shiftleftGlobal types.Bool, lists map[string]types.List) bool {

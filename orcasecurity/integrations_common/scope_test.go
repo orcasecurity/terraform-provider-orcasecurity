@@ -86,3 +86,40 @@ func TestDefaultScope(t *testing.T) {
 		t.Errorf("other role: %+v", got)
 	}
 }
+
+type fakeRoleLookup struct {
+	shiftleft bool
+	calls     int
+}
+
+func (f *fakeRoleLookup) IsBuiltInShiftleftRole(string) (bool, error) {
+	f.calls++
+	return f.shiftleft, nil
+}
+
+func TestResolveScope(t *testing.T) {
+	unset := map[string]types.List{"user_filters": types.ListNull(types.StringType)}
+
+	lookup := &fakeRoleLookup{shiftleft: true}
+	allCA, slGlobal, diags := ResolveScope(lookup, "r-sl", types.BoolUnknown(), types.BoolUnknown(), unset)
+	if diags.HasError() || allCA.ValueBool() || !slGlobal.ValueBool() {
+		t.Errorf("Shift Left role default: all=%v sl=%v diags=%v", allCA, slGlobal, diags)
+	}
+
+	lookup = &fakeRoleLookup{}
+	allCA, slGlobal, _ = ResolveScope(lookup, "r-viewer", types.BoolNull(), types.BoolNull(), unset)
+	if !allCA.ValueBool() || slGlobal.ValueBool() {
+		t.Errorf("other role default: all=%v sl=%v", allCA, slGlobal)
+	}
+
+	lookup = &fakeRoleLookup{shiftleft: true}
+	allCA, slGlobal, _ = ResolveScope(lookup, "r-sl", types.BoolValue(true), types.BoolNull(), unset)
+	if !allCA.ValueBool() || slGlobal.ValueBool() || lookup.calls != 0 {
+		t.Errorf("explicit scope must win without a lookup: all=%v sl=%v calls=%d", allCA, slGlobal, lookup.calls)
+	}
+
+	allCA, slGlobal, _ = ResolveScope(lookup, "", types.BoolUnknown(), types.BoolUnknown(), unset)
+	if allCA.ValueBool() || slGlobal.ValueBool() || allCA.IsUnknown() || lookup.calls != 0 {
+		t.Errorf("no role: all=%v sl=%v calls=%d", allCA, slGlobal, lookup.calls)
+	}
+}
