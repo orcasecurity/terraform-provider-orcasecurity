@@ -139,12 +139,12 @@ func TestCustomTagRule_CreateJsonRuleSendsRuleAsObject(t *testing.T) {
 		}
 	})
 
-	rule, err := apiClient.CreateCustomTagRule(api_client.CustomTagRule{
+	rule, err := apiClient.CustomTagRuleCreateOp(api_client.CustomTagRule{
 		Name:     "my json rule",
 		Tags:     map[string]string{"exposure": "public"},
 		Rule:     `{"models": ["AwsEc2Instance"], "type": "object_set"}`,
 		RuleType: "json",
-	})
+	}).Create()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,12 +193,12 @@ func TestCustomTagRule_CreateStringRuleSendsRuleAsString(t *testing.T) {
 		}
 	})
 
-	_, err := apiClient.CreateCustomTagRule(api_client.CustomTagRule{
+	_, err := apiClient.CustomTagRuleCreateOp(api_client.CustomTagRule{
 		Name:     "my rule",
 		Tags:     map[string]string{"exposure": "public"},
 		Rule:     "AwsEc2Instance with PublicIps",
 		RuleType: "string",
-	})
+	}).Create()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,12 +223,12 @@ func TestCustomTagRule_CreateInvalidJsonRuleFailsBeforeRequest(t *testing.T) {
 		}
 	})
 
-	_, err := apiClient.CreateCustomTagRule(api_client.CustomTagRule{
+	_, err := apiClient.CustomTagRuleCreateOp(api_client.CustomTagRule{
 		Name:     "broken",
 		Tags:     map[string]string{"a": "b"},
 		Rule:     "this is not json",
 		RuleType: "json",
-	})
+	}).Create()
 	if err == nil {
 		t.Fatal("expected error for invalid JSON rule")
 	}

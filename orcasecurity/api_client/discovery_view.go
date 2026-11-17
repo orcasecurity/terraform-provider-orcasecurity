@@ -55,8 +55,8 @@ func (client *APIClient) GetDiscoveryView(id string) (*DiscoveryView, error) {
 	return &discoveryView, nil
 }
 
-func (client *APIClient) CreateDiscoveryView(data DiscoveryView) (*DiscoveryView, error) {
-	resp, err := client.Post("/api/user_preferences", data)
+func (client *APIClient) createDiscoveryView(data DiscoveryView) (*DiscoveryView, error) {
+	resp, err := client.PostCreate("/api/user_preferences", data)
 	if err != nil {
 		return nil, err
 	}

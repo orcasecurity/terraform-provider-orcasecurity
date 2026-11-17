@@ -215,14 +215,12 @@ func (r *shiftLeftPolicyResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	preexisting := createrecovery.Snapshot(ctx, fmt.Sprintf("%s policies named %q", policyType, apiPolicy.Name), func() (map[string]bool, error) {
-		return r.apiClient.ListShiftLeftPolicyIDsByName(policyType, apiPolicy.Name)
-	})
-	policyID, err := r.createPolicy(ctx, policyType, apiPolicy, preexisting, &resp.Diagnostics)
+	created, err := createrecovery.Run(ctx, r.apiClient.ShiftLeftPolicyCreateOp(policyType, apiPolicy), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating AppSec policy", "Could not create policy: "+err.Error())
 		return
 	}
+	policyID := created.ID
 
 	// Attaching projects is a second call against the policy created above. Terraform records no
 	// state when Create reports an error, so anything that fails from here on has to take the new
@@ -274,26 +272,6 @@ func (r *shiftLeftPolicyResource) getAfterWrite(policyType, policyID string) (*a
 		err = fmt.Errorf("policy %s/%s could not be read back after create", policyType, policyID)
 	}
 	return instance, err
-}
-
-// createPolicy POSTs the policy. A POST with an ambiguous outcome (timeout / gateway error) may still
-// have been committed; the client never replays it, so recover the id by diffing the same-name
-// policies against the pre-create snapshot instead of leaving an untracked policy behind.
-func (r *shiftLeftPolicyResource) createPolicy(ctx context.Context, policyType string, apiPolicy api_client.ShiftLeftPolicy, preexisting map[string]bool, diags *diag.Diagnostics) (string, error) {
-	instance, err := r.apiClient.CreateShiftLeftPolicy(policyType, apiPolicy)
-	if err == nil {
-		return instance.ID, nil
-	}
-	list := func() (map[string]bool, error) {
-		return r.apiClient.ListShiftLeftPolicyIDsByName(policyType, apiPolicy.Name)
-	}
-	what := fmt.Sprintf("%s policy named %q", policyType, apiPolicy.Name)
-	id, warning, err := createrecovery.Recover(ctx, err, what, preexisting, list)
-	if err != nil {
-		return "", err
-	}
-	diags.AddWarning("Recovered AppSec policy after an ambiguous create", warning)
-	return id, nil
 }
 
 func (r *shiftLeftPolicyResource) rollbackCreatedPolicy(ctx context.Context, policyType, policyID string, diags *diag.Diagnostics) {

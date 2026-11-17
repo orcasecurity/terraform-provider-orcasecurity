@@ -39,13 +39,13 @@ type state struct {
 
 // Options is what each variant package supplies. ConfigType pins the sn_incidents config.type
 // discriminator ("ITSM" or "SIR"); the four CRUD method refs let us reuse the typed wrappers
-// on *api_client.APIClient (CreateServiceNowITSMTemplate vs CreateServiceNowSIRTemplate).
+// on *api_client.APIClient (ServiceNowITSMTemplateCreateOp vs ServiceNowSIRTemplateCreateOp).
 type Options struct {
 	TypeNameSuffix string
 	UIName         string
 	Description    string
 	ConfigType     string
-	Create         func(*api_client.APIClient, api_client.ServiceNowITSMTemplate) (*api_client.ServiceNowITSMTemplate, error)
+	CreateOp       func(*api_client.APIClient, string, api_client.ServiceNowITSMTemplate) api_client.CreateOp[api_client.ServiceNowITSMTemplate]
 	Get            func(*api_client.APIClient, string) (*api_client.ServiceNowITSMTemplate, error)
 	Update         func(*api_client.APIClient, string, api_client.ServiceNowITSMTemplate) (*api_client.ServiceNowITSMTemplate, error)
 	Delete         func(*api_client.APIClient, string) error
@@ -157,6 +157,7 @@ func extractStateFromAPI(api *api_client.ServiceNowITSMTemplate, s *state, diags
 func NewResource(opts Options) resource.Resource {
 	return cc.New(cc.Spec[api_client.ServiceNowITSMTemplate]{
 		TypeNameSuffix:        opts.TypeNameSuffix,
+		ServiceName:           api_client.ServiceNowITSMServiceName,
 		UIName:                opts.UIName,
 		Description:           opts.Description,
 		SupportsBusinessUnits: false,
@@ -206,9 +207,9 @@ func NewResource(opts Options) resource.Resource {
 				IsDefault:    api.IsDefault,
 			}
 		},
-		Create: opts.Create,
-		Get:    opts.Get,
-		Update: opts.Update,
-		Delete: opts.Delete,
+		CreateOp: opts.CreateOp,
+		Get:      opts.Get,
+		Update:   opts.Update,
+		Delete:   opts.Delete,
 	})
 }

@@ -65,7 +65,7 @@ func TestCreateDSPMPolicy(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	policy, err := client.CreateDSPMPolicy(DSPMPolicy{
+	policy, err := client.createDSPMPolicy(DSPMPolicy{
 		Name:             "PII policy",
 		Description:      "desc",
 		Feature:          "DSPM Scanning",

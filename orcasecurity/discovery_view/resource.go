@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -527,7 +528,7 @@ func (r *discoveryViewResource) Create(ctx context.Context, req resource.CreateR
 		FilterData:        api_client.DiscoveryQuery{Data: query},
 	}
 
-	instance, err := r.apiClient.CreateDiscoveryView(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.DiscoveryViewCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating discovery view",

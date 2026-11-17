@@ -131,6 +131,7 @@ func encodeMappings(s *state, cfg *api_client.JiraCloudTemplateConfig, diags *di
 func NewJiraCloudTemplateResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.JiraCloudTemplate]{
 		TypeNameSuffix:        "_integration_jira_cloud_template",
+		ServiceName:           api_client.JiraCloudServiceName,
 		UIName:                "Jira Cloud template",
 		Description:           "Manage a Jira Cloud template in Orca. Creates an external service config of `service_name = \"jira\"` linked to an existing Jira Cloud OAuth resource. Holds the project, issue-type, field-mapping, and status-mapping settings used when Orca opens Jira issues.",
 		SupportsBusinessUnits: true,
@@ -180,9 +181,9 @@ func NewJiraCloudTemplateResource() resource.Resource {
 				BusinessUnits: o.BusinessUnits,
 			}
 		},
-		Create: (*api_client.APIClient).CreateJiraCloudTemplate,
-		Get:    (*api_client.APIClient).GetJiraCloudTemplate,
-		Update: (*api_client.APIClient).UpdateJiraCloudTemplate,
-		Delete: (*api_client.APIClient).DeleteJiraCloudTemplate,
+		CreateOp: api_client.JiraCloudTemplateCreateOp,
+		Get:      (*api_client.APIClient).GetJiraCloudTemplate,
+		Update:   (*api_client.APIClient).UpdateJiraCloudTemplate,
+		Delete:   (*api_client.APIClient).DeleteJiraCloudTemplate,
 	})
 }

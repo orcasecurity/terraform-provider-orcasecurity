@@ -48,6 +48,7 @@ func extract(o *api_client.AkamaiExternalServiceConfig, st cc.State, _ *diag.Dia
 func NewAkamaiResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.AkamaiExternalServiceConfig]{
 		TypeNameSuffix: "_integration_akamai",
+		ServiceName:    api_client.AkamaiServiceName,
 		UIName:         "Akamai integration",
 		Description:    "Manage an Akamai integration in Orca. Creates an external service config of `service_name = \"akamai\"`. The Akamai credentials (`access_token`, `client_token`, `client_secret`) are stored in Orca's secret store and are never returned by the API.",
 		VariantAttributes: map[string]schema.Attribute{
@@ -78,7 +79,7 @@ func NewAkamaiResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateAkamaiConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.AkamaiConfig],
 		Get:          (*api_client.APIClient).GetAkamaiConfig,
 		Update:       (*api_client.APIClient).UpdateAkamaiConfig,
 		Delete:       (*api_client.APIClient).DeleteAkamaiConfig,

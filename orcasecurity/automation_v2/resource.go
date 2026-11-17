@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/tfvalidate"
 	"time"
 
@@ -1039,7 +1040,7 @@ func (r *automationV2Resource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	applyOnExisting := plan.ApplyOnExisting.ValueBool()
-	instance, err := r.apiClient.CreateAutomationV2(createReq, applyOnExisting)
+	instance, err := createrecovery.Run(ctx, r.apiClient.AutomationV2CreateOp(createReq, applyOnExisting), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Automation V2",

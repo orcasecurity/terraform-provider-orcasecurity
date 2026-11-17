@@ -44,7 +44,7 @@ func TestCreateShiftLeftPolicy_ScmPosture(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	policy, err := client.CreateShiftLeftPolicy("scm_posture", ShiftLeftPolicy{Name: "scm policy"})
+	policy, err := client.createShiftLeftPolicy("scm_posture", ShiftLeftPolicy{Name: "scm policy"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

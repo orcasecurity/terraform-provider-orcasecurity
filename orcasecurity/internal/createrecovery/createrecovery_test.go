@@ -4,10 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 var errAmbiguous = fmt.Errorf("%w: 504", api_client.ErrAmbiguousWrite)
@@ -20,16 +26,16 @@ func ids(v ...string) map[string]bool {
 	return m
 }
 
-func TestRecover_NonAmbiguousErrorPassesThrough(t *testing.T) {
+func TestRecoverID_NonAmbiguousErrorPassesThrough(t *testing.T) {
 	plain := errors.New("400 bad request")
-	if _, _, err := Recover(context.Background(), plain, "x", ids(), nil); err != plain {
+	if _, _, err := recoverID(context.Background(), plain, "x", ids(), nil); err != plain {
 		t.Fatalf("err = %v, want the original error", err)
 	}
 }
 
-func TestRecover_AdoptsSingleNewID(t *testing.T) {
-	FastForTest(t)
-	id, warning, err := Recover(context.Background(), errAmbiguous, "x", ids("old"), func() (map[string]bool, error) {
+func TestRecoverID_AdoptsSingleNewID(t *testing.T) {
+	backoff.FastForTest(t)
+	id, warning, err := recoverID(context.Background(), errAmbiguous, "x", ids("old"), func() (map[string]bool, error) {
 		return ids("old", "new"), nil
 	})
 	if err != nil || id != "new" || warning == "" {
@@ -37,10 +43,10 @@ func TestRecover_AdoptsSingleNewID(t *testing.T) {
 	}
 }
 
-func TestRecover_PollsUntilTheCreateShowsUp(t *testing.T) {
-	FastForTest(t)
+func TestRecoverID_PollsUntilTheCreateShowsUp(t *testing.T) {
+	backoff.FastForTest(t)
 	calls := 0
-	id, _, err := Recover(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
+	id, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		calls++
 		if calls < 3 {
 			return ids(), nil
@@ -52,9 +58,9 @@ func TestRecover_PollsUntilTheCreateShowsUp(t *testing.T) {
 	}
 }
 
-func TestRecover_NoSnapshotNeverAdopts(t *testing.T) {
-	FastForTest(t)
-	_, _, err := Recover(context.Background(), errAmbiguous, "x", nil, func() (map[string]bool, error) {
+func TestRecoverID_NoSnapshotNeverAdopts(t *testing.T) {
+	backoff.FastForTest(t)
+	_, _, err := recoverID(context.Background(), errAmbiguous, "x", nil, func() (map[string]bool, error) {
 		return ids("new"), nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "import it") {
@@ -62,9 +68,9 @@ func TestRecover_NoSnapshotNeverAdopts(t *testing.T) {
 	}
 }
 
-func TestRecover_SeveralNewIDsError(t *testing.T) {
-	FastForTest(t)
-	_, _, err := Recover(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
+func TestRecoverID_SeveralNewIDsError(t *testing.T) {
+	backoff.FastForTest(t)
+	_, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		return ids("a", "b"), nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "2 new matches") || !strings.Contains(err.Error(), "a, b") {
@@ -72,9 +78,9 @@ func TestRecover_SeveralNewIDsError(t *testing.T) {
 	}
 }
 
-func TestRecover_LookupFailureErrors(t *testing.T) {
-	FastForTest(t)
-	_, _, err := Recover(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
+func TestRecoverID_LookupFailureErrors(t *testing.T) {
+	backoff.FastForTest(t)
+	_, _, err := recoverID(context.Background(), errAmbiguous, "x", ids(), func() (map[string]bool, error) {
 		return nil, errors.New("list down")
 	})
 	if err == nil || !strings.Contains(err.Error(), "also failed") {
@@ -83,7 +89,125 @@ func TestRecover_LookupFailureErrors(t *testing.T) {
 }
 
 func TestSnapshot_FailureDisablesAdoption(t *testing.T) {
-	if got := Snapshot(context.Background(), "x", func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
+	if got := snapshot(context.Background(), "x", func() (map[string]bool, error) { return nil, errors.New("down") }); got != nil {
 		t.Fatalf("snapshot = %v, want nil", got)
+	}
+}
+
+type thing struct{ ID string }
+
+func idlessCreateOp(created *thing, after map[string]bool, gets *[]string) api_client.CreateOp[thing] {
+	listed := 0
+	return api_client.CreateOp[thing]{
+		What:   `thing named "x"`,
+		Create: func() (*thing, error) { return created, nil },
+		ID:     func(t *thing) string { return t.ID },
+		IDs: func() (map[string]bool, error) {
+			listed++
+			if listed == 1 {
+				return ids("old"), nil
+			}
+			return after, nil
+		},
+		Get: func(id string) (*thing, error) {
+			*gets = append(*gets, id)
+			return &thing{ID: id}, nil
+		},
+	}
+}
+
+func TestRun_CreateWithoutAnIDAdoptsTheSingleNewID(t *testing.T) {
+	for name, created := range map[string]*thing{"nil": nil, "empty id": {}} {
+		backoff.FastForTest(t)
+		var gets []string
+		var diags diag.Diagnostics
+		got, err := Run(context.Background(), idlessCreateOp(created, ids("old", "new"), &gets), &diags)
+		if err != nil || got == nil || got.ID != "new" {
+			t.Fatalf("%s: got=%v err=%v, want the new object adopted", name, got, err)
+		}
+		if len(gets) != 1 || gets[0] != "new" || diags.WarningsCount() != 1 || !strings.Contains(diags[0].Detail(), "returned no object id") {
+			t.Errorf("%s: gets=%v diags=%v, want one read-back of the new id and one warning", name, gets, diags)
+		}
+	}
+}
+
+func TestRun_CreateWithoutAnIDAndNothingNewSaysCheckUI(t *testing.T) {
+	for name, created := range map[string]*thing{"nil": nil, "empty id": {}} {
+		backoff.FastForTest(t)
+		var gets []string
+		var diags diag.Diagnostics
+		got, err := Run(context.Background(), idlessCreateOp(created, ids("old"), &gets), &diags)
+		if got != nil || err == nil || !strings.Contains(err.Error(), `thing named "x"`) ||
+			!strings.Contains(err.Error(), "returned no object id") || !strings.Contains(err.Error(), "check the Orca UI") {
+			t.Fatalf("%s: got=%v err=%v, want a returned-no-object-id error that says check the Orca UI", name, got, err)
+		}
+		if len(gets) != 0 || len(diags) != 0 {
+			t.Errorf("%s: gets=%v diags=%v, want no read-back and no diagnostics", name, gets, diags)
+		}
+	}
+}
+
+type keyedObj struct{ ID string }
+
+func TestRun_ParallelSameKeyCreateIsNeverAdopted(t *testing.T) {
+	backoff.FastForTest(t)
+	var mu sync.Mutex
+	store := ids()
+	list := func() (map[string]bool, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return maps.Clone(store), nil
+	}
+	get := func(id string) (*keyedObj, error) { return &keyedObj{ID: id}, nil }
+	snapshotTaken := make(chan struct{})
+	bDone := make(chan struct{})
+	var once sync.Once
+
+	opA := api_client.CreateOp[keyedObj]{
+		What: `thing named "dup"`,
+		ID:   func(o *keyedObj) string { return o.ID },
+		IDs: func() (map[string]bool, error) {
+			once.Do(func() { close(snapshotTaken) })
+			return list()
+		},
+		Create: func() (*keyedObj, error) {
+			select {
+			case <-bDone:
+			case <-time.After(200 * time.Millisecond):
+			}
+			return nil, errAmbiguous
+		},
+		Get: get,
+	}
+	opB := api_client.CreateOp[keyedObj]{
+		What: `Thing named " dup "`,
+		ID:   func(o *keyedObj) string { return o.ID },
+		IDs:  list,
+		Create: func() (*keyedObj, error) {
+			mu.Lock()
+			store["b"] = true
+			mu.Unlock()
+			return &keyedObj{ID: "b"}, nil
+		},
+		Get: get,
+	}
+
+	aErr := make(chan error, 1)
+	go func() {
+		var d diag.Diagnostics
+		got, err := Run(context.Background(), opA, &d)
+		if err == nil {
+			err = fmt.Errorf("A adopted %q", got.ID)
+		}
+		aErr <- err
+	}()
+	<-snapshotTaken
+	var d diag.Diagnostics
+	if _, err := Run(context.Background(), opB, &d); err != nil {
+		t.Fatalf("B: %v", err)
+	}
+	close(bDone)
+	if err := <-aErr; !errors.Is(err, api_client.ErrAmbiguousWrite) {
+		t.Fatalf("A: %v, want the unrecovered ambiguous error", err)
 	}
 }

@@ -10,10 +10,6 @@ type ZscalerConfig struct {
 
 type ZscalerExternalServiceConfig = ConfigEnvelope[ZscalerConfig]
 
-func (client *APIClient) CreateZscalerConfig(payload ZscalerExternalServiceConfig) (*ZscalerExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[ZscalerConfig](client, ZscalerServiceName, payload)
-}
-
 func (client *APIClient) GetZscalerConfig(templateName string) (*ZscalerExternalServiceConfig, error) {
 	return GetExternalServiceConfig[ZscalerConfig](client, ZscalerServiceName, templateName, nil)
 }

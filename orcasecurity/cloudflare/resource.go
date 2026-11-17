@@ -37,6 +37,7 @@ func extract(o *api_client.CloudflareExternalServiceConfig, _ cc.State, _ *diag.
 func NewCloudflareResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.CloudflareExternalServiceConfig]{
 		TypeNameSuffix: "_integration_cloudflare",
+		ServiceName:    api_client.CloudflareServiceName,
 		UIName:         "Cloudflare integration",
 		Description:    "Manage a Cloudflare integration in Orca. Creates an external service config of `service_name = \"cloudflare\"` and stores the API token in Orca's secret store.",
 		VariantAttributes: map[string]schema.Attribute{
@@ -50,7 +51,7 @@ func NewCloudflareResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateCloudflareConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.CloudflareConfig],
 		Get:          (*api_client.APIClient).GetCloudflareConfig,
 		Update:       (*api_client.APIClient).UpdateCloudflareConfig,
 		Delete:       (*api_client.APIClient).DeleteCloudflareConfig,

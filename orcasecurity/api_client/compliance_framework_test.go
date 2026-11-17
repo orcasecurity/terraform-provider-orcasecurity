@@ -227,7 +227,7 @@ func TestCreateCustomComplianceFramework_OmitsCheckedKeys(t *testing.T) {
 		}
 		return jsonStatus(200, `{"data":{"id": 3887, "name":"Lab","description":""}}`)
 	})
-	got, err := client.CreateCustomComplianceFramework(CustomComplianceFrameworkRequest{
+	got, err := client.createCustomComplianceFramework(CustomComplianceFrameworkRequest{
 		Name: "Lab",
 		Sections: []CustomComplianceFrameworkSection{{
 			Name:     "Flat",

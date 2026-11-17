@@ -135,6 +135,7 @@ func encodeMapping(ctx context.Context, s *state, cfg *api_client.SlackConfig, d
 func NewSlackResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.SlackTemplate]{
 		TypeNameSuffix:        "_integration_slack_template",
+		ServiceName:           api_client.SlackServiceName,
 		UIName:                "Slack template",
 		Description:           "Manage a Slack integration in Orca. Creates an external service config of `service_name = \"slack\"` that posts Orca alerts to the given Slack workspace/channels, with a field mapping controlling which alert fields render in the message title and description.",
 		SupportsBusinessUnits: true,
@@ -182,9 +183,9 @@ func NewSlackResource() resource.Resource {
 				BusinessUnits: o.BusinessUnits,
 			}
 		},
-		Create: (*api_client.APIClient).CreateSlackTemplate,
-		Get:    (*api_client.APIClient).GetSlackTemplate,
-		Update: (*api_client.APIClient).UpdateSlackTemplate,
-		Delete: (*api_client.APIClient).DeleteSlackTemplate,
+		CreateOp: api_client.ExternalServiceConfigCreateOp[api_client.SlackConfig],
+		Get:      (*api_client.APIClient).GetSlackTemplate,
+		Update:   (*api_client.APIClient).UpdateSlackTemplate,
+		Delete:   (*api_client.APIClient).DeleteSlackTemplate,
 	})
 }

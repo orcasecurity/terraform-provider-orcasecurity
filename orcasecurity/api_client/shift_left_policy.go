@@ -3,7 +3,6 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 // ShiftLeftPolicy represents an AppSec (Shift Left) policy from the API.
@@ -117,15 +116,24 @@ func (client *APIClient) ListShiftLeftPolicyIDsByName(policyType, name string) (
 	}
 	ids := map[string]bool{}
 	for _, p := range all {
-		// Same rule as createrecovery.SameName, inlined: createrecovery imports api_client (import cycle).
-		if strings.TrimSpace(p.Name) == strings.TrimSpace(name) && !p.Builtin && (p.Type == "" || p.Type == policyType) {
+		if sameName(p.Name, name) && !p.Builtin && (p.Type == "" || p.Type == policyType) {
 			ids[p.ID] = true
 		}
 	}
 	return ids, nil
 }
 
-func (client *APIClient) CreateShiftLeftPolicy(policyType string, policy ShiftLeftPolicy) (*ShiftLeftPolicy, error) {
+func (client *APIClient) ShiftLeftPolicyCreateOp(policyType string, policy ShiftLeftPolicy) CreateOp[ShiftLeftPolicy] {
+	return CreateOp[ShiftLeftPolicy]{
+		What:   fmt.Sprintf("%s policy named %q", policyType, policy.Name),
+		Create: func() (*ShiftLeftPolicy, error) { return client.createShiftLeftPolicy(policyType, policy) },
+		ID:     func(p *ShiftLeftPolicy) string { return p.ID },
+		IDs:    func() (map[string]bool, error) { return client.ListShiftLeftPolicyIDsByName(policyType, policy.Name) },
+		Get:    func(id string) (*ShiftLeftPolicy, error) { return client.GetShiftLeftPolicy(policyType, id) },
+	}
+}
+
+func (client *APIClient) createShiftLeftPolicy(policyType string, policy ShiftLeftPolicy) (*ShiftLeftPolicy, error) {
 	resp, err := client.PostCreate(shiftLeftPolicyBasePath(policyType), policy)
 	if err != nil {
 		return nil, err

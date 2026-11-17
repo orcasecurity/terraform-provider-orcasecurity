@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	common "terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
@@ -22,7 +23,7 @@ func itsmOptions() Options {
 		TypeNameSuffix: "_integration_servicenow_itsm_template",
 		UIName:         "ServiceNow ITSM template",
 		ConfigType:     api_client.ServiceNowITSMTemplateConfigType,
-		Create:         (*api_client.APIClient).CreateServiceNowITSMTemplate,
+		CreateOp:       api_client.ServiceNowITSMTemplateCreateOp,
 		Get:            (*api_client.APIClient).GetServiceNowITSMTemplate,
 		Update:         (*api_client.APIClient).UpdateServiceNowITSMTemplate,
 		Delete:         (*api_client.APIClient).DeleteServiceNowITSMTemplate,
@@ -139,6 +140,36 @@ func TestResourceCreate_BuildPayloadAndExtract(t *testing.T) {
 	}
 	if out.InstanceName.ValueString() != "acme" {
 		t.Errorf("instance_name not extracted: %q", out.InstanceName.ValueString())
+	}
+}
+
+func TestResourceCreate_AmbiguousPostIsRecoveredByTemplateName(t *testing.T) {
+	backoff.FastForTest(t)
+	posts := 0
+	r, sch, closeFn := configuredResource(t, itsmOptions(), func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		if req.Method == http.MethodPost {
+			posts++
+			w.WriteHeader(http.StatusGatewayTimeout)
+			return
+		}
+		if posts == 0 {
+			_, _ = w.Write([]byte(`{"status":"success","data":[]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"success","data":[{"id":"tmpl-id","service_name":"sn_incidents","template_name":"tf-tmpl","is_enabled":true,"resource":"res-1","config":{"type":"ITSM","instance_name":"acme"}}]}`))
+	})
+	defer closeFn()
+
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(context.Background(), resource.CreateRequest{Plan: planModel(t, sch, newModel())}, resp)
+	if resp.Diagnostics.HasError() || resp.Diagnostics.WarningsCount() != 1 || posts != 1 {
+		t.Fatalf("want one POST and one recovery warning, got posts=%d diags=%v", posts, resp.Diagnostics)
+	}
+	var out state
+	resp.State.Get(context.Background(), &out)
+	if out.ID.ValueString() != "tmpl-id" {
+		t.Errorf("recovered id not in state: %q", out.ID.ValueString())
 	}
 }
 

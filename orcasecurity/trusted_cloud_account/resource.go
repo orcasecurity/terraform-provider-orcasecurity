@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -136,7 +137,7 @@ func (r *trustedCloudAccountResource) Create(ctx context.Context, req resource.C
 		Description:    plan.Description.ValueString(),
 	}
 
-	instance, err := r.apiClient.CreateTrustedCloudAccount(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.TrustedCloudAccountCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating trusted cloud account",

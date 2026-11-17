@@ -110,7 +110,7 @@ func (client *APIClient) GetCustomTagRule(id string) (*CustomTagRule, error) {
 	return response.Data.toCustomTagRule()
 }
 
-func (client *APIClient) CreateCustomTagRule(data CustomTagRule) (*CustomTagRule, error) {
+func (client *APIClient) createCustomTagRule(data CustomTagRule) (*CustomTagRule, error) {
 	type responseDataType struct {
 		TagsRuleID string `json:"tags_rule_id"`
 	}
@@ -123,7 +123,7 @@ func (client *APIClient) CreateCustomTagRule(data CustomTagRule) (*CustomTagRule
 		return nil, err
 	}
 
-	resp, err := client.Post(customTagRulesAPIPath, request)
+	resp, err := client.PostCreate(customTagRulesAPIPath, request)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +134,29 @@ func (client *APIClient) CreateCustomTagRule(data CustomTagRule) (*CustomTagRule
 	}
 
 	return client.GetCustomTagRule(response.Data.TagsRuleID)
+}
+
+// The list is unpaginated and takes no filters.
+func (client *APIClient) ListCustomTagRuleIDsByName(name string) (map[string]bool, error) {
+	resp, err := client.Get(customTagRulesAPIPath)
+	if err != nil {
+		return nil, err
+	}
+	rules, err := readData[[]customTagRuleResponse](resp)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(*rules, func(r *customTagRuleResponse) string { return r.ID }, func(r *customTagRuleResponse) bool { return sameName(r.Name, name) }), nil
+}
+
+func (client *APIClient) CustomTagRuleCreateOp(data CustomTagRule) CreateOp[CustomTagRule] {
+	return CreateOp[CustomTagRule]{
+		What:   fmt.Sprintf("custom tag rule named %q", data.Name),
+		ID:     func(o *CustomTagRule) string { return o.ID },
+		Create: func() (*CustomTagRule, error) { return client.createCustomTagRule(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListCustomTagRuleIDsByName(data.Name) },
+		Get:    client.GetCustomTagRule,
+	}
 }
 
 func (client *APIClient) UpdateCustomTagRule(id string, data CustomTagRule) (*CustomTagRule, error) {

@@ -90,7 +90,7 @@ func TestCreateDSPMDetector(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
-	detector, err := client.CreateDSPMDetector(DSPMDetector{
+	detector, err := client.createDSPMDetector(DSPMDetector{
 		Title:       "My Detector",
 		Details:     "desc",
 		Category:    "PII",

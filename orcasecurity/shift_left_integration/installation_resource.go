@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/shift_left_common"
 
@@ -39,17 +40,14 @@ func InstallationBaseAttrs(scmName, cloudURL, tokenDesc string) map[string]rsche
 }
 
 type InstallationLifecycle[M any, A any] struct {
-	SCMName  string
-	Create   func(plan *M) (*A, error)
+	SCMName string
+	// Orca validates the token against the SCM server on create, so a slow SCM can time out after commit.
+	CreateOp func(plan *M) api_client.CreateOp[A]
 	Get      func(id string) (*A, error)
 	Update   func(plan *M) (*A, error)
 	Delete   func(id string) error
 	ID       func(m *M) string
 	SetState func(m *M, a *A)
-	// Name and IDsNamed let Create recover an installation whose POST was ambiguous (timeout/502/504):
-	// Orca validates the token against the SCM server on create, so a slow SCM can time out after commit.
-	Name     func(m *M) string
-	IDsNamed func(name string) (map[string]bool, error)
 }
 
 func (l InstallationLifecycle[M, A]) DoCreate(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -58,23 +56,10 @@ func (l InstallationLifecycle[M, A]) DoCreate(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	title := fmt.Sprintf("Error creating %s installation", l.SCMName)
-	name := l.Name(&plan)
-	what := fmt.Sprintf("%s installation named %q", l.SCMName, name)
-	list := func() (map[string]bool, error) { return l.IDsNamed(name) }
-	before := createrecovery.Snapshot(ctx, what, list)
-	created, err := l.Create(&plan)
+	created, err := createrecovery.Run(ctx, l.CreateOp(&plan), &resp.Diagnostics)
 	if err != nil {
-		id, warning, recErr := createrecovery.Recover(ctx, err, what, before, list)
-		if recErr != nil {
-			resp.Diagnostics.AddError(title, recErr.Error())
-			return
-		}
-		if created, err = l.Get(id); err != nil || created == nil {
-			resp.Diagnostics.AddError(title, fmt.Sprintf("recovered installation %s could not be read back (%v); import it", id, err))
-			return
-		}
-		resp.Diagnostics.AddWarning(fmt.Sprintf("Recovered %s installation after an ambiguous create", l.SCMName), warning)
+		resp.Diagnostics.AddError(fmt.Sprintf("Error creating %s installation", l.SCMName), err.Error())
+		return
 	}
 	l.SetState(&plan, created)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)

@@ -205,7 +205,7 @@ func TestCreateGroupAccess_ParsesWrappedDataID(t *testing.T) {
 		APIToken:    "tok",
 		HTTPClient:  srv.Client(),
 	}
-	got, err := c.CreateGroupAccess(GroupAccess{
+	got, err := c.createGroupAccess(GroupAccess{
 		GroupID:           "g1",
 		RoleID:            "r1",
 		AllCloudAccounts:  false,

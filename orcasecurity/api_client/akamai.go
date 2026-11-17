@@ -11,10 +11,6 @@ type AkamaiConfig struct {
 
 type AkamaiExternalServiceConfig = ConfigEnvelope[AkamaiConfig]
 
-func (client *APIClient) CreateAkamaiConfig(payload AkamaiExternalServiceConfig) (*AkamaiExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[AkamaiConfig](client, AkamaiServiceName, payload)
-}
-
 func (client *APIClient) GetAkamaiConfig(templateName string) (*AkamaiExternalServiceConfig, error) {
 	return GetExternalServiceConfig[AkamaiConfig](client, AkamaiServiceName, templateName, nil)
 }

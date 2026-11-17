@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/integrations_common"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -203,7 +204,7 @@ func (r *policyAssignmentResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	instance, err := r.apiClient.CreateAdmissionControllerScope(payload)
+	instance, err := createrecovery.Run(ctx, r.apiClient.AdmissionControllerScopeCreateOp(payload), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(errCreatingAssignment, "Could not create policy assignment, unexpected error: "+err.Error())
 		return

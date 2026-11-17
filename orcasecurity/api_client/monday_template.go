@@ -22,10 +22,6 @@ type MondayTemplateConfig struct {
 // Monday OAuth resource id.
 type MondayTemplate = ConfigEnvelope[MondayTemplateConfig]
 
-func (client *APIClient) CreateMondayTemplate(payload MondayTemplate) (*MondayTemplate, error) {
-	return CreateExternalServiceConfig[MondayTemplateConfig](client, MondayServiceName, payload)
-}
-
 func (client *APIClient) GetMondayTemplate(templateName string) (*MondayTemplate, error) {
 	return GetExternalServiceConfig[MondayTemplateConfig](client, MondayServiceName, templateName, nil)
 }

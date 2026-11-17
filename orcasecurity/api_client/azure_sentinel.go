@@ -10,10 +10,6 @@ type AzureSentinelConfig struct {
 
 type AzureSentinelExternalServiceConfig = ConfigEnvelope[AzureSentinelConfig]
 
-func (client *APIClient) CreateAzureSentinelConfig(payload AzureSentinelExternalServiceConfig) (*AzureSentinelExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[AzureSentinelConfig](client, AzureSentinelServiceName, payload)
-}
-
 func (client *APIClient) GetAzureSentinelConfig(templateName string) (*AzureSentinelExternalServiceConfig, error) {
 	return GetExternalServiceConfig[AzureSentinelConfig](client, AzureSentinelServiceName, templateName, nil)
 }

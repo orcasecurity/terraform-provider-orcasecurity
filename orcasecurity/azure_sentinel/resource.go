@@ -53,6 +53,7 @@ func extract(o *api_client.AzureSentinelExternalServiceConfig, st cc.State, _ *d
 func NewAzureSentinelResource() resource.Resource {
 	return cc.New(cc.Spec[api_client.AzureSentinelExternalServiceConfig]{
 		TypeNameSuffix:        "_integration_azure_sentinel",
+		ServiceName:           api_client.AzureSentinelServiceName,
 		UIName:                "Azure Sentinel integration",
 		Description:           "Manage an Azure Sentinel integration in Orca. Creates an external service config of `service_name = \"azure_sentinel\"`. The Log Analytics workspace primary key is stored in Orca's secret store and is never returned by the API.",
 		SupportsBusinessUnits: true,
@@ -77,7 +78,7 @@ func NewAzureSentinelResource() resource.Resource {
 		NewState:     func() cc.State { return &state{} },
 		BuildPayload: buildPayload,
 		Extract:      extract,
-		Create:       (*api_client.APIClient).CreateAzureSentinelConfig,
+		CreateOp:     api_client.ExternalServiceConfigCreateOp[api_client.AzureSentinelConfig],
 		Get:          (*api_client.APIClient).GetAzureSentinelConfig,
 		Update:       (*api_client.APIClient).UpdateAzureSentinelConfig,
 		Delete:       (*api_client.APIClient).DeleteAzureSentinelConfig,

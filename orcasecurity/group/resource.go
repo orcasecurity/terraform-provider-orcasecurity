@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -111,7 +112,7 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		Description: plan.Description.ValueString(),
 	}
 
-	instance, err := r.apiClient.CreateGroup(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.GroupCreateOp(createReq), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating group",

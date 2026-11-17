@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -158,7 +159,7 @@ func (r *shiftLeftProjectResource) Create(ctx context.Context, req resource.Crea
 		ExceptionIds:                     plan.ExceptionIds,
 	}
 
-	instance, err := r.apiClient.CreateShiftLeftProject(createReq)
+	instance, err := createrecovery.Run(ctx, r.apiClient.ShiftLeftProjectCreateOp(createReq), &resp.Diagnostics)
 
 	if err != nil {
 		resp.Diagnostics.AddError(

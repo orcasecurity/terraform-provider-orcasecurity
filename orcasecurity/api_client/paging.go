@@ -25,9 +25,18 @@ func (f listFilters) query() url.Values {
 
 // Page until an empty page; maxPages guards a server that never returns one.
 func paginateOffset[T any](client *APIClient, path string, filters listFilters, limit, maxPages int) ([]T, error) {
+	return paginateOffsetWith(client, path, filters, limit, maxPages, func(resp *APIResponse) (*[]T, error) {
+		var env offsetEnvelope[T]
+		err := resp.ReadJSON(&env)
+		return env.Data, err
+	})
+}
+
+// page decodes one response into its rows; nil rows means the list key is missing.
+func paginateOffsetWith[T any](client *APIClient, path string, filters listFilters, limit, maxPages int, page func(*APIResponse) (*[]T, error)) ([]T, error) {
 	var all []T
-	for page := 0; ; page++ {
-		if page >= maxPages {
+	for n := 0; ; n++ {
+		if n >= maxPages {
 			return nil, fmt.Errorf("%s: exceeded %d pages; aborting to avoid unbounded paging", path, maxPages)
 		}
 		query := filters.query()
@@ -39,14 +48,14 @@ func paginateOffset[T any](client *APIClient, path string, filters listFilters, 
 		if err != nil {
 			return nil, err
 		}
-		var env offsetEnvelope[T]
-		if err := resp.ReadJSON(&env); err != nil {
+		rows, err := page(resp)
+		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		if env.Data == nil {
+		if rows == nil {
 			return nil, fmt.Errorf("%s: response missing data key: %s", path, resp.Body())
 		}
-		data := *env.Data
+		data := *rows
 		all = append(all, data...)
 		// Short page ≠ done (limit may be clamped) — only an empty page means done.
 		// DRF's LimitOffsetPagination always yields an empty page past the real

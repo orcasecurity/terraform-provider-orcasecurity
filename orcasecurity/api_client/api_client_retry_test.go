@@ -1,13 +1,14 @@
 package api_client
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 )
 
 const (
@@ -192,17 +193,12 @@ func TestRoundTripWithRetry_TimeoutNotRetriedWhenDisabled(t *testing.T) {
 	}
 }
 
-func stubRetrySleep(t *testing.T) *[]time.Duration {
+func stubRetrySleep(t *testing.T) func() []time.Duration {
 	t.Helper()
-	var slept []time.Duration
-	origSleep, origJitter := retrySleep, retryJitter
-	retrySleep = func(_ context.Context, d time.Duration) error {
-		slept = append(slept, d)
-		return nil
-	}
+	origJitter := retryJitter
 	retryJitter = func(time.Duration) time.Duration { return 0 }
-	t.Cleanup(func() { retrySleep, retryJitter = origSleep, origJitter })
-	return &slept
+	t.Cleanup(func() { retryJitter = origJitter })
+	return backoff.FastForTest(t)
 }
 
 func statusSequenceClient(codes func(n int) int) (*APIClient, *int) {
@@ -256,8 +252,8 @@ func TestRoundTripWithRetry_429GivesUpAfterThrottleBudget(t *testing.T) {
 	if *n != maxThrottleRetryAttempts {
 		t.Fatalf("attempts = %d, want %d", *n, maxThrottleRetryAttempts)
 	}
-	if len(*slept) != maxThrottleRetryAttempts-1 {
-		t.Fatalf("sleeps = %d, want %d", len(*slept), maxThrottleRetryAttempts-1)
+	if len(slept()) != maxThrottleRetryAttempts-1 {
+		t.Fatalf("sleeps = %d, want %d", len(slept()), maxThrottleRetryAttempts-1)
 	}
 	if resp.StatusCode() != http.StatusTooManyRequests {
 		t.Fatalf(errFmtRetryTestStatus, resp.StatusCode())

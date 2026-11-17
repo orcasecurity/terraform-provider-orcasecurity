@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -139,7 +140,7 @@ func (r *customTagRuleResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	instance, err := r.apiClient.CreateCustomTagRule(generateAPIRequest(plan))
+	instance, err := createrecovery.Run(ctx, r.apiClient.CustomTagRuleCreateOp(generateAPIRequest(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating custom tag rule",

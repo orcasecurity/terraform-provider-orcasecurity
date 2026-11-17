@@ -8,10 +8,6 @@ type OpsgenieConfig struct {
 
 type OpsgenieExternalServiceConfig = ConfigEnvelope[OpsgenieConfig]
 
-func (client *APIClient) CreateOpsgenieConfig(payload OpsgenieExternalServiceConfig) (*OpsgenieExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[OpsgenieConfig](client, OpsgenieServiceName, payload)
-}
-
 func (client *APIClient) GetOpsgenieConfig(templateName string) (*OpsgenieExternalServiceConfig, error) {
 	return GetExternalServiceConfig[OpsgenieConfig](client, OpsgenieServiceName, templateName, nil)
 }

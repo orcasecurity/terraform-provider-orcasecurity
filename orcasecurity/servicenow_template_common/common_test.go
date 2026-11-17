@@ -245,7 +245,7 @@ func TestNewResource_MetadataUsesSuffix(t *testing.T) {
 		TypeNameSuffix: "_integration_servicenow_itsm_template",
 		UIName:         "ServiceNow ITSM template",
 		ConfigType:     api_client.ServiceNowITSMTemplateConfigType,
-		Create:         (*api_client.APIClient).CreateServiceNowITSMTemplate,
+		CreateOp:       api_client.ServiceNowITSMTemplateCreateOp,
 		Get:            (*api_client.APIClient).GetServiceNowITSMTemplate,
 		Update:         (*api_client.APIClient).UpdateServiceNowITSMTemplate,
 		Delete:         (*api_client.APIClient).DeleteServiceNowITSMTemplate,
@@ -266,7 +266,7 @@ func TestNewResource_SchemaIncludesVariantAttributes(t *testing.T) {
 	r := NewResource(Options{
 		TypeNameSuffix: "_integration_servicenow_sir_template",
 		ConfigType:     api_client.ServiceNowSIRTemplateConfigType,
-		Create:         (*api_client.APIClient).CreateServiceNowSIRTemplate,
+		CreateOp:       api_client.ServiceNowSIRTemplateCreateOp,
 		Get:            (*api_client.APIClient).GetServiceNowSIRTemplate,
 		Update:         (*api_client.APIClient).UpdateServiceNowSIRTemplate,
 		Delete:         (*api_client.APIClient).DeleteServiceNowSIRTemplate,

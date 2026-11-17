@@ -20,10 +20,6 @@ type WebhookResourceConfig struct {
 
 type WebhookExternalServiceConfig = ConfigEnvelope[WebhookResourceConfig]
 
-func (client *APIClient) CreateWebhookConfig(payload WebhookExternalServiceConfig) (*WebhookExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[WebhookResourceConfig](client, WebhookConfigServiceName, payload)
-}
-
 func (client *APIClient) GetWebhookConfigByTemplate(templateName string) (*WebhookExternalServiceConfig, error) {
 	return GetExternalServiceConfig[WebhookResourceConfig](client, WebhookConfigServiceName, templateName, nil)
 }

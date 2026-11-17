@@ -153,7 +153,8 @@ func (r *customDiscoveryAlertResource) Create(ctx context.Context, req resource.
 		}
 	}
 
-	instance, err := r.apiClient.CreateCustomDiscoveryAlert(createReq)
+	instance, err := alert_common.Create(ctx, r.apiClient, r.apiClient.CustomDiscoveryAlertCreateOp(createReq),
+		func(a *api_client.CustomDiscoveryAlert) string { return a.RuleType }, createReq.RemediationText, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Alert",

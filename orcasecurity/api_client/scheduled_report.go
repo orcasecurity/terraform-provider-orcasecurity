@@ -3,6 +3,7 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const scheduledReportAPIPath = "/api/reporting/scheduled_reports"
@@ -144,12 +145,12 @@ func scheduledReportBody(prior *ScheduledReport, next ScheduledReport) (map[stri
 	return body, nil
 }
 
-func (client *APIClient) CreateScheduledReport(data ScheduledReport) (*ScheduledReport, error) {
+func (client *APIClient) createScheduledReport(data ScheduledReport) (*ScheduledReport, error) {
 	body, err := scheduledReportBody(nil, data)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.Post(scheduledReportAPIPath, body)
+	resp, err := client.PostCreate(scheduledReportAPIPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +160,26 @@ func (client *APIClient) CreateScheduledReport(data ScheduledReport) (*Scheduled
 		return nil, err
 	}
 	return &response.Data, nil
+}
+
+// The server stores "/" in a name as ":"; search is icontains over name and creator.
+func (client *APIClient) ListScheduledReportIDsByName(name string) (map[string]bool, error) {
+	stored := strings.ReplaceAll(name, "/", ":")
+	all, err := paginateOffset[ScheduledReport](client, scheduledReportAPIPath, listFilters{"search": strings.TrimSpace(stored)}, 300, 500)
+	if err != nil {
+		return nil, err
+	}
+	return idsWhere(all, func(r *ScheduledReport) string { return r.ID }, func(r *ScheduledReport) bool { return sameName(r.Name, stored) }), nil
+}
+
+func (client *APIClient) ScheduledReportCreateOp(data ScheduledReport) CreateOp[ScheduledReport] {
+	return CreateOp[ScheduledReport]{
+		What:   fmt.Sprintf("scheduled report named %q", data.Name),
+		ID:     func(o *ScheduledReport) string { return o.ID },
+		Create: func() (*ScheduledReport, error) { return client.createScheduledReport(data) },
+		IDs:    func() (map[string]bool, error) { return client.ListScheduledReportIDsByName(data.Name) },
+		Get:    client.GetScheduledReport,
+	}
 }
 
 func (client *APIClient) UpdateScheduledReport(id string, prior, next ScheduledReport) (*ScheduledReport, error) {

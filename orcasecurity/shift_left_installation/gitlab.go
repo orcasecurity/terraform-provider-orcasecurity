@@ -40,8 +40,8 @@ func NewGitlabInstallationResource() resource.Resource {
 		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return shift_left_integration.InstallationLifecycle[gitlabInstallationModel, api_client.GitlabInstallation]{
 				SCMName: "GitLab",
-				Create: func(plan *gitlabInstallationModel) (*api_client.GitlabInstallation, error) {
-					return apiClient.CreateGitlabInstallation(gitlabWriteBody(plan))
+				CreateOp: func(plan *gitlabInstallationModel) api_client.CreateOp[api_client.GitlabInstallation] {
+					return apiClient.GitlabInstallationCreateOp(gitlabWriteBody(plan))
 				},
 				Get: apiClient.GetGitlabInstallation,
 				Update: func(plan *gitlabInstallationModel) (*api_client.GitlabInstallation, error) {
@@ -49,8 +49,6 @@ func NewGitlabInstallationResource() resource.Resource {
 				},
 				Delete:   apiClient.DeleteGitlabInstallation,
 				ID:       func(m *gitlabInstallationModel) string { return m.ID.ValueString() },
-				Name:     func(m *gitlabInstallationModel) string { return m.Name.ValueString() },
-				IDsNamed: installationIDsNamed(apiClient.ListGitlabInstallations, func(i *api_client.GitlabInstallation) (string, string) { return i.ID, i.Name }),
 				SetState: gitlabSetState,
 			}
 		},

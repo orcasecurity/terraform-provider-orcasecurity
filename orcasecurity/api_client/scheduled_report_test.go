@@ -85,7 +85,7 @@ func TestCreateScheduledReport(t *testing.T) {
 
 	apiClient := newTestAPIClient(httpClient)
 	status := ScheduledReportStatusActive
-	report, err := apiClient.CreateScheduledReport(ScheduledReport{
+	report, err := apiClient.createScheduledReport(ScheduledReport{
 		Name:             "Weekly open alerts",
 		Type:             "alerts_svl",
 		Format:           "csv",
@@ -291,7 +291,7 @@ func TestScheduledReportUpdatePayload_SendsChangedValues(t *testing.T) {
 // Live lab: a create that sends "" stores "" where an omitted field stores null.
 func TestScheduledReportCreatePayload_OmitsUnsetOptionals(t *testing.T) {
 	payload := captureScheduledReportBody(t, func(c APIClient) error {
-		_, err := c.CreateScheduledReport(clearedScheduledReport())
+		_, err := c.createScheduledReport(clearedScheduledReport())
 		return err
 	})
 	for _, field := range append(append([]string{"id", "status"}, scheduledReportClearableStrings...), scheduledReportClearableObjects...) {
@@ -310,7 +310,7 @@ func TestScheduledReportCreatePayload_KeepsSetOptionals(t *testing.T) {
 	report.Bucket = "b"
 	report.Config = jsonObject{"compression_type": ".zip"}
 	payload := captureScheduledReportBody(t, func(c APIClient) error {
-		_, err := c.CreateScheduledReport(report)
+		_, err := c.createScheduledReport(report)
 		return err
 	})
 	assertSentAs(t, payload, "sonar_query", `"{\"models\":[\"Alert\"]}"`)

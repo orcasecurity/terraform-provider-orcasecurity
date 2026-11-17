@@ -10,10 +10,6 @@ type PagerDutyConfig struct {
 // type name and field access while CRUD plumbing flows through the shared helper.
 type PagerDutyExternalServiceConfig = ConfigEnvelope[PagerDutyConfig]
 
-func (client *APIClient) CreatePagerDutyConfig(payload PagerDutyExternalServiceConfig) (*PagerDutyExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[PagerDutyConfig](client, PagerDutyServiceName, payload)
-}
-
 func (client *APIClient) GetPagerDutyConfig(templateName string) (*PagerDutyExternalServiceConfig, error) {
 	return GetExternalServiceConfig[PagerDutyConfig](client, PagerDutyServiceName, templateName, nil)
 }

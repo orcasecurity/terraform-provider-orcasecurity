@@ -40,8 +40,8 @@ func NewAzureDevopsInstallationResource() resource.Resource {
 		OpsFn: func(apiClient *api_client.APIClient) shift_left_integration.UnitOps {
 			return shift_left_integration.InstallationLifecycle[azureInstallationModel, api_client.AzureDevopsInstallation]{
 				SCMName: "Azure DevOps",
-				Create: func(plan *azureInstallationModel) (*api_client.AzureDevopsInstallation, error) {
-					return apiClient.CreateAzureDevopsInstallation(azureWriteBody(plan))
+				CreateOp: func(plan *azureInstallationModel) api_client.CreateOp[api_client.AzureDevopsInstallation] {
+					return apiClient.AzureDevopsInstallationCreateOp(azureWriteBody(plan))
 				},
 				Get: apiClient.GetAzureDevopsInstallation,
 				Update: func(plan *azureInstallationModel) (*api_client.AzureDevopsInstallation, error) {
@@ -49,8 +49,6 @@ func NewAzureDevopsInstallationResource() resource.Resource {
 				},
 				Delete:   apiClient.DeleteAzureDevopsInstallation,
 				ID:       func(m *azureInstallationModel) string { return m.ID.ValueString() },
-				Name:     func(m *azureInstallationModel) string { return m.Name.ValueString() },
-				IDsNamed: installationIDsNamed(apiClient.ListAzureDevopsInstallations, func(i *api_client.AzureDevopsInstallation) (string, string) { return i.ID, i.Name }),
 				SetState: azureSetState,
 			}
 		},

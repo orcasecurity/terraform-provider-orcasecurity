@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
+	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -202,15 +204,16 @@ func (r *shiftLeftCveExceptionListResource) Create(ctx context.Context, req reso
 
 	}
 
+	disabled := plan.Disabled.ValueBool()
 	exceptionListToCreate := api_client.ShiftLeftCveExceptionList{
 		Name:            plan.Name.ValueString(),
 		Description:     plan.Description.ValueString(),
-		Disabled:        plan.Disabled.ValueBool(),
+		Disabled:        &disabled,
 		Projects:        projects,
 		Vulnerabilities: vulnerabilities,
 	}
 
-	instance, err := r.apiClient.CreateShiftLeftCveExceptionList(exceptionListToCreate)
+	instance, err := createrecovery.Run(ctx, r.apiClient.ShiftLeftCveExceptionListCreateOp(exceptionListToCreate), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating exception list",
@@ -265,14 +268,19 @@ func (r *shiftLeftCveExceptionListResource) Read(ctx context.Context, req resour
 	} else {
 		state.Description = types.StringNull()
 	}
-	state.Disabled = types.BoolValue(instance.Disabled)
+	priorVulnDisabled := map[string]types.Bool{}
+	for _, v := range state.Vulnerabilities {
+		priorVulnDisabled[v.CVEID.ValueString()] = v.Disabled
+	}
+	listDisabled := readListDisabled(state.Disabled, instance)
+	state.Disabled = types.BoolValue(listDisabled)
 
 	var vulnerabilities []Vulnerability
 	for _, item := range instance.Vulnerabilities {
 		vuln := Vulnerability{
 			CVEID:       types.StringValue(item.CVEID),
 			Description: types.StringValue(item.Description),
-			Disabled:    types.BoolValue(item.Disabled),
+			Disabled:    types.BoolValue(readVulnerabilityDisabled(item, listDisabled && instance.Disabled == nil, priorVulnDisabled[item.CVEID])),
 		}
 		if item.Expiration != "" {
 			vuln.Expiration = types.StringValue(item.Expiration)
@@ -345,11 +353,12 @@ func (r *shiftLeftCveExceptionListResource) Update(ctx context.Context, req reso
 		})
 	}
 
+	disabled := plan.Disabled.ValueBool()
 	updateReq := api_client.ShiftLeftCveExceptionList{
 		ID:          plan.ID.ValueString(),
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
-		Disabled:    plan.Disabled.ValueBool(),
+		Disabled:    &disabled,
 		//Projects:        projects,
 		Vulnerabilities: vulnerabilities,
 	}
@@ -395,4 +404,33 @@ func (r *shiftLeftCveExceptionListResource) Delete(ctx context.Context, req reso
 		)
 		return
 	}
+}
+
+// readListDisabled: when the server omits list-level disabled the list reads as disabled only while
+// every entry still is, so an entry re-enabled in the UI shows drift.
+func readListDisabled(prior types.Bool, instance *api_client.ShiftLeftCveExceptionList) bool {
+	if instance.Disabled != nil {
+		return *instance.Disabled
+	}
+	if tfconv.Known(prior) && !prior.ValueBool() {
+		return false
+	}
+	if len(instance.Vulnerabilities) == 0 {
+		return tfconv.BoolIsTrue(prior)
+	}
+	for _, v := range instance.Vulnerabilities {
+		if !v.Disabled {
+			return false
+		}
+	}
+	return true
+}
+
+// readVulnerabilityDisabled keeps a configured disabled=false on an entry the server disabled only
+// because the list was written with disabled=true.
+func readVulnerabilityDisabled(item api_client.Vulnerability, disabledByList bool, prior types.Bool) bool {
+	if disabledByList && item.Disabled && tfconv.Known(prior) {
+		return prior.ValueBool()
+	}
+	return item.Disabled
 }

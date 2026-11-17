@@ -8,10 +8,6 @@ type CloudflareConfig struct {
 
 type CloudflareExternalServiceConfig = ConfigEnvelope[CloudflareConfig]
 
-func (client *APIClient) CreateCloudflareConfig(payload CloudflareExternalServiceConfig) (*CloudflareExternalServiceConfig, error) {
-	return CreateExternalServiceConfig[CloudflareConfig](client, CloudflareServiceName, payload)
-}
-
 func (client *APIClient) GetCloudflareConfig(templateName string) (*CloudflareExternalServiceConfig, error) {
 	return GetExternalServiceConfig[CloudflareConfig](client, CloudflareServiceName, templateName, nil)
 }

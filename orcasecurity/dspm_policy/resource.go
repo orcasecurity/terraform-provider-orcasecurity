@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
+	"terraform-provider-orcasecurity/orcasecurity/internal/createrecovery"
 	"terraform-provider-orcasecurity/orcasecurity/tfconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -198,7 +199,7 @@ func (r *dspmPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	instance, err := r.apiClient.CreateDSPMPolicy(generatePolicyPayload(plan))
+	instance, err := createrecovery.Run(ctx, r.apiClient.DSPMPolicyCreateOp(generatePolicyPayload(plan)), &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating DSPM Policy",

@@ -60,6 +60,8 @@ type GitlabInstallationWrite struct {
 
 func (g *GitlabInstallation) installationID() string { return g.ID }
 
+func (g *GitlabInstallation) installationName() string { return g.Name }
+
 const gitlabInstallationsPath = "/api/shiftleft/gitlab/installations/"
 
 func (client *APIClient) ListGitlabInstallations() ([]GitlabInstallation, error) {
@@ -70,8 +72,8 @@ func (client *APIClient) GetGitlabInstallation(id string) (*GitlabInstallation, 
 	return findScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, id)
 }
 
-func (client *APIClient) CreateGitlabInstallation(body GitlabInstallationWrite) (*GitlabInstallation, error) {
-	return createScmInstallation[GitlabInstallation](client, gitlabInstallationsPath, body)
+func (client *APIClient) GitlabInstallationCreateOp(body GitlabInstallationWrite) CreateOp[GitlabInstallation] {
+	return scmInstallationCreateOp[GitlabInstallation](client, "GitLab", gitlabInstallationsPath, body.Name, body)
 }
 
 func (client *APIClient) UpdateGitlabInstallation(id string, body GitlabInstallationWrite) (*GitlabInstallation, error) {

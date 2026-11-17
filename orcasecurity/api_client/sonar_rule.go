@@ -4,13 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
+
+	"terraform-provider-orcasecurity/orcasecurity/internal/backoff"
 )
 
 const (
 	deletedRuleRecheckDelay = 1 * time.Second
 	// /api/sonar/rules/custom defaults to 20 per page; 1000 is its max_limit.
-	customRulesPageSize = 1000
+	customRulesPageSize      = 1000
+	sonarRulesPath           = "/api/sonar/rules"
+	customSonarRulesListPath = sonarRulesPath + "/custom"
 )
 
 // getSonarRule fetches a custom sonar rule. The API has no 404 here: unknown ids
@@ -22,7 +28,7 @@ func (client *APIClient) getSonarRule(id string) (resp *APIResponse, missing boo
 	path := fmt.Sprintf("/api/sonar/rules/%s", id)
 	resp, err = client.Get(path)
 	if resp != nil && resp.StatusCode() == http.StatusInternalServerError {
-		if sleepErr := retrySleep(context.Background(), deletedRuleRecheckDelay+retryJitter(deletedRuleRecheckDelay/2)); sleepErr != nil {
+		if sleepErr := backoff.Sleep(context.Background(), deletedRuleRecheckDelay+retryJitter(deletedRuleRecheckDelay/2)); sleepErr != nil {
 			return nil, false, sleepErr
 		}
 		resp, err = client.Get(path)
@@ -42,30 +48,92 @@ func (client *APIClient) getSonarRule(id string) (resp *APIResponse, missing boo
 }
 
 func (client *APIClient) customSonarRuleExists(id string) (bool, error) {
+	found := false
+	err := client.scanCustomSonarRules(nil, func(rule customSonarRuleRow) bool {
+		found = rule.RuleID == id
+		return found
+	})
+	return found && err == nil, err
+}
+
+type customSonarRuleRow struct {
+	RuleID string `json:"rule_id"`
+	Name   string `json:"name"`
+}
+
+// scanCustomSonarRules pages the custom-rules list, calling visit on each rule until it returns true.
+func (client *APIClient) scanCustomSonarRules(filters listFilters, visit func(customSonarRuleRow) bool) error {
 	type pageType struct {
-		Data []struct {
-			RuleID string `json:"rule_id"`
-		} `json:"data"`
-		TotalItems int `json:"total_items"`
+		Data       []customSonarRuleRow `json:"data"`
+		TotalItems int                  `json:"total_items"`
 	}
 	offset := 0
 	for {
-		resp, err := client.Get(fmt.Sprintf("/api/sonar/rules/custom?limit=%d&start_at_index=%d", customRulesPageSize, offset))
+		query := filters.query()
+		query.Set("limit", strconv.Itoa(customRulesPageSize))
+		query.Set("start_at_index", strconv.Itoa(offset))
+		resp, err := client.Get(customSonarRulesListPath + "?" + query.Encode())
 		if err != nil {
-			return false, err
+			return err
 		}
 		page := pageType{}
 		if err := resp.ReadJSON(&page); err != nil {
-			return false, err
+			return err
 		}
 		for _, rule := range page.Data {
-			if rule.RuleID == id {
-				return true, nil
+			if visit(rule) {
+				return nil
 			}
 		}
 		offset += len(page.Data)
 		if len(page.Data) == 0 || offset >= page.TotalItems {
-			return false, nil
+			return nil
 		}
 	}
+}
+
+// The list has no stable ordering and free_text_search is icontains over name, category, rule and creator.
+func (client *APIClient) ListCustomSonarRuleIDsByName(name string) (map[string]bool, error) {
+	ids := map[string]bool{}
+	err := client.scanCustomSonarRules(listFilters{"free_text_search": strings.TrimSpace(name)}, func(rule customSonarRuleRow) bool {
+		if sameName(rule.Name, name) {
+			ids[rule.RuleID] = true
+		}
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// Custom sonar and discovery alerts are both rules created through POST /api/sonar/rules.
+func sonarRuleCreateOp[T any](client *APIClient, name string, body any, id func(*T) string, get func(string) (*T, error)) CreateOp[T] {
+	return CreateOp[T]{
+		What: fmt.Sprintf("custom alert named %q", name),
+		ID:   id,
+		Create: func() (*T, error) {
+			resp, err := client.PostCreate(sonarRulesPath, body)
+			if err != nil {
+				return nil, err
+			}
+			return readData[T](resp)
+		},
+		IDs: func() (map[string]bool, error) { return client.ListCustomSonarRuleIDsByName(name) },
+		Get: get,
+	}
+}
+
+// SetCreatedCustomAlertRemediation sets a just-created custom alert's remediation text (keyed by its
+// rule type), deleting the rule if that fails so no untracked rule is left behind.
+func (client *APIClient) SetCreatedCustomAlertRemediation(ruleID, ruleType string, text *CustomSonarAlertRemediationText) error {
+	if text == nil {
+		return nil
+	}
+	withType := *text
+	withType.AlertType = ruleType
+	if err := client.setCustomRemediationText(withType); err != nil {
+		return rollbackCreatedRule(err, ruleID, client.DeleteCustomSonarAlert)
+	}
+	return nil
 }
