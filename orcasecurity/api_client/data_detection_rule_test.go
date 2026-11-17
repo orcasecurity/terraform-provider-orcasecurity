@@ -2,6 +2,7 @@ package api_client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -103,9 +104,24 @@ func TestCreateDataDetectionRule_MissingRuleID(t *testing.T) {
 	})}
 
 	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
+	rule, err := client.DataDetectionRuleCreateOp(DataDetectionRule{Name: "tf rule", Feature: "DSPM Scanning", Action: "scan"}).Create()
+	if err != nil || rule != nil {
+		t.Fatalf("expected nil rule and nil error so the create is recovered, got %+v, %v", rule, err)
+	}
+}
+
+func TestCreateDataDetectionRule_UndecodableResponseIsAmbiguous(t *testing.T) {
+	httpClient := &http.Client{Transport: RoundTripFunc(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`<html>ok</html>`)),
+		}
+	})}
+
+	client := APIClient{APIEndpoint: "http://localhost", APIToken: "secret", HTTPClient: httpClient}
 	_, err := client.createDataDetectionRule(DataDetectionRule{Name: "tf rule", Feature: "DSPM Scanning", Action: "scan"})
-	if err == nil {
-		t.Fatal("expected error when response has no rule_id")
+	if !errors.Is(err, ErrAmbiguousWrite) {
+		t.Fatalf("expected ErrAmbiguousWrite, got %v", err)
 	}
 }
 

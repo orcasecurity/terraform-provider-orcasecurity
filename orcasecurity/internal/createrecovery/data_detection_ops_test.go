@@ -7,13 +7,13 @@ import (
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 )
 
-func init() {
+func dataDetectionRuleCase(name string) opCase {
 	base := "/api/scan_configuration/rules"
 	row := func(id string) string {
 		return fmt.Sprintf(`{"rule_id":%q,"rule_name":%q,"feature":"DSPM Scanning","action":"scan"}`, id, stubTag)
 	}
-	opCases = append(opCases, opCase{
-		name:   "data_detection_rule",
+	return opCase{
+		name:   name,
 		method: http.MethodPut,
 		path:   base,
 		get: map[string]func(bool) string{
@@ -26,5 +26,13 @@ func init() {
 		op: func(c *api_client.APIClient) runner {
 			return runOp(c.DataDetectionRuleCreateOp(api_client.DataDetectionRule{Name: stubTag, Feature: "DSPM Scanning", Action: "scan"}))
 		},
-	})
+	}
+}
+
+func init() {
+	opCases = append(opCases,
+		dataDetectionRuleCase("data_detection_rule"),
+		withAnswer(dataDetectionRuleCase("data_detection_rule_without_id"), `{"status":"success","data":{}}`),
+		withAnswer(dataDetectionRuleCase("data_detection_rule_undecodable"), `<html>ok</html>`),
+	)
 }

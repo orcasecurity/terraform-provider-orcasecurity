@@ -88,10 +88,8 @@ func (client *APIClient) createDataDetectionRule(data DataDetectionRule) (string
 	}
 	result, err := readData[createResult](resp)
 	if err != nil {
-		return "", err
-	}
-	if result.RuleID == "" {
-		return "", fmt.Errorf("rule create: missing rule_id in response: %s", string(resp.Body()))
+		return "", fmt.Errorf("%w: data detection rule create succeeded but its response could not be decoded: %s",
+			ErrAmbiguousWrite, string(resp.Body()))
 	}
 	return result.RuleID, nil
 }
@@ -148,7 +146,7 @@ func (client *APIClient) DataDetectionRuleCreateOp(data DataDetectionRule) Creat
 		ID:   func(r *DataDetectionRule) string { return r.ID },
 		Create: func() (*DataDetectionRule, error) {
 			id, err := client.createDataDetectionRule(data)
-			if err != nil {
+			if err != nil || id == "" {
 				return nil, err
 			}
 			return ReadCreated(what, id, client.GetDataDetectionRule)
