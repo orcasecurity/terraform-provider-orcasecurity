@@ -60,3 +60,21 @@ func TestListRBACRoles_NonSuccessStatus(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestIsBuiltInShiftleftRole(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"success","data":[{"id":"r-sl","name":"Shiftleft User"},{"id":"r-viewer","name":"Viewer"}]}`))
+	}))
+	defer srv.Close()
+
+	c := &APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}
+	for roleID, want := range map[string]bool{"r-sl": true, "r-viewer": false, "r-missing": false} {
+		got, err := c.IsBuiltInShiftleftRole(roleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%s: want %v, got %v", roleID, want, got)
+		}
+	}
+}

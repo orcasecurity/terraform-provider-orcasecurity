@@ -40,3 +40,35 @@ func ValidateShiftleftGlobalScope(shiftleftGlobal types.Bool, allCloudAccounts t
 	)
 	return diags
 }
+
+// ScopeFlags are the two wide scopes a role grant can take.
+type ScopeFlags struct {
+	AllCloudAccounts bool
+	ShiftleftGlobal  bool
+}
+
+// ScopeIsUnset reports whether the config names no scope at all: both wide flags
+// left unset and every list scope null, unknown or empty.
+func ScopeIsUnset(allCloudAccounts types.Bool, shiftleftGlobal types.Bool, lists map[string]types.List) bool {
+	if !allCloudAccounts.IsNull() && !allCloudAccounts.IsUnknown() {
+		return false
+	}
+	if !shiftleftGlobal.IsNull() && !shiftleftGlobal.IsUnknown() {
+		return false
+	}
+	for _, list := range lists {
+		if !list.IsUnknown() && !list.IsNull() && len(list.Elements()) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// DefaultScope is what the UI preselects when no scope is chosen: the Shift Left
+// global scope for a built-in Shift Left role, all cloud accounts for any other role.
+func DefaultScope(isBuiltInShiftleftRole bool) ScopeFlags {
+	if isBuiltInShiftleftRole {
+		return ScopeFlags{ShiftleftGlobal: true}
+	}
+	return ScopeFlags{AllCloudAccounts: true}
+}

@@ -139,3 +139,20 @@ func TestModelToRequest_ShiftleftGlobal(t *testing.T) {
 		t.Errorf("scope mismatch: shiftleft_global=%v all=%v", got.ShiftleftGlobal, got.AllCloudAccounts)
 	}
 }
+
+// Invites by group carry no role, so the scope flags settle to false without a role lookup.
+func TestResolveScope_GroupsInviteHasNoScope(t *testing.T) {
+	r := &addUsersResource{}
+	plan := basePlan()
+	plan.RoleID = types.StringNull()
+	plan.Groups = testutils.StringList(t, "g-1")
+	plan.AllCloudAccounts = types.BoolUnknown()
+	plan.ShiftleftGlobal = types.BoolUnknown()
+
+	if diags := r.resolveScope(&plan); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if plan.AllCloudAccounts.ValueBool() || plan.ShiftleftGlobal.ValueBool() || plan.AllCloudAccounts.IsUnknown() {
+		t.Errorf("groups invite: %+v", plan)
+	}
+}

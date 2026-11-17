@@ -6,14 +6,13 @@ resource "orcasecurity_group_access" "role_on_bu" {
   user_filters       = [orcasecurity_business_unit.example.id]
 }
 
-// Built-in Shift Left roles belong in the Shift Left global scope, not in all_cloud_accounts.
+// With no scope set, a built-in Shift Left role defaults to the Shift Left global scope
+// (shiftleft_global = true); any other role defaults to all_cloud_accounts = true.
 data "orcasecurity_rbac_roles" "all" {}
 
 resource "orcasecurity_group_access" "shiftleft_user_on_all_projects" {
-  group_id           = orcasecurity_group.example.id
-  role_id            = one([for r in data.orcasecurity_rbac_roles.all.roles : r.id if r.name == "Shiftleft User"])
-  all_cloud_accounts = false
-  shiftleft_global   = true
+  group_id = orcasecurity_group.example.id
+  role_id  = one([for r in data.orcasecurity_rbac_roles.all.roles : r.id if r.name == "Shiftleft User"])
 }
 
 resource "orcasecurity_custom_role" "example" {

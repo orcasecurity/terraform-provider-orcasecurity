@@ -2,6 +2,8 @@ package user_access
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 	"terraform-provider-orcasecurity/orcasecurity/internal/testutils"
 	"testing"
@@ -249,5 +251,67 @@ func TestModelToAPI_ApiToModel_ShiftleftGlobalRoundTrip(t *testing.T) {
 	}
 	if !got.ShiftleftGlobal.ValueBool() || got.AllCloudAccounts.ValueBool() {
 		t.Errorf("state scope mismatch: %+v", got)
+	}
+}
+
+func rolesServer(t *testing.T) *userAccessResource {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"success","data":[{"id":"r-sl","name":"Shiftleft Administrator"},{"id":"r-viewer","name":"Viewer"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	return &userAccessResource{apiClient: &api_client.APIClient{APIEndpoint: srv.URL, APIToken: "tok", HTTPClient: srv.Client()}}
+}
+
+func unsetScopePlan(roleID string) userAccessResourceModel {
+	plan := *nullListsRef()
+	plan.UserID = types.StringValue("user-1")
+	plan.RoleID = types.StringValue(roleID)
+	plan.AllCloudAccounts = types.BoolUnknown()
+	plan.ShiftleftGlobal = types.BoolUnknown()
+	return plan
+}
+
+// No scope in the config: a built-in Shift Left role lands in shiftleft_global, any other role on all cloud accounts.
+func TestResolveScope_DefaultsFollowTheRole(t *testing.T) {
+	r := rolesServer(t)
+
+	plan := unsetScopePlan("r-sl")
+	if diags := r.resolveScope(&plan); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !plan.ShiftleftGlobal.ValueBool() || plan.AllCloudAccounts.ValueBool() {
+		t.Errorf("Shift Left role: %+v", plan)
+	}
+
+	plan = unsetScopePlan("r-viewer")
+	if diags := r.resolveScope(&plan); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if plan.ShiftleftGlobal.ValueBool() || !plan.AllCloudAccounts.ValueBool() {
+		t.Errorf("Viewer: %+v", plan)
+	}
+}
+
+// An explicit scope wins over the default, and the unset flag becomes a known false.
+func TestResolveScope_ExplicitScopeWins(t *testing.T) {
+	r := rolesServer(t)
+
+	plan := unsetScopePlan("r-sl")
+	plan.AllCloudAccounts = types.BoolValue(true)
+	if diags := r.resolveScope(&plan); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !plan.AllCloudAccounts.ValueBool() || plan.ShiftleftGlobal.ValueBool() {
+		t.Errorf("explicit all_cloud_accounts: %+v", plan)
+	}
+
+	plan = unsetScopePlan("r-sl")
+	plan.UserFilters = testutils.StringList(t, "bu-1")
+	if diags := r.resolveScope(&plan); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if plan.AllCloudAccounts.ValueBool() || plan.ShiftleftGlobal.ValueBool() || plan.AllCloudAccounts.IsUnknown() {
+		t.Errorf("list scope: %+v", plan)
 	}
 }

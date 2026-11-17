@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -83,15 +82,17 @@ func (r *groupAccessResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"all_cloud_accounts": schema.BoolAttribute{
-				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics).",
-				Required:    true,
+				Description: "When true, scope includes all cloud accounts (see Orca RBAC semantics). " +
+					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to shiftleft_global.",
+				Optional: true,
+				Computed: true,
 			},
 			"shiftleft_global": schema.BoolAttribute{
 				Description: "When true, the role applies to every Shift Left project (the Shift Left global scope). " +
-					"Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters.",
+					"Mutually exclusive with all_cloud_accounts, cloud_accounts, shiftleft_projects and user_filters. " +
+					"Defaults to true for the built-in Shift Left roles when no scope is set.",
 				Optional: true,
 				Computed: true,
-				Default:  booldefault.StaticBool(false),
 			},
 			"cloud_accounts": schema.ListAttribute{
 				Description: "Scoped cloud account ids when not using all_cloud_accounts.",
@@ -123,6 +124,31 @@ func (r *groupAccessResource) ValidateConfig(ctx context.Context, req resource.V
 		"shiftleft_projects": config.ShiftleftProjects,
 		"user_filters":       config.UserFilters,
 	})...)
+}
+
+// resolveScope fills the wide scope flags the config left unset: the UI default for the
+// role when no scope is named at all, false otherwise.
+func (r *groupAccessResource) resolveScope(plan *groupAccessResourceModel) diag.Diagnostics {
+	lists := map[string]types.List{
+		"cloud_accounts":     plan.CloudAccounts,
+		"shiftleft_projects": plan.ShiftleftProjects,
+		"user_filters":       plan.UserFilters,
+	}
+	if common.ScopeIsUnset(plan.AllCloudAccounts, plan.ShiftleftGlobal, lists) {
+		isShiftleft, err := r.apiClient.IsBuiltInShiftleftRole(plan.RoleID.ValueString())
+		if err != nil {
+			var diags diag.Diagnostics
+			diags.AddError("Error resolving the default scope", err.Error())
+			return diags
+		}
+		scope := common.DefaultScope(isShiftleft)
+		plan.AllCloudAccounts = types.BoolValue(scope.AllCloudAccounts)
+		plan.ShiftleftGlobal = types.BoolValue(scope.ShiftleftGlobal)
+		return nil
+	}
+	plan.AllCloudAccounts = types.BoolValue(plan.AllCloudAccounts.ValueBool())
+	plan.ShiftleftGlobal = types.BoolValue(plan.ShiftleftGlobal.ValueBool())
+	return nil
 }
 
 func (r *groupAccessResource) modelToAPI(ctx context.Context, plan groupAccessResourceModel, assignmentID string) (api_client.GroupAccess, diag.Diagnostics) {
@@ -205,6 +231,10 @@ func (r *groupAccessResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToAPI(ctx, plan, "")
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -280,6 +310,10 @@ func (r *groupAccessResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToAPI(ctx, plan, prior.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

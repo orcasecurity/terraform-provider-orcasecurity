@@ -60,3 +60,29 @@ func TestValidateShiftleftGlobalScope_ConflictsAreListed(t *testing.T) {
 		t.Errorf("empty and null lists must not be reported, got %q", detail)
 	}
 }
+
+func TestScopeIsUnset(t *testing.T) {
+	unset := map[string]types.List{
+		"cloud_accounts":     types.ListNull(types.StringType),
+		"shiftleft_projects": stringList(),
+		"user_filters":       types.ListUnknown(types.StringType),
+	}
+	if !ScopeIsUnset(types.BoolNull(), types.BoolUnknown(), unset) {
+		t.Error("null and unknown flags with empty lists should count as unset")
+	}
+	if ScopeIsUnset(types.BoolValue(false), types.BoolNull(), unset) {
+		t.Error("an explicit false is a choice, not unset")
+	}
+	if ScopeIsUnset(types.BoolNull(), types.BoolNull(), map[string]types.List{"user_filters": stringList("bu-1")}) {
+		t.Error("a non-empty list scope is a choice")
+	}
+}
+
+func TestDefaultScope(t *testing.T) {
+	if got := DefaultScope(true); got != (ScopeFlags{ShiftleftGlobal: true}) {
+		t.Errorf("built-in Shift Left role: %+v", got)
+	}
+	if got := DefaultScope(false); got != (ScopeFlags{AllCloudAccounts: true}) {
+		t.Errorf("other role: %+v", got)
+	}
+}

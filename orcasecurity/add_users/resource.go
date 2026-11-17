@@ -111,20 +111,20 @@ func (r *addUsersResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 			"all_cloud_accounts": schema.BoolAttribute{
-				Description: "When true, the granted role applies to all cloud accounts. Only relevant with `role_id`.",
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
+				Description: "When true, the granted role applies to all cloud accounts. Only relevant with `role_id`. " +
+					"Defaults to true when no scope is set, except for the built-in Shift Left roles, which default to `shiftleft_global`.",
+				Optional: true,
+				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"shiftleft_global": schema.BoolAttribute{
 				Description: "When true, the granted role applies to every Shift Left project (the Shift Left global scope). " +
-					"Only relevant with `role_id`; mutually exclusive with `all_cloud_accounts`, `cloud_accounts`, `shiftleft_projects` and `user_filters`.",
+					"Only relevant with `role_id`; mutually exclusive with `all_cloud_accounts`, `cloud_accounts`, `shiftleft_projects` and `user_filters`. " +
+					"Defaults to true for the built-in Shift Left roles when no scope is set.",
 				Optional: true,
 				Computed: true,
-				Default:  booldefault.StaticBool(false),
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
 				},
@@ -199,6 +199,31 @@ func (r *addUsersResource) ValidateConfig(ctx context.Context, req resource.Vali
 	})...)
 }
 
+// resolveScope fills the wide scope flags the config left unset: the UI default for the
+// role when a role is given and no scope is named at all, false otherwise.
+func (r *addUsersResource) resolveScope(plan *addUsersResourceModel) diag.Diagnostics {
+	lists := map[string]types.List{
+		"cloud_accounts":     plan.CloudAccounts,
+		"shiftleft_projects": plan.ShiftleftProjects,
+		"user_filters":       plan.UserFilters,
+	}
+	if !plan.RoleID.IsNull() && plan.RoleID.ValueString() != "" && common.ScopeIsUnset(plan.AllCloudAccounts, plan.ShiftleftGlobal, lists) {
+		isShiftleft, err := r.apiClient.IsBuiltInShiftleftRole(plan.RoleID.ValueString())
+		if err != nil {
+			var diags diag.Diagnostics
+			diags.AddError("Error resolving the default scope", err.Error())
+			return diags
+		}
+		scope := common.DefaultScope(isShiftleft)
+		plan.AllCloudAccounts = types.BoolValue(scope.AllCloudAccounts)
+		plan.ShiftleftGlobal = types.BoolValue(scope.ShiftleftGlobal)
+		return nil
+	}
+	plan.AllCloudAccounts = types.BoolValue(plan.AllCloudAccounts.ValueBool())
+	plan.ShiftleftGlobal = types.BoolValue(plan.ShiftleftGlobal.ValueBool())
+	return nil
+}
+
 func (r *addUsersResource) modelToRequest(ctx context.Context, plan addUsersResourceModel) (api_client.UserInviteRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	groups, d := common.StringSliceFromList(ctx, plan.Groups)
@@ -233,6 +258,10 @@ func (r *addUsersResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	resp.Diagnostics.Append(r.resolveScope(&plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	payload, diags := r.modelToRequest(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
