@@ -20,7 +20,7 @@ data "orcasecurity_webhook" "example" {
 # custom_headers maps a header name to a list of { custom = "<value>" } objects.
 # Secret headers show "__orca_secret_set__" instead of their value.
 output "example_header" {
-  value = data.orcasecurity_webhook.example.config.custom_headers["X-Header"][0].custom
+  value = try(data.orcasecurity_webhook.example.config.custom_headers["X-Header"][0].custom, null)
 }
 ```
 
@@ -45,6 +45,6 @@ output "example_header" {
 
 Read-Only:
 
-- `custom_headers` (Map of List of Object) The HTTP headers sent by Orca to the webhook URL, keyed by header name. Each value is a list of `{ custom = "<value>" }` objects. Secret headers (for example authorization or token headers) show `__orca_secret_set__` instead of their value.
+- `custom_headers` (Map of List of Object) The HTTP headers sent by Orca to the webhook URL, keyed by header name. Each value is a list of `{ custom = "<value>" }` objects. Secret headers (for example authorization or token headers) show `__orca_secret_set__` instead of their value. Alert-field header values are not represented and show an empty `custom`.
 - `type` (String)
 - `webhook_url` (String) The URL of the webhook.

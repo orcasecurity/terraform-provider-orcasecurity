@@ -283,3 +283,16 @@ func TestCustomHeadersFromAPI_MixedSecretAndPlain(t *testing.T) {
 	assertCustoms(t, got, "Authorization", "s3cr3t")
 	assertCustoms(t, got, "X-Plain", "from-api")
 }
+
+func TestCustomHeadersFromAPI_NoHeadersWithEmptyPriorIsEmptyMap(t *testing.T) {
+	emptyPrior := types.MapValueMust(CustomHeaderListType(), map[string]attr.Value{})
+
+	got, diags := CustomHeadersFromAPI(nil, emptyPrior)
+
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if got.IsNull() || len(got.Elements()) != 0 {
+		t.Errorf("got %v, want an empty non-null map", got)
+	}
+}

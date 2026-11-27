@@ -1,6 +1,7 @@
 package api_client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -21,19 +22,32 @@ type WebhookCustomHeaderValue struct {
 // WebhookCustomHeaderValues is the value of one custom header. It decodes the two shapes the
 // API emits: a list of {custom} objects, and a legacy plain string (one {custom: s} entry).
 // It always serializes as the list.
+//
+// An alert-field entry ({"orca": "<field>"}) has no "custom" key and decodes as {custom: ""};
+// the provider does not model alert-field header values.
 type WebhookCustomHeaderValues []WebhookCustomHeaderValue
 
 func (v *WebhookCustomHeaderValues) UnmarshalJSON(data []byte) error {
+	// 1. null: the header has no value.
+	if string(bytes.TrimSpace(data)) == "null" {
+		*v = WebhookCustomHeaderValues{}
+		return nil
+	}
+
+	// 2. Legacy shape: the value is the header literal itself.
 	var plain string
 	if err := json.Unmarshal(data, &plain); err == nil {
 		*v = WebhookCustomHeaderValues{{Custom: plain}}
 		return nil
 	}
+
+	// 3. Current shape: a list of {custom} objects.
 	var list []WebhookCustomHeaderValue
 	if err := json.Unmarshal(data, &list); err == nil {
 		*v = list
 		return nil
 	}
+
 	return fmt.Errorf("webhook custom header: expected a string or a list of {custom} objects, got: %s", string(data))
 }
 

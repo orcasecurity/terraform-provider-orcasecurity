@@ -5,5 +5,5 @@ data "orcasecurity_webhook" "example" {
 # custom_headers maps a header name to a list of { custom = "<value>" } objects.
 # Secret headers show "__orca_secret_set__" instead of their value.
 output "example_header" {
-  value = data.orcasecurity_webhook.example.config.custom_headers["X-Header"][0].custom
+  value = try(data.orcasecurity_webhook.example.config.custom_headers["X-Header"][0].custom, null)
 }

@@ -55,13 +55,15 @@ func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string]api_
 	return out, diags
 }
 
-// CustomHeadersFromAPI converts the API map into a Terraform Map.
-// Preserves a null planned value when the API returns no headers.
-// A header the API reports as the secret marker is "unchanged": it keeps the list from the
-// planned (prior) map, or the marker itself when the prior map has no value for that header.
-func CustomHeadersFromAPI(headers map[string]api_client.WebhookCustomHeaderValues, planned types.Map) (types.Map, diag.Diagnostics) {
+// CustomHeadersFromAPI converts the API map into a Terraform Map, header by header:
+//   - secret marker, prior has the header -> the prior list (the secret is unchanged)
+//   - secret marker, no prior value       -> the marker (import, or a header added in the UI)
+//   - any other value                     -> the API value
+//
+// No headers from the API and a null prior -> null (keeps an unset attribute unset).
+func CustomHeadersFromAPI(headers map[string]api_client.WebhookCustomHeaderValues, prior types.Map) (types.Map, diag.Diagnostics) {
 	listType := CustomHeaderListType()
-	if len(headers) == 0 && planned.IsNull() {
+	if len(headers) == 0 && prior.IsNull() {
 		return types.MapNull(listType), nil
 	}
 
@@ -69,7 +71,7 @@ func CustomHeadersFromAPI(headers map[string]api_client.WebhookCustomHeaderValue
 	elements := make(map[string]attr.Value, len(headers))
 	for name, apiValues := range headers {
 		if containsSecretMarker(apiValues) {
-			if priorList, found := priorHeaderList(planned, name); found {
+			if priorList, found := priorHeaderList(prior, name); found {
 				elements[name] = priorList
 				continue
 			}

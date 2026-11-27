@@ -25,6 +25,16 @@ func TestWebhookCustomHeaderValues_Decode(t *testing.T) {
 	}
 }
 
+func TestWebhookCustomHeaderValues_NullIsEmpty(t *testing.T) {
+	var got map[string]WebhookCustomHeaderValues
+	if err := json.Unmarshal([]byte(`{"X": null}`), &got); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got["X"]) != 0 {
+		t.Errorf("got %+v, want no values", got["X"])
+	}
+}
+
 func TestWebhookCustomHeaderValues_RejectsOtherShapes(t *testing.T) {
 	var got map[string]WebhookCustomHeaderValues
 	if err := json.Unmarshal([]byte(`{"X": 5}`), &got); err == nil {
