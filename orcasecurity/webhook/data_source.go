@@ -4,6 +4,7 @@ import (
 	"context"
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -72,8 +73,8 @@ func (ds *dataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp
 				Attributes: map[string]schema.Attribute{
 					"custom_headers": schema.MapAttribute{
 						Computed:    true,
-						ElementType: types.StringType,
-						Description: "They key-value pairs that are the HTTP headers sent by Orca to the webhook URL.",
+						ElementType: CustomHeaderListType(),
+						Description: "The HTTP headers sent by Orca to the webhook URL, keyed by header name. Each value is a list of `{ custom = \"<value>\" }` objects. Secret headers (for example authorization or token headers) show `__orca_secret_set__` instead of their value. Alert-field header values are not represented and show an empty `custom`.",
 					},
 					"type": schema.StringAttribute{
 						Computed: true,
@@ -100,12 +101,10 @@ func (ds *dataSource) Read(ctx context.Context, req datasource.ReadRequest, resp
 		return
 	}
 
-	// Convert the map[string]string to types.Map
-	customHeadersMap, diags := types.MapValueFrom(
-		ctx,
-		types.StringType, // Changed: now expecting map[string]string
-		item.Config.CustomHeaders,
-	)
+	// An empty prior map: the data source has no state to take hidden secret values from, and a
+	// webhook without headers reads as an empty map, not null.
+	noPrior := types.MapValueMust(CustomHeaderListType(), map[string]attr.Value{})
+	customHeadersMap, diags := CustomHeadersFromAPI(item.Config.CustomHeaders, noPrior)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
