@@ -1,6 +1,14 @@
 package api_client
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 const WebhookConfigServiceName = "webhook"
+
+// WebhookSecretSetMarker mirrors orca's SECRET_SET_MARKER.
+const WebhookSecretSetMarker = "__orca_secret_set__"
 
 // WebhookCustomHeaderValue mirrors the Orca payload shape for custom headers:
 // custom_headers is a map keyed by header name whose value is a list of objects with a
@@ -10,12 +18,31 @@ type WebhookCustomHeaderValue struct {
 	Custom string `json:"custom"`
 }
 
+// WebhookCustomHeaderValues is the value of one custom header. It decodes the two shapes the
+// API emits: a list of {custom} objects, and a legacy plain string (one {custom: s} entry).
+// It always serializes as the list.
+type WebhookCustomHeaderValues []WebhookCustomHeaderValue
+
+func (v *WebhookCustomHeaderValues) UnmarshalJSON(data []byte) error {
+	var plain string
+	if err := json.Unmarshal(data, &plain); err == nil {
+		*v = WebhookCustomHeaderValues{{Custom: plain}}
+		return nil
+	}
+	var list []WebhookCustomHeaderValue
+	if err := json.Unmarshal(data, &list); err == nil {
+		*v = list
+		return nil
+	}
+	return fmt.Errorf("webhook custom header: expected a string or a list of {custom} objects, got: %s", string(data))
+}
+
 type WebhookResourceConfig struct {
-	WebhookURL    string                                `json:"webhook_url"`
-	Type          string                                `json:"type"`
-	APIKey        string                                `json:"api_key,omitempty"`
-	BodyFields    []string                              `json:"body_fields,omitempty"`
-	CustomHeaders map[string][]WebhookCustomHeaderValue `json:"custom_headers,omitempty"`
+	WebhookURL    string                               `json:"webhook_url"`
+	Type          string                               `json:"type"`
+	APIKey        string                               `json:"api_key,omitempty"`
+	BodyFields    []string                             `json:"body_fields,omitempty"`
+	CustomHeaders map[string]WebhookCustomHeaderValues `json:"custom_headers,omitempty"`
 }
 
 type WebhookExternalServiceConfig = ConfigEnvelope[WebhookResourceConfig]

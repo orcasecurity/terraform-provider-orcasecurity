@@ -17,9 +17,9 @@ type Webhook struct {
 }
 
 type Config struct {
-	CustomHeaders map[string]string `json:"custom_headers"`
-	Type          string            `json:"type"`
-	WebhookUrl    string            `json:"webhook_url"`
+	CustomHeaders map[string]WebhookCustomHeaderValues `json:"custom_headers"`
+	Type          string                               `json:"type"`
+	WebhookUrl    string                               `json:"webhook_url"`
 }
 
 func (client *APIClient) GetWebhookByName(name string) (*Webhook, error) {

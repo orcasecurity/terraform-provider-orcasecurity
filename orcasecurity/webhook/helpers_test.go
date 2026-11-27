@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"terraform-provider-orcasecurity/orcasecurity/api_client"
@@ -167,11 +168,118 @@ func TestCustomHeadersToAPI_RoundTrip(t *testing.T) {
 }
 
 func TestCustomHeadersFromAPI_NullPreservedOnEmpty(t *testing.T) {
-	got, diags := CustomHeadersFromAPI(map[string][]api_client.WebhookCustomHeaderValue{}, types.MapNull(CustomHeaderListType()))
+	got, diags := CustomHeadersFromAPI(map[string]api_client.WebhookCustomHeaderValues{}, types.MapNull(CustomHeaderListType()))
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if !got.IsNull() {
 		t.Errorf("expected null preserved when API and planned both empty")
 	}
+}
+
+// headersMap builds a Terraform headers map from name -> custom values.
+func headersMap(t *testing.T, headers map[string][]string) types.Map {
+	t.Helper()
+	elements := map[string]attr.Value{}
+	for name, customs := range headers {
+		list, diags := headerValuesToList(apiValues(customs...))
+		if diags.HasError() {
+			t.Fatalf("building list: %v", diags)
+		}
+		elements[name] = list
+	}
+	m, diags := types.MapValue(CustomHeaderListType(), elements)
+	if diags.HasError() {
+		t.Fatalf("building map: %v", diags)
+	}
+	return m
+}
+
+func apiValues(customs ...string) api_client.WebhookCustomHeaderValues {
+	values := api_client.WebhookCustomHeaderValues{}
+	for _, c := range customs {
+		values = append(values, api_client.WebhookCustomHeaderValue{Custom: c})
+	}
+	return values
+}
+
+// customsOf returns the custom values stored under a header name of the result map.
+func customsOf(t *testing.T, m types.Map, name string) []string {
+	t.Helper()
+	list, ok := m.Elements()[name].(types.List)
+	if !ok {
+		t.Fatalf("header %q missing or not a list in %v", name, m)
+	}
+	var out []string
+	for _, e := range list.Elements() {
+		out = append(out, e.(types.Object).Attributes()["custom"].(types.String).ValueString())
+	}
+	return out
+}
+
+func assertCustoms(t *testing.T, m types.Map, name string, want ...string) {
+	t.Helper()
+	if got := customsOf(t, m, name); !reflect.DeepEqual(got, want) {
+		t.Errorf("header %q: got %v, want %v", name, got, want)
+	}
+}
+
+const marker = api_client.WebhookSecretSetMarker
+
+func TestCustomHeadersFromAPI_MarkerKeepsPriorValue(t *testing.T) {
+	api := map[string]api_client.WebhookCustomHeaderValues{"Authorization": apiValues(marker)}
+	prior := headersMap(t, map[string][]string{"Authorization": {"s3cr3t"}})
+
+	got, diags := CustomHeadersFromAPI(api, prior)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	assertCustoms(t, got, "Authorization", "s3cr3t")
+}
+
+func TestCustomHeadersFromAPI_MarkerWithNullPriorStaysMarker(t *testing.T) {
+	api := map[string]api_client.WebhookCustomHeaderValues{"Authorization": apiValues(marker)}
+
+	got, diags := CustomHeadersFromAPI(api, types.MapNull(CustomHeaderListType()))
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	assertCustoms(t, got, "Authorization", marker)
+}
+
+func TestCustomHeadersFromAPI_MarkerWithPriorMissingKeyStaysMarker(t *testing.T) {
+	api := map[string]api_client.WebhookCustomHeaderValues{"Authorization": apiValues(marker)}
+	prior := headersMap(t, map[string][]string{"Other": {"x"}})
+
+	got, diags := CustomHeadersFromAPI(api, prior)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	assertCustoms(t, got, "Authorization", marker)
+}
+
+func TestCustomHeadersFromAPI_PlainHeaderTakesAPIValue(t *testing.T) {
+	api := map[string]api_client.WebhookCustomHeaderValues{"X-Plain": apiValues("from-api")}
+	prior := headersMap(t, map[string][]string{"X-Plain": {"from-state"}})
+
+	got, diags := CustomHeadersFromAPI(api, prior)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	assertCustoms(t, got, "X-Plain", "from-api")
+}
+
+func TestCustomHeadersFromAPI_MixedSecretAndPlain(t *testing.T) {
+	api := map[string]api_client.WebhookCustomHeaderValues{
+		"Authorization": apiValues(marker),
+		"X-Plain":       apiValues("from-api"),
+	}
+	prior := headersMap(t, map[string][]string{"Authorization": {"s3cr3t"}, "X-Plain": {"from-state"}})
+
+	got, diags := CustomHeadersFromAPI(api, prior)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	assertCustoms(t, got, "Authorization", "s3cr3t")
+	assertCustoms(t, got, "X-Plain", "from-api")
 }

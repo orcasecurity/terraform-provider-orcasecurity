@@ -23,7 +23,7 @@ func CustomHeaderListType() types.ListType {
 
 // CustomHeadersToAPI converts the Terraform Map into the API map shape.
 // Returns nil when the map is null/unknown so omitempty drops the field.
-func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string][]api_client.WebhookCustomHeaderValue, diag.Diagnostics) {
+func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string]api_client.WebhookCustomHeaderValues, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if headers.IsNull() || headers.IsUnknown() {
 		return nil, diags
@@ -34,7 +34,7 @@ func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string][]ap
 		return nil, diags
 	}
 
-	out := make(map[string][]api_client.WebhookCustomHeaderValue, len(raw))
+	out := make(map[string]api_client.WebhookCustomHeaderValues, len(raw))
 	for key, list := range raw {
 		if list.IsNull() || list.IsUnknown() {
 			continue
@@ -46,7 +46,7 @@ func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string][]ap
 		if diags.HasError() {
 			return nil, diags
 		}
-		values := make([]api_client.WebhookCustomHeaderValue, 0, len(objs))
+		values := make(api_client.WebhookCustomHeaderValues, 0, len(objs))
 		for _, o := range objs {
 			values = append(values, api_client.WebhookCustomHeaderValue{Custom: o.Custom.ValueString()})
 		}
@@ -57,27 +57,26 @@ func CustomHeadersToAPI(ctx context.Context, headers types.Map) (map[string][]ap
 
 // CustomHeadersFromAPI converts the API map into a Terraform Map.
 // Preserves a null planned value when the API returns no headers.
-func CustomHeadersFromAPI(headers map[string][]api_client.WebhookCustomHeaderValue, planned types.Map) (types.Map, diag.Diagnostics) {
+// A header the API reports as the secret marker is "unchanged": it keeps the list from the
+// planned (prior) map, or the marker itself when the prior map has no value for that header.
+func CustomHeadersFromAPI(headers map[string]api_client.WebhookCustomHeaderValues, planned types.Map) (types.Map, diag.Diagnostics) {
 	listType := CustomHeaderListType()
 	if len(headers) == 0 && planned.IsNull() {
 		return types.MapNull(listType), nil
 	}
 
-	objType := CustomHeaderObjectType()
-	elements := make(map[string]attr.Value, len(headers))
 	var diags diag.Diagnostics
-	for key, values := range headers {
-		objs := make([]attr.Value, 0, len(values))
-		for _, v := range values {
-			obj, objDiags := types.ObjectValue(objType.AttrTypes, map[string]attr.Value{
-				"custom": types.StringValue(v.Custom),
-			})
-			diags.Append(objDiags...)
-			objs = append(objs, obj)
+	elements := make(map[string]attr.Value, len(headers))
+	for name, apiValues := range headers {
+		if containsSecretMarker(apiValues) {
+			if priorList, found := priorHeaderList(planned, name); found {
+				elements[name] = priorList
+				continue
+			}
 		}
-		list, listDiags := types.ListValue(objType, objs)
+		list, listDiags := headerValuesToList(apiValues)
 		diags.Append(listDiags...)
-		elements[key] = list
+		elements[name] = list
 	}
 	if diags.HasError() {
 		return types.MapNull(listType), diags
@@ -85,6 +84,43 @@ func CustomHeadersFromAPI(headers map[string][]api_client.WebhookCustomHeaderVal
 	result, mapDiags := types.MapValue(listType, elements)
 	diags.Append(mapDiags...)
 	return result, diags
+}
+
+func containsSecretMarker(values api_client.WebhookCustomHeaderValues) bool {
+	for _, v := range values {
+		if v.Custom == api_client.WebhookSecretSetMarker {
+			return true
+		}
+	}
+	return false
+}
+
+// priorHeaderList returns the list stored in the prior map for a header name.
+func priorHeaderList(prior types.Map, name string) (attr.Value, bool) {
+	if prior.IsNull() || prior.IsUnknown() {
+		return nil, false
+	}
+	list, found := prior.Elements()[name]
+	if !found || list.IsNull() || list.IsUnknown() {
+		return nil, false
+	}
+	return list, true
+}
+
+func headerValuesToList(values api_client.WebhookCustomHeaderValues) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	objType := CustomHeaderObjectType()
+	objs := make([]attr.Value, 0, len(values))
+	for _, v := range values {
+		obj, objDiags := types.ObjectValue(objType.AttrTypes, map[string]attr.Value{
+			"custom": types.StringValue(v.Custom),
+		})
+		diags.Append(objDiags...)
+		objs = append(objs, obj)
+	}
+	list, listDiags := types.ListValue(objType, objs)
+	diags.Append(listDiags...)
+	return list, diags
 }
 
 // ExtractTopLevel populates only the cross-cutting identifiers. Used on Create/Update so the
